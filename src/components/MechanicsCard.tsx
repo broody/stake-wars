@@ -13,4 +13,3 @@ export const MechanicsCard = ({ title, description }: MechanicsCardProps) => {
     </div>
   );
 };
-

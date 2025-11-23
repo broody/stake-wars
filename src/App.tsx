@@ -1,5 +1,5 @@
 import { Starfield } from './components/Starfield';
-import { WireframeSphere } from './components/WireframeSphere';
+import { WireframeIcosphere } from './components/WireframeIcosphere';
 import { Scanlines } from './components/Scanlines';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -11,7 +11,7 @@ import { Footer } from './components/Footer';
 function App() {
   const mechanics = [
     {
-      title: '01. DEPLOY',
+      title: '01. STAKE',
       description:
         'Select a triangular face on the Iconosphere. Stake $STRK to capture the territory. Highest bidder takes the high ground immediately.',
     },
@@ -21,7 +21,7 @@ function App() {
         'Your image is beamed onto the face. As long as you hold the territory, your staked tokens are delegated to a Starknet validator.',
     },
     {
-      title: '03. HARVEST',
+      title: '03. CLAIM',
       description:
         'Earn real yield split between the active warlords. Displaced? Re-deploy your funds instantly to a new target. No waiting.',
     },
@@ -31,7 +31,7 @@ function App() {
     <>
       {/* Visual Layers */}
       <Starfield />
-      <WireframeSphere />
+      <WireframeIcosphere />
       <Scanlines />
 
       {/* Navigation */}
@@ -67,4 +67,3 @@ function App() {
 }
 
 export default App;
-

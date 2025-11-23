@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Logs
+*.log
+
+# Other
+.DS_Store
+coverage
+

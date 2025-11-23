@@ -7,7 +7,7 @@
     @apply bg-bg text-fg font-mono overflow-x-hidden;
     cursor: crosshair;
   }
-  
+
   a {
     @apply text-fg no-underline;
   }
@@ -32,4 +32,3 @@
   pointer-events: none;
   opacity: 0.3;
 }
-

@@ -7,7 +7,9 @@ const StatItem = ({ label, value }: StatItemProps) => {
   return (
     <div className="stat-item p-5 border-r border-dim text-center last:border-r-0">
       <div className="stat-label text-[0.8rem] text-[#888] mb-1">{label}</div>
-      <div className="stat-value text-[1.5rem] font-bold text-[#ccc]">{value}</div>
+      <div className="stat-value text-[1.5rem] font-bold text-[#ccc]">
+        {value}
+      </div>
     </div>
   );
 };
@@ -21,4 +23,3 @@ export const StatsBoard = () => {
     </div>
   );
 };
-

@@ -45,6 +45,22 @@ pnpm build
 pnpm preview
 ```
 
+### Linting & Formatting
+
+```bash
+# Run ESLint
+pnpm lint
+
+# Run ESLint with auto-fix
+pnpm lint:fix
+
+# Format code with Prettier
+pnpm format
+
+# Check if code is formatted
+pnpm format:check
+```
+
 ## Project Structure
 
 ```
