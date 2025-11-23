@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STAKEWARS.GG // OFFLINE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --bg: #000000;
+            --fg: #ffffff;
+            --dim: #444444;
+            --grid: #1a1a1a;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: var(--font-mono);
+            overflow-x: hidden;
+            cursor: crosshair;
+        }
+
+        a { color: var(--fg); text-decoration: none; }
+        
+        /* --- BACKGROUND CANVASES --- */
+        #starfield, #sphere-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        #sphere-canvas {
+            z-index: -1; 
+            opacity: 0.5; /* Slightly dimmer for offline mode */
+        }
+
+        /* --- SCANLINE OVERLAY --- */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* --- UI: NAVBAR --- */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--dim);
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: -1px;
+        }
+
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        .status {
+            font-size: 0.8rem;
+            color: var(--dim);
+            display: none;
+        }
+        @media(min-width: 768px) { .status { display: block; } }
+
+        .status-offline {
+            color: #888;
+            animation: pulse 3s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .btn-connect {
+            background: transparent;
+            color: var(--dim);
+            padding: 10px 20px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            border: 1px solid var(--dim);
+            text-transform: uppercase;
+            cursor: not-allowed; /* Disabled cursor */
+            opacity: 0.7;
+        }
+
+        /* --- HERO SECTION --- */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            padding: 0 20px;
+        }
+
+        .hero h1 {
+            font-family: var(--font-main);
+            font-size: clamp(3rem, 8vw, 8rem);
+            line-height: 0.9;
+            text-transform: uppercase;
+            mix-blend-mode: exclusion;
+        }
+
+        .hero h2 {
+            font-family: var(--font-mono);
+            font-size: clamp(0.8rem, 1.5vw, 1.2rem);
+            margin-top: 20px;
+            margin-bottom: 40px;
+            color: #aaa;
+            letter-spacing: 1px;
+        }
+
+        .btn-wip {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border: 1px dashed var(--dim); /* Dashed implies unfinished */
+            background: rgba(0,0,0,0.5);
+            color: #aaa;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            cursor: default;
+            position: relative;
+            overflow: hidden;
+            transition: 0.2s;
+        }
+        
+        /* Optional: Make it look like it's loading */
+        .btn-wip::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 0%;
+            background: rgba(255,255,255,0.1);
+            animation: loading 3s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 40%; }
+            100% { width: 0%; }
+        }
+
+        /* --- TICKER --- */
+        .ticker-wrap {
+            width: 100%;
+            overflow: hidden;
+            background: var(--fg);
+            color: var(--bg);
+            padding: 10px 0;
+            border-top: 1px solid var(--bg);
+            border-bottom: 1px solid var(--bg);
+            white-space: nowrap;
+        }
+        
+        .ticker {
+            display: inline-block;
+            animation: marquee 30s linear infinite; /* Slower for boot sequence vibe */
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        @keyframes marquee {
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-50%, 0, 0); }
+        }
+
+        /* --- CONTENT GRID --- */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 20px;
+        }
+
+        .mechanics {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 40px;
+            margin-bottom: 100px;
+        }
+        @media(min-width: 768px) { .mechanics { grid-template-columns: 1fr 1fr 1fr; } }
+
+        .card {
+            border: 1px solid var(--dim);
+            padding: 30px;
+            transition: 0.2s;
+            background: rgba(0,0,0,0.7);
+        }
+
+        .card:hover {
+            border-color: var(--fg);
+            box-shadow: -5px 5px 0px var(--dim);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--dim);
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .card p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        /* --- STATS DASHBOARD --- */
+        .stats-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            border: 1px solid var(--dim); /* Dim border for offline feel */
+            margin-bottom: 80px;
+            opacity: 0.7;
+        }
+
+        .stat-item {
+            padding: 20px;
+            border-right: 1px solid var(--dim);
+            text-align: center;
+        }
+        .stat-item:last-child { border-right: none; }
+
+        .stat-label { font-size: 0.8rem; color: #888; margin-bottom: 5px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: #ccc; }
+
+        /* --- FOOTER --- */
+        footer {
+            border-top: 1px solid var(--dim);
+            padding: 40px 20px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .footer-loc { margin-top: 10px; color: var(--fg); font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <!-- VISUAL LAYERS -->
+    <canvas id="starfield"></canvas>
+    <canvas id="sphere-canvas"></canvas>
+    <div class="scanlines"></div>
+
+    <!-- NAVIGATION -->
+    <nav>
+        <div class="brand">STAKEWARS_<span class="blink">|</span></div>
+        <!-- Status updated to OFFLINE -->
+        <div class="status status-offline">SYSTEM STATUS: OFFLINE</div>
+        <a href="#" class="btn-connect">[ DISCONNECTED ]</a>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <h1>That's No Moon.</h1>
+        <h2>/// TARGET: 2,000 FACES &nbsp; /// PROTOCOL: STARKNET &nbsp; /// OBJ: DOMINATION</h2>
+        <!-- Button updated to WIP Vibe -->
+        <button class="btn-wip">[ CONSTRUCTION IN PROGRESS ]</button>
+    </section>
+
+    <!-- TICKER (Boot Sequence Mode) -->
+    <div class="ticker-wrap">
+        <div class="ticker">
+            INITIALIZING UPLINK... CALIBRATING LENSES... LOADING ASSETS... WARLORDS STAND BY... YIELD GENERATORS CHARGING... PROTOCOL SECURITY CHECK: PASSED... AWAITING FINAL LAUNCH ORDERS... INITIALIZING UPLINK... CALIBRATING LENSES... LOADING ASSETS... WARLORDS STAND BY... YIELD GENERATORS CHARGING... PROTOCOL SECURITY CHECK: PASSED... AWAITING FINAL LAUNCH ORDERS...
+        </div>
+    </div>
+
+    <!-- MECHANICS & STATS -->
+    <div class="container">
+        
+        <!-- Stats are zeroed out or static to reflect pre-launch -->
+        <div class="stats-board">
+            <div class="stat-item">
+                <div class="stat-label">TOTAL STAKED</div>
+                <div class="stat-value">-- STRK</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">ACTIVE WARLORDS</div>
+                <div class="stat-value">STANDING BY</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">CURRENT KING</div>
+                <div class="stat-value">VACANT</div>
+            </div>
+        </div>
+
+        <div class="mechanics">
+            <div class="card">
+                <h3>01. DEPLOY</h3>
+                <!-- Changed BID to STAKE -->
+                <p>Select a triangular face on the Iconosphere. Stake $STRK to capture the territory. Highest bidder takes the high ground immediately.</p>
+            </div>
+            <div class="card">
+                <h3>02. HOLD</h3>
+                <p>Your image is beamed onto the face. As long as you hold the territory, your staked tokens are delegated to a Starknet validator.</p>
+            </div>
+            <div class="card">
+                <h3>03. HARVEST</h3>
+                <p>Earn real yield split between the active warlords. Displaced? Re-deploy your funds instantly to a new target. No waiting.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        <div>STAKEWARS.GG &copy; 2024 // POWERED BY STARKNET</div>
+        <div class="footer-loc">LOCATION: THE HIGH GROUND</div>
+        <div style="margin-top: 20px;">[TWITTER] &nbsp; [DISCORD] &nbsp; [DOCS]</div>
+    </footer>
+
+    <!-- SCRIPTS -->
+    <script>
+        /* --------------------------------------------------
+           1. SQUARE PIXEL STARFIELD
+           -------------------------------------------------- */
+        const starCanvas = document.getElementById('starfield');
+        const starCtx = starCanvas.getContext('2d');
+
+        let width, height;
+        let stars = [];
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            starCanvas.width = width;
+            starCanvas.height = height;
+        }
+        
+        class Star {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() > 0.9 ? 3 : 2; 
+                this.speed = Math.random() * 0.2 + 0.05;
+                this.opacity = Math.random();
+                this.fadeDir = Math.random() > 0.5 ? 0.01 : -0.01;
+            }
+            update() {
+                this.y -= this.speed; 
+                if (this.y < 0) this.y = height;
+                this.opacity += this.fadeDir;
+                if (this.opacity > 1 || this.opacity < 0.2) this.fadeDir *= -1;
+            }
+            draw() {
+                starCtx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                starCtx.fillRect(this.x, this.y, this.size, this.size);
+            }
+        }
+
+        function initStars() {
+            stars = [];
+            for(let i=0; i<150; i++) stars.push(new Star());
+        }
+
+        function animateStars() {
+            starCtx.clearRect(0, 0, width, height);
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+            requestAnimationFrame(animateStars);
+        }
+
+        /* --------------------------------------------------
+           2. WIREFRAME SPHERE
+           -------------------------------------------------- */
+        const sphereCanvas = document.getElementById('sphere-canvas');
+        const sphereCtx = sphereCanvas.getContext('2d');
+        let spherePoints = [];
+        const sphereRadius = 250;
+        const numPoints = 400;
+
+        function resizeSphere() {
+            sphereCanvas.width = window.innerWidth;
+            sphereCanvas.height = window.innerHeight;
+        }
+
+        function initSphere() {
+            spherePoints = [];
+            const phi = Math.PI * (3 - Math.sqrt(5)); 
+            
+            for (let i = 0; i < numPoints; i++) {
+                const y = 1 - (i / (numPoints - 1)) * 2;
+                const radius = Math.sqrt(1 - y * y);
+                const theta = phi * i;
+                const x = Math.cos(theta) * radius;
+                const z = Math.sin(theta) * radius;
+                spherePoints.push({ x: x * sphereRadius, y: y * sphereRadius, z: z * sphereRadius });
+            }
+        }
+
+        function rotate(point, angleX, angleY) {
+            let x = point.x * Math.cos(angleY) - point.z * Math.sin(angleY);
+            let z = point.x * Math.sin(angleY) + point.z * Math.cos(angleY);
+            let y = point.y;
+            let y2 = y * Math.cos(angleX) - z * Math.sin(angleX);
+            let z2 = y * Math.sin(angleX) + z * Math.cos(angleX);
+            return { x: x, y: y2, z: z2 };
+        }
+
+        function animateSphere() {
+            sphereCtx.clearRect(0, 0, sphereCanvas.width, sphereCanvas.height);
+            
+            const cx = sphereCanvas.width / 2;
+            const cy = sphereCanvas.height / 2;
+
+            sphereCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; /* Fainter for Offline Mode */
+            sphereCtx.lineWidth = 1;
+
+            spherePoints = spherePoints.map(p => rotate(p, 0.002, 0.003));
+
+            spherePoints.forEach((p, i) => {
+                for (let j = i + 1; j < i + 6; j++) { 
+                    if (j < spherePoints.length) {
+                        const p2 = spherePoints[j];
+                        const dist = Math.sqrt((p.x - p2.x)**2 + (p.y - p2.y)**2 + (p.z - p2.z)**2);
+                        if (dist < 50) { 
+                            sphereCtx.beginPath();
+                            sphereCtx.moveTo(cx + p.x, cy + p.y);
+                            sphereCtx.lineTo(cx + p2.x, cy + p2.y);
+                            sphereCtx.stroke();
+                        }
+                    }
+                }
+            });
+
+            requestAnimationFrame(animateSphere);
+        }
+
+        window.addEventListener('resize', () => { resize(); resizeSphere(); initStars(); });
+        resize(); 
+        resizeSphere(); 
+        initStars();
+        initSphere();
+        animateStars();
+        animateSphere();
+
+    </script>
+</body>
+</html>
