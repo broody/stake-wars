@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -17,10 +14,10 @@ export default {
         mono: ['Space Mono', 'monospace'],
       },
       animation: {
-        'blinker': 'blinker 1s linear infinite',
+        blinker: 'blinker 1s linear infinite',
         'pulse-slow': 'pulse 3s infinite',
-        'marquee': 'marquee 30s linear infinite',
-        'loading': 'loading 3s ease-in-out infinite',
+        marquee: 'marquee 30s linear infinite',
+        loading: 'loading 3s ease-in-out infinite',
       },
       keyframes: {
         blinker: {
@@ -39,5 +36,4 @@ export default {
     },
   },
   plugins: [],
-}
-
+};

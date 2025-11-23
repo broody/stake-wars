@@ -1,6 +1,8 @@
+import { ReactNode } from 'react';
+
 interface MechanicsCardProps {
   title: string;
-  description: string;
+  description: ReactNode;
 }
 
 export const MechanicsCard = ({ title, description }: MechanicsCardProps) => {
