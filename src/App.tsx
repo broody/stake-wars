@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import { Starfield } from './components/Starfield';
 import { WireframeIcosphere } from './components/WireframeIcosphere';
 import { Scanlines } from './components/Scanlines';
@@ -86,6 +87,9 @@ function App() {
 
       {/* Footer */}
       <Footer />
+
+      {/* Vercel Analytics */}
+      <Analytics />
     </>
   );
 }
