@@ -15,12 +15,13 @@ function App() {
       title: '01. STAKE',
       description: (
         <>
-          Select a sector on the Iconosphere. Stake $STRK to capture the
-          territory. Your funds are instantly{' '}
+          Select a{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            delegated to a Starknet Validator
-          </span>
-          , securing the actual L2 network while you fight for position.
+            Shard
+          </span>{' '}
+          on the Lattice. Stake $STRK to capture the territory. Your funds are
+          instantly delegated to the official Starknet staking contract,
+          securing the L2 network while you fight for position.
         </>
       ),
     },
@@ -28,8 +29,8 @@ function App() {
       title: '02. HOLD',
       description: (
         <>
-          Your image is beamed onto the face. As long as you hold the high
-          ground, your delegated stake is{' '}
+          A custom image can be beamed onto the Shard. As long as you hold the
+          high ground, your delegated stake is{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             generating real protocol yield
           </span>{' '}

@@ -18,8 +18,8 @@ export const StatsBoard = () => {
   return (
     <div className="stats-board grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] border border-dim mb-20 opacity-70">
       <StatItem label="TOTAL STAKED" value="-- STRK" />
-      <StatItem label="ACTIVE WARLORDS" value="STANDING BY" />
-      <StatItem label="CURRENT KING" value="VACANT" />
+      <StatItem label="ACTIVE OPERATORS" value="STANDING BY" />
+      <StatItem label="CURRENT LEADER" value="VACANT" />
     </div>
   );
 };

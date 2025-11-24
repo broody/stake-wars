@@ -7,12 +7,6 @@ export const Navbar = () => {
       <div className="status status-offline text-[0.8rem] text-dim hidden md:block animate-pulse-slow">
         SYSTEM STATUS: OFFLINE
       </div>
-      <a
-        href="#"
-        className="btn-connect bg-transparent text-dim px-5 py-2.5 font-bold font-mono border border-dim uppercase cursor-not-allowed opacity-70"
-      >
-        [ DISCONNECTED ]
-      </a>
     </nav>
   );
 };
