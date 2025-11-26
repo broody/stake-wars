@@ -5,15 +5,16 @@ export const Hero = () => {
         That's No Moon.
       </h1>
       <h2 className="font-mono text-[clamp(0.8rem,1.5vw,1.2rem)] mt-5 mb-10 text-[#aaa] tracking-wider text-left md:text-center">
-        <span className="block md:inline">/// TARGET: 2,000 SHARDS</span>
+        <span className="block md:inline">
+          /// TARGET: 2,000 CONTROL POINTS
+        </span>
         <span className="hidden md:inline"> &nbsp; </span>
-        <span className="block md:inline">/// PROTOCOL: STARKNET</span>
+        <span className="block md:inline">/// OBJECTIVE: HIGH GROUND</span>
         <span className="hidden md:inline"> &nbsp; </span>
-        <span className="block md:inline">/// OBJ: HIGH GROUND</span>
+        <span className="block md:inline">/// YIELD: ACTIVE</span>
       </h2>
       <button className="btn-wip px-10 py-4 text-[1.2rem] border border-dotted bg-black/50 text-[#aaa] font-mono uppercase cursor-default relative overflow-hidden transition-all duration-200">
-        <span className="md:hidden">[ IN PROGRESS ]</span>
-        <span className="hidden md:inline">[ CONSTRUCTION IN PROGRESS ]</span>
+        <span>[ COMING SOON ]</span>
         <span className="absolute top-0 left-0 bottom-0 w-0 bg-white/10 animate-loading" />
       </button>
     </section>

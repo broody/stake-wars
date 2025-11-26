@@ -17,9 +17,9 @@ function App() {
         <>
           Select a{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            Shard
+            Control Point
           </span>{' '}
-          on the Lattice. Stake $STRK to capture the territory. Your funds are
+          on the Core. Stake $STRK to capture the territory. Your funds are
           instantly delegated to the official Starknet staking contract,
           securing the L2 network while you fight for position.
         </>
@@ -29,8 +29,8 @@ function App() {
       title: '02. HOLD',
       description: (
         <>
-          A custom image can be beamed onto the Shard. As long as you hold the
-          high ground, your delegated stake is{' '}
+          A custom image can be beamed onto the Control Point. As long as you
+          hold the high ground, your delegated stake is{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             generating real protocol yield
           </span>{' '}

@@ -3,7 +3,7 @@ export const Footer = () => {
     <footer className="border-t border-dim py-10 px-5 text-center text-[0.8rem] text-[#666]">
       <div>STAKEWARS.GG &copy; 2026 // POWERED BY STARKNET</div>
       <div className="footer-loc mt-2.5 text-fg font-bold">
-        LOCATION: THE HIGH GROUND
+        That's no moon, it's a yield generator!
       </div>
       <div className="mt-5">
         <a
