@@ -1,4 +1,3 @@
-import { Analytics } from '@vercel/analytics/react';
 import { Starfield } from './components/Starfield';
 import { WireframeIcosphere } from './components/WireframeIcosphere';
 import { Scanlines } from './components/Scanlines';
@@ -9,7 +8,7 @@ import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
 
-function App() {
+function LandingApp() {
   const mechanics = [
     {
       title: '01. STAKE',
@@ -88,11 +87,8 @@ function App() {
 
       {/* Footer */}
       <Footer />
-
-      {/* Vercel Analytics */}
-      <Analytics />
     </>
   );
 }
 
-export default App;
+export default LandingApp;

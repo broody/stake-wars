@@ -2,15 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 @layer base {
   body {
     @apply bg-bg text-fg font-mono overflow-x-hidden;
     cursor: crosshair;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   a {
     @apply text-fg no-underline;
   }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+  }
+}
+
+/* Game app needs full viewport height */
+.game-root #root {
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Scanlines overlay */
