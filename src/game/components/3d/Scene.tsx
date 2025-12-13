@@ -7,13 +7,9 @@ import { extractFacePositions } from '../../utils/three-helpers';
 import type { ArtData } from '../../types';
 import * as THREE from 'three';
 
-interface SceneProps {
-  mintedFaces: Record<number, boolean>;
-}
-
-export const Scene: React.FC<SceneProps> = ({ mintedFaces }) => {
+export const Scene: React.FC = () => {
   const [artworks] = useState<ArtData[]>([]);
-  const [artFaces] = useState<Record<number, boolean>>({});
+  // const [artFaces] = useState<Record<number, boolean>>({});
 
   // Load artworks on mount (disabled - backend not available)
   useEffect(() => {
@@ -57,7 +53,7 @@ export const Scene: React.FC<SceneProps> = ({ mintedFaces }) => {
       <ShootingStars />
 
       {/* Main planet with faces */}
-      <Planet mintedFaces={mintedFaces} artFaces={artFaces} />
+      <Planet />
 
       {/* Orbiting moon */}
       {/* <Moon /> */}

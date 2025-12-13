@@ -62,4 +62,3 @@ export interface WalletState {
 
 export const UKN_RES = 65536;
 export const MAX_SELECTION = 10;
-export const TOTAL_FACES = 2000;

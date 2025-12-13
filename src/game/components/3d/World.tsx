@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ArcballControls } from '@react-three/drei';
 import { Scene } from './Scene';
@@ -6,7 +6,6 @@ import { IdleCameraRotation } from './IdleCameraRotation';
 import { useNFT } from '../../contexts/NFTContext';
 
 export const World: React.FC = () => {
-  const [mintedFaces] = useState<Record<number, boolean>>({});
   const { setTotalMinted } = useNFT();
 
   // Load initial minted data (disabled - backend not available)
@@ -61,7 +60,7 @@ export const World: React.FC = () => {
       style={{ width: '100%', height: '100%', background: '#000000' }}
     >
       <Suspense fallback={null}>
-        <Scene mintedFaces={mintedFaces} />
+        <Scene />
       </Suspense>
 
       {/* ArcballControls provides free rotation including roll by default */}
