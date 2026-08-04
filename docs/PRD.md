@@ -166,10 +166,10 @@ Operators must perform manual maintenance to restore Signal Strength.
 ### 5.5. Validator Infrastructure (Rebel Hosting)
 *   **Domain:** `validator.stakewars.com`.
 *   **Initial Host:** Rebel Hosting KVM VPS with 6 vCPU, 16 GB RAM, 960 GB SSD, one public IP address, and unmetered 200 Mbps connectivity.
-*   **Workload:** Pruned Juno full node, Starknet validator attestation service, and validator-specific monitoring only.
-*   **Isolation Requirement:** The validator must not host the game API, user uploads, image processing, application database, frontend, or general-purpose background jobs. This prevents untrusted game traffic and disk growth from affecting attestations.
+*   **Validator Workload:** Pruned Pathfinder full node, Equilibrium Starknet validator attestation service, and validator-specific monitoring.
+*   **Isolation Requirement:** The validator must not host the StakeWars game API, user uploads, image processing, application database, or frontend. Other workloads require explicit owner approval. The existing `dad-care-facilities.service` personal workload is an approved exception outside the StakeWars project scope.
 *   **Key Separation:** Only the operational validator key may be present on the server. Staking and rewards keys remain separate from the host.
-*   **Operations:** Alert on chain-head lag, failed attestations, CPU steal, memory pressure, disk latency, and disk utilization. The validator must sync and run successfully during an observation period before mainnet stake is activated.
+*   **Operations:** Alert on chain-head lag, failed attestations, CPU steal, memory pressure, disk latency, disk utilization, staking-exporter health, validator self-stake, and delegation-pool inventory. Keep node/host operational health and staking economics on separate provisioned Grafana dashboards.
 
 ### 5.6. Frontend
 *   **Framework:** Vite, React, and TypeScript.
@@ -185,10 +185,10 @@ Operators must perform manual maintenance to restore Signal Strength.
 | `www.stakewars.com` | Frontend hosting | Public game interface |
 | `api.stakewars.com` | Fly.io | Authentication, ownership verification, game API, upload authorization, and uplink signatures |
 | `assets.stakewars.com` | Tigris | Public delivery of approved Control Point images |
-| `validator.stakewars.com` | Rebel Hosting | Juno full node and validator attestation only |
+| `validator.stakewars.com` | Rebel Hosting | Pathfinder full node and validator attestation |
 
 ### 5.8. Provisioning Status
-*   **Rebel Hosting:** Validator VPS requested; provisioning pending.
+*   **Rebel Hosting:** Validator VPS provisioned. The pinned Pathfinder mainnet node is fully synchronized, its RPC and metrics endpoints are bound to localhost, and private Prometheus/Grafana monitoring is active. The staking address registered 20,000 STRK on Mainnet in transaction `0x23d12461dcc23c0edd17659828312faaabc36087a82a59cf3efbf97351a2a3c`, with delegation commission initialized at 10%. Its active delegation pools are STRK at `0x06ea5688ff1395a4562238880d43500035fb55f2b80546e0e530770378cd1e2e`, WBTC at `0x0954563804e256000bd885f4e350e3d4312fceb74e0cf855b30bb456f16974d`, tBTC at `0x05f02f9d6558f648d513b2b78f4bf6d397add814ac05d57b911513c030a2149f`, SolvBTC at `0x067e406e6a22f5354ce35f266eaa64b87e9eb01d348f622543ae3c0848265d11`, and strkBTC at `0x04a76fde12dd971bf44a2e2b1f45f890d6da92c4e349d786fdf9ff82e35f6c4a`. The pinned Equilibrium v0.5.2 validator attestation service is active and tracking its assigned block over Pathfinder's `/rpc/v0_9` HTTP and `/ws/rpc/v0_9` WebSocket endpoints. Its private metrics target, the separate public-state staking exporter, the operations dashboard, the staking dashboard, and their alert rules are healthy.
 *   **Fly.io:** The `stakewars` application is deployed in `sjc` with one shared-CPU Machine, 512 MB RAM, and an encrypted 1 GB `stakewars_data` volume mounted at `/data`. Scheduled Fly Volume snapshots are enabled with five-day retention.
 *   **Tigris:** Planned; no production bucket or credentials have been created.
 *   **Constraint:** Infrastructure resources are provisioned only as part of an explicitly approved implementation task.

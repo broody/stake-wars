@@ -40,6 +40,47 @@ The production Fly resources already exist:
 The deployment configuration is in `apps/api/fly.toml`. Build context is
 `apps/api`, so run Fly deployment commands from that directory.
 
+## Validator monitoring VPS
+
+The validator's Prometheus and Grafana stack runs on the remote VPS accessed
+through the local `~/bin/rebel` wrapper. It is not managed by the application
+deployment in this repository.
+
+- Run `~/bin/rebel` for an interactive SSH session.
+- Run `~/bin/rebel dashboard` to open an SSH tunnel and the private Grafana
+  dashboard, and `~/bin/rebel dashboard stop` to close the tunnel.
+- Monitoring configuration lives at `/opt/starknet-monitoring` on the VPS.
+- Pathfinder and validator Compose configuration lives at
+  `/opt/starknet/compose.yaml`. The `validator-attestation` service is behind
+  the `validator` Compose profile and uses the Equilibrium v0.5.2 image pinned
+  by digest. Equilibrium v0.5.2 requires Pathfinder's `/rpc/v0_9` HTTP endpoint
+  and `/ws/rpc/v0_9` WebSocket endpoint. Keep Pathfinder's
+  `--rpc.websocket.enabled` option active; do not point this service at
+  `/rpc/v0_10`.
+- The operational-key environment file is
+  `/etc/starknet-validator/validator.env` with root-only permissions. Never
+  print, download, copy into the repository, or expose its populated value.
+- Validator metrics are bound to `127.0.0.1:9102`; Prometheus alert rules live
+  at `/opt/starknet-monitoring/rules/validator-alerts.yml`.
+- Public on-chain staking state is exported by the hardened
+  `stakewars-staking-exporter.service` on `127.0.0.1:9103`. Its source is
+  `/opt/starknet-monitoring/exporters/staking_exporter.py`; it has no access to
+  validator signing keys. Its alert rules live at
+  `/opt/starknet-monitoring/rules/staking-alerts.yml`.
+- The provisioned operations and staking dashboard sources are respectively
+  `/opt/starknet-monitoring/grafana/dashboards/stakewars-overview.json` and
+  `/opt/starknet-monitoring/grafana/dashboards/stakewars-staking.json`.
+
+Grafana loads that dashboard file every 30 seconds and UI updates are disabled,
+so make persistent dashboard changes in the provisioned JSON. Validate JSON and
+PromQL before replacing the remote file, and do not expose Grafana or Prometheus
+directly to the public internet.
+
+The VPS also runs the user-approved `dad-care-facilities.service` personal
+workload on port 43177. It is outside the StakeWars project scope; do not modify,
+stop, or treat it as validator configuration drift unless the user explicitly
+requests work on it.
+
 ### Deployment guardrails
 
 - Keep exactly one active API Machine while SQLite is the system of record.
