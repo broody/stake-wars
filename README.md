@@ -1,99 +1,54 @@
-# STAKEWARS.GG
+# StakeWars
 
-A futuristic, cyberpunk-themed landing page for StakeWars - a Starknet-based staking game.
+StakeWars is a persistent Starknet staking game presented through a
+retro-futurist command interface. This repository is a pnpm monorepo containing
+the web application and the game API.
 
-## Tech Stack
+## Repository layout
 
-- **React 18** - Modern UI library
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling
-- **Vite** - Fast build tool and dev server
+```text
+apps/
+├── api/   # Go HTTP API
+└── web/   # React, TypeScript, and Vite frontend
+docs/      # Product and architecture documentation
+```
 
-## Features
+## Tech stack
 
-- 🌟 Animated starfield background
-- 🌐 Rotating wireframe sphere visualization
-- 📺 Retro CRT scanline effects
-- 🎯 Responsive design
-- ⚡ Optimized canvas animations with React hooks
+- **Web:** React, TypeScript, Tailwind CSS, Vite, and React Three Fiber
+- **API:** Go
+- **Workspace:** pnpm
 
-## Getting Started
+## Getting started
 
-### Install Dependencies
+Install JavaScript dependencies from the repository root:
 
 ```bash
 pnpm install
 ```
 
-### Development Server
+Run the web app and API together:
 
 ```bash
 pnpm dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+The web app is available at [http://localhost:5000](http://localhost:5000), and
+the API health endpoint is available at
+[http://localhost:8080/healthz](http://localhost:8080/healthz).
 
-### Build for Production
+Run either application independently:
+
+```bash
+pnpm dev:web
+pnpm dev:api
+```
+
+## Quality checks
 
 ```bash
 pnpm build
-```
-
-### Preview Production Build
-
-```bash
-pnpm preview
-```
-
-### Linting & Formatting
-
-```bash
-# Run ESLint
 pnpm lint
-
-# Run ESLint with auto-fix
-pnpm lint:fix
-
-# Format code with Prettier
-pnpm format
-
-# Check if code is formatted
 pnpm format:check
+pnpm test
 ```
-
-## Project Structure
-
-```
-src/
-├── components/
-│   ├── Footer.tsx           # Footer component
-│   ├── Hero.tsx            # Hero section
-│   ├── MechanicsCard.tsx   # Game mechanics cards
-│   ├── Navbar.tsx          # Navigation bar
-│   ├── Scanlines.tsx       # CRT scanline overlay
-│   ├── Starfield.tsx       # Animated starfield background
-│   ├── StatsBoard.tsx      # Statistics dashboard
-│   ├── Ticker.tsx          # Scrolling ticker text
-│   └── WireframeSphere.tsx # 3D rotating sphere
-├── App.tsx                 # Main app component
-├── main.tsx               # App entry point
-└── index.css              # Global styles
-```
-
-## Customization
-
-The theme colors and animations can be customized in `tailwind.config.js`:
-
-```javascript
-colors: {
-  bg: '#000000',
-  fg: '#ffffff',
-  dim: '#444444',
-  grid: '#1a1a1a',
-}
-```
-
-## License
-
-© 2024 STAKEWARS.GG // POWERED BY STARKNET
-
