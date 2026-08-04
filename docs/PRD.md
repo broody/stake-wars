@@ -189,7 +189,7 @@ Operators must perform manual maintenance to restore Signal Strength.
 
 ### 5.8. Provisioning Status
 *   **Rebel Hosting:** Validator VPS requested; provisioning pending.
-*   **Fly.io:** Account and `flyctl` are available, but no StakeWars Fly application has been created.
+*   **Fly.io:** The `stakewars` application is deployed in `sjc` with one shared-CPU Machine, 512 MB RAM, and an encrypted 1 GB `stakewars_data` volume mounted at `/data`. Scheduled Fly Volume snapshots are enabled with five-day retention.
 *   **Tigris:** Planned; no production bucket or credentials have been created.
 *   **Constraint:** Infrastructure resources are provisioned only as part of an explicitly approved implementation task.
 
