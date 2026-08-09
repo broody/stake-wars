@@ -1,0 +1,349 @@
+#[cfg(test)]
+mod tests {
+    use dojo::model::{ModelStorage, ModelStorageTest};
+    use dojo::world::{IWorldDispatcherTrait, WorldStorage, WorldStorageTrait, world};
+    use dojo_cairo_test::{
+        ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
+        spawn_test_world,
+    };
+    use stakewars::models::{
+        CONFIG_ID, ControlPoint, GameConfig, OperatorState, m_ControlPoint, m_GameConfig,
+        m_OperatorState,
+    };
+    use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
+    use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
+    use stakewars::tests::mock_staking_pool::{
+        IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
+    };
+    use starknet::syscalls::deploy_syscall;
+    use starknet::{ContractAddress, SyscallResultTrait, testing};
+
+    const MINIMUM_STAKE: u128 = 100;
+    const PREMIUM_BPS: u16 = 1_000;
+    const POINT_LIMIT: u32 = 2_000;
+
+    fn player_one() -> ContractAddress {
+        0x111.try_into().unwrap()
+    }
+
+    fn player_two() -> ContractAddress {
+        0x222.try_into().unwrap()
+    }
+
+    fn namespace_def() -> NamespaceDef {
+        NamespaceDef {
+            namespace: "stakewars",
+            resources: [
+                TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
+                TestResource::Model(m_OperatorState::TEST_CLASS_HASH),
+                TestResource::Model(m_ControlPoint::TEST_CLASS_HASH),
+                TestResource::Event(admin::e_ConfigInitialized::TEST_CLASS_HASH),
+                TestResource::Event(admin::e_PauseChanged::TEST_CLASS_HASH),
+                TestResource::Event(admin::e_RulesChanged::TEST_CLASS_HASH),
+                TestResource::Event(admin::e_StakingPoolChanged::TEST_CLASS_HASH),
+                TestResource::Event(admin::e_AdminTransferred::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ControlPointCaptured::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ControlPointReinforced::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ControlPointRedeployed::TEST_CLASS_HASH),
+                TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
+                TestResource::Contract(admin::TEST_CLASS_HASH),
+                TestResource::Contract(control::TEST_CLASS_HASH),
+            ]
+                .span(),
+        }
+    }
+
+    fn contract_defs() -> Span<ContractDef> {
+        [
+            ContractDefTrait::new(@"stakewars", @"admin").with_writer_of(admin_writer_selectors()),
+            ContractDefTrait::new(@"stakewars", @"control")
+                .with_writer_of(control_writer_selectors()),
+        ]
+            .span()
+    }
+
+    fn admin_writer_selectors() -> Span<felt252> {
+        [
+            resource_selector(@"GameConfig"), resource_selector(@"ConfigInitialized"),
+            resource_selector(@"PauseChanged"), resource_selector(@"RulesChanged"),
+            resource_selector(@"StakingPoolChanged"), resource_selector(@"AdminTransferred"),
+        ]
+            .span()
+    }
+
+    fn control_writer_selectors() -> Span<felt252> {
+        [
+            resource_selector(@"OperatorState"), resource_selector(@"ControlPoint"),
+            resource_selector(@"ControlPointCaptured"),
+            resource_selector(@"ControlPointReinforced"),
+            resource_selector(@"ControlPointReleased"),
+            resource_selector(@"ControlPointRedeployed"),
+            resource_selector(@"OperatorDisqualified"),
+        ]
+            .span()
+    }
+
+    fn resource_selector(name: @ByteArray) -> felt252 {
+        dojo::utils::selector_from_names(@"stakewars", name)
+    }
+
+    fn setup() -> (WorldStorage, IControlDispatcher, IMockStakingPoolDispatcher) {
+        let mut world = spawn_test_world(world::TEST_CLASS_HASH, [namespace_def()].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (pool_address, _) = deploy_syscall(
+            mock_staking_pool::TEST_CLASS_HASH.try_into().unwrap(), 0, [].span(), false,
+        )
+            .unwrap_syscall();
+        let pool = IMockStakingPoolDispatcher { contract_address: pool_address };
+
+        world
+            .write_model_test(
+                @GameConfig {
+                    id: CONFIG_ID,
+                    initialized: true,
+                    admin: player_one(),
+                    staking_pool: pool_address,
+                    minimum_stake: MINIMUM_STAKE,
+                    challenge_premium_bps: PREMIUM_BPS,
+                    control_point_limit: POINT_LIMIT,
+                    paused: false,
+                },
+            );
+
+        let (control_address, _) = world.dns(@"control").unwrap();
+        let control = IControlDispatcher { contract_address: control_address };
+        (world, control, pool)
+    }
+
+    fn setup_uninitialized() -> (WorldStorage, IAdminDispatcher, IMockStakingPoolDispatcher) {
+        let world = spawn_test_world(world::TEST_CLASS_HASH, [namespace_def()].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (pool_address, _) = deploy_syscall(
+            mock_staking_pool::TEST_CLASS_HASH.try_into().unwrap(), 0, [].span(), false,
+        )
+            .unwrap_syscall();
+        let pool = IMockStakingPoolDispatcher { contract_address: pool_address };
+        let (admin_address, _) = world.dns(@"admin").unwrap();
+        let admin_system = IAdminDispatcher { contract_address: admin_address };
+        (world, admin_system, pool)
+    }
+
+    #[test]
+    #[available_gas(250000000)]
+    fn world_owner_initializes_and_pauses_game() {
+        let (world, admin_system, pool) = setup_uninitialized();
+        let admin_wallet = player_one();
+        world.dispatcher.grant_owner(dojo::utils::bytearray_hash(@"stakewars"), admin_wallet);
+        testing::set_contract_address(admin_wallet);
+
+        admin_system.initialize(pool.contract_address, MINIMUM_STAKE, PREMIUM_BPS, POINT_LIMIT);
+        let initialized: GameConfig = world.read_model(CONFIG_ID);
+        assert_eq!(initialized.admin, admin_wallet);
+        assert_eq!(initialized.staking_pool, pool.contract_address);
+        assert(!initialized.paused, 'unexpected pause');
+
+        admin_system.set_paused(true);
+        let paused: GameConfig = world.read_model(CONFIG_ID);
+        assert(paused.paused, 'pause not applied');
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('not admin', 'ENTRYPOINT_FAILED'))]
+    fn rejects_unauthorized_admin_change() {
+        let (world, _, _) = setup();
+        let (admin_address, _) = world.dns(@"admin").unwrap();
+        let admin_system = IAdminDispatcher { contract_address: admin_address };
+        testing::set_contract_address(player_two());
+        admin_system.set_paused(true);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('game paused', 'ENTRYPOINT_FAILED'))]
+    fn paused_game_rejects_capture() {
+        let (mut world, control, pool) = setup();
+        let mut config: GameConfig = world.read_model(CONFIG_ID);
+        config.paused = true;
+        world.write_model_test(@config);
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(0, MINIMUM_STAKE);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('invalid control point', 'ENTRYPOINT_FAILED'))]
+    fn rejects_out_of_range_control_point() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(POINT_LIMIT, MINIMUM_STAKE);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    fn captures_neutral_point_at_minimum() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+
+        control.capture(42, MINIMUM_STAKE);
+
+        let point: ControlPoint = world.read_model(42_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(point.controller, player);
+        assert_eq!(point.allocated_stake, MINIMUM_STAKE);
+        assert_eq!(point.ownership_generation, 1);
+        assert_eq!(operator.generation, 1);
+        assert_eq!(operator.total_allocated, MINIMUM_STAKE);
+        assert_eq!(operator.controlled_point_count, 1);
+        assert_eq!(control.required_stake(42), 110);
+        assert_eq!(control.available_stake(player), 900);
+    }
+
+    #[test]
+    #[available_gas(300000000)]
+    fn exact_high_ground_challenge_displaces_controller() {
+        let (world, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 1_000);
+        pool.set_amount(challenger, 1_100);
+
+        testing::set_contract_address(incumbent);
+        control.capture(7, 1_000);
+        testing::set_contract_address(challenger);
+        control.capture(7, 1_100);
+
+        let point: ControlPoint = world.read_model(7_u32);
+        let incumbent_state: OperatorState = world.read_model(incumbent);
+        let challenger_state: OperatorState = world.read_model(challenger);
+        assert_eq!(point.controller, challenger);
+        assert_eq!(point.allocated_stake, 1_100);
+        assert_eq!(point.ownership_generation, 2);
+        assert_eq!(incumbent_state.total_allocated, 0);
+        assert_eq!(incumbent_state.controlled_point_count, 0);
+        assert_eq!(challenger_state.total_allocated, 1_100);
+    }
+
+    #[test]
+    #[available_gas(300000000)]
+    fn reinforce_then_release_returns_floating_power() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+
+        control.capture(1, 200);
+        control.reinforce(1, 300);
+        let reinforced: ControlPoint = world.read_model(1_u32);
+        assert_eq!(reinforced.allocated_stake, 500);
+        assert_eq!(control.available_stake(player), 500);
+
+        control.release(1);
+        let released: ControlPoint = world.read_model(1_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(released.allocated_stake, 0);
+        assert_eq!(released.ownership_generation, 2);
+        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.controlled_point_count, 0);
+        assert_eq!(control.available_stake(player), 1_000);
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn redeploy_is_atomic_and_can_use_floating_power() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+
+        control.capture(10, 400);
+        control.redeploy(10, 11, 700);
+
+        let source: ControlPoint = world.read_model(10_u32);
+        let destination: ControlPoint = world.read_model(11_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(source.allocated_stake, 0);
+        assert_eq!(source.ownership_generation, 2);
+        assert_eq!(destination.controller, player);
+        assert_eq!(destination.allocated_stake, 700);
+        assert_eq!(destination.ownership_generation, 1);
+        assert_eq!(operator.total_allocated, 700);
+        assert_eq!(operator.controlled_point_count, 1);
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn external_unstake_invalidates_generation_lazily() {
+        let (world, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 1_000);
+        pool.set_amount(challenger, 100);
+        testing::set_contract_address(incumbent);
+        control.capture(99, 700);
+
+        pool.set_amount(incumbent, 600);
+        testing::set_contract_address(challenger);
+        control.sync_operator(incumbent);
+
+        let stale_point: ControlPoint = world.read_model(99_u32);
+        let invalidated: OperatorState = world.read_model(incumbent);
+        assert_eq!(stale_point.controller_generation, 1);
+        assert_eq!(invalidated.generation, 2);
+        assert_eq!(invalidated.total_allocated, 0);
+        assert_eq!(invalidated.controlled_point_count, 0);
+        assert_eq!(control.required_stake(99), MINIMUM_STAKE);
+
+        control.capture(99, MINIMUM_STAKE);
+        let recaptured: ControlPoint = world.read_model(99_u32);
+        assert_eq!(recaptured.controller, challenger);
+        assert_eq!(recaptured.allocated_stake, MINIMUM_STAKE);
+        assert_eq!(recaptured.ownership_generation, 2);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('below minimum stake', 'ENTRYPOINT_FAILED'))]
+    fn rejects_neutral_capture_below_minimum() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(0, MINIMUM_STAKE - 1);
+    }
+
+    #[test]
+    #[available_gas(300000000)]
+    #[should_panic(expected: ('insufficient challenge', 'ENTRYPOINT_FAILED'))]
+    fn rejects_tiny_increment_challenge() {
+        let (_, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 1_000);
+        pool.set_amount(challenger, 1_099);
+        testing::set_contract_address(incumbent);
+        control.capture(3, 1_000);
+        testing::set_contract_address(challenger);
+        control.capture(3, 1_099);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('allocation exceeds stake', 'ENTRYPOINT_FAILED'))]
+    fn rejects_over_allocation() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 500);
+        testing::set_contract_address(player);
+        control.capture(5, 501);
+    }
+}
