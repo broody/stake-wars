@@ -1,8 +1,8 @@
 # StakeWars
 
 StakeWars is a persistent Starknet staking game presented through a
-retro-futurist command interface. This repository is a pnpm monorepo containing
-the web application and the game API.
+retro-futurist command interface. This repository contains the web application,
+game API, and Dojo contracts.
 
 ## Repository layout
 
@@ -10,6 +10,7 @@ the web application and the game API.
 apps/
 ├── api/   # Go HTTP API
 └── web/   # React, TypeScript, and Vite frontend
+contracts/ # Cairo contracts and Dojo World configuration
 docs/      # Product and architecture documentation
 ```
 
@@ -17,6 +18,7 @@ docs/      # Product and architecture documentation
 
 - **Web:** React, TypeScript, Tailwind CSS, Vite, and React Three Fiber
 - **API:** Go
+- **Contracts:** Cairo and Dojo
 - **Workspace:** pnpm
 
 ## Getting started
@@ -51,4 +53,7 @@ pnpm build
 pnpm lint
 pnpm format:check
 pnpm test
+pnpm contracts:build
+pnpm contracts:format:check
+pnpm contracts:test
 ```
