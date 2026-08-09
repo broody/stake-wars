@@ -46,6 +46,10 @@ pnpm dev:web
 pnpm dev:api
 ```
 
+The API's runtime variables and authentication endpoints are documented in
+[`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and
+is configurable through `MAX_IMAGE_BYTES`.
+
 ## Quality checks
 
 ```bash

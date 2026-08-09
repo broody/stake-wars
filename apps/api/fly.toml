@@ -5,8 +5,11 @@ primary_region = "sjc"
   dockerfile = "Dockerfile"
 
 [env]
+  APP_ENV = "production"
   DATABASE_PATH = "/data/stakewars.db"
+  MAX_IMAGE_BYTES = "2097152"
   PORT = "8080"
+  STARKNET_CHAIN_ID = "SN_MAIN"
 
 [http_service]
   internal_port = 8080

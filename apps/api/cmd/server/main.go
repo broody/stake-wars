@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"stakewars.com/api/internal/api"
+	"stakewars.com/api/internal/auth"
+	"stakewars.com/api/internal/config"
+	"stakewars.com/api/internal/database"
+	"stakewars.com/api/internal/starknet"
 )
 
-const (
-	defaultPort    = "8080"
-	shutdownPeriod = 10 * time.Second
-)
+const shutdownPeriod = 10 * time.Second
 
 func main() {
 	if err := run(); err != nil {
@@ -26,14 +27,44 @@ func main() {
 }
 
 func run() error {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+	configuration, err := config.Load()
+	if err != nil {
+		return err
 	}
 
+	startupContext, cancelStartup := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStartup()
+	db, err := database.Open(startupContext, configuration.DatabasePath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	verifier := starknet.NewVerifier(configuration.StarknetRPCURL, configuration.StarknetChainID)
+	if configuration.StarknetRPCURL == "" {
+		slog.Warn("STARKNET_RPC_URL is not configured; session creation is disabled")
+	}
+	authService := auth.NewService(
+		auth.NewStore(db),
+		verifier,
+		auth.ServiceConfig{
+			ChallengeTTL: configuration.ChallengeTTL,
+			SessionTTL:   configuration.SessionTTL,
+		},
+	)
+
 	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           api.NewHandler(),
+		Addr: ":" + configuration.Port,
+		Handler: api.NewHandler(api.Dependencies{
+			DB:   db,
+			Auth: authService,
+			Config: api.PublicConfig{
+				Network:       configuration.StarknetChainID,
+				MaxImageBytes: configuration.MaxImageBytes,
+				AuthEnabled:   configuration.StarknetRPCURL != "",
+			},
+			AllowedOrigins: configuration.AllowedOrigins,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
