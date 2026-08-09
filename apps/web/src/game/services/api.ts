@@ -3,7 +3,7 @@ import { config } from './config';
 import type { ArtData, MintedData, OwnerData } from '../types';
 
 export const api = {
-  async getUnknown(id: number): Promise<any> {
+  async getUnknown(id: number): Promise<unknown> {
     try {
       const response = await axios.get(`${config.domain}/api/${id}`);
       return response.data;

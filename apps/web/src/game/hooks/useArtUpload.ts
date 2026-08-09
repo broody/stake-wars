@@ -4,6 +4,12 @@ import { useNFT } from '../contexts/NFTContext';
 import { resizeImage } from '../utils/imageResizer';
 import { api } from '../services/api';
 
+interface CameraData {
+  position: { x: number; y: number; z: number };
+  up: { x: number; y: number; z: number };
+  aspect: number;
+}
+
 export const useArtUpload = () => {
   const { setImageLoaded, setUploading, setCommitting, setUploadArtMode } =
     useApp();
@@ -52,15 +58,22 @@ export const useArtUpload = () => {
   );
 
   const commitArt = useCallback(
-    async (artName: string, cameraData: any) => {
+    async (artName: string, cameraData: CameraData) => {
       if (!currentCanvas) return;
 
       setCommitting(true);
       setUploading(true);
 
       try {
-        const blob = await new Promise<Blob>((resolve) => {
-          currentCanvas.toBlob((b) => resolve(b!));
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          currentCanvas.toBlob((result) => {
+            if (result) {
+              resolve(result);
+              return;
+            }
+
+            reject(new Error('Unable to encode image'));
+          });
         });
 
         const formData = new FormData();

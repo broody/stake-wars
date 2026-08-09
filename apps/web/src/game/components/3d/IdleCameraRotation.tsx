@@ -11,7 +11,7 @@ export const IdleCameraRotation: React.FC = () => {
   const rotationAxis = useRef(new THREE.Vector3());
   const targetRotationAxis = useRef(new THREE.Vector3());
   const rotationSpeed = useRef(0);
-  const initialDistance = useRef(0);
+  const initialDistance = useRef(camera.position.length());
   const [idleRotationDirection] = useState(() => {
     // Random rotation axis and speed (set once on mount)
     const axis = new THREE.Vector3(
@@ -27,8 +27,6 @@ export const IdleCameraRotation: React.FC = () => {
     rotationAxis.current = idleRotationDirection.axis.clone();
     targetRotationAxis.current = idleRotationDirection.axis.clone();
     rotationSpeed.current = idleRotationDirection.speed;
-    initialDistance.current = camera.position.length(); // Store initial distance from origin
-
     const resetIdleTimer = () => {
       lastInteractionTime.current = Date.now();
       isIdle.current = false;

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSelection } from '../../hooks/useSelection';
 import { useApp } from '../../contexts/AppContext';
@@ -19,7 +20,7 @@ export const Face: React.FC<FaceProps> = ({
   hasArt,
   visible = true,
 }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<FaceMesh>(null);
   const { handleFaceClick, isSelectedFace } = useSelection();
   const { uploadArtMode } = useApp();
   const isSelected = isSelectedFace(faceIdx);
@@ -36,7 +37,7 @@ export const Face: React.FC<FaceProps> = ({
       color: 0x000000,
       side: THREE.DoubleSide,
     });
-  }, [isMinted]);
+  }, []);
 
   const selectionMaterial = useMemo(() => {
     const color = uploadArtMode ? 0x0088ff : 0x00ff00;
@@ -53,10 +54,10 @@ export const Face: React.FC<FaceProps> = ({
     return new THREE.EdgesGeometry(geometry, 30);
   }, [geometry]);
 
-  const handleClick = (e: any) => {
-    e.stopPropagation();
+  const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
     if (meshRef.current) {
-      const faceMesh = meshRef.current as any as FaceMesh;
+      const faceMesh = meshRef.current;
       faceMesh.faceIdx = faceIdx;
       faceMesh.isMinted = isMinted;
       faceMesh.hasArt = hasArt;
