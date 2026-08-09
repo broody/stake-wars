@@ -311,6 +311,111 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(350000000)]
+    fn status_views_block_stale_image_management() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(12, 800);
+
+        let operator = control.get_operator_status(player);
+        let point = control.get_control_point_status(12);
+        assert_eq!(operator.live_delegated_amount, 1_000);
+        assert_eq!(operator.total_allocated, 800);
+        assert_eq!(operator.available_stake, 200);
+        assert(!operator.needs_sync, 'unexpected sync');
+        assert_eq!(point.controller, player);
+        assert_eq!(point.allocated_stake, 800);
+        assert_eq!(point.required_stake, 880);
+        assert(!point.stale, 'unexpected stale point');
+        assert(control.can_manage_image(12, player, 1), 'image permission missing');
+        assert(!control.can_manage_image(12, player, 2), 'wrong generation accepted');
+
+        pool.set_amount(player, 700);
+        let stale_operator = control.get_operator_status(player);
+        let stale_point = control.get_control_point_status(12);
+        assert(stale_operator.needs_sync, 'sync not detected');
+        assert_eq!(stale_operator.total_allocated, 800);
+        assert_eq!(stale_operator.available_stake, 700);
+        assert_eq!(stale_point.controller, 0.try_into().unwrap());
+        assert_eq!(stale_point.allocated_stake, 0);
+        assert_eq!(stale_point.required_stake, MINIMUM_STAKE);
+        assert(stale_point.stale, 'stale point not detected');
+        assert(stale_point.needs_sync, 'point sync not detected');
+        assert(!control.can_manage_image(12, player, 1), 'stale image permission');
+
+        control.sync_operator(player);
+        let synchronized: OperatorState = world.read_model(player);
+        let invalidated_point = control.get_control_point_status(12);
+        assert_eq!(synchronized.generation, 2);
+        assert(invalidated_point.stale, 'invalidated point not stale');
+        assert(!invalidated_point.needs_sync, 'still needs sync');
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    fn unknown_operator_sync_does_not_initialize_generation() {
+        let (world, control, pool) = setup();
+        let operator_address = player_one();
+        pool.set_amount(operator_address, 1_000);
+        testing::set_contract_address(player_two());
+
+        assert_eq!(control.sync_operator(operator_address), 1_000);
+        let operator: OperatorState = world.read_model(operator_address);
+        assert_eq!(operator.generation, 0);
+        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.controlled_point_count, 0);
+    }
+
+    #[test]
+    #[available_gas(500000000)]
+    fn batch_sync_only_writes_changed_operators() {
+        let (world, control, pool) = setup();
+        let undercollateralized = player_one();
+        let healthy = player_two();
+        pool.set_amount(undercollateralized, 600);
+        pool.set_amount(healthy, 500);
+
+        testing::set_contract_address(undercollateralized);
+        control.capture(20, 600);
+        testing::set_contract_address(healthy);
+        control.capture(21, 500);
+        pool.set_amount(undercollateralized, 599);
+
+        assert_eq!(control.sync_operators([undercollateralized, healthy].span()), 1);
+        let changed: OperatorState = world.read_model(undercollateralized);
+        let unchanged: OperatorState = world.read_model(healthy);
+        assert_eq!(changed.generation, 2);
+        assert_eq!(changed.total_allocated, 0);
+        assert_eq!(unchanged.generation, 1);
+        assert_eq!(unchanged.total_allocated, 500);
+        assert_eq!(control.sync_operators([undercollateralized, healthy].span()), 0);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('sync batch too large', 'ENTRYPOINT_FAILED'))]
+    fn rejects_oversized_sync_batch() {
+        let (_, control, _) = setup();
+        let mut operators = array![];
+        let mut i: u32 = 0;
+        while i < 51 {
+            operators.append(player_one());
+            i += 1;
+        }
+        control.sync_operators(operators.span());
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('empty sync batch', 'ENTRYPOINT_FAILED'))]
+    fn rejects_empty_sync_batch() {
+        let (_, control, _) = setup();
+        control.sync_operators([].span());
+    }
+
+    #[test]
     #[available_gas(200000000)]
     #[should_panic(expected: ('below minimum stake', 'ENTRYPOINT_FAILED'))]
     fn rejects_neutral_capture_below_minimum() {
