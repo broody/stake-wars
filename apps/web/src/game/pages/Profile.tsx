@@ -1,22 +1,30 @@
-import React from 'react';
-import { useNFT } from '../contexts/NFTContext';
-import { useWallet } from '../contexts/WalletContext';
-import { config } from '../services/config';
 import { WalletButton } from '../components/ui/WalletButton';
+import { useControlPoints } from '../contexts/ControlPointContext';
+import { useWallet } from '../contexts/WalletContext';
+import { formatStrk, shortAddress } from '../utils/format';
 
-export const Profile: React.FC = () => {
-  const { ownedFaces } = useNFT();
+export function Profile() {
   const { isConnected, address, username, walletName } = useWallet();
+  const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
+    useControlPoints();
+  const stakeMetrics = operatorStatus
+    ? [
+        { label: 'DELEGATED STRK', value: operatorStatus.liveDelegatedAmount },
+        { label: 'ALLOCATED STRK', value: operatorStatus.totalAllocated },
+        { label: 'AVAILABLE STRK', value: operatorStatus.availableStake },
+      ]
+    : [];
 
   if (!isConnected) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            Connect Your Wallet
-          </h2>
-          <p className="text-gray-400 mb-6">
-            Connect your wallet to view your NFT collection
+      <div className="flex h-full w-full items-center justify-center bg-bg">
+        <div className="border border-grid p-8 text-center font-mono">
+          <div className="text-xs tracking-[0.24em] text-dim">
+            OPERATOR TERMINAL
+          </div>
+          <h2 className="mb-4 mt-3 text-2xl text-white">CONNECT YOUR WALLET</h2>
+          <p className="mb-6 max-w-sm text-sm leading-relaxed text-neutral-500">
+            Connect to read your delegated, allocated, and available STRK.
           </p>
           <div className="inline-block">
             <WalletButton />
@@ -27,54 +35,73 @@ export const Profile: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-gray-900 overflow-y-auto">
-      <div className="max-w-7xl mx-auto px-4 py-20">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">My Collection</h1>
-          <p className="text-gray-400">
-            {walletName || 'Wallet'}:{' '}
-            {username ||
-              (address
-                ? `${address.slice(0, 6)}...${address.slice(-4)}`
-                : 'Not connected')}
+    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+      <div className="mx-auto max-w-4xl px-4 py-24">
+        <div className="border-b border-grid pb-6">
+          <div className="text-xs tracking-[0.24em] text-dim">
+            OPERATOR TERMINAL
+          </div>
+          <h1 className="mt-2 text-3xl tracking-wider text-white">
+            {username || 'CONNECTED OPERATOR'}
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            {walletName || 'Wallet'} ·{' '}
+            {address ? shortAddress(address) : 'Not connected'}
           </p>
         </div>
 
-        {ownedFaces.length === 0 ? (
-          <div className="text-gray-400 text-center py-20">
-            <p className="text-xl mb-4">You don't own any NFTs yet</p>
-            <p>Visit the home page to mint some!</p>
+        {isOperatorLoading && (
+          <div className="flex items-center gap-3 py-16 text-sm text-dim">
+            <span className="h-2 w-2 animate-pulse bg-white" />
+            READING ON-CHAIN COMMAND POWER…
           </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {ownedFaces.map((tokenId) => (
-              <div
-                key={tokenId}
-                className="bg-gray-800 rounded-lg p-4 hover:ring-2 hover:ring-primary-500 transition-all"
-              >
-                <div className="aspect-square mb-2 flex items-center justify-center bg-gray-700 rounded">
-                  <img
-                    src={`${config.domain}/unknowns/${tokenId}.svg`}
-                    alt={`NFT #${tokenId}`}
-                    className="w-full h-full object-contain"
-                  />
+        )}
+
+        {operatorError && (
+          <div className="py-12 text-sm">
+            <p className="text-amber-400">{operatorError}</p>
+            <button
+              type="button"
+              onClick={refreshOperator}
+              className="mt-4 border border-neutral-600 px-4 py-2 tracking-widest text-white hover:border-white"
+            >
+              RETRY READ
+            </button>
+          </div>
+        )}
+
+        {operatorStatus && (
+          <>
+            <div className="grid border-l border-t border-grid sm:grid-cols-3">
+              {stakeMetrics.map(({ label, value }) => (
+                <div
+                  key={label.toString()}
+                  className="border-b border-r border-grid p-5"
+                >
+                  <div className="text-[10px] tracking-[0.2em] text-dim">
+                    {label.toString()}
+                  </div>
+                  <div className="mt-3 text-xl text-white">
+                    {formatStrk(value)}
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-white font-semibold">#{tokenId}</p>
-                  <a
-                    href={`${config.opensea}0xD560e04Ac70382e387BE3208741465D4FD8F36B8/${tokenId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary-400 hover:text-primary-300"
-                  >
-                    View on OpenSea
-                  </a>
-                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 flex items-center justify-between border-y border-grid py-4 text-sm">
+              <span className="text-dim">CONTROLLED POINTS</span>
+              <span>{operatorStatus.controlledPointCount}</span>
+            </div>
+
+            {operatorStatus.needsSync && (
+              <div className="mt-6 border border-amber-500/50 p-4 text-sm text-amber-400">
+                Your delegated balance is below the current game allocation.
+                Operator sync is required.
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
-};
+}

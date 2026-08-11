@@ -15,7 +15,11 @@ module.exports = {
       'warn',
       {
         allowConstantExport: true,
-        allowExportNames: ['useApp', 'useNFT', 'useWallet'],
+        allowExportNames: [
+          'useControlPoints',
+          'useTransactionToast',
+          'useWallet',
+        ],
       },
     ],
     'prettier/prettier': 'warn',

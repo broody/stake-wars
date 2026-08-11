@@ -10,5 +10,6 @@ export const config = {
     (import.meta.env.DEV ? 'KATANA' : 'SN_MAIN'),
   dojoWorldAddress: import.meta.env.VITE_DOJO_WORLD_ADDRESS || '',
   controlSystemAddress: import.meta.env.VITE_CONTROL_SYSTEM_ADDRESS || '',
-  opensea: 'https://opensea.io/assets/',
+  strkTokenAddress: import.meta.env.VITE_STRK_TOKEN_ADDRESS || '',
+  stakingPoolAddress: import.meta.env.VITE_STAKING_POOL_ADDRESS || '',
 } as const;

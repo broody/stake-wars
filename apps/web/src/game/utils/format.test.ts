@@ -1,0 +1,51 @@
+import { describe, expect, it } from 'vitest';
+import {
+  addressesMatch,
+  formatStrk,
+  isZeroAddress,
+  parseStrk,
+  shortAddress,
+} from './format';
+
+describe('Control Point formatting', () => {
+  it('formats STRK values without floating-point precision loss', () => {
+    expect(formatStrk(10_000_000_000_000_000n)).toBe('0.01');
+    expect(formatStrk(11_000_000_000_000_000n)).toBe('0.011');
+    expect(formatStrk(1_234_567_890_000_000_000_000n)).toBe('1,234.5678');
+  });
+
+  it('recognizes neutral controller addresses', () => {
+    expect(isZeroAddress('0x0')).toBe(true);
+    expect(isZeroAddress('0x000000')).toBe(true);
+    expect(isZeroAddress('0x123')).toBe(false);
+  });
+
+  it('shortens long controller addresses', () => {
+    expect(shortAddress('0x0123456789abcdef')).toBe('0x012345…abcdef');
+    expect(shortAddress('0x123')).toBe('0x123');
+  });
+
+  it('compares normalized Starknet addresses', () => {
+    expect(addressesMatch('0x01', '0x1')).toBe(true);
+    expect(addressesMatch('0x01', '0x2')).toBe(false);
+    expect(addressesMatch('invalid', '0x1')).toBe(false);
+  });
+
+  it('parses whole and fractional STRK amounts into base units', () => {
+    expect(parseStrk('1')).toBe(1_000_000_000_000_000_000n);
+    expect(parseStrk('0.011')).toBe(11_000_000_000_000_000n);
+    expect(parseStrk(' 0.01 ')).toBe(10_000_000_000_000_000n);
+  });
+
+  it('preserves all 18 supported decimals', () => {
+    expect(parseStrk('0.000000000000000001')).toBe(1n);
+  });
+
+  it('rejects malformed or over-precise values', () => {
+    expect(() => parseStrk('')).toThrow('valid STRK amount');
+    expect(() => parseStrk('-1')).toThrow('valid STRK amount');
+    expect(() => parseStrk('1.0000000000000000001')).toThrow(
+      'valid STRK amount'
+    );
+  });
+});

@@ -1,16 +1,7 @@
-import * as THREE from 'three';
-
-export interface NFTMetadata {
-  tokenId: number;
-  owner?: string;
-  isMinted: boolean;
-  hasArt: boolean;
-}
-
 export interface ArtData {
   _id: string;
   ownerId: string;
-  tokenIds: number[];
+  controlPointIds: number[];
   image: string;
   name?: string;
   cameraPos?: string;
@@ -18,41 +9,43 @@ export interface ArtData {
   cameraAspect?: number;
 }
 
-export interface MintedData {
-  minted: number[];
+export interface ControlPointStatus {
+  id: number;
+  controller: string;
+  allocatedStake: bigint;
+  ownershipGeneration: bigint;
+  requiredStake: bigint;
+  stale: boolean;
+  needsSync: boolean;
 }
 
-export interface OwnerData {
-  owned: number[];
+export interface OperatorStatus {
+  operator: string;
+  liveDelegatedAmount: bigint;
+  totalAllocated: bigint;
+  availableStake: bigint;
+  generation: bigint;
+  controlledPointCount: number;
+  needsSync: boolean;
 }
 
-export interface FaceMesh extends THREE.Mesh {
-  faceIdx: number;
-  isMinted: boolean;
-  hasArt: boolean;
+export interface StakingPoolInfo {
+  poolAddress: string;
+  validatorAddress: string;
+  stakingContractAddress: string;
+  tokenAddress: string;
+  commissionBps: number;
 }
 
-export interface ArtMesh extends THREE.Mesh {
-  address: string;
-  artId: string;
-  selected: boolean;
+export interface PoolMemberInfo {
+  rewardAddress: string;
+  amount: bigint;
+  unclaimedRewards: bigint;
+  commissionBps: number;
+  unpoolAmount: bigint;
 }
 
-export interface AppState {
-  uploadArtMode: boolean;
-  showMintOption: boolean;
-  isMinting: boolean;
-  isUploading: boolean;
-  isCommitting: boolean;
-  isImageLoaded: boolean;
-  previewId: number;
-}
-
-export interface NFTState {
-  selectedFaces: number[];
-  ownedFaces: number[];
-  totalMinted: number;
-}
+export type CoreMode = 'control' | 'projection';
 
 export interface WalletState {
   isConnected: boolean;
@@ -66,4 +59,3 @@ export interface WalletState {
 }
 
 export const UKN_RES = 65536;
-export const MAX_SELECTION = 10;

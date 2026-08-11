@@ -23,6 +23,23 @@ pnpm lint
 Do not commit, push, deploy, create infrastructure, or change external project
 settings unless the user explicitly requests that action.
 
+## Local frontend runtime
+
+Always run the web application locally against the shared Sepolia deployment:
+
+```bash
+pnpm dev:web
+pnpm dev:web:sepolia
+```
+
+Both commands load the Sepolia environment; `pnpm dev` also runs the web app
+against Sepolia. Open the game at `http://localhost:5000/?app=game`.
+
+Katana is reserved for isolated contract testing only. Start Katana or migrate a
+local Dojo World only when a contract test specifically requires it or the user
+explicitly requests it. Do not initialize, maintain, or depend on a local Katana
+World for normal frontend or API development, demos, previews, or verification.
+
 ## Fly.io production backend
 
 The production Fly resources already exist:

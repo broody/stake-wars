@@ -54,11 +54,12 @@ export const Gallery: React.FC = () => {
                     {art.name || `Artwork #${art._id}`}
                   </h3>
                   <p className="text-gray-400 text-sm">
-                    {art.tokenIds.length} NFT
-                    {art.tokenIds.length !== 1 ? 's' : ''}
+                    {art.controlPointIds.length} Control Point
+                    {art.controlPointIds.length !== 1 ? 's' : ''}
                   </p>
                   <p className="text-gray-500 text-xs mt-1">
-                    Owner: {art.ownerId.slice(0, 6)}...{art.ownerId.slice(-4)}
+                    Operator: {art.ownerId.slice(0, 6)}...
+                    {art.ownerId.slice(-4)}
                   </p>
                 </div>
               </div>

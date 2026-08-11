@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { checkStarknetConnection } from '../../services/starknet';
+import { config } from '../../services/config';
+import { stakeWarsChain } from '../../providers/controller';
+import { useWallet } from '../../contexts/WalletContext';
 
 type ConnectionState =
   | { status: 'checking' }
@@ -7,15 +10,13 @@ type ConnectionState =
   | { status: 'unavailable'; message: string };
 
 export function StarknetConnectionStatus() {
+  const { chainId: walletChainId, isConnected: isWalletConnected } =
+    useWallet();
   const [connection, setConnection] = useState<ConnectionState>({
     status: 'checking',
   });
 
   useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return;
-    }
-
     const controller = new AbortController();
 
     checkStarknetConnection(controller.signal)
@@ -34,31 +35,53 @@ export function StarknetConnectionStatus() {
     return () => controller.abort();
   }, []);
 
-  if (!import.meta.env.DEV) {
-    return null;
+  const connected = connection.status === 'connected';
+  const networkLabel =
+    config.starknetChainId === 'SN_SEPOLIA'
+      ? 'SEPOLIA'
+      : config.starknetChainId === 'SN_MAIN'
+        ? 'MAINNET'
+        : config.starknetChainId.replace(/^SN_/, '');
+  let walletMismatch = false;
+
+  if (isWalletConnected && walletChainId) {
+    try {
+      walletMismatch = BigInt(walletChainId) !== stakeWarsChain.id;
+    } catch {
+      walletMismatch = true;
+    }
   }
 
-  const connected = connection.status === 'connected';
-  const label = connected
-    ? `${connection.chainId} // BLOCK ${connection.blockNumber}`
-    : connection.status === 'checking'
-      ? 'RPC // CHECKING'
-      : 'RPC // OFFLINE';
-  const title =
-    connection.status === 'unavailable'
+  const title = walletMismatch
+    ? `Wallet network does not match StakeWars ${networkLabel}.`
+    : connection.status === 'unavailable'
       ? connection.message
-      : 'Local Starknet RPC connection';
+      : connected
+        ? `${networkLabel} RPC connected at block ${connection.blockNumber}.`
+        : `Checking the ${networkLabel} RPC connection.`;
 
   return (
     <span
-      className="hidden sm:flex items-center gap-2 text-xs tracking-wider text-dim"
+      className={`flex items-center gap-2 whitespace-nowrap font-mono text-[10px] tracking-[0.16em] ${
+        walletMismatch ? 'text-amber-400' : 'text-dim'
+      }`}
       title={title}
       aria-live="polite"
+      aria-label={`Network: ${networkLabel}${walletMismatch ? ', wallet network mismatch' : ''}`}
     >
       <span
-        className={`h-2 w-2 rounded-full ${connected ? 'bg-green-400' : 'bg-amber-400'}`}
+        className={`h-1.5 w-1.5 ${
+          walletMismatch || connection.status === 'unavailable'
+            ? 'bg-amber-400'
+            : connected
+              ? 'bg-white'
+              : 'animate-pulse bg-neutral-500'
+        }`}
       />
-      {label}
+      <span className="hidden lg:inline">NETWORK //</span>
+      <span className={walletMismatch ? 'text-amber-400' : 'text-fg'}>
+        {networkLabel}
+      </span>
     </span>
   );
 }

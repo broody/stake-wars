@@ -59,6 +59,9 @@ function configuredChain(): Chain {
 export const stakeWarsChain = configuredChain();
 
 const policies: SessionPolicies = {
+  // Token approvals and validator delegation intentionally stay outside the
+  // session policy. Controller will request explicit approval for Smart
+  // Capture's financial calls while preserving one atomic transaction.
   contracts: config.controlSystemAddress
     ? {
         [config.controlSystemAddress]: {
