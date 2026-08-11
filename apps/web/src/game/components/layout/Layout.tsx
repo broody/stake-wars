@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../utils/cn';
+import { StarknetConnectionStatus } from '../ui/StarknetConnectionStatus';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -45,10 +46,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               ))}
             </div>
 
-            {/* Wallet Connect Button */}
-            <button className="px-4 py-2 border border-fg text-fg hover:bg-fg hover:text-bg transition-colors text-sm tracking-wider">
-              {'> CONNECT_WALLET'}
-            </button>
+            <div className="flex items-center gap-4">
+              <StarknetConnectionStatus />
+
+              {/* Wallet Connect Button */}
+              <button className="px-4 py-2 border border-fg text-fg hover:bg-fg hover:text-bg transition-colors text-sm tracking-wider">
+                {'> CONNECT_WALLET'}
+              </button>
+            </div>
           </div>
         </div>
       </nav>

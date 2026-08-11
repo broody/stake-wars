@@ -46,6 +46,19 @@ pnpm dev:web
 pnpm dev:api
 ```
 
+Run the local Starknet chain and deploy the Dojo World in separate terminals:
+
+```bash
+pnpm dev:katana
+pnpm contracts:deploy:local
+```
+
+The repository pins the compatible Dojo toolchain in `.tool-versions`. Katana
+serves JSON-RPC at `http://127.0.0.1:5050`, and the development frontend checks
+that the configured StakeWars World is deployed before showing a green KATANA
+status in the navigation. Open the game locally at
+[http://localhost:5000/?app=game](http://localhost:5000/?app=game).
+
 The API's runtime variables and authentication endpoints are documented in
 [`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and
 is configurable through `MAX_IMAGE_BYTES`.

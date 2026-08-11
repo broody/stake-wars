@@ -15,6 +15,11 @@ Run these commands from this directory. Local migration uses `dojo_dev.toml`.
 The release profile deliberately contains no RPC credentials or deployment
 account; production deployment settings must remain outside version control.
 
+The repository `.tool-versions` pins Scarb 2.13.1 because the Dojo 1.8 contract
+stack emits Sierra 1.7 for the stable Katana sequencer. From the repository root,
+start and migrate the local chain with `pnpm dev:katana` and
+`pnpm contracts:deploy:local` in separate terminals.
+
 The upstream Starknet staking implementation is pinned at
 `../vendor/starknet-staking` as an ABI reference. It is not linked as a direct
 Scarb dependency because its Cairo toolchain is older than this Dojo package.
