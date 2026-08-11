@@ -56,8 +56,13 @@ export interface NFTState {
 
 export interface WalletState {
   isConnected: boolean;
+  isConnecting: boolean;
+  canConnect: boolean;
   address: string | null;
-  chainId: number | null;
+  chainId: string | null;
+  walletName: string | null;
+  username: string | null;
+  error: string | null;
 }
 
 export const UKN_RES = 65536;

@@ -1,29 +1,18 @@
 import React from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useNFT } from '../../contexts/NFTContext';
-import { useWallet } from '../../contexts/WalletContext';
 import { useMinting } from '../../hooks/useMinting';
 import { useSelection } from '../../hooks/useSelection';
 
 export const SelectionPanel: React.FC = () => {
   const { showMintOption, isMinting, uploadArtMode } = useApp();
   const { selectedFaces } = useNFT();
-  const { chainId } = useWallet();
   const { mintSelected } = useMinting();
   const { clearSelection } = useSelection();
 
   // Don't show if no faces selected in mint mode
   if (!uploadArtMode && selectedFaces.length === 0) {
     return null;
-  }
-
-  // Show chain warning if not on mainnet
-  if (chainId !== null && chainId !== 0x1) {
-    return (
-      <div className="absolute top-20 right-4 px-4 py-2 bg-yellow-600 text-white rounded-lg">
-        MetaMask Required (Eth Mainnet)
-      </div>
-    );
   }
 
   if (!uploadArtMode && showMintOption && selectedFaces.length > 0) {

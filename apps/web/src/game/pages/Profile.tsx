@@ -2,10 +2,11 @@ import React from 'react';
 import { useNFT } from '../contexts/NFTContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
+import { WalletButton } from '../components/ui/WalletButton';
 
 export const Profile: React.FC = () => {
   const { ownedFaces } = useNFT();
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, username, walletName } = useWallet();
 
   if (!isConnected) {
     return (
@@ -17,9 +18,9 @@ export const Profile: React.FC = () => {
           <p className="text-gray-400 mb-6">
             Connect your wallet to view your NFT collection
           </p>
-          <button className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">
-            Connect Wallet
-          </button>
+          <div className="inline-block">
+            <WalletButton />
+          </div>
         </div>
       </div>
     );
@@ -31,10 +32,11 @@ export const Profile: React.FC = () => {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">My Collection</h1>
           <p className="text-gray-400">
-            Wallet:{' '}
-            {address
-              ? `${address.slice(0, 6)}...${address.slice(-4)}`
-              : 'Not connected'}
+            {walletName || 'Wallet'}:{' '}
+            {username ||
+              (address
+                ? `${address.slice(0, 6)}...${address.slice(-4)}`
+                : 'Not connected')}
           </p>
         </div>
 

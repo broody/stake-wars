@@ -54,10 +54,31 @@ pnpm contracts:deploy:local
 ```
 
 The repository pins the compatible Dojo toolchain in `.tool-versions`. Katana
-serves JSON-RPC at `http://127.0.0.1:5050`, and the development frontend checks
-that the configured StakeWars World is deployed before showing a green KATANA
-status in the navigation. Open the game locally at
+serves JSON-RPC at `http://127.0.0.1:5050` with Cartridge Controller and its
+local paymaster enabled.
+
+Cartridge Controller uses its production keychain at `https://x.cartridge.gg`
+by default. `VITE_KEYCHAIN_FRAME_URL` is available only when deliberately
+testing a different Controller keychain. The wallet chooser also discovers the
+Ready browser extension through the Starknet Wallet Standard and links to the
+appropriate browser store when it is not installed.
+
+The development frontend checks that the configured StakeWars World is deployed
+before showing a green KATANA status in the navigation. Open the game locally at
 [http://localhost:5000/?app=game](http://localhost:5000/?app=game).
+
+To run the frontend against the shared Sepolia deployment instead, use:
+
+```bash
+pnpm dev:web:sepolia
+```
+
+The Sepolia environment uses World
+`0x01c1c6206be878c53432c493c4b13825d97379352553799ed83023c23a59af70`
+and control system
+`0x05ffe84f1e059d8bed2303f9559c3b04c5c9358008b871e3739059ca545544d6`.
+It is initialized with a 0.01 STRK minimum allocation, a 10% challenge premium,
+and 2,000 control points.
 
 The API's runtime variables and authentication endpoints are documented in
 [`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and

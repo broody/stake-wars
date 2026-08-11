@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useNFT } from '../../contexts/NFTContext';
-import { useWallet } from '../../contexts/WalletContext';
 import { useArtUpload } from '../../hooks/useArtUpload';
 import { cn } from '../../utils/cn';
 
@@ -14,7 +13,6 @@ export const UploadDialog: React.FC = () => {
     isUploading,
   } = useApp();
   const { ownedFaces, selectedFaces } = useNFT();
-  const { chainId } = useWallet();
   const { handleImageUpload, commitArt, cancelUpload } = useArtUpload();
 
   const [artName, setArtName] = useState('');
@@ -48,11 +46,6 @@ export const UploadDialog: React.FC = () => {
       commitArt(artName, cameraData);
     }
   };
-
-  // Don't show if minting or wrong chain
-  if (chainId !== null && chainId !== 0x1) {
-    return null;
-  }
 
   return (
     <div className="absolute bottom-4 left-4">

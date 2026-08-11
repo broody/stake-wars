@@ -3,11 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "starknet": "^10.0.2"
+    }
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "dev:web": "pnpm --filter @stakewars/web dev",
+    "dev:web:sepolia": "pnpm --filter @stakewars/web dev:sepolia",
     "dev:api": "pnpm --filter @stakewars/api dev",
-    "dev:katana": "cd contracts && katana --dev --dev.no-fee --http.cors_origins '*'",
+    "dev:katana": "cd contracts && katana --dev --dev.no-fee --cartridge.paymaster --http.cors_origins '*'",
     "contracts:build": "cd contracts && sozo build",
     "contracts:deploy:local": "cd contracts && sozo build && sozo migrate",
     "contracts:test": "cd contracts && sozo test",
