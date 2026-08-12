@@ -16,7 +16,9 @@ preconfirmed = false
 polling_interval = 1000
 max_concurrent_tasks = 8
 transactions = false
-contracts = []
+contracts = [
+  "other:0x0755e4fbfd6ca9a17e532a0eb3027dd3202957d5bcc2912cbc5a7fb199cc78c6:13316365",
+]
 namespaces = ["stakewars"]
 models = []
 world_block = 13316365
@@ -27,7 +29,7 @@ external_contracts = false
 external_contract_whitelist = []
 
 [events]
-raw = false
+raw = true
 
 [erc]
 max_metadata_tasks = 8

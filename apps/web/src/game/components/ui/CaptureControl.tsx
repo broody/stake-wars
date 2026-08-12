@@ -286,7 +286,7 @@ export function CaptureControl({
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
-      <header className="flex items-center justify-between border-b border-grid px-3 py-2">
+      <header className="border-b border-grid px-3 py-2">
         <span className="text-[10px] tracking-[0.18em] text-dim">
           {controlPoints.length > 1
             ? `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${controlPoints.length} POINTS`
@@ -295,9 +295,6 @@ export function CaptureControl({
               : controlPoints[0].allocatedStake === 0n
                 ? 'CAPTURE NEUTRAL POINT'
                 : 'CHALLENGE OWNER'}
-        </span>
-        <span className="text-[9px] tracking-[0.14em] text-neutral-500">
-          {config.starknetChainId.replace('SN_', '')}
         </span>
       </header>
 

@@ -100,7 +100,7 @@ export function WalletButton() {
             ? `Disconnect ${walletName || 'wallet'}`
             : 'Connect a Starknet wallet')
         }
-        className="px-4 py-2 border border-fg text-fg hover:bg-fg hover:text-bg transition-colors text-sm tracking-wider disabled:cursor-wait disabled:opacity-50"
+        className="border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm"
       >
         {label}
       </button>

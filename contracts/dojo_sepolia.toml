@@ -24,6 +24,7 @@ account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a
 "stakewars-StakingPoolChanged" = ["stakewars-admin"]
 "stakewars-AdminTransferred" = ["stakewars-admin"]
 "stakewars-ControlPointCaptured" = ["stakewars-control"]
+"stakewars-ControlPointDisplaced" = ["stakewars-control"]
 "stakewars-ControlPointReinforced" = ["stakewars-control"]
 "stakewars-ControlPointReleased" = ["stakewars-control"]
 "stakewars-ControlPointRedeployed" = ["stakewars-control"]

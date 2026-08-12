@@ -45,6 +45,7 @@ mod tests {
                 TestResource::Event(admin::e_StakingPoolChanged::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_AdminTransferred::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointCaptured::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ControlPointDisplaced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReinforced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointRedeployed::TEST_CLASS_HASH),
@@ -77,7 +78,7 @@ mod tests {
     fn control_writer_selectors() -> Span<felt252> {
         [
             resource_selector(@"OperatorState"), resource_selector(@"ControlPoint"),
-            resource_selector(@"ControlPointCaptured"),
+            resource_selector(@"ControlPointCaptured"), resource_selector(@"ControlPointDisplaced"),
             resource_selector(@"ControlPointReinforced"),
             resource_selector(@"ControlPointReleased"),
             resource_selector(@"ControlPointRedeployed"),

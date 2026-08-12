@@ -1,4 +1,5 @@
 import { WalletButton } from '../components/ui/WalletButton';
+import { OperatorActivityTable } from '../components/ui/OperatorActivityTable';
 import { useControlPoints } from '../contexts/ControlPointContext';
 import { useWallet } from '../contexts/WalletContext';
 import { formatStrk, shortAddress } from '../utils/format';
@@ -101,6 +102,8 @@ export function Profile() {
             )}
           </>
         )}
+
+        {address && <OperatorActivityTable operator={address} />}
       </div>
     </div>
   );

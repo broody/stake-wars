@@ -32,6 +32,30 @@
   overflow: hidden;
 }
 
+/* Quiet ledger scrollbars: visible when useful, recessive at rest. */
+.activity-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+  scrollbar-width: thin;
+}
+
+.activity-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.activity-scrollbar::-webkit-scrollbar-track,
+.activity-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.activity-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.activity-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.42);
+}
+
 /* Scanlines overlay */
 .scanlines {
   position: fixed;

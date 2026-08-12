@@ -36,6 +36,29 @@ export interface OperatorStatus {
   needsSync: boolean;
 }
 
+export type OperatorActivityType =
+  | 'capture'
+  | 'loss'
+  | 'reinforcement'
+  | 'release'
+  | 'redeployment'
+  | 'disqualification'
+  | 'yield_claim';
+
+export interface OperatorActivity {
+  id: string;
+  type: OperatorActivityType;
+  blockNumber: number;
+  eventIndex: number;
+  transactionHash: string;
+  controlPointId?: number;
+  destinationControlPointId?: number;
+  amount: bigint;
+  secondaryAmount?: bigint;
+  counterparty?: string;
+  affectedPointCount?: number;
+}
+
 export interface StakingPoolInfo {
   poolAddress: string;
   validatorAddress: string;
@@ -50,6 +73,27 @@ export interface PoolMemberInfo {
   unclaimedRewards: bigint;
   commissionBps: number;
   unpoolAmount: bigint;
+}
+
+export interface YieldClaim {
+  id: string;
+  blockNumber: number;
+  eventIndex: number;
+  transactionHash: string;
+  poolMember: string;
+  rewardAddress: string;
+  amount: bigint;
+  executedAt: string;
+}
+
+export interface YieldSummary {
+  claimedRewards: bigint | null;
+  unclaimedRewards: bigint;
+  lifetimeRewards: bigint | null;
+  claimCount: number;
+  rewardAddress: string | null;
+  commissionBps: number | null;
+  claims: YieldClaim[];
 }
 
 export type CoreMode = 'control' | 'projection';

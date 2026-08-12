@@ -52,6 +52,54 @@ debug logging, mirrors all Torii output to the terminal, and keeps a timestamped
 log under `contracts/.torii/logs/` for later triage. That directory is ignored
 by Git with the rest of `contracts/.torii`.
 
+## Sepolia Dojo migration
+
+`sozo migrate --profile sepolia` updates the shared Sepolia World and is an
+external deployment. Do not run it unless the user explicitly requests the
+migration. Do not use Katana for this workflow.
+
+Run Sepolia migration commands from `contracts`. The profile is
+`contracts/dojo_sepolia.toml`, and its expected deployer account is
+`0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119`.
+The matching local account is stored outside the repository at
+`~/.starknet_accounts/starknet_open_zeppelin_accounts.json`, under
+`alpha-sepolia.stakewars_sepolia_deployer`. That file must remain owner-only
+(`0600`). Never print its private key, paste it into a command, copy it into the
+repository, or add it to `dojo_sepolia.toml`.
+
+Before migrating, test, build, and inspect the intended Sepolia profile:
+
+```bash
+cd contracts
+sozo test --profile sepolia
+sozo build --profile sepolia
+sozo inspect --profile sepolia
+```
+
+Verify that the stored account matches the configured deployer, then pass the
+private key to only the migration process without echoing or exporting it into
+the long-lived shell environment:
+
+```bash
+stakewars_account_file="$HOME/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+stakewars_deployer_address="$(jq -er \
+  '.["alpha-sepolia"].stakewars_sepolia_deployer.address' \
+  "$stakewars_account_file")"
+test "$stakewars_deployer_address" = \
+  "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119"
+DOJO_PRIVATE_KEY="$(jq -er \
+  '.["alpha-sepolia"].stakewars_sepolia_deployer.private_key' \
+  "$stakewars_account_file")" \
+  sozo migrate --profile sepolia --wait
+```
+
+After migration, run `sozo inspect --profile sepolia` again and verify the
+World and changed systems on Sepolia. Restart local Torii with
+`pnpm dev:torii` when contract models, events, or ABIs changed, and confirm its
+indexed head and logs before testing the web application. Only update
+`apps/web/.env.sepolia` or `contracts/torii_sepolia.toml` if the migration
+output proves that a configured address changed; do not infer new addresses.
+
 ## Fly.io production backend
 
 The production Fly resources already exist:

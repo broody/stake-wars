@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 : "${TORII_WORLD_ADDRESS:?TORII_WORLD_ADDRESS is required}"
 : "${TORII_WORLD_BLOCK:?TORII_WORLD_BLOCK is required}"
+: "${TORII_STAKING_POOL_ADDRESS:?TORII_STAKING_POOL_ADDRESS is required}"
+: "${TORII_STAKING_POOL_BLOCK:?TORII_STAKING_POOL_BLOCK is required}"
 
 torii_rpc_url="${TORII_RPC_URL:-${STARKNET_RPC_URL:-}}"
 if [[ -z "$torii_rpc_url" ]]; then
@@ -24,12 +26,14 @@ torii \
   --rpc "$torii_rpc_url" \
   --db-dir "$torii_db_dir" \
   --indexing.world_block "$TORII_WORLD_BLOCK" \
+  --indexing.contracts "other:$TORII_STAKING_POOL_ADDRESS:$TORII_STAKING_POOL_BLOCK" \
   --indexing.namespaces stakewars \
   --indexing.events_chunk_size 256 \
   --indexing.blocks_chunk_size 512 \
   --indexing.polling_interval 1000 \
   --indexing.max_concurrent_tasks 8 \
   --indexing.batch_chunk_size 256 \
+  --events.raw \
   --runner.query_threads 1 \
   --runner.indexer_threads 1 \
   --runner.allocation_strategy balanced \

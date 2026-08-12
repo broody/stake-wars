@@ -23,6 +23,7 @@ default = "stakewars"
 "stakewars-StakingPoolChanged" = ["stakewars-admin"]
 "stakewars-AdminTransferred" = ["stakewars-admin"]
 "stakewars-ControlPointCaptured" = ["stakewars-control"]
+"stakewars-ControlPointDisplaced" = ["stakewars-control"]
 "stakewars-ControlPointReinforced" = ["stakewars-control"]
 "stakewars-ControlPointReleased" = ["stakewars-control"]
 "stakewars-ControlPointRedeployed" = ["stakewars-control"]

@@ -93,6 +93,20 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
+    pub struct ControlPointDisplaced {
+        #[key]
+        pub control_point_id: u32,
+        #[key]
+        pub previous_controller: ContractAddress,
+        #[key]
+        pub new_controller: ContractAddress,
+        pub released_allocation: u128,
+        pub new_allocation: u128,
+        pub ownership_generation: u64,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
     pub struct ControlPointReinforced {
         #[key]
         pub control_point_id: u32,
@@ -582,6 +596,20 @@ pub mod control {
                         ownership_generation: point.ownership_generation,
                     },
                 );
+            if !previous_controller.is_zero() {
+                let mut world = self.world_default();
+                world
+                    .emit_event(
+                        @ControlPointDisplaced {
+                            control_point_id,
+                            previous_controller,
+                            new_controller: caller,
+                            released_allocation: previous_allocation,
+                            new_allocation: allocation,
+                            ownership_generation: point.ownership_generation,
+                        },
+                    );
+            }
         }
 
         fn reinforce_with_synced(

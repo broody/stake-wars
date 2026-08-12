@@ -8,6 +8,7 @@ import { Gallery } from './pages/Gallery';
 import { Profile } from './pages/Profile';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
+import { YieldProvider } from './contexts/YieldContext';
 
 function GameApp() {
   return (
@@ -16,15 +17,17 @@ function GameApp() {
         <Router>
           <WalletProvider>
             <TransactionToastProvider>
-              <ControlPointProvider>
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/gallery" element={<Gallery />} />
-                    <Route path="/profile" element={<Profile />} />
-                  </Routes>
-                </Layout>
-              </ControlPointProvider>
+              <YieldProvider>
+                <ControlPointProvider>
+                  <Layout>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/gallery" element={<Gallery />} />
+                      <Route path="/profile" element={<Profile />} />
+                    </Routes>
+                  </Layout>
+                </ControlPointProvider>
+              </YieldProvider>
             </TransactionToastProvider>
           </WalletProvider>
         </Router>

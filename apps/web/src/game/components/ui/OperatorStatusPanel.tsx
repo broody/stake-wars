@@ -1,6 +1,6 @@
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { CONTROL_POINT_COUNT } from '../../utils/controlPointGeometry';
+import { useYield } from '../../contexts/useYield';
 import { formatStrk } from '../../utils/format';
 
 interface OperatorMetricProps {
@@ -22,21 +22,12 @@ function OperatorMetric({ label, value, highlight }: OperatorMetricProps) {
 
 export function OperatorStatusPanel() {
   const { address } = useWallet();
+  const { summary, isLoading: isYieldLoading, openYield } = useYield();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useControlPoints();
 
   return (
     <aside className="pointer-events-auto absolute left-4 top-20 font-mono text-[11px] tracking-wider text-fg">
-      <div className="text-dim">
-        {'>'} CORE_GRID <span className="text-fg">{CONTROL_POINT_COUNT}</span>
-      </div>
-
-      {!address && (
-        <div className="mt-1 text-dim">
-          {'>'} OPERATOR <span className="text-neutral-500">DISCONNECTED</span>
-        </div>
-      )}
-
       {address && isOperatorLoading && (
         <div className="mt-2 flex items-center gap-2 text-dim">
           <span className="h-1.5 w-1.5 animate-pulse bg-white" />
@@ -69,10 +60,20 @@ export function OperatorStatusPanel() {
             value={operatorStatus.availableStake}
             highlight
           />
-          <div className="flex items-baseline justify-between gap-6 pt-1 text-dim">
-            <span>OWNED</span>
-            <span>{operatorStatus.controlledPointCount}</span>
-          </div>
+          <button
+            type="button"
+            onClick={openYield}
+            className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <span>YIELD</span>
+            <span className="text-white">
+              {isYieldLoading && !summary
+                ? '…'
+                : summary?.lifetimeRewards === null || !summary
+                  ? '—'
+                  : `${formatStrk(summary.lifetimeRewards)} STRK`}
+            </span>
+          </button>
           {operatorStatus.needsSync && (
             <div className="pt-2 text-amber-400">SYNC REQUIRED</div>
           )}
