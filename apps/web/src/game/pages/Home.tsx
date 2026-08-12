@@ -3,6 +3,7 @@ import { SelectionPanel } from '../components/ui/SelectionPanel';
 import { OperatorStatusPanel } from '../components/ui/OperatorStatusPanel';
 import { CoreModeSwitch } from '../components/ui/CoreModeSwitch';
 import { ProjectionPanel } from '../components/ui/ProjectionPanel';
+import { ControlPointLegend } from '../components/ui/ControlPointLegend';
 
 export function Home() {
   return (
@@ -10,6 +11,7 @@ export function Home() {
       <World />
       <OperatorStatusPanel />
       <CoreModeSwitch />
+      <ControlPointLegend />
 
       {/* Bottom-right Twitter link */}
       <div className="absolute bottom-4 right-4 text-dim font-mono text-sm">

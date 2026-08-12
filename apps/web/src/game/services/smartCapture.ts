@@ -11,7 +11,28 @@ interface SmartCaptureCallsOptions {
   isPoolMember: boolean;
 }
 
+interface CaptureAllocation {
+  controlPointId: number;
+  allocation: bigint;
+}
+
+interface ReinforcementAllocation {
+  controlPointId: number;
+  additionalAllocation: bigint;
+}
+
+interface SmartBatchCaptureCallsOptions
+  extends Omit<SmartCaptureCallsOptions, 'controlPointId' | 'allocation'> {
+  captures: CaptureAllocation[];
+}
+
+interface SmartBatchReinforceCallsOptions
+  extends Omit<SmartCaptureCallsOptions, 'controlPointId' | 'allocation'> {
+  reinforcements: ReinforcementAllocation[];
+}
+
 const U128_MODULUS = 1n << 128n;
+export const MAX_CONTROL_ACTION_BATCH = 20;
 
 export function stakeDeficit(
   allocation: bigint,
@@ -38,14 +59,151 @@ export function buildSmartCaptureCalls({
   strkTokenAddress,
   isPoolMember,
 }: SmartCaptureCallsOptions): Call[] {
-  const deficit = stakeDeficit(allocation, availableStake);
-  const captureCall: Call = {
-    contractAddress: controlSystemAddress,
-    entrypoint: 'capture',
-    calldata: [controlPointId.toString(), allocation.toString()],
-  };
+  return buildSmartBatchCaptureCalls({
+    captures: [{ controlPointId, allocation }],
+    availableStake,
+    controlSystemAddress,
+    isPoolMember,
+    operatorAddress,
+    poolAddress,
+    strkTokenAddress,
+  });
+}
 
-  if (deficit === 0n) return [captureCall];
+export function buildSmartBatchCaptureCalls({
+  captures,
+  availableStake,
+  controlSystemAddress,
+  isPoolMember,
+  operatorAddress,
+  poolAddress,
+  strkTokenAddress,
+}: SmartBatchCaptureCallsOptions): Call[] {
+  if (captures.length === 0) {
+    throw new RangeError('At least one Control Point is required');
+  }
+  if (captures.length > MAX_CONTROL_ACTION_BATCH) {
+    throw new RangeError(
+      `At most ${MAX_CONTROL_ACTION_BATCH} Control Points can be captured at once`
+    );
+  }
+
+  const actionCalls: Call[] = [
+    captures.length === 1
+      ? {
+          contractAddress: controlSystemAddress,
+          entrypoint: 'capture',
+          calldata: [
+            captures[0].controlPointId.toString(),
+            captures[0].allocation.toString(),
+          ],
+        }
+      : {
+          contractAddress: controlSystemAddress,
+          entrypoint: 'capture_many',
+          calldata: [
+            captures.length.toString(),
+            ...captures.flatMap(({ controlPointId, allocation }) => [
+              controlPointId.toString(),
+              allocation.toString(),
+            ]),
+          ],
+        },
+  ];
+
+  return buildStakedControlCalls({
+    actionCalls,
+    additionalStake: captures.reduce(
+      (total, capture) => total + capture.allocation,
+      0n
+    ),
+    availableStake,
+    isPoolMember,
+    operatorAddress,
+    poolAddress,
+    strkTokenAddress,
+  });
+}
+
+export function buildSmartBatchReinforceCalls({
+  reinforcements,
+  availableStake,
+  controlSystemAddress,
+  isPoolMember,
+  operatorAddress,
+  poolAddress,
+  strkTokenAddress,
+}: SmartBatchReinforceCallsOptions): Call[] {
+  if (reinforcements.length === 0) {
+    throw new RangeError('At least one Control Point is required');
+  }
+  if (reinforcements.length > MAX_CONTROL_ACTION_BATCH) {
+    throw new RangeError(
+      `At most ${MAX_CONTROL_ACTION_BATCH} Control Points can be reinforced at once`
+    );
+  }
+
+  const actionCalls: Call[] = [
+    reinforcements.length === 1
+      ? {
+          contractAddress: controlSystemAddress,
+          entrypoint: 'reinforce',
+          calldata: [
+            reinforcements[0].controlPointId.toString(),
+            reinforcements[0].additionalAllocation.toString(),
+          ],
+        }
+      : {
+          contractAddress: controlSystemAddress,
+          entrypoint: 'reinforce_many',
+          calldata: [
+            reinforcements.length.toString(),
+            ...reinforcements.flatMap(
+              ({ controlPointId, additionalAllocation }) => [
+                controlPointId.toString(),
+                additionalAllocation.toString(),
+              ]
+            ),
+          ],
+        },
+  ];
+
+  return buildStakedControlCalls({
+    actionCalls,
+    additionalStake: reinforcements.reduce(
+      (total, reinforcement) => total + reinforcement.additionalAllocation,
+      0n
+    ),
+    availableStake,
+    isPoolMember,
+    operatorAddress,
+    poolAddress,
+    strkTokenAddress,
+  });
+}
+
+interface StakedControlCallsOptions {
+  actionCalls: Call[];
+  additionalStake: bigint;
+  availableStake: bigint;
+  operatorAddress: string;
+  poolAddress: string;
+  strkTokenAddress: string;
+  isPoolMember: boolean;
+}
+
+function buildStakedControlCalls({
+  actionCalls,
+  additionalStake,
+  availableStake,
+  operatorAddress,
+  poolAddress,
+  strkTokenAddress,
+  isPoolMember,
+}: StakedControlCallsOptions): Call[] {
+  const deficit = stakeDeficit(additionalStake, availableStake);
+
+  if (deficit === 0n) return actionCalls;
 
   const [deficitLow, deficitHigh] = encodeU256(deficit);
   const stakeCall: Call = isPoolMember
@@ -67,6 +225,6 @@ export function buildSmartCaptureCalls({
       calldata: [poolAddress, deficitLow, deficitHigh],
     },
     stakeCall,
-    captureCall,
+    ...actionCalls,
   ];
 }

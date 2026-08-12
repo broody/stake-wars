@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type Config struct {
 	DatabasePath    string
 	StarknetRPCURL  string
 	StarknetChainID string
+	ToriiURL        string
 	MaxImageBytes   int64
 	ChallengeTTL    time.Duration
 	SessionTTL      time.Duration
@@ -77,12 +79,21 @@ func Load() (Config, error) {
 		}
 	}
 
+	toriiURL := strings.TrimSpace(os.Getenv("TORII_URL"))
+	if toriiURL != "" {
+		parsed, err := url.Parse(toriiURL)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return Config{}, fmt.Errorf("TORII_URL must be an absolute HTTP(S) URL")
+		}
+	}
+
 	return Config{
 		Environment:     environment,
 		Port:            valueOrDefault("PORT", defaultPort),
 		DatabasePath:    valueOrDefault("DATABASE_PATH", defaultDatabasePath),
 		StarknetRPCURL:  strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
 		StarknetChainID: valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
+		ToriiURL:        toriiURL,
 		MaxImageBytes:   maxImageBytes,
 		ChallengeTTL:    challengeTTL,
 		SessionTTL:      sessionTTL,

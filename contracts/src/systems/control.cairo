@@ -1,6 +1,19 @@
 use starknet::ContractAddress;
 
 pub const MAX_SYNC_BATCH: usize = 50;
+pub const MAX_CONTROL_ACTION_BATCH: usize = 20;
+
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct CaptureRequest {
+    pub control_point_id: u32,
+    pub allocation: u128,
+}
+
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct ReinforcementRequest {
+    pub control_point_id: u32,
+    pub additional_allocation: u128,
+}
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ControlPointStatus {
@@ -27,7 +40,9 @@ pub struct OperatorStatus {
 #[starknet::interface]
 pub trait IControl<TContractState> {
     fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
+    fn capture_many(ref self: TContractState, captures: Span<CaptureRequest>);
     fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
+    fn reinforce_many(ref self: TContractState, reinforcements: Span<ReinforcementRequest>);
     fn release(ref self: TContractState, control_point_id: u32);
     fn redeploy(
         ref self: TContractState,
@@ -58,7 +73,10 @@ pub mod control {
     use stakewars::models::{CONFIG_ID, ControlPoint, GameConfig, OperatorState};
     use stakewars::staking::delegated_amount;
     use starknet::{ContractAddress, get_caller_address};
-    use super::{ControlPointStatus, IControl, MAX_SYNC_BATCH, OperatorStatus};
+    use super::{
+        CaptureRequest, ControlPointStatus, IControl, MAX_CONTROL_ACTION_BATCH, MAX_SYNC_BATCH,
+        OperatorStatus, ReinforcementRequest,
+    };
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
@@ -135,8 +153,39 @@ pub mod control {
             }
             self
                 .capture_with_synced(
-                    config, caller, operator, live_amount, control_point_id, allocation,
+                    config, caller, ref operator, live_amount, control_point_id, allocation,
                 );
+            let mut world = self.world_default();
+            world.write_model(@operator);
+        }
+
+        fn capture_many(ref self: ContractState, captures: Span<CaptureRequest>) {
+            assert(captures.len() > 0, 'empty capture batch');
+            assert(captures.len() <= MAX_CONTROL_ACTION_BATCH, 'capture batch too large');
+
+            let config = self.active_config();
+            let caller = get_caller_address();
+            let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
+            if operator.generation == 0 {
+                operator.generation = 1;
+            }
+
+            for capture in captures {
+                self.assert_control_point_id(config, *capture.control_point_id);
+                assert(*capture.allocation > 0, 'zero allocation');
+                self
+                    .capture_with_synced(
+                        config,
+                        caller,
+                        ref operator,
+                        live_amount,
+                        *capture.control_point_id,
+                        *capture.allocation,
+                    );
+            }
+
+            let mut world = self.world_default();
+            world.write_model(@operator);
         }
 
         fn reinforce(ref self: ContractState, control_point_id: u32, additional_allocation: u128) {
@@ -146,31 +195,37 @@ pub mod control {
 
             let caller = get_caller_address();
             let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
-            let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            assert(
-                point.controller == caller && point.controller_generation == operator.generation,
-                'not controller',
-            );
-
-            let previous_allocation = point.allocated_stake;
-            let new_total = operator.total_allocated + additional_allocation;
-            assert(new_total <= live_amount, 'allocation exceeds stake');
-
-            operator.total_allocated = new_total;
-            point.allocated_stake += additional_allocation;
-            world.write_model(@operator);
-            world.write_model(@point);
-            world
-                .emit_event(
-                    @ControlPointReinforced {
-                        control_point_id,
-                        controller: caller,
-                        previous_allocation,
-                        allocation: point.allocated_stake,
-                        ownership_generation: point.ownership_generation,
-                    },
+            self
+                .reinforce_with_synced(
+                    caller, ref operator, live_amount, control_point_id, additional_allocation,
                 );
+            let mut world = self.world_default();
+            world.write_model(@operator);
+        }
+
+        fn reinforce_many(ref self: ContractState, reinforcements: Span<ReinforcementRequest>) {
+            assert(reinforcements.len() > 0, 'empty reinforce batch');
+            assert(reinforcements.len() <= MAX_CONTROL_ACTION_BATCH, 'reinforce batch too large');
+
+            let config = self.active_config();
+            let caller = get_caller_address();
+            let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
+
+            for reinforcement in reinforcements {
+                self.assert_control_point_id(config, *reinforcement.control_point_id);
+                assert(*reinforcement.additional_allocation > 0, 'zero allocation');
+                self
+                    .reinforce_with_synced(
+                        caller,
+                        ref operator,
+                        live_amount,
+                        *reinforcement.control_point_id,
+                        *reinforcement.additional_allocation,
+                    );
+            }
+
+            let mut world = self.world_default();
+            world.write_model(@operator);
         }
 
         fn release(ref self: ContractState, control_point_id: u32) {
@@ -238,9 +293,10 @@ pub mod control {
 
             self
                 .capture_with_synced(
-                    config, caller, operator, live_amount, to_control_point_id, new_allocation,
+                    config, caller, ref operator, live_amount, to_control_point_id, new_allocation,
                 );
             let mut world = self.world_default();
+            world.write_model(@operator);
             world
                 .emit_event(
                     @ControlPointRedeployed {
@@ -456,7 +512,7 @@ pub mod control {
             ref self: ContractState,
             config: GameConfig,
             caller: ContractAddress,
-            mut operator: OperatorState,
+            ref operator: OperatorState,
             live_amount: u128,
             control_point_id: u32,
             allocation: u128,
@@ -514,7 +570,6 @@ pub mod control {
             point.ownership_generation += 1;
 
             let mut world = self.world_default();
-            world.write_model(@operator);
             world.write_model(@point);
             world
                 .emit_event(
@@ -524,6 +579,40 @@ pub mod control {
                         previous_controller,
                         previous_allocation,
                         allocation,
+                        ownership_generation: point.ownership_generation,
+                    },
+                );
+        }
+
+        fn reinforce_with_synced(
+            ref self: ContractState,
+            caller: ContractAddress,
+            ref operator: OperatorState,
+            live_amount: u128,
+            control_point_id: u32,
+            additional_allocation: u128,
+        ) {
+            let mut world = self.world_default();
+            let mut point: ControlPoint = world.read_model(control_point_id);
+            assert(
+                point.controller == caller && point.controller_generation == operator.generation,
+                'not controller',
+            );
+
+            let previous_allocation = point.allocated_stake;
+            let new_total = operator.total_allocated + additional_allocation;
+            assert(new_total <= live_amount, 'allocation exceeds stake');
+
+            operator.total_allocated = new_total;
+            point.allocated_stake += additional_allocation;
+            world.write_model(@point);
+            world
+                .emit_event(
+                    @ControlPointReinforced {
+                        control_point_id,
+                        controller: caller,
+                        previous_allocation,
+                        allocation: point.allocated_stake,
                         ownership_generation: point.ownership_generation,
                     },
                 );

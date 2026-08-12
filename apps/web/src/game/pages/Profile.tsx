@@ -9,7 +9,7 @@ export function Profile() {
     useControlPoints();
   const stakeMetrics = operatorStatus
     ? [
-        { label: 'DELEGATED STRK', value: operatorStatus.liveDelegatedAmount },
+        { label: 'STAKED STRK', value: operatorStatus.liveDelegatedAmount },
         { label: 'ALLOCATED STRK', value: operatorStatus.totalAllocated },
         { label: 'AVAILABLE STRK', value: operatorStatus.availableStake },
       ]
@@ -24,7 +24,7 @@ export function Profile() {
           </div>
           <h2 className="mb-4 mt-3 text-2xl text-white">CONNECT YOUR WALLET</h2>
           <p className="mb-6 max-w-sm text-sm leading-relaxed text-neutral-500">
-            Connect to read your delegated, allocated, and available STRK.
+            Connect to read your staked, allocated, and available STRK.
           </p>
           <div className="inline-block">
             <WalletButton />
@@ -89,13 +89,13 @@ export function Profile() {
             </div>
 
             <div className="mt-8 flex items-center justify-between border-y border-grid py-4 text-sm">
-              <span className="text-dim">CONTROLLED POINTS</span>
+              <span className="text-dim">OWNED POINTS</span>
               <span>{operatorStatus.controlledPointCount}</span>
             </div>
 
             {operatorStatus.needsSync && (
               <div className="mt-6 border border-amber-500/50 p-4 text-sm text-amber-400">
-                Your delegated balance is below the current game allocation.
+                Your staked balance is below the current game allocation.
                 Operator sync is required.
               </div>
             )}

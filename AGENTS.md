@@ -40,6 +40,18 @@ local Dojo World only when a contract test specifically requires it or the user
 explicitly requests it. Do not initialize, maintain, or depend on a local Katana
 World for normal frontend or API development, demos, previews, or verification.
 
+Run Torii locally against the shared Sepolia World with:
+
+```bash
+pnpm dev:torii
+```
+
+The local index is rebuildable and stored under `contracts/.torii/sepolia`.
+Always use this launcher rather than invoking `torii` directly. It enables
+debug logging, mirrors all Torii output to the terminal, and keeps a timestamped
+log under `contracts/.torii/logs/` for later triage. That directory is ignored
+by Git with the rest of `contracts/.torii`.
+
 ## Fly.io production backend
 
 The production Fly resources already exist:
@@ -115,6 +127,15 @@ requests work on it.
   requested. Never print secret values or store them in tracked files.
 - Uploaded image bytes belong in Tigris, not on the Machine or Fly Volume. The
   volume is reserved for SQLite and its related files.
+- Torii 1.8.0 currently runs beside the Go API in the same supervised container
+  and uses `/data/torii` for its separate, rebuildable SQLite index. Keep its
+  HTTP, gRPC, SQL, and relay listeners private; only `/torii/graphql` and
+  `/torii/health` are exposed through the API gateway.
+- Keep Torii debug logging enabled. Local logs are persisted under
+  `contracts/.torii/logs/`; production logs go to stdout for Fly log capture.
+- Keep the current Torii resource limits while the Machine has 512 MB RAM. If
+  memory pressure or index lag becomes material, move Torii to a separate
+  Machine; do not add a second active API Machine while the API uses SQLite.
 
 ### Pre-deployment checks
 

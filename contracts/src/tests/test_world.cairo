@@ -11,7 +11,9 @@ mod tests {
         m_OperatorState,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
-    use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
+    use stakewars::systems::control::{
+        CaptureRequest, IControlDispatcher, IControlDispatcherTrait, ReinforcementRequest, control,
+    };
     use stakewars::tests::mock_staking_pool::{
         IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
     };
@@ -209,6 +211,78 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(400000000)]
+    fn captures_multiple_points_atomically() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+
+        control
+            .capture_many(
+                [
+                    CaptureRequest { control_point_id: 40, allocation: 200 },
+                    CaptureRequest { control_point_id: 41, allocation: 300 },
+                ]
+                    .span(),
+            );
+
+        let first: ControlPoint = world.read_model(40_u32);
+        let second: ControlPoint = world.read_model(41_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.controller, player);
+        assert_eq!(first.allocated_stake, 200);
+        assert_eq!(second.controller, player);
+        assert_eq!(second.allocated_stake, 300);
+        assert_eq!(operator.total_allocated, 500);
+        assert_eq!(operator.controlled_point_count, 2);
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn captures_multiple_points_sequentially() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+
+        control.capture(40, 200);
+        control.capture(41, 300);
+
+        let first: ControlPoint = world.read_model(40_u32);
+        let second: ControlPoint = world.read_model(41_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.controller, player);
+        assert_eq!(first.allocated_stake, 200);
+        assert_eq!(second.controller, player);
+        assert_eq!(second.allocated_stake, 300);
+        assert_eq!(operator.total_allocated, 500);
+        assert_eq!(operator.controlled_point_count, 2);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('empty capture batch', 'ENTRYPOINT_FAILED'))]
+    fn rejects_empty_capture_batch() {
+        let (_, control, _) = setup();
+        control.capture_many([].span());
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('capture batch too large', 'ENTRYPOINT_FAILED'))]
+    fn rejects_oversized_capture_batch() {
+        let (_, control, _) = setup();
+        let mut captures = array![];
+        let mut id: u32 = 0;
+        while id < 21 {
+            captures.append(CaptureRequest { control_point_id: id, allocation: MINIMUM_STAKE });
+            id += 1;
+        }
+        control.capture_many(captures.span());
+    }
+
+    #[test]
     #[available_gas(300000000)]
     fn exact_high_ground_challenge_displaces_controller() {
         let (world, control, pool) = setup();
@@ -255,6 +329,95 @@ mod tests {
         assert_eq!(operator.total_allocated, 0);
         assert_eq!(operator.controlled_point_count, 0);
         assert_eq!(control.available_stake(player), 1_000);
+    }
+
+    #[test]
+    #[available_gas(500000000)]
+    fn reinforces_multiple_points_atomically() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control
+            .capture_many(
+                [
+                    CaptureRequest { control_point_id: 50, allocation: 100 },
+                    CaptureRequest { control_point_id: 51, allocation: 200 },
+                ]
+                    .span(),
+            );
+
+        control
+            .reinforce_many(
+                [
+                    ReinforcementRequest { control_point_id: 50, additional_allocation: 150 },
+                    ReinforcementRequest { control_point_id: 51, additional_allocation: 250 },
+                ]
+                    .span(),
+            );
+
+        let first: ControlPoint = world.read_model(50_u32);
+        let second: ControlPoint = world.read_model(51_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.allocated_stake, 250);
+        assert_eq!(second.allocated_stake, 450);
+        assert_eq!(operator.total_allocated, 700);
+        assert_eq!(operator.controlled_point_count, 2);
+    }
+
+    #[test]
+    #[available_gas(500000000)]
+    fn reinforces_multiple_points_sequentially() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control
+            .capture_many(
+                [
+                    CaptureRequest { control_point_id: 50, allocation: 100 },
+                    CaptureRequest { control_point_id: 51, allocation: 200 },
+                ]
+                    .span(),
+            );
+
+        control.reinforce(50, 150);
+        control.reinforce(51, 250);
+
+        let first: ControlPoint = world.read_model(50_u32);
+        let second: ControlPoint = world.read_model(51_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.allocated_stake, 250);
+        assert_eq!(second.allocated_stake, 450);
+        assert_eq!(operator.total_allocated, 700);
+        assert_eq!(operator.controlled_point_count, 2);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('empty reinforce batch', 'ENTRYPOINT_FAILED'))]
+    fn rejects_empty_reinforce_batch() {
+        let (_, control, _) = setup();
+        control.reinforce_many([].span());
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('reinforce batch too large', 'ENTRYPOINT_FAILED'))]
+    fn rejects_oversized_reinforce_batch() {
+        let (_, control, _) = setup();
+        let mut reinforcements = array![];
+        let mut id: u32 = 0;
+        while id < 21 {
+            reinforcements
+                .append(
+                    ReinforcementRequest {
+                        control_point_id: id, additional_allocation: MINIMUM_STAKE,
+                    },
+                );
+            id += 1;
+        }
+        control.reinforce_many(reinforcements.span());
     }
 
     #[test]

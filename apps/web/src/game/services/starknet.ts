@@ -188,13 +188,11 @@ export async function getOperatorStatus(
 
   return {
     operator: result[0] ?? operator,
-    liveDelegatedAmount: parseFelt(result[1], 'delegated stake'),
+    liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
     totalAllocated: parseFelt(result[2], 'total allocated stake'),
     availableStake: parseFelt(result[3], 'available stake'),
     generation: parseFelt(result[4], 'operator generation'),
-    controlledPointCount: Number(
-      parseFelt(result[5], 'controlled point count')
-    ),
+    controlledPointCount: Number(parseFelt(result[5], 'owned point count')),
     needsSync: parseFelt(result[6], 'operator sync flag') !== 0n,
   };
 }
@@ -270,7 +268,7 @@ export async function getPoolMemberInfo(
 
   return {
     rewardAddress: result[1] ?? operator,
-    amount: parseFelt(result[2], 'delegated amount'),
+    amount: parseFelt(result[2], 'staked amount'),
     unclaimedRewards: parseFelt(result[3], 'unclaimed rewards'),
     commissionBps: Number(parseFelt(result[4], 'member commission')),
     unpoolAmount: parseFelt(result[5], 'unpooling amount'),

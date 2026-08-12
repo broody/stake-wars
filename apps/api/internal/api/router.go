@@ -20,6 +20,7 @@ type PublicConfig struct {
 	Network       string
 	MaxImageBytes int64
 	AuthEnabled   bool
+	ToriiURL      string
 }
 
 type Dependencies struct {
@@ -27,6 +28,7 @@ type Dependencies struct {
 	Auth           *auth.Service
 	Config         PublicConfig
 	AllowedOrigins []string
+	Torii          *ToriiGateway
 }
 
 // NewHandler returns the API's HTTP routes.
@@ -38,6 +40,10 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
+	if dependencies.Torii != nil {
+		mux.Handle("/torii/graphql", dependencies.Torii)
+		mux.Handle("/torii/health", dependencies.Torii)
+	}
 
 	return securityHeaders(cors(dependencies.AllowedOrigins, mux))
 }
@@ -62,6 +68,13 @@ func (s *server) ready(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusServiceUnavailable, "not ready", "database is unavailable")
 		return
 	}
+	if s.dependencies.Torii != nil {
+		if err := s.dependencies.Torii.Ready(ctx); err != nil {
+			slog.ErrorContext(r.Context(), "Torii readiness check failed", "error", err)
+			writeProblem(w, http.StatusServiceUnavailable, "not ready", "Torii is unavailable")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
@@ -70,6 +83,7 @@ func (s *server) publicConfig(w http.ResponseWriter, _ *http.Request) {
 		"network":             s.dependencies.Config.Network,
 		"maxImageBytes":       s.dependencies.Config.MaxImageBytes,
 		"authEnabled":         s.dependencies.Config.AuthEnabled,
+		"toriiUrl":            s.dependencies.Config.ToriiURL,
 		"supportedImageTypes": []string{"image/webp", "image/jpeg", "image/png"},
 	})
 }

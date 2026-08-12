@@ -31,6 +31,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	toriiGateway, err := api.NewToriiGateway(configuration.ToriiURL)
+	if err != nil {
+		return err
+	}
 
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelStartup()
@@ -56,12 +60,14 @@ func run() error {
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
 		Handler: api.NewHandler(api.Dependencies{
-			DB:   db,
-			Auth: authService,
+			DB:    db,
+			Auth:  authService,
+			Torii: toriiGateway,
 			Config: api.PublicConfig{
 				Network:       configuration.StarknetChainID,
 				MaxImageBytes: configuration.MaxImageBytes,
 				AuthEnabled:   configuration.StarknetRPCURL != "",
+				ToriiURL:      publicToriiURL(toriiGateway),
 			},
 			AllowedOrigins: configuration.AllowedOrigins,
 		}),
@@ -97,4 +103,11 @@ func run() error {
 	defer cancel()
 
 	return server.Shutdown(shutdownCtx)
+}
+
+func publicToriiURL(gateway *api.ToriiGateway) string {
+	if gateway == nil {
+		return ""
+	}
+	return "/torii"
 }

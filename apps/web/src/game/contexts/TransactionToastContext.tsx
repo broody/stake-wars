@@ -9,7 +9,7 @@ import type { PropsWithChildren } from 'react';
 import { shortAddress } from '../utils/format';
 import { voyagerTransactionUrl } from '../utils/voyager';
 
-type TransactionState = 'submitted' | 'confirmed' | 'failed';
+type TransactionState = 'submitting' | 'confirmed' | 'failed';
 
 interface TransactionToast {
   hash: string;
@@ -19,9 +19,31 @@ interface TransactionToast {
 }
 
 interface TransactionToastContextValue {
-  notifySubmitted: (hash: string, label: string) => void;
+  notifySubmitting: (hash: string, label: string) => void;
   notifyConfirmed: (hash: string) => void;
   notifyFailed: (hash: string, error: string) => void;
+}
+
+function TransactionStateIcon({ state }: { state: TransactionState }) {
+  if (state === 'submitting') {
+    return (
+      <span
+        aria-hidden="true"
+        className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-600 border-t-white"
+      />
+    );
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex h-3 w-3 shrink-0 items-center justify-center text-[9px] ${
+        state === 'failed' ? 'text-amber-400' : 'text-white'
+      }`}
+    >
+      {state === 'failed' ? '×' : '✓'}
+    </span>
+  );
 }
 
 const TransactionToastContext = createContext<
@@ -31,10 +53,10 @@ const TransactionToastContext = createContext<
 export function TransactionToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<TransactionToast[]>([]);
 
-  const notifySubmitted = useCallback((hash: string, label: string) => {
+  const notifySubmitting = useCallback((hash: string, label: string) => {
     setToasts((current) => [
       ...current.filter((toast) => toast.hash !== hash),
-      { hash, label, state: 'submitted' },
+      { hash, label, state: 'submitting' },
     ]);
   }, []);
 
@@ -59,8 +81,8 @@ export function TransactionToastProvider({ children }: PropsWithChildren) {
   }, []);
 
   const value = useMemo(
-    () => ({ notifySubmitted, notifyConfirmed, notifyFailed }),
-    [notifyConfirmed, notifyFailed, notifySubmitted]
+    () => ({ notifySubmitting, notifyConfirmed, notifyFailed }),
+    [notifyConfirmed, notifyFailed, notifySubmitting]
   );
 
   return (
@@ -80,18 +102,10 @@ export function TransactionToastProvider({ children }: PropsWithChildren) {
             <div className="flex items-start justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[10px] tracking-[0.18em]">
-                  <span
-                    className={`h-2 w-2 ${
-                      toast.state === 'failed'
-                        ? 'bg-amber-400'
-                        : toast.state === 'submitted'
-                          ? 'animate-pulse bg-white'
-                          : 'bg-white'
-                    }`}
-                  />
+                  <TransactionStateIcon state={toast.state} />
                   {toast.label}{' '}
-                  {toast.state === 'submitted'
-                    ? 'SUBMITTED'
+                  {toast.state === 'submitting'
+                    ? 'SUBMITTING'
                     : toast.state === 'confirmed'
                       ? 'CONFIRMED'
                       : 'FAILED'}

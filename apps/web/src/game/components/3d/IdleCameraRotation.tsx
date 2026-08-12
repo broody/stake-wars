@@ -4,7 +4,13 @@ import * as THREE from 'three';
 
 const IDLE_TIMEOUT = 10000; // 10 seconds in milliseconds
 
-export const IdleCameraRotation: React.FC = () => {
+interface IdleCameraRotationProps {
+  disabled: boolean;
+}
+
+export const IdleCameraRotation: React.FC<IdleCameraRotationProps> = ({
+  disabled,
+}) => {
   const { camera, gl } = useThree();
   const lastInteractionTime = useRef(Date.now());
   const isIdle = useRef(false);
@@ -47,6 +53,12 @@ export const IdleCameraRotation: React.FC = () => {
   }, [gl, idleRotationDirection]);
 
   useFrame((_state, delta) => {
+    if (disabled) {
+      lastInteractionTime.current = Date.now();
+      isIdle.current = false;
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastInteraction = now - lastInteractionTime.current;
 

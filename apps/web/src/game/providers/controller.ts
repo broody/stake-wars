@@ -59,9 +59,9 @@ function configuredChain(): Chain {
 export const stakeWarsChain = configuredChain();
 
 const policies: SessionPolicies = {
-  // Token approvals and validator delegation intentionally stay outside the
-  // session policy. Controller will request explicit approval for Smart
-  // Capture's financial calls while preserving one atomic transaction.
+  // Token approvals and validator staking intentionally stay outside the
+  // session policy. Controller will request explicit approval for financial
+  // calls while preserving one atomic transaction.
   contracts: config.controlSystemAddress
     ? {
         [config.controlSystemAddress]: {
@@ -72,14 +72,25 @@ const policies: SessionPolicies = {
               description: 'Capture a neutral or contested Control Point.',
             },
             {
+              name: 'Capture Control Points',
+              entrypoint: 'capture_many',
+              description:
+                'Capture multiple neutral or contested Control Points.',
+            },
+            {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
-              description: 'Add delegated stake to a controlled point.',
+              description: 'Add staked STRK to an owned point.',
+            },
+            {
+              name: 'Reinforce Control Points',
+              entrypoint: 'reinforce_many',
+              description: 'Add staked STRK to multiple owned points.',
             },
             {
               name: 'Release Control Point',
               entrypoint: 'release',
-              description: 'Release a controlled point.',
+              description: 'Release an owned point.',
             },
             {
               name: 'Redeploy Control Point',

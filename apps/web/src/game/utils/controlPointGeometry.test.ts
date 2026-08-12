@@ -4,6 +4,7 @@ import {
   CONTROL_POINT_COUNT,
   createControlPointGeometry,
   createControlPointSetGeometry,
+  createSeparatedControlPointSetGeometry,
   extractControlPointPositions,
   isControlPointId,
 } from './controlPointGeometry';
@@ -44,6 +45,57 @@ describe('canonical Control Point geometry', () => {
     const geometry = createControlPointSetGeometry([3, 21, 987]);
 
     expect(geometry.getAttribute('position').count / 3).toBe(3);
+  });
+
+  it('adds padding only where Control Points have distinct owners', () => {
+    const geometry = createControlPointGeometry();
+    const positions = geometry.getAttribute('position').array as Float32Array;
+    const edgeOwners = new Map<string, number[]>();
+
+    for (let controlPointId = 0; controlPointId < 2_000; controlPointId += 1) {
+      const triangleOffset = controlPointId * 9;
+      const triangle = Array.from(
+        positions.slice(triangleOffset, triangleOffset + 9)
+      );
+
+      for (let vertex = 0; vertex < 3; vertex += 1) {
+        const nextVertex = (vertex + 1) % 3;
+        const edge = [
+          triangle.slice(vertex * 3, (vertex + 1) * 3),
+          triangle.slice(nextVertex * 3, (nextVertex + 1) * 3),
+        ]
+          .map((coordinates) => coordinates.join(','))
+          .sort()
+          .join('|');
+        const owners = edgeOwners.get(edge) ?? [];
+        owners.push(controlPointId);
+        edgeOwners.set(edge, owners);
+      }
+    }
+
+    const adjacentControlPoints = [...edgeOwners.values()].find(
+      (owners) => owners.length === 2
+    );
+    expect(adjacentControlPoints).toBeDefined();
+
+    const originalPositions = extractControlPointPositions(
+      adjacentControlPoints!
+    );
+    const sharedOwnerPositions = createSeparatedControlPointSetGeometry(
+      adjacentControlPoints!,
+      [adjacentControlPoints!]
+    ).getAttribute('position').array;
+    const separateOwnerPositions = createSeparatedControlPointSetGeometry(
+      adjacentControlPoints!,
+      adjacentControlPoints!.map((id) => [id])
+    ).getAttribute('position').array;
+
+    expect(Array.from(sharedOwnerPositions)).toEqual(
+      Array.from(originalPositions)
+    );
+    expect(Array.from(separateOwnerPositions)).not.toEqual(
+      Array.from(originalPositions)
+    );
   });
 
   it('rejects IDs outside the on-chain range', () => {

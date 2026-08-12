@@ -39,3 +39,20 @@ func TestLoadParsesAllowedOrigins(t *testing.T) {
 		t.Fatalf("expected 2 origins, got %d", got)
 	}
 }
+
+func TestLoadValidatesToriiURL(t *testing.T) {
+	t.Setenv("TORII_URL", "http://127.0.0.1:8081")
+
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configuration.ToriiURL != "http://127.0.0.1:8081" {
+		t.Fatalf("unexpected Torii URL %q", configuration.ToriiURL)
+	}
+
+	t.Setenv("TORII_URL", "file:///data/torii")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected non-HTTP Torii URL to fail")
+	}
+}

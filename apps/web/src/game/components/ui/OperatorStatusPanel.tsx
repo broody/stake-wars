@@ -57,7 +57,7 @@ export function OperatorStatusPanel() {
       {operatorStatus && (
         <div className="mt-3 w-64 space-y-1 border-l border-neutral-700 pl-3">
           <OperatorMetric
-            label="DELEGATED"
+            label="STAKED"
             value={operatorStatus.liveDelegatedAmount}
           />
           <OperatorMetric
@@ -70,7 +70,7 @@ export function OperatorStatusPanel() {
             highlight
           />
           <div className="flex items-baseline justify-between gap-6 pt-1 text-dim">
-            <span>CONTROLLED</span>
+            <span>OWNED</span>
             <span>{operatorStatus.controlledPointCount}</span>
           </div>
           {operatorStatus.needsSync && (

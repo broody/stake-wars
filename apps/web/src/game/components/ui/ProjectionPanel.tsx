@@ -32,7 +32,7 @@ export function ProjectionPanel() {
 
       <div className="px-4 py-3">
         <p className="leading-relaxed text-neutral-400">
-          Select Control Points you currently control. Ownership is verified
+          Select Control Points you currently own. Ownership is verified
           on-chain before a point joins the projection group.
         </p>
 

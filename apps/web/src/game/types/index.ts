@@ -19,6 +19,13 @@ export interface ControlPointStatus {
   needsSync: boolean;
 }
 
+export interface IndexedControlPoint {
+  id: number;
+  controller: string;
+  allocatedStake: bigint;
+  ownershipGeneration: bigint;
+}
+
 export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;

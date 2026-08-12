@@ -31,6 +31,12 @@ effective control on-chain. Permissionless reconciliation may call
 `sync_operator` or batch up to 50 unique addresses with `sync_operators`; healthy
 and previously unseen operators do not cause a model write or event.
 
+Operators may atomically capture or reinforce up to 20 Control Points with
+`capture_many` and `reinforce_many`. These entrypoints refresh the caller's live
+delegated balance once and persist the caller's final allocation state once,
+while retaining one ownership update and event per Control Point. The single
+`capture` and `reinforce` entrypoints remain available for one-point actions.
+
 Before any production migration, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
 delegation-pool address and base-unit rule values, and place both World and
