@@ -51,6 +51,7 @@ interface ControlPointContextValue {
     controlPointId: number | null,
     extendSelection?: boolean
   ) => void;
+  selectControlPoints: (controlPointIds: number[]) => void;
   toggleProjectionControlPoint: (controlPointId: number) => Promise<void>;
   clearProjectionSelection: () => void;
   refreshControlPoint: () => void;
@@ -186,6 +187,14 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     },
     []
   );
+
+  const selectControlPoints = useCallback((controlPointIds: number[]) => {
+    if (controlPointIds.some((id) => !isControlPointId(id))) {
+      throw new RangeError('Selection contains an invalid Control Point ID');
+    }
+
+    setSelectedControlPointIds([...new Set(controlPointIds)]);
+  }, []);
 
   const toggleProjectionControlPoint = useCallback(
     async (controlPointId: number) => {
@@ -586,6 +595,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       projectionError,
       changeMode,
       selectControlPoint,
+      selectControlPoints,
       toggleProjectionControlPoint,
       clearProjectionSelection,
       refreshControlPoint,
@@ -618,6 +628,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       projectionError,
       changeMode,
       selectControlPoint,
+      selectControlPoints,
       toggleProjectionControlPoint,
       clearProjectionSelection,
       refreshControlPoint,

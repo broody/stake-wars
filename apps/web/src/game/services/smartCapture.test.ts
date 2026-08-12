@@ -4,6 +4,7 @@ import {
   buildSmartBatchReinforceCalls,
   buildSmartCaptureCalls,
   encodeU256,
+  MAX_CONTROL_ACTION_BATCH,
   stakeDeficit,
 } from './smartCapture';
 
@@ -95,12 +96,12 @@ describe('Capture transaction calls', () => {
     expect(() =>
       buildSmartBatchCaptureCalls({
         ...baseOptions,
-        captures: Array.from({ length: 21 }, (_, controlPointId) => ({
-          controlPointId,
-          allocation: 10n,
-        })),
+        captures: Array.from(
+          { length: MAX_CONTROL_ACTION_BATCH + 1 },
+          (_, controlPointId) => ({ controlPointId, allocation: 10n })
+        ),
       })
-    ).toThrow('At most 20 Control Points can be captured at once');
+    ).toThrow('At most 50 Control Points can be captured at once');
   });
 
   it('stakes the deficit and fortifies every selected owned point', () => {
@@ -150,12 +151,15 @@ describe('Capture transaction calls', () => {
     expect(() =>
       buildSmartBatchReinforceCalls({
         ...baseOptions,
-        reinforcements: Array.from({ length: 21 }, (_, controlPointId) => ({
-          controlPointId,
-          additionalAllocation: 10n,
-        })),
+        reinforcements: Array.from(
+          { length: MAX_CONTROL_ACTION_BATCH + 1 },
+          (_, controlPointId) => ({
+            controlPointId,
+            additionalAllocation: 10n,
+          })
+        ),
       })
-    ).toThrow('At most 20 Control Points can be reinforced at once');
+    ).toThrow('At most 50 Control Points can be reinforced at once');
   });
 
   it('encodes u256 values as low and high words', () => {

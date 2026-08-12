@@ -37,7 +37,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
 *   **Action:** When an Operator adds stake and captures a Control Point, their Starknet account executes one atomic **Multicall Transaction**:
     1.  Approve STRK and enter or add to the StakeWars validator's official delegation pool, if additional funds are required.
-    2.  Call `capture()` for one Control Point or `capture_many()` for an atomic batch of up to 20 on the StakeWars Control System.
+    2.  Call `capture()` for one Control Point or `capture_many()` for an atomic batch of up to 50 on the StakeWars Control System.
 *   **State Synchronization:** The Game Layer maintains an internal ledger of each Operator's total allocated balance.
     *   *Verification:* Before an allocation increases or ownership changes, the Control System reads the Operator's live `amount` from the official STRK delegation pool.
     *   *Allocation Invariant:* An Operator's total allocated stake must never exceed their live delegated amount.
@@ -66,7 +66,7 @@ Since the Official Staking Contract enforces a withdrawal delay, the game treats
     *   They capture Control Point 2 immediately without waiting for unbonding.
 
 #### 3.1.4. Reinforcement and Release
-*   **Reinforcement:** A Controller may increase one or atomically reinforce up to 20 Control Points at a time, provided their total allocation remains within their live delegated balance.
+*   **Reinforcement:** A Controller may increase one or atomically reinforce up to 50 Control Points at a time, provided their total allocation remains within their live delegated balance.
 *   **Release:** A Controller may voluntarily release a Control Point. The point becomes neutral, its active image is hidden, and the released allocation becomes Floating Command Power.
 
 #### 3.1.5. Withdrawal

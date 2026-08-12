@@ -32,7 +32,7 @@ interface SmartBatchReinforceCallsOptions
 }
 
 const U128_MODULUS = 1n << 128n;
-export const MAX_CONTROL_ACTION_BATCH = 20;
+export const MAX_CONTROL_ACTION_BATCH = 50;
 
 export function stakeDeficit(
   allocation: bigint,

@@ -2,7 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
@@ -22,6 +24,13 @@ interface TransactionToastContextValue {
   notifySubmitting: (hash: string, label: string) => void;
   notifyConfirmed: (hash: string) => void;
   notifyFailed: (hash: string, error: string) => void;
+  notifyWarning: (message: string, label?: string) => void;
+}
+
+interface WarningToast {
+  id: number;
+  label: string;
+  message: string;
 }
 
 function TransactionStateIcon({ state }: { state: TransactionState }) {
@@ -50,8 +59,50 @@ const TransactionToastContext = createContext<
   TransactionToastContextValue | undefined
 >(undefined);
 
+function WarningToastCard({
+  toast,
+  onDismiss,
+}: {
+  toast: WarningToast;
+  onDismiss: (id: number) => void;
+}) {
+  useEffect(() => {
+    const timeout = window.setTimeout(() => onDismiss(toast.id), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [onDismiss, toast.id]);
+
+  return (
+    <div
+      role="alert"
+      className="pointer-events-auto border border-amber-500 bg-black/95 font-mono text-xs text-fg shadow-[6px_6px_0_rgba(251,191,36,0.12)] backdrop-blur-sm"
+    >
+      <div className="flex items-start justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[10px] tracking-[0.18em] text-amber-400">
+            <span aria-hidden="true">!</span>
+            {toast.label}
+          </div>
+          <p className="mt-2 break-words leading-relaxed text-neutral-300">
+            {toast.message}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onDismiss(toast.id)}
+          className="px-1 text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          aria-label={`Dismiss ${toast.label.toLowerCase()} warning`}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TransactionToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<TransactionToast[]>([]);
+  const [warnings, setWarnings] = useState<WarningToast[]>([]);
+  const warningId = useRef(0);
 
   const notifySubmitting = useCallback((hash: string, label: string) => {
     setToasts((current) => [
@@ -80,9 +131,26 @@ export function TransactionToastProvider({ children }: PropsWithChildren) {
     setToasts((current) => current.filter((toast) => toast.hash !== hash));
   }, []);
 
+  const dismissWarning = useCallback((id: number) => {
+    setWarnings((current) => current.filter((warning) => warning.id !== id));
+  }, []);
+
+  const notifyWarning = useCallback((message: string, label = 'WARNING') => {
+    warningId.current += 1;
+    setWarnings((current) => [
+      ...current.slice(-2),
+      { id: warningId.current, label, message },
+    ]);
+  }, []);
+
   const value = useMemo(
-    () => ({ notifySubmitting, notifyConfirmed, notifyFailed }),
-    [notifyConfirmed, notifyFailed, notifySubmitting]
+    () => ({
+      notifySubmitting,
+      notifyConfirmed,
+      notifyFailed,
+      notifyWarning,
+    }),
+    [notifyConfirmed, notifyFailed, notifySubmitting, notifyWarning]
   );
 
   return (
@@ -93,6 +161,13 @@ export function TransactionToastProvider({ children }: PropsWithChildren) {
         aria-live="polite"
         aria-atomic="false"
       >
+        {warnings.map((warning) => (
+          <WarningToastCard
+            key={warning.id}
+            toast={warning}
+            onDismiss={dismissWarning}
+          />
+        ))}
         {toasts.map((toast) => (
           <div
             key={toast.hash}

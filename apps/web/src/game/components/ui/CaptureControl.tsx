@@ -14,6 +14,7 @@ import {
 import {
   buildSmartBatchCaptureCalls,
   buildSmartBatchReinforceCalls,
+  MAX_CONTROL_ACTION_BATCH,
   stakeDeficit,
 } from '../../services/smartCapture';
 import type { PoolMemberInfo, StakingPoolInfo } from '../../types';
@@ -167,6 +168,9 @@ export function CaptureControl({
   }, [operatorStatus, totalAllocation]);
 
   const disabledReason = useMemo(() => {
+    if (controlPoints.length > MAX_CONTROL_ACTION_BATCH) {
+      return `SELECT UP TO ${MAX_CONTROL_ACTION_BATCH} TO ${isFortifying ? 'FORTIFY' : 'CAPTURE'}`;
+    }
     if (!isConnected) {
       return `CONNECT OPERATOR TO ${isFortifying ? 'FORTIFY' : 'CAPTURE'}`;
     }
@@ -187,6 +191,7 @@ export function CaptureControl({
     return null;
   }, [
     deficit,
+    controlPoints.length,
     highestRequiredStake,
     isConnected,
     isFortifying,

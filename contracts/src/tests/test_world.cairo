@@ -12,7 +12,8 @@ mod tests {
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{
-        CaptureRequest, IControlDispatcher, IControlDispatcherTrait, ReinforcementRequest, control,
+        CaptureRequest, IControlDispatcher, IControlDispatcherTrait, MAX_CONTROL_ACTION_BATCH,
+        ReinforcementRequest, control,
     };
     use stakewars::tests::mock_staking_pool::{
         IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
@@ -240,6 +241,30 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(10000000000)]
+    fn captures_exactly_maximum_batch() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, MINIMUM_STAKE * 50);
+        testing::set_contract_address(player);
+        let mut captures = array![];
+        while captures.len() < MAX_CONTROL_ACTION_BATCH {
+            let control_point_id: u32 = captures.len().try_into().unwrap();
+            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
+        }
+
+        control.capture_many(captures.span());
+
+        let first: ControlPoint = world.read_model(0_u32);
+        let last: ControlPoint = world.read_model(49_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.controller, player);
+        assert_eq!(last.controller, player);
+        assert_eq!(operator.total_allocated, MINIMUM_STAKE * 50);
+        assert_eq!(operator.controlled_point_count, 50);
+    }
+
+    #[test]
     #[available_gas(400000000)]
     fn captures_multiple_points_sequentially() {
         let (world, control, pool) = setup();
@@ -275,10 +300,9 @@ mod tests {
     fn rejects_oversized_capture_batch() {
         let (_, control, _) = setup();
         let mut captures = array![];
-        let mut id: u32 = 0;
-        while id < 21 {
-            captures.append(CaptureRequest { control_point_id: id, allocation: MINIMUM_STAKE });
-            id += 1;
+        while captures.len() <= MAX_CONTROL_ACTION_BATCH {
+            let control_point_id: u32 = captures.len().try_into().unwrap();
+            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
         }
         control.capture_many(captures.span());
     }
@@ -367,6 +391,34 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(20000000000)]
+    fn reinforces_exactly_maximum_batch() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, (MINIMUM_STAKE + 1) * 50);
+        testing::set_contract_address(player);
+        let mut captures = array![];
+        let mut reinforcements = array![];
+        while captures.len() < MAX_CONTROL_ACTION_BATCH {
+            let control_point_id: u32 = captures.len().try_into().unwrap();
+            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
+            reinforcements
+                .append(ReinforcementRequest { control_point_id, additional_allocation: 1 });
+        }
+
+        control.capture_many(captures.span());
+        control.reinforce_many(reinforcements.span());
+
+        let first: ControlPoint = world.read_model(0_u32);
+        let last: ControlPoint = world.read_model(49_u32);
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(first.allocated_stake, MINIMUM_STAKE + 1);
+        assert_eq!(last.allocated_stake, MINIMUM_STAKE + 1);
+        assert_eq!(operator.total_allocated, (MINIMUM_STAKE + 1) * 50);
+        assert_eq!(operator.controlled_point_count, 50);
+    }
+
+    #[test]
     #[available_gas(500000000)]
     fn reinforces_multiple_points_sequentially() {
         let (world, control, pool) = setup();
@@ -408,15 +460,12 @@ mod tests {
     fn rejects_oversized_reinforce_batch() {
         let (_, control, _) = setup();
         let mut reinforcements = array![];
-        let mut id: u32 = 0;
-        while id < 21 {
+        while reinforcements.len() <= MAX_CONTROL_ACTION_BATCH {
+            let control_point_id: u32 = reinforcements.len().try_into().unwrap();
             reinforcements
                 .append(
-                    ReinforcementRequest {
-                        control_point_id: id, additional_allocation: MINIMUM_STAKE,
-                    },
+                    ReinforcementRequest { control_point_id, additional_allocation: MINIMUM_STAKE },
                 );
-            id += 1;
         }
         control.reinforce_many(reinforcements.span());
     }

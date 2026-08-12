@@ -31,7 +31,7 @@ effective control on-chain. Permissionless reconciliation may call
 `sync_operator` or batch up to 50 unique addresses with `sync_operators`; healthy
 and previously unseen operators do not cause a model write or event.
 
-Operators may atomically capture or reinforce up to 20 Control Points with
+Operators may atomically capture or reinforce up to 50 Control Points with
 `capture_many` and `reinforce_many`. These entrypoints refresh the caller's live
 delegated balance once and persist the caller's final allocation state once,
 while retaining one ownership update and event per Control Point. The single

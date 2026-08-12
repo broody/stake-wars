@@ -1,7 +1,7 @@
 use starknet::ContractAddress;
 
 pub const MAX_SYNC_BATCH: usize = 50;
-pub const MAX_CONTROL_ACTION_BATCH: usize = 20;
+pub const MAX_CONTROL_ACTION_BATCH: usize = 50;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct CaptureRequest {
