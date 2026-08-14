@@ -237,8 +237,8 @@ export function SelectionPanel() {
             </div>
 
             <StakeRow
-              label="ALLOCATED"
-              value={selectedControlPoint?.allocatedStake}
+              label="CAPTURE POWER"
+              value={selectedControlPoint?.capturePower}
             />
           </>
         ) : null}

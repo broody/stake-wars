@@ -10,8 +10,8 @@ import (
 
 func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	responses := [][]string{
-		{"0xc", "0x123", "0x64", "0x2", "0x6e", "0x0", "0x1"},
-		{"0x123", "0x3e8", "0x64", "0x384", "0x2", "0x1", "0x0"},
+		{"0xc", "0x123", "0x64", "0x2", "0x3e8", "0x6e", "0x0", "0x1"},
+		{"0x123", "0x3e8", "0x3e8", "0x2", "0x1", "0x0"},
 		{"0x1"},
 	}
 	callIndex := 0
@@ -38,8 +38,8 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if point.ID != 12 || point.Controller != "0x123" || point.AllocatedStake != "100" ||
-		point.RequiredStake != "110" || !point.NeedsSync {
+	if point.ID != 12 || point.Controller != "0x123" || point.CapturePower != "100" ||
+		point.ControlledSince != 1000 || point.RequiredStake != "110" || !point.NeedsSync {
 		t.Fatalf("unexpected point status: %+v", point)
 	}
 
@@ -47,8 +47,8 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if operator.LiveDelegatedAmount != "1000" || operator.TotalAllocated != "100" ||
-		operator.AvailableStake != "900" || operator.Generation != 2 || operator.NeedsSync {
+	if operator.LiveDelegatedAmount != "1000" || operator.RegisteredPower != "1000" ||
+		operator.Generation != 2 || operator.NeedsSync {
 		t.Fatalf("unexpected operator status: %+v", operator)
 	}
 

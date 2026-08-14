@@ -29,6 +29,5 @@ private_key = "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
 "stakewars-ControlPointDisplaced" = ["stakewars-control"]
 "stakewars-ControlPointReinforced" = ["stakewars-control"]
 "stakewars-ControlPointReleased" = ["stakewars-control"]
-"stakewars-ControlPointRedeployed" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRelinquished" = ["stakewars-control"]

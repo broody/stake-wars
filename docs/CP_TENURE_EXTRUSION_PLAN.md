@@ -54,7 +54,7 @@ curve as named constants so they can be tuned after viewing real distributions.
 Tenure means time since the current controller captured the Control Point.
 
 - A capture or displacement starts tenure at the current block timestamp.
-- A redeployment starts new tenure on the destination point.
+- A new capture starts new tenure on the destination point.
 - Reinforcement does not reset tenure.
 - Release clears tenure.
 - A later recapture starts a new tenure, even for a previous controller.
@@ -72,7 +72,7 @@ unbounded event history on every page load.
 1. Add `controlled_since: u64` to the `ControlPoint` model. This is an additive
    Dojo model change; existing entities receive zero.
 2. Set it with Starknet's block timestamp inside `capture_with_synced`, which
-   also covers redeployment destinations and displacement captures.
+   also covers displacement captures.
 3. Preserve it during reinforcement and set it to zero in `clear_point`.
 4. Add it to `ControlPointStatus`, the single and batched status readers, the
    frontend types, and Starknet response parsing.
@@ -154,7 +154,7 @@ flat so image projection remains an undistorted surface.
 ### 1. Data semantics and migration-safe state
 
 - Contract model/status changes and Cairo tests for capture, reinforcement,
-  displacement, redeployment, release, and zero-valued legacy state.
+  displacement, release, and zero-valued state.
 - Torii/Starknet parsing changes and TypeScript unit tests.
 - Compatibility reconstruction for pre-migration Sepolia ownership.
 

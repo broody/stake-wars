@@ -12,7 +12,7 @@ export interface ArtData {
 export interface ControlPointStatus {
   id: number;
   controller: string;
-  allocatedStake: bigint;
+  capturePower: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
   requiredStake: bigint;
@@ -24,7 +24,7 @@ export interface IndexedControlPoint {
   id: number;
   controller: string;
   controllerGeneration: bigint;
-  allocatedStake: bigint;
+  capturePower: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
 }
@@ -32,8 +32,7 @@ export interface IndexedControlPoint {
 export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;
-  totalAllocated: bigint;
-  availableStake: bigint;
+  registeredPower: bigint;
   generation: bigint;
   controlledPointCount: number;
   needsSync: boolean;
@@ -44,7 +43,6 @@ export type OperatorActivityType =
   | 'loss'
   | 'reinforcement'
   | 'release'
-  | 'redeployment'
   | 'disqualification'
   | 'relinquishment'
   | 'yield_claim';
@@ -56,7 +54,6 @@ export interface OperatorActivity {
   eventIndex: number;
   transactionHash: string;
   controlPointId?: number;
-  destinationControlPointId?: number;
   amount: bigint;
   secondaryAmount?: bigint;
   counterparty?: string;

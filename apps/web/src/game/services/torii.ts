@@ -7,7 +7,6 @@ import type {
 } from '../types';
 import { isControlPointId } from '../utils/controlPointGeometry';
 import { addressesMatch, isZeroAddress } from '../utils/format';
-import { getBlockTimestamps } from './starknet';
 
 const CONTROL_POINTS_QUERY = `
   query StakeWarsControlPoints {
@@ -17,7 +16,7 @@ const CONTROL_POINTS_QUERY = `
           id
           controller
           controller_generation
-          allocated_stake
+          capture_power
           ownership_generation
           controlled_since
         }
@@ -42,37 +41,6 @@ const OPERATOR_GENERATIONS_QUERY = `
   }
 `;
 
-const LEGACY_CONTROL_POINTS_QUERY = CONTROL_POINTS_QUERY.replace(
-  '          controlled_since\n',
-  ''
-);
-
-const LEGACY_CAPTURE_PAGE_QUERY = `
-  query StakeWarsLegacyCapturePage(
-    $controlPointIds: [u32]
-    $after: Cursor
-  ) {
-    stakewarsControlPointCapturedModels(
-      first: 1000
-      after: $after
-      where: { control_point_idIN: $controlPointIds }
-    ) {
-      edges {
-        cursor
-        node {
-          control_point_id
-          controller
-          ownership_generation
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-`;
-
 const OPERATOR_ACTIVITY_QUERY = `
   query StakeWarsOperatorActivity($operator: ContractAddress!) {
     captures: stakewarsControlPointCapturedModels(
@@ -85,8 +53,8 @@ const OPERATOR_ACTIVITY_QUERY = `
           control_point_id
           controller
           previous_controller
-          previous_allocation
-          allocation
+          previous_power
+          capture_power
           ownership_generation
         }
       }
@@ -101,8 +69,8 @@ const OPERATOR_ACTIVITY_QUERY = `
           control_point_id
           controller
           previous_controller
-          previous_allocation
-          allocation
+          previous_power
+          capture_power
           ownership_generation
         }
       }
@@ -116,8 +84,8 @@ const OPERATOR_ACTIVITY_QUERY = `
         node {
           control_point_id
           controller
-          previous_allocation
-          allocation
+          previous_power
+          capture_power
           ownership_generation
         }
       }
@@ -131,23 +99,8 @@ const OPERATOR_ACTIVITY_QUERY = `
         node {
           control_point_id
           previous_controller
-          released_allocation
+          previous_power
           ownership_generation
-        }
-      }
-    }
-    redeployments: stakewarsControlPointRedeployedModels(
-      first: 1000
-      where: { operator: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          operator
-          from_control_point_id
-          to_control_point_id
-          released_allocation
-          new_allocation
         }
       }
     }
@@ -161,7 +114,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           operator
           previous_generation
           new_generation
-          previous_allocation
+          previous_registered_power
           live_delegated_amount
           invalidated_point_count
         }
@@ -177,7 +130,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           operator
           previous_generation
           new_generation
-          released_allocation
+          previous_registered_power
           released_point_count
         }
       }
@@ -192,14 +145,12 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
     $lossesFirst: Int!
     $reinforcementsFirst: Int!
     $releasesFirst: Int!
-    $redeploymentsFirst: Int!
     $disqualificationsFirst: Int!
     $relinquishmentsFirst: Int!
     $capturesAfter: Cursor
     $lossesAfter: Cursor
     $reinforcementsAfter: Cursor
     $releasesAfter: Cursor
-    $redeploymentsAfter: Cursor
     $disqualificationsAfter: Cursor
     $relinquishmentsAfter: Cursor
   ) {
@@ -208,7 +159,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $capturesAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller previous_controller previous_allocation allocation ownership_generation } }
+      edges { cursor node { control_point_id controller previous_controller previous_power capture_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     losses: stakewarsControlPointCapturedModels(
@@ -216,7 +167,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $lossesAfter
       where: { previous_controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller previous_controller previous_allocation allocation ownership_generation } }
+      edges { cursor node { control_point_id controller previous_controller previous_power capture_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
@@ -224,7 +175,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $reinforcementsAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller previous_allocation allocation ownership_generation } }
+      edges { cursor node { control_point_id controller previous_power capture_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     releases: stakewarsControlPointReleasedModels(
@@ -232,15 +183,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $releasesAfter
       where: { previous_controller: $operator }
     ) {
-      edges { cursor node { control_point_id previous_controller released_allocation ownership_generation } }
-      pageInfo { hasNextPage endCursor }
-    }
-    redeployments: stakewarsControlPointRedeployedModels(
-      first: $redeploymentsFirst
-      after: $redeploymentsAfter
-      where: { operator: $operator }
-    ) {
-      edges { cursor node { operator from_control_point_id to_control_point_id released_allocation new_allocation } }
+      edges { cursor node { control_point_id previous_controller previous_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     disqualifications: stakewarsOperatorDisqualifiedModels(
@@ -248,7 +191,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $disqualificationsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation previous_allocation live_delegated_amount invalidated_point_count } }
+      edges { cursor node { operator previous_generation new_generation previous_registered_power live_delegated_amount invalidated_point_count } }
       pageInfo { hasNextPage endCursor }
     }
     relinquishments: stakewarsOperatorRelinquishedModels(
@@ -256,7 +199,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $relinquishmentsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation released_allocation released_point_count } }
+      edges { cursor node { operator previous_generation new_generation previous_registered_power released_point_count } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -274,8 +217,8 @@ const OPERATOR_DISPLACEMENTS_QUERY = `
           control_point_id
           previous_controller
           new_controller
-          released_allocation
-          new_allocation
+          defeated_power
+          capture_power
           ownership_generation
         }
       }
@@ -294,7 +237,7 @@ const OPERATOR_DISPLACEMENTS_PAGE_QUERY = `
       after: $after
       where: { previous_controller: $operator }
     ) {
-      edges { cursor node { control_point_id previous_controller new_controller released_allocation new_allocation ownership_generation } }
+      edges { cursor node { control_point_id previous_controller new_controller defeated_power capture_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -346,7 +289,7 @@ interface ToriiControlPointNode {
   id: number | string;
   controller: string;
   controller_generation: string;
-  allocated_stake: string;
+  capture_power: string;
   ownership_generation: string;
   controlled_since?: string | null;
 }
@@ -388,56 +331,30 @@ interface CaptureEventNode {
   control_point_id: number | string;
   controller: string;
   previous_controller: string;
-  previous_allocation: string;
-  allocation: string;
+  previous_power: string;
+  capture_power: string;
   ownership_generation?: string;
-}
-
-interface LegacyCaptureEventNode {
-  control_point_id: number | string;
-  controller: string;
-  ownership_generation: string;
-}
-
-interface LegacyCapturePageResponse {
-  data?: {
-    stakewarsControlPointCapturedModels?: {
-      edges?: Array<ToriiEdge<LegacyCaptureEventNode>>;
-      pageInfo?: {
-        hasNextPage?: boolean;
-        endCursor?: string | null;
-      };
-    };
-  };
-  errors?: Array<{ message?: string }>;
 }
 
 interface ReinforcementEventNode {
   control_point_id: number | string;
-  previous_allocation: string;
-  allocation: string;
+  previous_power: string;
+  capture_power: string;
 }
 
 interface ReleaseEventNode {
   control_point_id: number | string;
-  released_allocation: string;
-}
-
-interface RedeploymentEventNode {
-  from_control_point_id: number | string;
-  to_control_point_id: number | string;
-  released_allocation: string;
-  new_allocation: string;
+  previous_power: string;
 }
 
 interface DisqualificationEventNode {
-  previous_allocation: string;
+  previous_registered_power: string;
   live_delegated_amount: string;
   invalidated_point_count: number | string;
 }
 
 interface RelinquishmentEventNode {
-  released_allocation: string;
+  previous_registered_power: string;
   released_point_count: number | string;
 }
 
@@ -445,8 +362,8 @@ interface DisplacementEventNode {
   control_point_id: number | string;
   previous_controller: string;
   new_controller: string;
-  released_allocation: string;
-  new_allocation: string;
+  defeated_power: string;
+  capture_power: string;
 }
 
 interface ToriiOperatorActivityResponse {
@@ -455,7 +372,6 @@ interface ToriiOperatorActivityResponse {
     losses?: ToriiConnection<CaptureEventNode>;
     reinforcements?: ToriiConnection<ReinforcementEventNode>;
     releases?: ToriiConnection<ReleaseEventNode>;
-    redeployments?: ToriiConnection<RedeploymentEventNode>;
     disqualifications?: ToriiConnection<DisqualificationEventNode>;
     relinquishments?: ToriiConnection<RelinquishmentEventNode>;
   };
@@ -616,7 +532,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'capture',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.allocation, 'capture allocation'),
+        amount: parseBigInt(node.capture_power, 'capture power'),
         counterparty: isZeroAddress(node.previous_controller)
           ? undefined
           : node.previous_controller,
@@ -630,8 +546,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'loss',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.previous_allocation, 'released allocation'),
-        secondaryAmount: parseBigInt(node.allocation, 'challenger allocation'),
+        amount: parseBigInt(node.previous_power, 'defeated power'),
+        secondaryAmount: parseBigInt(node.capture_power, 'challenger power'),
         counterparty: node.controller,
       }))
     );
@@ -640,17 +556,14 @@ export function parseOperatorActivity(
   edges(payload.data.reinforcements).forEach((edge) => {
     append(
       activityFromEdge(edge, (position, node) => {
-        const previous = parseBigInt(
-          node.previous_allocation,
-          'previous allocation'
-        );
-        const allocation = parseBigInt(node.allocation, 'allocation');
+        const previous = parseBigInt(node.previous_power, 'previous power');
+        const capturePower = parseBigInt(node.capture_power, 'capture power');
         return {
           ...position,
           type: 'reinforcement',
           controlPointId: parseControlPointId(node.control_point_id),
-          amount: allocation - previous,
-          secondaryAmount: allocation,
+          amount: capturePower - previous,
+          secondaryAmount: capturePower,
         };
       })
     );
@@ -662,25 +575,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'release',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.released_allocation, 'released allocation'),
-      }))
-    );
-  });
-
-  edges(payload.data.redeployments).forEach((edge) => {
-    append(
-      activityFromEdge(edge, (position, node) => ({
-        ...position,
-        type: 'redeployment',
-        controlPointId: parseControlPointId(node.from_control_point_id),
-        destinationControlPointId: parseControlPointId(
-          node.to_control_point_id
-        ),
-        amount: parseBigInt(node.new_allocation, 'new allocation'),
-        secondaryAmount: parseBigInt(
-          node.released_allocation,
-          'released allocation'
-        ),
+        amount: parseBigInt(node.previous_power, 'previous power'),
       }))
     );
   });
@@ -690,7 +585,10 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'disqualification',
-        amount: parseBigInt(node.previous_allocation, 'previous allocation'),
+        amount: parseBigInt(
+          node.previous_registered_power,
+          'previous registered power'
+        ),
         secondaryAmount: parseBigInt(
           node.live_delegated_amount,
           'live delegated amount'
@@ -705,7 +603,10 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'relinquishment',
-        amount: parseBigInt(node.released_allocation, 'released allocation'),
+        amount: parseBigInt(
+          node.previous_registered_power,
+          'previous registered power'
+        ),
         affectedPointCount: Number(node.released_point_count),
       }))
     );
@@ -717,8 +618,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'loss',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.released_allocation, 'released allocation'),
-        secondaryAmount: parseBigInt(node.new_allocation, 'new allocation'),
+        amount: parseBigInt(node.defeated_power, 'defeated power'),
+        secondaryAmount: parseBigInt(node.capture_power, 'capture power'),
         counterparty: node.new_controller,
       }));
       if (!displaced) return;
@@ -975,7 +876,6 @@ interface OperatorControlActivityCursor {
   losses: string | null;
   reinforcements: string | null;
   releases: string | null;
-  redeployments: string | null;
   disqualifications: string | null;
   relinquishments: string | null;
   displacements: string | null;
@@ -1029,7 +929,6 @@ async function getOperatorControlActivityPage(
       losses: 'loss',
       reinforcements: 'reinforcement',
       releases: 'release',
-      redeployments: 'redeployment',
       disqualifications: 'disqualification',
       relinquishments: 'relinquishment',
       displacements: 'loss',
@@ -1047,7 +946,6 @@ async function getOperatorControlActivityPage(
         losses: null,
         reinforcements: null,
         releases: null,
-        redeployments: null,
         disqualifications: null,
         relinquishments: null,
         displacements: null,
@@ -1070,10 +968,6 @@ async function getOperatorControlActivityPage(
       reinforcementsAfter: cursor?.reinforcements ?? null,
       releasesFirst: active('releases') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
       releasesAfter: cursor?.releases ?? null,
-      redeploymentsFirst: active('redeployments')
-        ? ACTIVITY_SOURCE_PAGE_SIZE
-        : 0,
-      redeploymentsAfter: cursor?.redeployments ?? null,
       disqualificationsFirst: active('disqualifications')
         ? ACTIVITY_SOURCE_PAGE_SIZE
         : 0,
@@ -1120,7 +1014,6 @@ async function getOperatorControlActivityPage(
         losses: null,
         reinforcements: null,
         releases: null,
-        redeployments: null,
         disqualifications: null,
         relinquishments: null,
         displacements: displacementCursor,
@@ -1142,9 +1035,6 @@ async function getOperatorControlActivityPage(
         : null,
       releases: active('releases')
         ? nextActivityCursor(data.releases, 'release activity')
-        : null,
-      redeployments: active('redeployments')
-        ? nextActivityCursor(data.redeployments, 'redeployment activity')
         : null,
       disqualifications: active('disqualifications')
         ? nextActivityCursor(
@@ -1215,7 +1105,6 @@ export async function getOperatorActivityFeedPage(
         losses: cursor.losses,
         reinforcements: cursor.reinforcements,
         releases: cursor.releases,
-        redeployments: cursor.redeployments,
         disqualifications: cursor.disqualifications,
         relinquishments: cursor.relinquishments,
         displacements: cursor.displacements,
@@ -1249,7 +1138,6 @@ export async function getOperatorActivityFeedPage(
             losses: null,
             reinforcements: null,
             releases: null,
-            redeployments: null,
             disqualifications: null,
             relinquishments: null,
             displacements: null,
@@ -1349,7 +1237,7 @@ export function parseIndexedControlPoints(
         node.controller_generation,
         'controller generation'
       ),
-      allocatedStake: parseBigInt(node.allocated_stake, 'allocated stake'),
+      capturePower: parseBigInt(node.capture_power, 'capture power'),
       ownershipGeneration: parseBigInt(
         node.ownership_generation,
         'ownership generation'
@@ -1435,116 +1323,13 @@ async function filterCurrentControlPoints(
   );
 }
 
-async function legacyControlStartTimes(
-  controlPoints: IndexedControlPoint[],
-  signal?: AbortSignal
-): Promise<Map<number, number>> {
-  const unresolved = controlPoints.filter(
-    ({ controller, controlledSince }) =>
-      controlledSince === null && !isZeroAddress(controller)
-  );
-  if (unresolved.length === 0) return new Map();
-
-  const currentById = new Map(unresolved.map((point) => [point.id, point]));
-  const captureBlocks = new Map<number, number>();
-  let after: string | null = null;
-
-  for (let page = 0; page < 1000; page += 1) {
-    const payload: LegacyCapturePageResponse =
-      await queryTorii<LegacyCapturePageResponse>(
-        LEGACY_CAPTURE_PAGE_QUERY,
-        {
-          controlPointIds: unresolved.map(({ id }) => id),
-          after,
-        },
-        signal
-      );
-    if (payload.errors?.length) {
-      throw new Error(
-        payload.errors[0]?.message ||
-          'Torii rejected the legacy Control Point tenure query'
-      );
-    }
-
-    const connection:
-      | NonNullable<
-          LegacyCapturePageResponse['data']
-        >['stakewarsControlPointCapturedModels']
-      | undefined = payload.data?.stakewarsControlPointCapturedModels;
-    if (!connection?.edges || !connection.pageInfo) {
-      throw new Error('Torii omitted the legacy Control Point tenure page');
-    }
-
-    connection.edges.forEach((edge: ToriiEdge<LegacyCaptureEventNode>) => {
-      if (!edge.node) return;
-      const id = parseControlPointId(edge.node.control_point_id);
-      const current = currentById.get(id);
-      if (
-        !current ||
-        !addressesMatch(current.controller, edge.node.controller) ||
-        current.ownershipGeneration !==
-          parseBigInt(edge.node.ownership_generation, 'ownership generation')
-      ) {
-        return;
-      }
-      captureBlocks.set(id, parseEventPosition(edge.cursor).blockNumber);
-    });
-
-    if (!connection.pageInfo.hasNextPage) break;
-    const endCursor: string | null = connection.pageInfo.endCursor ?? null;
-    if (!endCursor || endCursor === after) {
-      throw new Error('Torii returned an invalid legacy tenure cursor');
-    }
-    after = endCursor;
-
-    if (page === 999) {
-      throw new Error('Legacy Control Point tenure exceeded pagination limit');
-    }
-  }
-
-  const blockTimestamps = await getBlockTimestamps(
-    [...captureBlocks.values()],
-    signal
-  );
-  const controlStartTimes = new Map<number, number>();
-  captureBlocks.forEach((blockNumber, id) => {
-    const timestamp = blockTimestamps.get(blockNumber);
-    if (timestamp !== undefined) controlStartTimes.set(id, timestamp);
-  });
-  return controlStartTimes;
-}
-
 export async function getIndexedControlPoints(
   signal?: AbortSignal
 ): Promise<IndexedControlPoint[]> {
-  let payload = await queryTorii<ToriiControlPointResponse>(
+  const payload = await queryTorii<ToriiControlPointResponse>(
     CONTROL_POINTS_QUERY,
     {},
     signal
   );
-  if (
-    payload.errors?.some(({ message }) => message?.includes('controlled_since'))
-  ) {
-    payload = await queryTorii<ToriiControlPointResponse>(
-      LEGACY_CONTROL_POINTS_QUERY,
-      {},
-      signal
-    );
-  }
-
-  const controlPoints = await filterCurrentControlPoints(
-    parseIndexedControlPoints(payload),
-    signal
-  );
-  try {
-    const fallbackTimes = await legacyControlStartTimes(controlPoints, signal);
-    return controlPoints.map((point) => ({
-      ...point,
-      controlledSince:
-        point.controlledSince ?? fallbackTimes.get(point.id) ?? null,
-    }));
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return controlPoints;
-  }
+  return filterCurrentControlPoints(parseIndexedControlPoints(payload), signal);
 }

@@ -2,7 +2,8 @@
 
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each player's active `amount` from the official StakeWars delegation pool
-and limits the player's total Control Point allocation to that balance.
+and uses that complete live balance as the player's power for every capture or
+reinforcement.
 
 ## Local commands
 
@@ -34,12 +35,13 @@ and previously unseen operators do not cause a model write or event.
 
 Operators may atomically capture or reinforce up to 200 Control Points with
 `capture_many` and `reinforce_many`. These entrypoints refresh the caller's live
-delegated balance once and persist the caller's final allocation state once,
-while retaining one ownership update and event per Control Point. The single
-`capture` and `reinforce` entrypoints remain available for one-point actions.
+delegated balance once and apply that same full power to every point in the
+batch, while retaining one ownership update and event per Control Point. The
+single `capture` and `reinforce` entrypoints remain available for one-point
+actions.
 
 `relinquish_all` provides the constant-cost staking off-ramp: it advances the
-operator generation and clears the operator allocation totals with one model
+operator generation and clears its registered backing power with one model
 write, making every Control Point from the previous generation immediately
 stale without rewriting each point. Clients should submit it in the same account
 multicall as the official pool's `exit_delegation_pool_intent`, then call

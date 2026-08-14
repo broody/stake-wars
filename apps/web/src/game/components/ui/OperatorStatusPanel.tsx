@@ -57,16 +57,8 @@ export function OperatorStatusPanel() {
           aria-label="Open staking position"
         >
           <OperatorMetric
-            label="STAKED"
+            label="STAKING POWER"
             value={operatorStatus.liveDelegatedAmount}
-          />
-          <OperatorMetric
-            label="ALLOCATED"
-            value={operatorStatus.totalAllocated}
-          />
-          <OperatorMetric
-            label="AVAILABLE"
-            value={operatorStatus.availableStake}
             highlight
           />
           <div className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors group-hover:text-white">

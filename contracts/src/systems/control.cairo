@@ -4,22 +4,10 @@ pub const MAX_SYNC_BATCH: usize = 50;
 pub const MAX_CONTROL_ACTION_BATCH: usize = 200;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct CaptureRequest {
-    pub control_point_id: u32,
-    pub allocation: u128,
-}
-
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct ReinforcementRequest {
-    pub control_point_id: u32,
-    pub additional_allocation: u128,
-}
-
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ControlPointStatus {
     pub id: u32,
     pub controller: ContractAddress,
-    pub allocated_stake: u128,
+    pub capture_power: u128,
     pub ownership_generation: u64,
     pub controlled_since: u64,
     pub required_stake: u128,
@@ -31,8 +19,7 @@ pub struct ControlPointStatus {
 pub struct OperatorStatus {
     pub operator: ContractAddress,
     pub live_delegated_amount: u128,
-    pub total_allocated: u128,
-    pub available_stake: u128,
+    pub registered_power: u128,
     pub generation: u64,
     pub controlled_point_count: u32,
     pub needs_sync: bool,
@@ -40,18 +27,12 @@ pub struct OperatorStatus {
 
 #[starknet::interface]
 pub trait IControl<TContractState> {
-    fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
-    fn capture_many(ref self: TContractState, captures: Span<CaptureRequest>);
-    fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
-    fn reinforce_many(ref self: TContractState, reinforcements: Span<ReinforcementRequest>);
+    fn capture(ref self: TContractState, control_point_id: u32);
+    fn capture_many(ref self: TContractState, control_point_ids: Span<u32>);
+    fn reinforce(ref self: TContractState, control_point_id: u32);
+    fn reinforce_many(ref self: TContractState, control_point_ids: Span<u32>);
     fn release(ref self: TContractState, control_point_id: u32);
     fn relinquish_all(ref self: TContractState);
-    fn redeploy(
-        ref self: TContractState,
-        from_control_point_id: u32,
-        to_control_point_id: u32,
-        new_allocation: u128,
-    );
     fn sync_operator(ref self: TContractState, operator: ContractAddress) -> u128;
     fn sync_operators(ref self: TContractState, operators: Span<ContractAddress>) -> u32;
     fn get_control_point_status(self: @TContractState, control_point_id: u32) -> ControlPointStatus;
@@ -66,7 +47,6 @@ pub trait IControl<TContractState> {
         ownership_generation: u64,
     ) -> bool;
     fn required_stake(self: @TContractState, control_point_id: u32) -> u128;
-    fn available_stake(self: @TContractState, operator: ContractAddress) -> u128;
 }
 
 #[dojo::contract]
@@ -79,8 +59,7 @@ pub mod control {
     use stakewars::staking::delegated_amount;
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{
-        CaptureRequest, ControlPointStatus, IControl, MAX_CONTROL_ACTION_BATCH, MAX_SYNC_BATCH,
-        OperatorStatus, ReinforcementRequest,
+        ControlPointStatus, IControl, MAX_CONTROL_ACTION_BATCH, MAX_SYNC_BATCH, OperatorStatus,
     };
 
     #[derive(Copy, Drop, Serde)]
@@ -91,8 +70,8 @@ pub mod control {
         #[key]
         pub controller: ContractAddress,
         pub previous_controller: ContractAddress,
-        pub previous_allocation: u128,
-        pub allocation: u128,
+        pub previous_power: u128,
+        pub capture_power: u128,
         pub ownership_generation: u64,
     }
 
@@ -105,8 +84,8 @@ pub mod control {
         pub previous_controller: ContractAddress,
         #[key]
         pub new_controller: ContractAddress,
-        pub released_allocation: u128,
-        pub new_allocation: u128,
+        pub defeated_power: u128,
+        pub capture_power: u128,
         pub ownership_generation: u64,
     }
 
@@ -117,8 +96,8 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub controller: ContractAddress,
-        pub previous_allocation: u128,
-        pub allocation: u128,
+        pub previous_power: u128,
+        pub capture_power: u128,
         pub ownership_generation: u64,
     }
 
@@ -129,21 +108,8 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub previous_controller: ContractAddress,
-        pub released_allocation: u128,
+        pub previous_power: u128,
         pub ownership_generation: u64,
-    }
-
-    #[derive(Copy, Drop, Serde)]
-    #[dojo::event]
-    pub struct ControlPointRedeployed {
-        #[key]
-        pub operator: ContractAddress,
-        #[key]
-        pub from_control_point_id: u32,
-        #[key]
-        pub to_control_point_id: u32,
-        pub released_allocation: u128,
-        pub new_allocation: u128,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -153,7 +119,7 @@ pub mod control {
         pub operator: ContractAddress,
         pub previous_generation: u64,
         pub new_generation: u64,
-        pub previous_allocation: u128,
+        pub previous_registered_power: u128,
         pub live_delegated_amount: u128,
         pub invalidated_point_count: u32,
     }
@@ -165,33 +131,29 @@ pub mod control {
         pub operator: ContractAddress,
         pub previous_generation: u64,
         pub new_generation: u64,
-        pub released_allocation: u128,
+        pub previous_registered_power: u128,
         pub released_point_count: u32,
     }
 
     #[abi(embed_v0)]
     impl ControlImpl of IControl<ContractState> {
-        fn capture(ref self: ContractState, control_point_id: u32, allocation: u128) {
+        fn capture(ref self: ContractState, control_point_id: u32) {
             let config = self.active_config();
             self.assert_control_point_id(config, control_point_id);
-            assert(allocation > 0, 'zero allocation');
 
             let caller = get_caller_address();
             let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
             if operator.generation == 0 {
                 operator.generation = 1;
             }
-            self
-                .capture_with_synced(
-                    config, caller, ref operator, live_amount, control_point_id, allocation,
-                );
+            self.capture_with_synced(config, caller, ref operator, live_amount, control_point_id);
             let mut world = self.world_default();
             world.write_model(@operator);
         }
 
-        fn capture_many(ref self: ContractState, captures: Span<CaptureRequest>) {
-            assert(captures.len() > 0, 'empty capture batch');
-            assert(captures.len() <= MAX_CONTROL_ACTION_BATCH, 'capture batch too large');
+        fn capture_many(ref self: ContractState, control_point_ids: Span<u32>) {
+            assert(control_point_ids.len() > 0, 'empty capture batch');
+            assert(control_point_ids.len() <= MAX_CONTROL_ACTION_BATCH, 'capture batch too large');
 
             let config = self.active_config();
             let caller = get_caller_address();
@@ -200,17 +162,11 @@ pub mod control {
                 operator.generation = 1;
             }
 
-            for capture in captures {
-                self.assert_control_point_id(config, *capture.control_point_id);
-                assert(*capture.allocation > 0, 'zero allocation');
+            for control_point_id in control_point_ids {
+                self.assert_control_point_id(config, *control_point_id);
                 self
                     .capture_with_synced(
-                        config,
-                        caller,
-                        ref operator,
-                        live_amount,
-                        *capture.control_point_id,
-                        *capture.allocation,
+                        config, caller, ref operator, live_amount, *control_point_id,
                     );
             }
 
@@ -218,40 +174,30 @@ pub mod control {
             world.write_model(@operator);
         }
 
-        fn reinforce(ref self: ContractState, control_point_id: u32, additional_allocation: u128) {
+        fn reinforce(ref self: ContractState, control_point_id: u32) {
             let config = self.active_config();
             self.assert_control_point_id(config, control_point_id);
-            assert(additional_allocation > 0, 'zero allocation');
 
             let caller = get_caller_address();
             let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
-            self
-                .reinforce_with_synced(
-                    caller, ref operator, live_amount, control_point_id, additional_allocation,
-                );
+            self.reinforce_with_synced(caller, ref operator, live_amount, control_point_id);
             let mut world = self.world_default();
             world.write_model(@operator);
         }
 
-        fn reinforce_many(ref self: ContractState, reinforcements: Span<ReinforcementRequest>) {
-            assert(reinforcements.len() > 0, 'empty reinforce batch');
-            assert(reinforcements.len() <= MAX_CONTROL_ACTION_BATCH, 'reinforce batch too large');
+        fn reinforce_many(ref self: ContractState, control_point_ids: Span<u32>) {
+            assert(control_point_ids.len() > 0, 'empty reinforce batch');
+            assert(
+                control_point_ids.len() <= MAX_CONTROL_ACTION_BATCH, 'reinforce batch too large',
+            );
 
             let config = self.active_config();
             let caller = get_caller_address();
             let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
 
-            for reinforcement in reinforcements {
-                self.assert_control_point_id(config, *reinforcement.control_point_id);
-                assert(*reinforcement.additional_allocation > 0, 'zero allocation');
-                self
-                    .reinforce_with_synced(
-                        caller,
-                        ref operator,
-                        live_amount,
-                        *reinforcement.control_point_id,
-                        *reinforcement.additional_allocation,
-                    );
+            for control_point_id in control_point_ids {
+                self.assert_control_point_id(config, *control_point_id);
+                self.reinforce_with_synced(caller, ref operator, live_amount, *control_point_id);
             }
 
             let mut world = self.world_default();
@@ -270,12 +216,13 @@ pub mod control {
                 point.controller == caller && point.controller_generation == operator.generation,
                 'not controller',
             );
-
-            let released_allocation = point.allocated_stake;
-            assert(operator.total_allocated >= released_allocation, 'allocation invariant');
             assert(operator.controlled_point_count > 0, 'point count invariant');
-            operator.total_allocated -= released_allocation;
+
+            let previous_power = point.capture_power;
             operator.controlled_point_count -= 1;
+            if operator.controlled_point_count == 0 {
+                operator.registered_power = 0;
+            }
             clear_point(ref point);
 
             world.write_model(@operator);
@@ -285,7 +232,7 @@ pub mod control {
                     @ControlPointReleased {
                         control_point_id,
                         previous_controller: caller,
-                        released_allocation,
+                        previous_power,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -299,17 +246,17 @@ pub mod control {
             let mut world = self.world_default();
             let mut operator: OperatorState = world.read_model(caller);
 
-            if operator.total_allocated == 0 && operator.controlled_point_count == 0 {
+            if operator.registered_power == 0 && operator.controlled_point_count == 0 {
                 return;
             }
 
             assert(operator.generation > 0, 'invalid generation');
             let previous_generation = operator.generation;
-            let released_allocation = operator.total_allocated;
+            let previous_registered_power = operator.registered_power;
             let released_point_count = operator.controlled_point_count;
 
             operator.generation += 1;
-            operator.total_allocated = 0;
+            operator.registered_power = 0;
             operator.controlled_point_count = 0;
             world.write_model(@operator);
             world
@@ -318,56 +265,8 @@ pub mod control {
                         operator: caller,
                         previous_generation,
                         new_generation: operator.generation,
-                        released_allocation,
+                        previous_registered_power,
                         released_point_count,
-                    },
-                );
-        }
-
-        fn redeploy(
-            ref self: ContractState,
-            from_control_point_id: u32,
-            to_control_point_id: u32,
-            new_allocation: u128,
-        ) {
-            let config = self.active_config();
-            self.assert_control_point_id(config, from_control_point_id);
-            self.assert_control_point_id(config, to_control_point_id);
-            assert(from_control_point_id != to_control_point_id, 'same control point');
-            assert(new_allocation > 0, 'zero allocation');
-
-            let caller = get_caller_address();
-            let (mut operator, live_amount, _) = self.refresh_operator(caller, config.staking_pool);
-            let mut world = self.world_default();
-            let mut source: ControlPoint = world.read_model(from_control_point_id);
-            assert(
-                source.controller == caller && source.controller_generation == operator.generation,
-                'not source controller',
-            );
-
-            let released_allocation = source.allocated_stake;
-            assert(operator.total_allocated >= released_allocation, 'allocation invariant');
-            assert(operator.controlled_point_count > 0, 'point count invariant');
-            operator.total_allocated -= released_allocation;
-            operator.controlled_point_count -= 1;
-            clear_point(ref source);
-            world.write_model(@operator);
-            world.write_model(@source);
-
-            self
-                .capture_with_synced(
-                    config, caller, ref operator, live_amount, to_control_point_id, new_allocation,
-                );
-            let mut world = self.world_default();
-            world.write_model(@operator);
-            world
-                .emit_event(
-                    @ControlPointRedeployed {
-                        operator: caller,
-                        from_control_point_id,
-                        to_control_point_id,
-                        released_allocation,
-                        new_allocation,
                     },
                 );
         }
@@ -448,12 +347,6 @@ pub mod control {
             self.assert_control_point_id(config, control_point_id);
             self.control_point_status(config, control_point_id).required_stake
         }
-
-        fn available_stake(self: @ContractState, operator: ContractAddress) -> u128 {
-            assert(!operator.is_zero(), 'zero operator');
-            let config = self.initialized_config();
-            self.operator_status(config, operator).available_stake
-        }
     }
 
     #[generate_trait]
@@ -485,18 +378,13 @@ pub mod control {
             let world = self.world_default();
             let operator: OperatorState = world.read_model(operator_address);
             let live_amount = delegated_amount(config.staking_pool, operator_address);
-            let needs_sync = live_amount < operator.total_allocated;
-            let effective_allocation = if needs_sync {
-                0
-            } else {
-                operator.total_allocated
-            };
+            let needs_sync = operator.controlled_point_count > 0
+                && live_amount < operator.registered_power;
 
             OperatorStatus {
                 operator: operator_address,
                 live_delegated_amount: live_amount,
-                total_allocated: operator.total_allocated,
-                available_stake: live_amount - effective_allocation,
+                registered_power: operator.registered_power,
                 generation: operator.generation,
                 controlled_point_count: operator.controlled_point_count,
                 needs_sync,
@@ -513,7 +401,7 @@ pub mod control {
                 return ControlPointStatus {
                     id: control_point_id,
                     controller: zero_address(),
-                    allocated_stake: 0,
+                    capture_power: 0,
                     ownership_generation: point.ownership_generation,
                     controlled_since: 0,
                     required_stake: config.minimum_stake,
@@ -534,8 +422,8 @@ pub mod control {
                 } else {
                     zero_address()
                 },
-                allocated_stake: if current {
-                    point.allocated_stake
+                capture_power: if current {
+                    point.capture_power
                 } else {
                     0
                 },
@@ -546,7 +434,7 @@ pub mod control {
                     0
                 },
                 required_stake: if current {
-                    minimum_challenge(point.allocated_stake, config.challenge_premium_bps)
+                    minimum_challenge(point.capture_power, config.challenge_premium_bps)
                 } else {
                     config.minimum_stake
                 },
@@ -566,12 +454,12 @@ pub mod control {
             let mut operator: OperatorState = world.read_model(operator_address);
             let mut changed = false;
 
-            if live_amount < operator.total_allocated {
+            if operator.controlled_point_count > 0 && live_amount < operator.registered_power {
                 let previous_generation = operator.generation;
-                let previous_allocation = operator.total_allocated;
+                let previous_registered_power = operator.registered_power;
                 let invalidated_point_count = operator.controlled_point_count;
                 operator.generation += 1;
-                operator.total_allocated = 0;
+                operator.registered_power = 0;
                 operator.controlled_point_count = 0;
                 changed = true;
                 world
@@ -580,7 +468,7 @@ pub mod control {
                             operator: operator_address,
                             previous_generation,
                             new_generation: operator.generation,
-                            previous_allocation,
+                            previous_registered_power,
                             live_delegated_amount: live_amount,
                             invalidated_point_count,
                         },
@@ -600,12 +488,11 @@ pub mod control {
             ref operator: OperatorState,
             live_amount: u128,
             control_point_id: u32,
-            allocation: u128,
         ) {
             let mut world = self.world_default();
             let mut point: ControlPoint = world.read_model(control_point_id);
             let mut previous_controller = zero_address();
-            let mut previous_allocation = 0;
+            let mut previous_power = 0;
 
             if !point.controller.is_zero() {
                 let current_controller = point.controller;
@@ -621,37 +508,33 @@ pub mod control {
                     && point.controller_generation == current_operator.generation {
                     assert(current_controller != caller, 'already controller');
                     let required = minimum_challenge(
-                        point.allocated_stake, config.challenge_premium_bps,
+                        point.capture_power, config.challenge_premium_bps,
                     );
-                    assert(allocation >= required, 'insufficient challenge');
-                    assert(
-                        current_operator.total_allocated >= point.allocated_stake,
-                        'allocation invariant',
-                    );
+                    assert(live_amount >= required, 'insufficient challenge');
                     assert(current_operator.controlled_point_count > 0, 'point count invariant');
 
                     let mut displaced = current_operator;
-                    displaced.total_allocated -= point.allocated_stake;
                     displaced.controlled_point_count -= 1;
+                    if displaced.controlled_point_count == 0 {
+                        displaced.registered_power = 0;
+                    }
                     previous_controller = current_controller;
-                    previous_allocation = point.allocated_stake;
+                    previous_power = point.capture_power;
                     let mut world = self.world_default();
                     world.write_model(@displaced);
                 } else {
-                    assert(allocation >= config.minimum_stake, 'below minimum stake');
+                    assert(live_amount >= config.minimum_stake, 'below minimum stake');
                 }
             } else {
-                assert(allocation >= config.minimum_stake, 'below minimum stake');
+                assert(live_amount >= config.minimum_stake, 'below minimum stake');
             }
 
-            let new_total = operator.total_allocated + allocation;
-            assert(new_total <= live_amount, 'allocation exceeds stake');
-            operator.total_allocated = new_total;
+            operator.registered_power = live_amount;
             operator.controlled_point_count += 1;
 
             point.controller = caller;
             point.controller_generation = operator.generation;
-            point.allocated_stake = allocation;
+            point.capture_power = live_amount;
             point.ownership_generation += 1;
             point.controlled_since = get_block_timestamp();
 
@@ -663,8 +546,8 @@ pub mod control {
                         control_point_id,
                         controller: caller,
                         previous_controller,
-                        previous_allocation,
-                        allocation,
+                        previous_power,
+                        capture_power: live_amount,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -676,8 +559,8 @@ pub mod control {
                             control_point_id,
                             previous_controller,
                             new_controller: caller,
-                            released_allocation: previous_allocation,
-                            new_allocation: allocation,
+                            defeated_power: previous_power,
+                            capture_power: live_amount,
                             ownership_generation: point.ownership_generation,
                         },
                     );
@@ -690,7 +573,6 @@ pub mod control {
             ref operator: OperatorState,
             live_amount: u128,
             control_point_id: u32,
-            additional_allocation: u128,
         ) {
             let mut world = self.world_default();
             let mut point: ControlPoint = world.read_model(control_point_id);
@@ -698,21 +580,19 @@ pub mod control {
                 point.controller == caller && point.controller_generation == operator.generation,
                 'not controller',
             );
+            assert(live_amount > point.capture_power, 'power not increased');
 
-            let previous_allocation = point.allocated_stake;
-            let new_total = operator.total_allocated + additional_allocation;
-            assert(new_total <= live_amount, 'allocation exceeds stake');
-
-            operator.total_allocated = new_total;
-            point.allocated_stake += additional_allocation;
+            let previous_power = point.capture_power;
+            operator.registered_power = live_amount;
+            point.capture_power = live_amount;
             world.write_model(@point);
             world
                 .emit_event(
                     @ControlPointReinforced {
                         control_point_id,
                         controller: caller,
-                        previous_allocation,
-                        allocation: point.allocated_stake,
+                        previous_power,
+                        capture_power: live_amount,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -722,7 +602,7 @@ pub mod control {
     fn clear_point(ref point: ControlPoint) {
         point.controller = zero_address();
         point.controller_generation = 0;
-        point.allocated_stake = 0;
+        point.capture_power = 0;
         point.ownership_generation += 1;
         point.controlled_since = 0;
     }

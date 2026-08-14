@@ -23,7 +23,7 @@ pub struct OperatorState {
     #[key]
     pub operator: ContractAddress,
     pub generation: u64,
-    pub total_allocated: u128,
+    pub registered_power: u128,
     pub controlled_point_count: u32,
 }
 
@@ -34,7 +34,7 @@ pub struct ControlPoint {
     pub id: u32,
     pub controller: ContractAddress,
     pub controller_generation: u64,
-    pub allocated_stake: u128,
+    pub capture_power: u128,
     pub ownership_generation: u64,
     pub controlled_since: u64,
 }

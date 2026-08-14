@@ -13,7 +13,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_allocation_stays_zero() {
+    fn zero_power_stays_zero() {
         assert_eq!(minimum_challenge(0, 1_000), 0);
     }
 

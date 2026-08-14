@@ -190,31 +190,26 @@ export async function getControlPointStatus(
     [encodeRpcFelt(controlPointId)],
     signal
   );
-  const hasControlledSince = result.length >= 8;
-
-  return decodeControlPointStatus(result, 0, hasControlledSince);
+  if (result.length !== 8) {
+    throw new Error('Control System returned an invalid Control Point status');
+  }
+  return decodeControlPointStatus(result, 0);
 }
 
 function decodeControlPointStatus(
   result: string[],
-  offset: number,
-  hasControlledSince: boolean
+  offset: number
 ): ControlPointStatus {
-  const requiredStakeIndex = offset + (hasControlledSince ? 5 : 4);
-  const staleIndex = offset + (hasControlledSince ? 6 : 5);
-  const needsSyncIndex = offset + (hasControlledSince ? 7 : 6);
-
   return {
     id: Number(parseFelt(result[offset], 'Control Point ID')),
     controller: result[offset + 1] ?? '0x0',
-    allocatedStake: parseFelt(result[offset + 2], 'allocated stake'),
+    capturePower: parseFelt(result[offset + 2], 'capture power'),
     ownershipGeneration: parseFelt(result[offset + 3], 'ownership generation'),
-    controlledSince: hasControlledSince
-      ? parseTimestamp(result[offset + 4], 'control start time') || null
-      : null,
-    requiredStake: parseFelt(result[requiredStakeIndex], 'required stake'),
-    stale: parseFelt(result[staleIndex], 'stale flag') !== 0n,
-    needsSync: parseFelt(result[needsSyncIndex], 'sync flag') !== 0n,
+    controlledSince:
+      parseTimestamp(result[offset + 4], 'control start time') || null,
+    requiredStake: parseFelt(result[offset + 5], 'required stake'),
+    stale: parseFelt(result[offset + 6], 'stale flag') !== 0n,
+    needsSync: parseFelt(result[offset + 7], 'sync flag') !== 0n,
   };
 }
 
@@ -225,8 +220,7 @@ export function decodeControlPointStatusesResult(
   const resultLength = Number(
     parseFelt(result[0], 'Control Point status count')
   );
-  const hasControlledSince = result.length === 1 + resultLength * 8;
-  const statusWidth = hasControlledSince ? 8 : 7;
+  const statusWidth = 8;
   if (
     resultLength !== expectedCount ||
     result.length !== 1 + resultLength * statusWidth
@@ -235,11 +229,7 @@ export function decodeControlPointStatusesResult(
   }
 
   return Array.from({ length: resultLength }, (_, index) =>
-    decodeControlPointStatus(
-      result,
-      1 + index * statusWidth,
-      hasControlledSince
-    )
+    decodeControlPointStatus(result, 1 + index * statusWidth)
   );
 }
 
@@ -312,15 +302,17 @@ export async function getOperatorStatus(
     [operator],
     signal
   );
+  if (result.length !== 6) {
+    throw new Error('Control System returned an invalid Operator status');
+  }
 
   return {
     operator: result[0] ?? operator,
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
-    totalAllocated: parseFelt(result[2], 'total allocated stake'),
-    availableStake: parseFelt(result[3], 'available stake'),
-    generation: parseFelt(result[4], 'operator generation'),
-    controlledPointCount: Number(parseFelt(result[5], 'owned point count')),
-    needsSync: parseFelt(result[6], 'operator sync flag') !== 0n,
+    registeredPower: parseFelt(result[2], 'registered power'),
+    generation: parseFelt(result[3], 'operator generation'),
+    controlledPointCount: Number(parseFelt(result[4], 'owned point count')),
+    needsSync: parseFelt(result[5], 'operator sync flag') !== 0n,
   };
 }
 

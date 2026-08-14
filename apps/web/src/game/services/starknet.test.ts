@@ -16,27 +16,7 @@ describe('Starknet RPC calldata', () => {
     expect(() => encodeRpcFelt(-1)).toThrow('RPC felt cannot be negative');
   });
 
-  it('decodes legacy status batches without tenure timestamps', () => {
-    expect(
-      decodeControlPointStatusesResult(
-        ['0x1', '0xa', '0xabc', '0x64', '0x2', '0x6e', '0x0', '0x1'],
-        1
-      )
-    ).toEqual([
-      {
-        id: 10,
-        controller: '0xabc',
-        allocatedStake: 100n,
-        ownershipGeneration: 2n,
-        controlledSince: null,
-        requiredStake: 110n,
-        stale: false,
-        needsSync: true,
-      },
-    ]);
-  });
-
-  it('decodes status batches with tenure timestamps', () => {
+  it('decodes Control Point status batches', () => {
     expect(
       decodeControlPointStatusesResult(
         [
@@ -54,6 +34,7 @@ describe('Starknet RPC calldata', () => {
       )[0]
     ).toMatchObject({
       id: 10,
+      capturePower: 100n,
       controlledSince: 1_000_000_000,
       requiredStake: 110n,
       stale: false,

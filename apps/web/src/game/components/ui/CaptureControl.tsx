@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProvider, useSendTransaction } from '@starknet-start/react';
 import { TransactionExecutionStatus } from 'starknet';
-import type { ControlPointStatus } from '../../types';
+import type { ControlPointStatus, PoolMemberInfo } from '../../types';
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
@@ -23,8 +23,7 @@ import {
   MAX_CONTROL_POINT_SELECTION,
   requiresControlPointActionSplit,
 } from '../../services/controlPointLimits';
-import type { PoolMemberInfo } from '../../types';
-import { addressesMatch, formatStrk, parseStrk } from '../../utils/format';
+import { addressesMatch, formatStrk } from '../../utils/format';
 import {
   SplitTransactionModal,
   type SplitTransactionBatch,
@@ -42,17 +41,32 @@ interface StakingContext {
   walletBalance: bigint;
 }
 
+interface CompletedBatch {
+  controlPoints: ControlPointStatus[];
+  capturePower: bigint;
+}
+
 function errorMessage(error: unknown, intent: 'capture' | 'fortify'): string {
   return error instanceof Error
     ? error.message
     : `The ${intent} transaction could not be completed.`;
 }
 
+function highestRequiredPower(controlPoints: readonly ControlPointStatus[]) {
+  return controlPoints.reduce(
+    (highest, controlPoint) =>
+      controlPoint.requiredStake > highest
+        ? controlPoint.requiredStake
+        : highest,
+    0n
+  );
+}
+
 function assertChunkIsActionable(
   controlPoints: ControlPointStatus[],
   intent: 'capture' | 'fortify',
   operatorAddress: string,
-  allocation: bigint
+  livePower: bigint
 ) {
   for (const controlPoint of controlPoints) {
     const label = `CP-${controlPoint.id.toString().padStart(4, '0')}`;
@@ -69,11 +83,16 @@ function assertChunkIsActionable(
       ) {
         throw new Error(`${label} is no longer eligible for fortification.`);
       }
+      if (livePower <= controlPoint.capturePower) {
+        throw new Error(
+          `${label} already reflects the Operator's current staking power.`
+        );
+      }
     } else {
       if (controlledByOperator) {
         throw new Error(`${label} is already controlled by this Operator.`);
       }
-      if (allocation < controlPoint.requiredStake) {
+      if (livePower < controlPoint.requiredStake) {
         throw new Error(
           `${label} now requires ${formatStrk(controlPoint.requiredStake, 18)} STRK.`
         );
@@ -102,32 +121,13 @@ export function CaptureControl({
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
   const transaction = useSendTransaction({});
-  const highestRequiredStake = controlPoints.reduce(
-    (highest, controlPoint) =>
-      controlPoint.requiredStake > highest
-        ? controlPoint.requiredStake
-        : highest,
-    0n
-  );
-  const suggestedFortification = controlPoints.reduce(
-    (highest, controlPoint) => {
-      const increase =
-        controlPoint.requiredStake > controlPoint.allocatedStake
-          ? controlPoint.requiredStake - controlPoint.allocatedStake
-          : 1n;
-      return increase > highest ? increase : highest;
-    },
-    0n
-  );
-  const initialStake = isFortifying
-    ? suggestedFortification
-    : highestRequiredStake;
+  const requiredPower = highestRequiredPower(controlPoints);
+  const currentPower = operatorStatus?.liveDelegatedAmount ?? 0n;
+  const deficit = isFortifying ? 0n : stakeDeficit(requiredPower, currentPower);
+  const projectedPower = currentPower + deficit;
   const controlPointKey = controlPoints
     .map((controlPoint) => controlPoint.id)
     .join('-');
-  const [allocation, setAllocation] = useState(() =>
-    formatStrk(initialStake, 18)
-  );
   const [phase, setPhase] = useState<CapturePhase>('idle');
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isSplitModalOpen, setSplitModalOpen] = useState(false);
@@ -143,10 +143,9 @@ export function CaptureControl({
   const [stakingRevision, setStakingRevision] = useState(0);
 
   useEffect(() => {
-    setAllocation(formatStrk(initialStake, 18));
     setCaptureError(null);
     setPhase('idle');
-  }, [controlPointKey, initialStake]);
+  }, [controlPointKey, intent]);
 
   useEffect(() => {
     if (!isSplitModalOpen) return;
@@ -157,7 +156,7 @@ export function CaptureControl({
   useEffect(() => {
     const controller = new AbortController();
 
-    if (!address) {
+    if (!address || isFortifying) {
       setStakingContext(null);
       setStakingError(null);
       setStakingLoading(false);
@@ -199,28 +198,7 @@ export function CaptureControl({
       });
 
     return () => controller.abort();
-  }, [address, stakingRevision]);
-
-  const parsedAllocation = useMemo(() => {
-    try {
-      return parseStrk(allocation);
-    } catch {
-      return null;
-    }
-  }, [allocation]);
-
-  const totalAllocation = useMemo(
-    () =>
-      parsedAllocation === null
-        ? null
-        : parsedAllocation * BigInt(controlPoints.length),
-    [controlPoints.length, parsedAllocation]
-  );
-
-  const deficit = useMemo(() => {
-    if (totalAllocation === null || !operatorStatus) return null;
-    return stakeDeficit(totalAllocation, operatorStatus.availableStake);
-  }, [operatorStatus, totalAllocation]);
+  }, [address, isFortifying, stakingRevision]);
 
   const disabledReason = useMemo(() => {
     if (controlPoints.length > MAX_CONTROL_POINT_SELECTION) {
@@ -230,13 +208,15 @@ export function CaptureControl({
       return `CONNECT OPERATOR TO ${isFortifying ? 'FORTIFY' : 'CAPTURE'}`;
     }
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
-    if (parsedAllocation === null || parsedAllocation === 0n) {
-      return 'ENTER A VALID ALLOCATION';
+    if (
+      isFortifying &&
+      controlPoints.some(
+        (controlPoint) => currentPower <= controlPoint.capturePower
+      )
+    ) {
+      return 'STAKE MORE STRK TO FORTIFY';
     }
-    if (!isFortifying && parsedAllocation < highestRequiredStake) {
-      return 'INCREASE TO REQUIRED STAKE';
-    }
-    if (deficit !== null && deficit > 0n) {
+    if (!isFortifying && deficit > 0n) {
       if (isStakingLoading) return 'READING WALLET STRK';
       if (stakingError || !stakingContext) return 'STAKING READ FAILED';
       if (deficit > stakingContext.walletBalance) {
@@ -245,14 +225,13 @@ export function CaptureControl({
     }
     return null;
   }, [
+    controlPoints,
+    currentPower,
     deficit,
-    controlPoints.length,
-    highestRequiredStake,
     isConnected,
     isFortifying,
     isStakingLoading,
     operatorStatus,
-    parsedAllocation,
     stakingContext,
     stakingError,
   ]);
@@ -264,7 +243,31 @@ export function CaptureControl({
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
         : disabledReason ||
-          `STAKE ${formatStrk(totalAllocation ?? 0n, 18)} TO ${isFortifying ? 'FORTIFY' : 'CAPTURE'}`;
+          (isFortifying
+            ? `FORTIFY WITH ${formatStrk(currentPower, 18)} STRK`
+            : deficit > 0n
+              ? `STAKE ${formatStrk(deficit, 18)} + CAPTURE`
+              : `CAPTURE WITH ${formatStrk(currentPower, 18)} STRK`);
+
+  const applyCompletedBatches = (
+    completedBatches: CompletedBatch[],
+    clearSelection: boolean
+  ) => {
+    completedBatches.forEach((batch, index) => {
+      const clearAfterBatch =
+        clearSelection && index === completedBatches.length - 1;
+      if (isFortifying) {
+        confirmReinforcedControlPoints(batch.controlPoints, batch.capturePower);
+      } else if (address) {
+        confirmCapturedControlPoints(
+          batch.controlPoints,
+          address,
+          batch.capturePower,
+          clearAfterBatch
+        );
+      }
+    });
+  };
 
   const executeTransactions = async (
     chunks: ControlPointStatus[][],
@@ -272,7 +275,6 @@ export function CaptureControl({
   ) => {
     if (
       disabledReason ||
-      parsedAllocation === null ||
       !operatorStatus ||
       !address ||
       !config.controlSystemAddress
@@ -288,7 +290,7 @@ export function CaptureControl({
     if (!showSplitProgress) setControlPointInteractionLocked(true);
     let submittedHash: string | null = null;
     let currentBatch = 0;
-    const completedControlPoints: ControlPointStatus[] = [];
+    const completedBatches: CompletedBatch[] = [];
 
     try {
       let isPoolMember = Boolean(stakingContext?.member);
@@ -311,41 +313,37 @@ export function CaptureControl({
           ),
           getOperatorStatus(address),
         ]);
+        const freshRequiredPower = highestRequiredPower(freshControlPoints);
+        const targetPower = isFortifying
+          ? freshOperator.liveDelegatedAmount
+          : freshRequiredPower > requiredPower
+            ? freshRequiredPower
+            : requiredPower;
+        const chunkDeficit = isFortifying
+          ? 0n
+          : stakeDeficit(targetPower, freshOperator.liveDelegatedAmount);
+        const resultingPower = freshOperator.liveDelegatedAmount + chunkDeficit;
         assertChunkIsActionable(
           freshControlPoints,
           intent,
           address,
-          parsedAllocation
+          resultingPower
         );
 
-        const chunkAllocation =
-          parsedAllocation * BigInt(freshControlPoints.length);
-        const chunkDeficit = stakeDeficit(
-          chunkAllocation,
-          freshOperator.availableStake
-        );
-        const sharedCallOptions = {
-          availableStake: freshOperator.availableStake,
-          controlSystemAddress: config.controlSystemAddress,
-          isPoolMember,
-          operatorAddress: address,
-          poolAddress: config.stakingPoolAddress,
-          strkTokenAddress: config.strkTokenAddress,
-        };
         const calls = isFortifying
           ? buildSmartBatchReinforceCalls({
-              ...sharedCallOptions,
-              reinforcements: freshControlPoints.map((controlPoint) => ({
-                additionalAllocation: parsedAllocation,
-                controlPointId: controlPoint.id,
-              })),
+              controlPointIds: freshControlPoints.map(({ id }) => id),
+              controlSystemAddress: config.controlSystemAddress,
             })
           : buildSmartBatchCaptureCalls({
-              ...sharedCallOptions,
-              captures: freshControlPoints.map((controlPoint) => ({
-                allocation: parsedAllocation,
-                controlPointId: controlPoint.id,
-              })),
+              controlPointIds: freshControlPoints.map(({ id }) => id),
+              controlSystemAddress: config.controlSystemAddress,
+              isPoolMember,
+              liveDelegatedAmount: freshOperator.liveDelegatedAmount,
+              operatorAddress: address,
+              poolAddress: config.stakingPoolAddress,
+              requiredStake: targetPower,
+              strkTokenAddress: config.strkTokenAddress,
             });
         if (showSplitProgress) {
           setSplitBatches((current) =>
@@ -390,37 +388,33 @@ export function CaptureControl({
         } else {
           notifyConfirmed(submittedHash);
         }
-        completedControlPoints.push(...freshControlPoints);
+        completedBatches.push({
+          capturePower: resultingPower,
+          controlPoints: freshControlPoints,
+        });
         if (chunkDeficit > 0n) isPoolMember = true;
       }
 
-      if (isFortifying) {
-        confirmReinforcedControlPoints(
-          completedControlPoints,
-          parsedAllocation
-        );
-      } else {
-        confirmCapturedControlPoints(
-          completedControlPoints,
-          address,
-          parsedAllocation,
-          !showSplitProgress
-        );
-      }
-      if (showSplitProgress && !isFortifying) {
-        setSplitSelectionIdsToRemove(
-          completedControlPoints.map((controlPoint) => controlPoint.id)
-        );
+      applyCompletedBatches(completedBatches, !showSplitProgress);
+      const completedIds = completedBatches.flatMap((batch) =>
+        batch.controlPoints.map(({ id }) => id)
+      );
+      if (showSplitProgress) {
+        setSplitSelectionIdsToRemove(completedIds);
       }
       if (!showSplitProgress) refreshControlPoint();
       refreshOperator();
       refreshControlPointIndex();
       setStakingRevision((revision) => revision + 1);
     } catch (error) {
+      const completedCount = completedBatches.reduce(
+        (total, batch) => total + batch.controlPoints.length,
+        0
+      );
       const baseMessage = errorMessage(error, intent);
       const message =
-        completedControlPoints.length > 0
-          ? `${baseMessage} ${completedControlPoints.length} of ${controlPoints.length} points were confirmed; the remaining selection can be retried.`
+        completedCount > 0
+          ? `${baseMessage} ${completedCount} of ${controlPoints.length} points were confirmed; the remaining selection can be retried.`
           : baseMessage;
       if (showSplitProgress && currentBatch > 0) {
         setSplitBatches((current) =>
@@ -438,22 +432,10 @@ export function CaptureControl({
       } else if (submittedHash) {
         notifyFailed(submittedHash, message);
       }
-      if (completedControlPoints.length > 0) {
-        if (isFortifying) {
-          confirmReinforcedControlPoints(
-            completedControlPoints,
-            parsedAllocation
-          );
-        } else {
-          confirmCapturedControlPoints(
-            completedControlPoints,
-            address,
-            parsedAllocation,
-            false
-          );
-        }
-        const completedIds = completedControlPoints.map(
-          (controlPoint) => controlPoint.id
+      if (completedCount > 0) {
+        applyCompletedBatches(completedBatches, false);
+        const completedIds = completedBatches.flatMap((batch) =>
+          batch.controlPoints.map(({ id }) => id)
         );
         if (showSplitProgress) {
           setSplitSelectionIdsToRemove(completedIds);
@@ -475,7 +457,6 @@ export function CaptureControl({
   const requestSubmit = () => {
     if (
       disabledReason ||
-      parsedAllocation === null ||
       !operatorStatus ||
       !address ||
       !config.controlSystemAddress
@@ -527,76 +508,45 @@ export function CaptureControl({
             ? `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${controlPoints.length} POINTS`
             : isFortifying
               ? 'FORTIFY CONTROL POINT'
-              : controlPoints[0].allocatedStake === 0n
+              : controlPoints[0].capturePower === 0n
                 ? 'CAPTURE NEUTRAL POINT'
                 : 'CHALLENGE OWNER'}
         </span>
       </header>
 
       <div className="px-3 py-3">
-        <label
-          htmlFor={`${intent}-allocation-${controlPointKey}`}
-          className="text-[9px] tracking-[0.18em] text-dim"
-        >
-          {isFortifying ? 'ADDITIONAL STRK' : 'STRK TO STAKE'}{' '}
-          {controlPoints.length > 1 ? 'PER POINT' : ''}
-        </label>
-        <div className="mt-1 flex border border-neutral-600 bg-black focus-within:border-white">
-          <input
-            id={`${intent}-allocation-${controlPointKey}`}
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={allocation}
-            disabled={isBusy}
-            onChange={(event) => {
-              setAllocation(event.target.value);
-              setCaptureError(null);
-            }}
-            aria-describedby={`${intent}-requirement-${controlPointKey}`}
-            className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-fg outline-none disabled:text-neutral-500"
-          />
-          <span className="border-l border-grid px-3 py-2 text-[10px] tracking-widest text-dim">
-            STRK
-          </span>
-        </div>
-
-        <div
-          id={`${intent}-requirement-${controlPointKey}`}
-          className="mt-2 flex justify-between gap-4 text-[9px] tracking-[0.12em] text-neutral-500"
-        >
-          <span>
-            {isFortifying ? 'SUGGESTED EACH' : 'MIN EACH'}{' '}
-            {formatStrk(
-              isFortifying ? suggestedFortification : highestRequiredStake,
-              18
-            )}
-          </span>
-          <span>
-            AVAILABLE STAKE{' '}
-            {formatStrk(operatorStatus?.availableStake ?? 0n, 18)}
-          </span>
-        </div>
-
-        {controlPoints.length > 1 && totalAllocation !== null ? (
-          <div className="mt-2 flex justify-between border-t border-grid pt-2 text-[9px] tracking-[0.12em] text-neutral-400">
-            <span>
-              {isFortifying ? 'TOTAL ADDITIONAL STAKE' : 'TOTAL STAKE'}
-            </span>
-            <span className="text-fg">
-              {formatStrk(totalAllocation, 18)} STRK
-            </span>
+        <div className="space-y-2 text-[9px] tracking-[0.12em] text-neutral-500">
+          <div className="flex justify-between gap-4">
+            <span>FULL OPERATOR POWER</span>
+            <span className="text-fg">{formatStrk(currentPower, 18)} STRK</span>
           </div>
-        ) : null}
+          {!isFortifying && (
+            <div className="flex justify-between gap-4">
+              <span>REQUIRED POWER</span>
+              <span>{formatStrk(requiredPower, 18)} STRK</span>
+            </div>
+          )}
+          {!isFortifying && deficit > 0n && (
+            <div className="flex justify-between gap-4 border-t border-grid pt-2">
+              <span>ADDITIONAL STRK TO STAKE</span>
+              <span className="text-fg">{formatStrk(deficit, 18)} STRK</span>
+            </div>
+          )}
+          {controlPoints.length > 1 && (
+            <p className="border-l border-neutral-700 pl-2 leading-relaxed">
+              The same full Operator power backs every selected Control Point.
+            </p>
+          )}
+        </div>
 
-        {address && isStakingLoading && (
+        {address && isStakingLoading && !isFortifying && deficit > 0n && (
           <div className="mt-3 flex items-center gap-2 text-neutral-400">
             <span className="h-1.5 w-1.5 animate-pulse bg-white" />
             READING WALLET AND STAKING STATE…
           </div>
         )}
 
-        {stakingContext && (
+        {stakingContext && !isFortifying && deficit > 0n && (
           <div className="mt-3 space-y-1 border-l border-neutral-700 pl-2 text-[9px] tracking-[0.1em] text-neutral-500">
             <div className="flex justify-between gap-4">
               <span>WALLET</span>
@@ -605,15 +555,15 @@ export function CaptureControl({
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>TO STAKE</span>
-              <span className={deficit && deficit > 0n ? 'text-fg' : ''}>
-                {formatStrk(deficit ?? 0n, 18)} STRK
+              <span>POWER AFTER STAKING</span>
+              <span className="text-fg">
+                {formatStrk(projectedPower, 18)} STRK
               </span>
             </div>
           </div>
         )}
 
-        {stakingError && address && (
+        {stakingError && address && !isFortifying && deficit > 0n && (
           <button
             type="button"
             onClick={() => setStakingRevision((revision) => revision + 1)}

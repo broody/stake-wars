@@ -22,8 +22,9 @@ type ControlReader interface {
 type ControlPointStatus struct {
 	ID                  uint32
 	Controller          string
-	AllocatedStake      string
+	CapturePower        string
 	OwnershipGeneration uint64
+	ControlledSince     uint64
 	RequiredStake       string
 	Stale               bool
 	NeedsSync           bool
@@ -32,8 +33,7 @@ type ControlPointStatus struct {
 type OperatorStatus struct {
 	Operator             string
 	LiveDelegatedAmount  string
-	TotalAllocated       string
-	AvailableStake       string
+	RegisteredPower      string
 	Generation           uint64
 	ControlledPointCount uint32
 	NeedsSync            bool
@@ -65,7 +65,7 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, err
 	}
-	if len(result) != 7 {
+	if len(result) != 8 {
 		return ControlPointStatus{}, fmt.Errorf("unexpected control point status length %d", len(result))
 	}
 
@@ -77,23 +77,27 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, fieldError("controller", err)
 	}
-	allocatedStake, err := parseUintString(result[2], 128)
+	capturePower, err := parseUintString(result[2], 128)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("allocated_stake", err)
+		return ControlPointStatus{}, fieldError("capture_power", err)
 	}
 	generation, err := parseUint(result[3], 64)
 	if err != nil {
 		return ControlPointStatus{}, fieldError("ownership_generation", err)
 	}
-	requiredStake, err := parseUintString(result[4], 128)
+	controlledSince, err := parseUint(result[4], 64)
+	if err != nil {
+		return ControlPointStatus{}, fieldError("controlled_since", err)
+	}
+	requiredStake, err := parseUintString(result[5], 128)
 	if err != nil {
 		return ControlPointStatus{}, fieldError("required_stake", err)
 	}
-	stale, err := parseBool(result[5])
+	stale, err := parseBool(result[6])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("stale", err)
 	}
-	needsSync, err := parseBool(result[6])
+	needsSync, err := parseBool(result[7])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("needs_sync", err)
 	}
@@ -101,8 +105,9 @@ func (r *RPCControlReader) ControlPointStatus(
 	return ControlPointStatus{
 		ID:                  uint32(id),
 		Controller:          controller,
-		AllocatedStake:      allocatedStake,
+		CapturePower:        capturePower,
 		OwnershipGeneration: generation,
+		ControlledSince:     controlledSince,
 		RequiredStake:       requiredStake,
 		Stale:               stale,
 		NeedsSync:           needsSync,
@@ -121,7 +126,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 7 {
+	if len(result) != 6 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -133,23 +138,19 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("live_delegated_amount", err)
 	}
-	allocated, err := parseUintString(result[2], 128)
+	registeredPower, err := parseUintString(result[2], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("total_allocated", err)
+		return OperatorStatus{}, fieldError("registered_power", err)
 	}
-	available, err := parseUintString(result[3], 128)
-	if err != nil {
-		return OperatorStatus{}, fieldError("available_stake", err)
-	}
-	generation, err := parseUint(result[4], 64)
+	generation, err := parseUint(result[3], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	pointCount, err := parseUint(result[5], 32)
+	pointCount, err := parseUint(result[4], 32)
 	if err != nil {
 		return OperatorStatus{}, fieldError("controlled_point_count", err)
 	}
-	needsSync, err := parseBool(result[6])
+	needsSync, err := parseBool(result[5])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
@@ -157,8 +158,7 @@ func (r *RPCControlReader) OperatorStatus(
 	return OperatorStatus{
 		Operator:             returnedOperator,
 		LiveDelegatedAmount:  live,
-		TotalAllocated:       allocated,
-		AvailableStake:       available,
+		RegisteredPower:      registeredPower,
 		Generation:           generation,
 		ControlledPointCount: uint32(pointCount),
 		NeedsSync:            needsSync,

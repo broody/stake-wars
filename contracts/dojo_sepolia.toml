@@ -2,7 +2,7 @@
 name = "StakeWars (Sepolia)"
 description = "StakeWars core territory-control world on Starknet Sepolia"
 website = "https://stakewars.gg"
-seed = "stakewars-sepolia"
+seed = "stakewars-sepolia-full-power"
 
 [world.socials]
 github = "https://github.com/broody/stake-wars"
@@ -27,6 +27,5 @@ account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a
 "stakewars-ControlPointDisplaced" = ["stakewars-control"]
 "stakewars-ControlPointReinforced" = ["stakewars-control"]
 "stakewars-ControlPointReleased" = ["stakewars-control"]
-"stakewars-ControlPointRedeployed" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRelinquished" = ["stakewars-control"]

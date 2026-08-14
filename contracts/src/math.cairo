@@ -1,8 +1,8 @@
 pub const BASIS_POINTS_DENOMINATOR: u128 = 10_000;
 
-pub fn minimum_challenge(current_allocation: u128, premium_bps: u16) -> u128 {
+pub fn minimum_challenge(current_power: u128, premium_bps: u16) -> u128 {
     let multiplier = BASIS_POINTS_DENOMINATOR + premium_bps.into();
-    ceil_mul_div(current_allocation, multiplier, BASIS_POINTS_DENOMINATOR)
+    ceil_mul_div(current_power, multiplier, BASIS_POINTS_DENOMINATOR)
 }
 
 pub fn ceil_mul_div(value: u128, multiplier: u128, denominator: u128) -> u128 {

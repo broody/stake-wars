@@ -6,7 +6,6 @@ historical = [
   "stakewars-ControlPointDisplaced",
   "stakewars-ControlPointReinforced",
   "stakewars-ControlPointReleased",
-  "stakewars-ControlPointRedeployed",
   "stakewars-OperatorDisqualified",
   "stakewars-OperatorRelinquished",
 ]

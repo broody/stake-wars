@@ -38,11 +38,6 @@ const eventPresentation: Record<
     label: 'RELEASED',
     markerClassName: 'border-neutral-600 text-neutral-400',
   },
-  redeployment: {
-    marker: '→',
-    label: 'REDEPLOYED',
-    markerClassName: 'border-white text-white',
-  },
   disqualification: {
     marker: '×',
     label: 'COMMAND RESET',
@@ -72,7 +67,6 @@ const activityFilterOptions: Array<{
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
-  { value: 'redeployment', label: 'REDEPLOYED' },
   { value: 'disqualification', label: 'COMMAND RESET' },
   { value: 'relinquishment', label: 'RELINQUISHED ALL' },
 ];
@@ -86,17 +80,13 @@ function eventDetail(activity: OperatorActivity): string {
     case 'capture':
       return activity.counterparty ? 'TOOK HIGH GROUND' : 'NEUTRAL POINT';
     case 'loss':
-      return 'STAKE RETURNED TO AVAILABLE';
+      return 'DEFEATED BY HIGHER POWER';
     case 'reinforcement':
       return activity.secondaryAmount === undefined
-        ? 'ALLOCATION INCREASED'
-        : `NEW TOTAL ${formatStrk(activity.secondaryAmount)} STRK`;
+        ? 'CAPTURE POWER INCREASED'
+        : `NEW POWER ${formatStrk(activity.secondaryAmount)} STRK`;
     case 'release':
-      return 'STAKE RETURNED TO AVAILABLE';
-    case 'redeployment':
-      return `${pointLabel(activity.controlPointId)} → ${pointLabel(
-        activity.destinationControlPointId
-      )}`;
+      return 'CONTROL VOLUNTARILY RELEASED';
     case 'disqualification':
       return `${activity.affectedPointCount ?? 0} POINTS INVALIDATED`;
     case 'relinquishment':
@@ -113,13 +103,14 @@ function stakeDetail(activity: OperatorActivity): string {
   )} STRK`;
   switch (activity.type) {
     case 'loss':
+      return `${amount} DEFEATED`;
     case 'release':
-      return `${amount} FREED`;
+      return `${amount} PRIOR POWER`;
     case 'reinforcement':
     case 'yield_claim':
       return `+${amount}`;
     case 'disqualification':
-      return `${amount} RESET`;
+      return `${amount} BACKING INVALIDATED`;
     case 'relinquishment':
       return `${amount} RELINQUISHED`;
     default:
@@ -380,9 +371,9 @@ export function OperatorActivityTable({
           <div className="activity-scrollbar overflow-x-auto border-l border-t border-grid">
             <table className="w-full min-w-[760px] border-collapse text-left">
               <caption className="sr-only">
-                Captures, displacements, reinforcements, releases,
-                redeployments, command resets, global relinquishments, and yield
-                claims for this Operator
+                Captures, displacements, reinforcements, releases, command
+                resets, global relinquishments, and yield claims for this
+                Operator
               </caption>
               <thead>
                 <tr className="text-[9px] tracking-[0.2em] text-dim">
@@ -430,9 +421,7 @@ export function OperatorActivityTable({
                         </div>
                       </td>
                       <td className="border-b border-r border-grid px-4 py-4 tracking-wider text-neutral-300">
-                        {item.type === 'redeployment'
-                          ? pointLabel(item.destinationControlPointId)
-                          : pointLabel(item.controlPointId)}
+                        {pointLabel(item.controlPointId)}
                       </td>
                       <td className="border-b border-r border-grid px-4 py-4 text-neutral-300">
                         {stakeDetail(item)}

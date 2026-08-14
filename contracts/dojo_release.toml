@@ -26,6 +26,5 @@ default = "stakewars"
 "stakewars-ControlPointDisplaced" = ["stakewars-control"]
 "stakewars-ControlPointReinforced" = ["stakewars-control"]
 "stakewars-ControlPointReleased" = ["stakewars-control"]
-"stakewars-ControlPointRedeployed" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRelinquished" = ["stakewars-control"]

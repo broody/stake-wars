@@ -65,12 +65,12 @@ interface ControlPointContextValue {
   confirmCapturedControlPoints: (
     controlPoints: ControlPointStatus[],
     operator: string,
-    allocation: bigint,
+    capturePower: bigint,
     clearSelection?: boolean
   ) => void;
   confirmReinforcedControlPoints: (
     controlPoints: ControlPointStatus[],
-    additionalAllocation: bigint
+    capturePower: bigint
   ) => void;
 }
 
@@ -318,14 +318,14 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     (
       controlPoints: ControlPointStatus[],
       operator: string,
-      allocation: bigint,
+      capturePower: bigint,
       clearSelection = true
     ) => {
       const controlledSince = Math.floor(Date.now() / 1_000);
       const confirmedControlPoints = controlPoints.map((controlPoint) => ({
         ...controlPoint,
         controller: operator,
-        allocatedStake: allocation,
+        capturePower,
         ownershipGeneration: controlPoint.ownershipGeneration + 1n,
         controlledSince,
         stale: false,
@@ -346,7 +346,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
             id: controlPoint.id,
             controller: controlPoint.controller,
             controllerGeneration: operatorStatus?.generation || 1n,
-            allocatedStake: controlPoint.allocatedStake,
+            capturePower: controlPoint.capturePower,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
           });
@@ -363,10 +363,10 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
   );
 
   const confirmReinforcedControlPoints = useCallback(
-    (controlPoints: ControlPointStatus[], additionalAllocation: bigint) => {
+    (controlPoints: ControlPointStatus[], capturePower: bigint) => {
       const reinforcedControlPoints = controlPoints.map((controlPoint) => ({
         ...controlPoint,
-        allocatedStake: controlPoint.allocatedStake + additionalAllocation,
+        capturePower,
       }));
       const reinforcedById = new Map(
         reinforcedControlPoints.map((controlPoint) => [
@@ -393,7 +393,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
               previous?.controllerGeneration ||
               operatorStatus?.generation ||
               1n,
-            allocatedStake: controlPoint.allocatedStake,
+            capturePower: controlPoint.capturePower,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
           });

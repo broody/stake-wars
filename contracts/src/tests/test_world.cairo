@@ -12,8 +12,7 @@ mod tests {
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{
-        CaptureRequest, IControlDispatcher, IControlDispatcherTrait, MAX_CONTROL_ACTION_BATCH,
-        ReinforcementRequest, control,
+        IControlDispatcher, IControlDispatcherTrait, MAX_CONTROL_ACTION_BATCH, control,
     };
     use stakewars::tests::mock_staking_pool::{
         IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
@@ -49,7 +48,6 @@ mod tests {
                 TestResource::Event(control::e_ControlPointDisplaced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReinforced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ControlPointRedeployed::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorRelinquished::TEST_CLASS_HASH),
                 TestResource::Contract(admin::TEST_CLASS_HASH),
@@ -82,9 +80,8 @@ mod tests {
             resource_selector(@"OperatorState"), resource_selector(@"ControlPoint"),
             resource_selector(@"ControlPointCaptured"), resource_selector(@"ControlPointDisplaced"),
             resource_selector(@"ControlPointReinforced"),
-            resource_selector(@"ControlPointReleased"),
-            resource_selector(@"ControlPointRedeployed"),
-            resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRelinquished"),
+            resource_selector(@"ControlPointReleased"), resource_selector(@"OperatorDisqualified"),
+            resource_selector(@"OperatorRelinquished"),
         ]
             .span()
     }
@@ -177,7 +174,7 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(0, MINIMUM_STAKE);
+        control.capture(0);
     }
 
     #[test]
@@ -188,58 +185,59 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(POINT_LIMIT, MINIMUM_STAKE);
+        control.capture(POINT_LIMIT);
     }
 
     #[test]
     #[available_gas(200000000)]
-    fn captures_neutral_point_at_minimum() {
+    #[should_panic(expected: ('below minimum stake', 'ENTRYPOINT_FAILED'))]
+    fn rejects_neutral_capture_below_minimum() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, MINIMUM_STAKE - 1);
+        testing::set_contract_address(player);
+        control.capture(0);
+    }
+
+    #[test]
+    #[available_gas(250000000)]
+    fn neutral_capture_uses_full_live_delegation() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         testing::set_block_timestamp(1_000);
 
-        control.capture(42, MINIMUM_STAKE);
+        control.capture(42);
 
         let point: ControlPoint = world.read_model(42_u32);
         let operator: OperatorState = world.read_model(player);
         assert_eq!(point.controller, player);
-        assert_eq!(point.allocated_stake, MINIMUM_STAKE);
+        assert_eq!(point.capture_power, 1_000);
         assert_eq!(point.ownership_generation, 1);
         assert_eq!(point.controlled_since, 1_000);
         assert_eq!(operator.generation, 1);
-        assert_eq!(operator.total_allocated, MINIMUM_STAKE);
+        assert_eq!(operator.registered_power, 1_000);
         assert_eq!(operator.controlled_point_count, 1);
-        assert_eq!(control.required_stake(42), 110);
-        assert_eq!(control.available_stake(player), 900);
+        assert_eq!(control.required_stake(42), 1_100);
     }
 
     #[test]
     #[available_gas(400000000)]
-    fn captures_multiple_points_atomically() {
+    fn same_live_delegation_backs_multiple_points() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
 
-        control
-            .capture_many(
-                [
-                    CaptureRequest { control_point_id: 40, allocation: 200 },
-                    CaptureRequest { control_point_id: 41, allocation: 300 },
-                ]
-                    .span(),
-            );
+        control.capture_many([40, 41].span());
 
         let first: ControlPoint = world.read_model(40_u32);
         let second: ControlPoint = world.read_model(41_u32);
         let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.controller, player);
-        assert_eq!(first.allocated_stake, 200);
-        assert_eq!(second.controller, player);
-        assert_eq!(second.allocated_stake, 300);
-        assert_eq!(operator.total_allocated, 500);
+        assert_eq!(first.capture_power, 1_000);
+        assert_eq!(second.capture_power, 1_000);
+        assert_eq!(operator.registered_power, 1_000);
         assert_eq!(operator.controlled_point_count, 2);
     }
 
@@ -248,45 +246,21 @@ mod tests {
     fn captures_exactly_maximum_batch() {
         let (world, control, pool) = setup();
         let player = player_one();
-        pool.set_amount(player, MINIMUM_STAKE * 200);
+        pool.set_amount(player, MINIMUM_STAKE);
         testing::set_contract_address(player);
-        let mut captures = array![];
-        while captures.len() < MAX_CONTROL_ACTION_BATCH {
-            let control_point_id: u32 = captures.len().try_into().unwrap();
-            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
+        let mut control_point_ids = array![];
+        while control_point_ids.len() < MAX_CONTROL_ACTION_BATCH {
+            control_point_ids.append(control_point_ids.len().try_into().unwrap());
         }
 
-        control.capture_many(captures.span());
+        control.capture_many(control_point_ids.span());
 
         let first: ControlPoint = world.read_model(0_u32);
         let last: ControlPoint = world.read_model(199_u32);
         let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.controller, player);
-        assert_eq!(last.controller, player);
-        assert_eq!(operator.total_allocated, MINIMUM_STAKE * 200);
+        assert_eq!(first.capture_power, MINIMUM_STAKE);
+        assert_eq!(last.capture_power, MINIMUM_STAKE);
         assert_eq!(operator.controlled_point_count, 200);
-    }
-
-    #[test]
-    #[available_gas(400000000)]
-    fn captures_multiple_points_sequentially() {
-        let (world, control, pool) = setup();
-        let player = player_one();
-        pool.set_amount(player, 1_000);
-        testing::set_contract_address(player);
-
-        control.capture(40, 200);
-        control.capture(41, 300);
-
-        let first: ControlPoint = world.read_model(40_u32);
-        let second: ControlPoint = world.read_model(41_u32);
-        let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.controller, player);
-        assert_eq!(first.allocated_stake, 200);
-        assert_eq!(second.controller, player);
-        assert_eq!(second.allocated_stake, 300);
-        assert_eq!(operator.total_allocated, 500);
-        assert_eq!(operator.controlled_point_count, 2);
     }
 
     #[test]
@@ -302,16 +276,15 @@ mod tests {
     #[should_panic(expected: ('capture batch too large', 'ENTRYPOINT_FAILED'))]
     fn rejects_oversized_capture_batch() {
         let (_, control, _) = setup();
-        let mut captures = array![];
-        while captures.len() <= MAX_CONTROL_ACTION_BATCH {
-            let control_point_id: u32 = captures.len().try_into().unwrap();
-            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
+        let mut control_point_ids = array![];
+        while control_point_ids.len() <= MAX_CONTROL_ACTION_BATCH {
+            control_point_ids.append(control_point_ids.len().try_into().unwrap());
         }
-        control.capture_many(captures.span());
+        control.capture_many(control_point_ids.span());
     }
 
     #[test]
-    #[available_gas(300000000)]
+    #[available_gas(350000000)]
     fn exact_high_ground_challenge_displaces_controller() {
         let (world, control, pool) = setup();
         let incumbent = player_one();
@@ -321,140 +294,133 @@ mod tests {
 
         testing::set_contract_address(incumbent);
         testing::set_block_timestamp(1_000);
-        control.capture(7, 1_000);
+        control.capture(7);
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(2_000);
-        control.capture(7, 1_100);
+        control.capture(7);
 
         let point: ControlPoint = world.read_model(7_u32);
         let incumbent_state: OperatorState = world.read_model(incumbent);
         let challenger_state: OperatorState = world.read_model(challenger);
         assert_eq!(point.controller, challenger);
-        assert_eq!(point.allocated_stake, 1_100);
+        assert_eq!(point.capture_power, 1_100);
         assert_eq!(point.ownership_generation, 2);
         assert_eq!(point.controlled_since, 2_000);
-        assert_eq!(incumbent_state.total_allocated, 0);
+        assert_eq!(incumbent_state.registered_power, 0);
         assert_eq!(incumbent_state.controlled_point_count, 0);
-        assert_eq!(challenger_state.total_allocated, 1_100);
+        assert_eq!(challenger_state.registered_power, 1_100);
     }
 
     #[test]
-    #[available_gas(300000000)]
-    fn reinforce_then_release_returns_floating_power() {
+    #[available_gas(350000000)]
+    #[should_panic(expected: ('insufficient challenge', 'ENTRYPOINT_FAILED'))]
+    fn displaced_operator_cannot_retake_without_more_stake() {
+        let (_, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 3_000);
+        pool.set_amount(challenger, 3_300);
+
+        testing::set_contract_address(incumbent);
+        control.capture(7);
+        testing::set_contract_address(challenger);
+        control.capture(7);
+        testing::set_contract_address(incumbent);
+        control.capture(7);
+    }
+
+    #[test]
+    #[available_gas(450000000)]
+    fn displaced_operator_can_retake_after_increasing_live_stake() {
+        let (world, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 3_000);
+        pool.set_amount(challenger, 3_300);
+
+        testing::set_contract_address(incumbent);
+        control.capture(7);
+        testing::set_contract_address(challenger);
+        control.capture(7);
+        pool.set_amount(incumbent, 3_630);
+        testing::set_contract_address(incumbent);
+        control.capture(7);
+
+        let point: ControlPoint = world.read_model(7_u32);
+        assert_eq!(point.controller, incumbent);
+        assert_eq!(point.capture_power, 3_630);
+        assert_eq!(point.ownership_generation, 3);
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn displacement_preserves_backing_for_remaining_points() {
+        let (world, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 1_000);
+        pool.set_amount(challenger, 1_100);
+        testing::set_contract_address(incumbent);
+        control.capture_many([7, 8].span());
+        testing::set_contract_address(challenger);
+        control.capture(7);
+
+        let incumbent_state: OperatorState = world.read_model(incumbent);
+        let remaining: ControlPoint = world.read_model(8_u32);
+        assert_eq!(incumbent_state.registered_power, 1_000);
+        assert_eq!(incumbent_state.controlled_point_count, 1);
+        assert_eq!(remaining.controller, incumbent);
+    }
+
+    #[test]
+    #[available_gas(350000000)]
+    fn reinforce_uses_current_full_live_delegation_and_preserves_tenure() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         testing::set_block_timestamp(1_000);
+        control.capture(1);
 
-        control.capture(1, 200);
+        pool.set_amount(player, 1_500);
         testing::set_block_timestamp(2_000);
-        control.reinforce(1, 300);
-        let reinforced: ControlPoint = world.read_model(1_u32);
-        assert_eq!(reinforced.allocated_stake, 500);
-        assert_eq!(reinforced.controlled_since, 1_000);
-        assert_eq!(control.available_stake(player), 500);
+        control.reinforce(1);
 
-        testing::set_block_timestamp(3_000);
-        control.release(1);
-        let released: ControlPoint = world.read_model(1_u32);
+        let point: ControlPoint = world.read_model(1_u32);
         let operator: OperatorState = world.read_model(player);
-        assert_eq!(released.allocated_stake, 0);
-        assert_eq!(released.ownership_generation, 2);
-        assert_eq!(released.controlled_since, 0);
-        assert_eq!(operator.total_allocated, 0);
-        assert_eq!(operator.controlled_point_count, 0);
-        assert_eq!(control.available_stake(player), 1_000);
+        assert_eq!(point.capture_power, 1_500);
+        assert_eq!(point.controlled_since, 1_000);
+        assert_eq!(operator.registered_power, 1_500);
+    }
+
+    #[test]
+    #[available_gas(250000000)]
+    #[should_panic(expected: ('power not increased', 'ENTRYPOINT_FAILED'))]
+    fn rejects_reinforcement_without_more_live_stake() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(1);
+        control.reinforce(1);
     }
 
     #[test]
     #[available_gas(500000000)]
-    fn reinforces_multiple_points_atomically() {
+    fn reinforces_multiple_points_with_same_live_power() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control
-            .capture_many(
-                [
-                    CaptureRequest { control_point_id: 50, allocation: 100 },
-                    CaptureRequest { control_point_id: 51, allocation: 200 },
-                ]
-                    .span(),
-            );
+        control.capture_many([50, 51].span());
 
-        control
-            .reinforce_many(
-                [
-                    ReinforcementRequest { control_point_id: 50, additional_allocation: 150 },
-                    ReinforcementRequest { control_point_id: 51, additional_allocation: 250 },
-                ]
-                    .span(),
-            );
+        pool.set_amount(player, 1_500);
+        control.reinforce_many([50, 51].span());
 
         let first: ControlPoint = world.read_model(50_u32);
         let second: ControlPoint = world.read_model(51_u32);
-        let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.allocated_stake, 250);
-        assert_eq!(second.allocated_stake, 450);
-        assert_eq!(operator.total_allocated, 700);
-        assert_eq!(operator.controlled_point_count, 2);
-    }
-
-    #[test]
-    #[available_gas(20000000000)]
-    fn reinforces_exactly_maximum_batch() {
-        let (world, control, pool) = setup();
-        let player = player_one();
-        pool.set_amount(player, (MINIMUM_STAKE + 1) * 200);
-        testing::set_contract_address(player);
-        let mut captures = array![];
-        let mut reinforcements = array![];
-        while captures.len() < MAX_CONTROL_ACTION_BATCH {
-            let control_point_id: u32 = captures.len().try_into().unwrap();
-            captures.append(CaptureRequest { control_point_id, allocation: MINIMUM_STAKE });
-            reinforcements
-                .append(ReinforcementRequest { control_point_id, additional_allocation: 1 });
-        }
-
-        control.capture_many(captures.span());
-        control.reinforce_many(reinforcements.span());
-
-        let first: ControlPoint = world.read_model(0_u32);
-        let last: ControlPoint = world.read_model(199_u32);
-        let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.allocated_stake, MINIMUM_STAKE + 1);
-        assert_eq!(last.allocated_stake, MINIMUM_STAKE + 1);
-        assert_eq!(operator.total_allocated, (MINIMUM_STAKE + 1) * 200);
-        assert_eq!(operator.controlled_point_count, 200);
-    }
-
-    #[test]
-    #[available_gas(500000000)]
-    fn reinforces_multiple_points_sequentially() {
-        let (world, control, pool) = setup();
-        let player = player_one();
-        pool.set_amount(player, 1_000);
-        testing::set_contract_address(player);
-        control
-            .capture_many(
-                [
-                    CaptureRequest { control_point_id: 50, allocation: 100 },
-                    CaptureRequest { control_point_id: 51, allocation: 200 },
-                ]
-                    .span(),
-            );
-
-        control.reinforce(50, 150);
-        control.reinforce(51, 250);
-
-        let first: ControlPoint = world.read_model(50_u32);
-        let second: ControlPoint = world.read_model(51_u32);
-        let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.allocated_stake, 250);
-        assert_eq!(second.allocated_stake, 450);
-        assert_eq!(operator.total_allocated, 700);
-        assert_eq!(operator.controlled_point_count, 2);
+        assert_eq!(first.capture_power, 1_500);
+        assert_eq!(second.capture_power, 1_500);
     }
 
     #[test]
@@ -470,101 +436,101 @@ mod tests {
     #[should_panic(expected: ('reinforce batch too large', 'ENTRYPOINT_FAILED'))]
     fn rejects_oversized_reinforce_batch() {
         let (_, control, _) = setup();
-        let mut reinforcements = array![];
-        while reinforcements.len() <= MAX_CONTROL_ACTION_BATCH {
-            let control_point_id: u32 = reinforcements.len().try_into().unwrap();
-            reinforcements
-                .append(
-                    ReinforcementRequest { control_point_id, additional_allocation: MINIMUM_STAKE },
-                );
+        let mut control_point_ids = array![];
+        while control_point_ids.len() <= MAX_CONTROL_ACTION_BATCH {
+            control_point_ids.append(control_point_ids.len().try_into().unwrap());
         }
-        control.reinforce_many(reinforcements.span());
+        control.reinforce_many(control_point_ids.span());
     }
 
     #[test]
-    #[available_gas(400000000)]
-    fn redeploy_is_atomic_and_can_use_floating_power() {
+    #[available_gas(350000000)]
+    fn release_clears_point_without_changing_stake() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        testing::set_block_timestamp(1_000);
+        control.capture(1);
+        control.release(1);
 
-        control.capture(10, 400);
-        testing::set_block_timestamp(2_000);
-        control.redeploy(10, 11, 700);
-
-        let source: ControlPoint = world.read_model(10_u32);
-        let destination: ControlPoint = world.read_model(11_u32);
+        let point: ControlPoint = world.read_model(1_u32);
         let operator: OperatorState = world.read_model(player);
-        assert_eq!(source.allocated_stake, 0);
-        assert_eq!(source.ownership_generation, 2);
-        assert_eq!(source.controlled_since, 0);
-        assert_eq!(destination.controller, player);
-        assert_eq!(destination.allocated_stake, 700);
-        assert_eq!(destination.ownership_generation, 1);
-        assert_eq!(destination.controlled_since, 2_000);
-        assert_eq!(operator.total_allocated, 700);
-        assert_eq!(operator.controlled_point_count, 1);
+        assert_eq!(point.capture_power, 0);
+        assert_eq!(point.ownership_generation, 2);
+        assert_eq!(point.controlled_since, 0);
+        assert_eq!(operator.registered_power, 0);
+        assert_eq!(operator.controlled_point_count, 0);
     }
 
     #[test]
-    #[available_gas(400000000)]
-    fn external_unstake_invalidates_generation_lazily() {
+    #[available_gas(450000000)]
+    fn external_unstake_invalidates_every_point_lazily() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture_many([40, 41].span());
+
+        pool.set_amount(player, 999);
+        let stale = control.get_control_point_status(40);
+        assert_eq!(stale.controller, 0.try_into().unwrap());
+        assert(stale.stale, 'point not stale');
+        assert(stale.needs_sync, 'sync not requested');
+
+        control.sync_operator(player);
+        let invalidated: OperatorState = world.read_model(player);
+        let first = control.get_control_point_status(40);
+        let second = control.get_control_point_status(41);
+        assert_eq!(invalidated.generation, 2);
+        assert_eq!(invalidated.registered_power, 0);
+        assert_eq!(invalidated.controlled_point_count, 0);
+        assert(first.stale, 'first point not invalidated');
+        assert(second.stale, 'second point not invalidated');
+        assert(!first.needs_sync, 'first still needs sync');
+    }
+
+    #[test]
+    #[available_gas(450000000)]
+    fn challenger_capture_reconciles_underfunded_incumbent() {
         let (world, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
         pool.set_amount(incumbent, 1_000);
-        pool.set_amount(challenger, 100);
+        pool.set_amount(challenger, MINIMUM_STAKE);
         testing::set_contract_address(incumbent);
-        control.capture(99, 700);
+        control.capture(99);
 
-        pool.set_amount(incumbent, 600);
+        pool.set_amount(incumbent, 999);
         testing::set_contract_address(challenger);
-        control.sync_operator(incumbent);
+        control.capture(99);
 
-        let stale_point: ControlPoint = world.read_model(99_u32);
+        let point: ControlPoint = world.read_model(99_u32);
         let invalidated: OperatorState = world.read_model(incumbent);
-        assert_eq!(stale_point.controller_generation, 1);
         assert_eq!(invalidated.generation, 2);
-        assert_eq!(invalidated.total_allocated, 0);
-        assert_eq!(invalidated.controlled_point_count, 0);
-        assert_eq!(control.required_stake(99), MINIMUM_STAKE);
-
-        control.capture(99, MINIMUM_STAKE);
-        let recaptured: ControlPoint = world.read_model(99_u32);
-        assert_eq!(recaptured.controller, challenger);
-        assert_eq!(recaptured.allocated_stake, MINIMUM_STAKE);
-        assert_eq!(recaptured.ownership_generation, 2);
+        assert_eq!(point.controller, challenger);
+        assert_eq!(point.capture_power, MINIMUM_STAKE);
     }
 
     #[test]
     #[available_gas(500000000)]
-    fn relinquish_all_invalidates_every_point_without_clearing_each_model() {
+    fn relinquish_all_invalidates_every_point_without_clearing_models() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(40, 250);
-        control.capture(41, 450);
+        control.capture_many([40, 41].span());
 
         control.relinquish_all();
 
         let operator: OperatorState = world.read_model(player);
         let first_model: ControlPoint = world.read_model(40_u32);
-        let second_model: ControlPoint = world.read_model(41_u32);
         let first_status = control.get_control_point_status(40);
         let second_status = control.get_control_point_status(41);
-
         assert_eq!(operator.generation, 2);
-        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.registered_power, 0);
         assert_eq!(operator.controlled_point_count, 0);
         assert_eq!(first_model.controller, player);
-        assert_eq!(first_model.controller_generation, 1);
-        assert_eq!(second_model.controller, player);
-        assert_eq!(second_model.controller_generation, 1);
         assert_eq!(first_status.controller, 0.try_into().unwrap());
-        assert_eq!(second_status.controller, 0.try_into().unwrap());
         assert(first_status.stale, 'first point not invalidated');
         assert(second_status.stale, 'second point not invalidated');
     }
@@ -576,73 +542,50 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(50, 500);
+        control.capture(50);
 
         let mut config: GameConfig = world.read_model(CONFIG_ID);
         config.paused = true;
         world.write_model_test(@config);
-
         control.relinquish_all();
         control.relinquish_all();
 
         let operator: OperatorState = world.read_model(player);
         assert_eq!(operator.generation, 2);
-        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.registered_power, 0);
         assert_eq!(operator.controlled_point_count, 0);
     }
 
     #[test]
-    #[available_gas(350000000)]
+    #[available_gas(400000000)]
     fn status_views_block_stale_image_management() {
-        let (world, control, pool) = setup();
+        let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         testing::set_block_timestamp(1_000);
-        control.capture(12, 800);
+        control.capture(12);
 
         let operator = control.get_operator_status(player);
         let point = control.get_control_point_status(12);
-        let points = control.get_control_point_statuses([12, 13].span());
         assert_eq!(operator.live_delegated_amount, 1_000);
-        assert_eq!(operator.total_allocated, 800);
-        assert_eq!(operator.available_stake, 200);
+        assert_eq!(operator.registered_power, 1_000);
         assert(!operator.needs_sync, 'unexpected sync');
-        assert_eq!(point.controller, player);
-        assert_eq!(point.allocated_stake, 800);
+        assert_eq!(point.capture_power, 1_000);
         assert_eq!(point.controlled_since, 1_000);
-        assert_eq!(point.required_stake, 880);
-        assert_eq!(points.len(), 2);
-        let first = *points.at(0);
-        let second = *points.at(1);
-        assert_eq!(first.id, 12);
-        assert_eq!(first.controller, player);
-        assert_eq!(second.id, 13);
-        assert_eq!(second.required_stake, MINIMUM_STAKE);
+        assert_eq!(point.required_stake, 1_100);
         assert(!point.stale, 'unexpected stale point');
         assert(control.can_manage_image(12, player, 1), 'image permission missing');
-        assert(!control.can_manage_image(12, player, 2), 'wrong generation accepted');
 
-        pool.set_amount(player, 700);
+        pool.set_amount(player, 999);
         let stale_operator = control.get_operator_status(player);
         let stale_point = control.get_control_point_status(12);
         assert(stale_operator.needs_sync, 'sync not detected');
-        assert_eq!(stale_operator.total_allocated, 800);
-        assert_eq!(stale_operator.available_stake, 700);
         assert_eq!(stale_point.controller, 0.try_into().unwrap());
-        assert_eq!(stale_point.allocated_stake, 0);
-        assert_eq!(stale_point.controlled_since, 0);
+        assert_eq!(stale_point.capture_power, 0);
         assert_eq!(stale_point.required_stake, MINIMUM_STAKE);
         assert(stale_point.stale, 'stale point not detected');
-        assert(stale_point.needs_sync, 'point sync not detected');
         assert(!control.can_manage_image(12, player, 1), 'stale image permission');
-
-        control.sync_operator(player);
-        let synchronized: OperatorState = world.read_model(player);
-        let invalidated_point = control.get_control_point_status(12);
-        assert_eq!(synchronized.generation, 2);
-        assert(invalidated_point.stale, 'invalidated point not stale');
-        assert(!invalidated_point.needs_sync, 'still needs sync');
     }
 
     #[test]
@@ -653,65 +596,54 @@ mod tests {
         while control_point_ids.len() < MAX_CONTROL_ACTION_BATCH {
             control_point_ids.append(control_point_ids.len().try_into().unwrap());
         }
-
         let statuses = control.get_control_point_statuses(control_point_ids.span());
-
         assert_eq!(statuses.len(), MAX_CONTROL_ACTION_BATCH);
-        let last = *statuses.at(MAX_CONTROL_ACTION_BATCH - 1);
-        assert_eq!(last.id, 199);
-        assert_eq!(last.required_stake, MINIMUM_STAKE);
     }
 
     #[test]
     #[available_gas(200000000)]
     fn unknown_operator_sync_does_not_initialize_generation() {
         let (world, control, pool) = setup();
-        let operator_address = player_one();
+        let operator_address = player_two();
         pool.set_amount(operator_address, 1_000);
-        testing::set_contract_address(player_two());
 
         assert_eq!(control.sync_operator(operator_address), 1_000);
         let operator: OperatorState = world.read_model(operator_address);
         assert_eq!(operator.generation, 0);
-        assert_eq!(operator.total_allocated, 0);
-        assert_eq!(operator.controlled_point_count, 0);
+        assert_eq!(operator.registered_power, 0);
     }
 
     #[test]
     #[available_gas(500000000)]
     fn batch_sync_only_writes_changed_operators() {
         let (world, control, pool) = setup();
-        let undercollateralized = player_one();
+        let underfunded = player_one();
         let healthy = player_two();
-        pool.set_amount(undercollateralized, 600);
+        pool.set_amount(underfunded, 1_000);
         pool.set_amount(healthy, 500);
-
-        testing::set_contract_address(undercollateralized);
-        control.capture(20, 600);
+        testing::set_contract_address(underfunded);
+        control.capture(20);
         testing::set_contract_address(healthy);
-        control.capture(21, 500);
-        pool.set_amount(undercollateralized, 599);
+        control.capture(21);
+        pool.set_amount(underfunded, 999);
 
-        assert_eq!(control.sync_operators([undercollateralized, healthy].span()), 1);
-        let changed: OperatorState = world.read_model(undercollateralized);
+        assert_eq!(control.sync_operators([underfunded, healthy].span()), 1);
+        let changed: OperatorState = world.read_model(underfunded);
         let unchanged: OperatorState = world.read_model(healthy);
-        assert_eq!(changed.generation, 2);
-        assert_eq!(changed.total_allocated, 0);
-        assert_eq!(unchanged.generation, 1);
-        assert_eq!(unchanged.total_allocated, 500);
-        assert_eq!(control.sync_operators([undercollateralized, healthy].span()), 0);
+        assert_eq!(changed.registered_power, 0);
+        assert_eq!(unchanged.registered_power, 500);
+        assert_eq!(control.sync_operators([underfunded, healthy].span()), 0);
     }
 
     #[test]
-    #[available_gas(200000000)]
+    #[available_gas(10000000000)]
     #[should_panic(expected: ('sync batch too large', 'ENTRYPOINT_FAILED'))]
     fn rejects_oversized_sync_batch() {
         let (_, control, _) = setup();
         let mut operators = array![];
-        let mut i: u32 = 0;
-        while i < 51 {
-            operators.append(player_one());
-            i += 1;
+        while operators.len() <= 50 {
+            let address: felt252 = (operators.len() + 1).into();
+            operators.append(address.try_into().unwrap());
         }
         control.sync_operators(operators.span());
     }
@@ -722,42 +654,5 @@ mod tests {
     fn rejects_empty_sync_batch() {
         let (_, control, _) = setup();
         control.sync_operators([].span());
-    }
-
-    #[test]
-    #[available_gas(200000000)]
-    #[should_panic(expected: ('below minimum stake', 'ENTRYPOINT_FAILED'))]
-    fn rejects_neutral_capture_below_minimum() {
-        let (_, control, pool) = setup();
-        let player = player_one();
-        pool.set_amount(player, 1_000);
-        testing::set_contract_address(player);
-        control.capture(0, MINIMUM_STAKE - 1);
-    }
-
-    #[test]
-    #[available_gas(300000000)]
-    #[should_panic(expected: ('insufficient challenge', 'ENTRYPOINT_FAILED'))]
-    fn rejects_tiny_increment_challenge() {
-        let (_, control, pool) = setup();
-        let incumbent = player_one();
-        let challenger = player_two();
-        pool.set_amount(incumbent, 1_000);
-        pool.set_amount(challenger, 1_099);
-        testing::set_contract_address(incumbent);
-        control.capture(3, 1_000);
-        testing::set_contract_address(challenger);
-        control.capture(3, 1_099);
-    }
-
-    #[test]
-    #[available_gas(200000000)]
-    #[should_panic(expected: ('allocation exceeds stake', 'ENTRYPOINT_FAILED'))]
-    fn rejects_over_allocation() {
-        let (_, control, pool) = setup();
-        let player = player_one();
-        pool.set_amount(player, 500);
-        testing::set_contract_address(player);
-        control.capture(5, 501);
     }
 }

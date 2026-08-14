@@ -80,12 +80,12 @@ const policies: SessionPolicies = {
             {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
-              description: 'Add staked STRK to an owned point.',
+              description: 'Update an owned point to full live staking power.',
             },
             {
               name: 'Reinforce Control Points',
               entrypoint: 'reinforce_many',
-              description: 'Add staked STRK to multiple owned points.',
+              description: 'Update owned points to full live staking power.',
             },
             {
               name: 'Release Control Point',
@@ -97,11 +97,6 @@ const policies: SessionPolicies = {
               entrypoint: 'relinquish_all',
               description:
                 'Relinquish every Control Point in one generation update.',
-            },
-            {
-              name: 'Redeploy Control Point',
-              entrypoint: 'redeploy',
-              description: 'Move allocated stake between Control Points.',
             },
           ],
         },

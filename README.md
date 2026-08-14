@@ -1,8 +1,9 @@
 # StakeWars
 
 StakeWars is a persistent, non-custodial strategy game built around Starknet
-validator delegation. Operators allocate delegated STRK to capture and defend
-territories on the Core, a 3D sphere, while controllers display custom artwork.
+validator delegation. Each Operator's complete live delegated STRK balance is
+their power for capturing and defending territories on the Core, a 3D sphere,
+while controllers display custom artwork.
 This repository contains the web application, game API, and Dojo contracts.
 
 ## Repository layout
@@ -69,10 +70,10 @@ pnpm dev:web:sepolia
 ```
 
 The Sepolia environment uses World
-`0x01c1c6206be878c53432c493c4b13825d97379352553799ed83023c23a59af70`
+`0x05b967630ebd14a4e07115980e42b834de5641c8295d933c150976509b996cbc`
 and control system
-`0x05ffe84f1e059d8bed2303f9559c3b04c5c9358008b871e3739059ca545544d6`.
-It is initialized with a 0.01 STRK minimum allocation, a 10% challenge premium,
+`0x06b515aeff1100002c096de3b48be1d81dc79d266feb9d3cbbe82b332903bbd5`.
+It is initialized with a 0.01 STRK minimum capture power, a 10% challenge premium,
 and 2,000 control points.
 
 The API's runtime variables and authentication endpoints are documented in

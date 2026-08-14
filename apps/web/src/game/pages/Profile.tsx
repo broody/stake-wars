@@ -9,11 +9,7 @@ export function Profile() {
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useControlPoints();
   const stakeMetrics = operatorStatus
-    ? [
-        { label: 'STAKED STRK', value: operatorStatus.liveDelegatedAmount },
-        { label: 'ALLOCATED STRK', value: operatorStatus.totalAllocated },
-        { label: 'AVAILABLE STRK', value: operatorStatus.availableStake },
-      ]
+    ? [{ label: 'STAKING POWER', value: operatorStatus.liveDelegatedAmount }]
     : [];
 
   if (!isConnected) {
@@ -25,7 +21,7 @@ export function Profile() {
           </div>
           <h2 className="mb-4 mt-3 text-2xl text-white">CONNECT YOUR WALLET</h2>
           <p className="mb-6 max-w-sm text-sm leading-relaxed text-neutral-500">
-            Connect to read your staked, allocated, and available STRK.
+            Connect to read your live STRK staking power and Control Points.
           </p>
           <div className="inline-block">
             <WalletButton />
@@ -73,7 +69,7 @@ export function Profile() {
 
         {operatorStatus && (
           <>
-            <div className="grid border-l border-t border-grid sm:grid-cols-3">
+            <div className="grid border-l border-t border-grid sm:grid-cols-1">
               {stakeMetrics.map(({ label, value }) => (
                 <div
                   key={label.toString()}
@@ -96,8 +92,8 @@ export function Profile() {
 
             {operatorStatus.needsSync && (
               <div className="mt-6 border border-amber-500/50 p-4 text-sm text-amber-400">
-                Your staked balance is below the current game allocation.
-                Operator sync is required.
+                Your live stake is below the power backing your Control Points.
+                Operator sync will invalidate the current ownership generation.
               </div>
             )}
           </>
