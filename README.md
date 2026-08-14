@@ -95,3 +95,11 @@ pnpm contracts:build
 pnpm contracts:format:check
 pnpm contracts:test
 ```
+
+## License
+
+StakeWars is licensed under the
+[Apache License 2.0](LICENSE). Except where otherwise noted, this license
+applies to the source code, smart contracts, documentation, and original game
+assets in this repository. Third-party and vendored material remains subject to
+its respective license terms.
