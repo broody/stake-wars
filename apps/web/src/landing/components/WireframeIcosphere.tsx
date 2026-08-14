@@ -22,7 +22,7 @@ const Icosphere = () => {
         color="#ffffff"
         wireframe={true}
         transparent={true}
-        opacity={0.15}
+        opacity={0.22}
       />
     </mesh>
   );
