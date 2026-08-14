@@ -1,8 +1,9 @@
 # StakeWars
 
-StakeWars is a persistent Starknet staking game presented through a
-retro-futurist command interface. This repository contains the web application,
-game API, and Dojo contracts.
+StakeWars is a persistent, non-custodial strategy game built around Starknet
+validator delegation. Operators allocate delegated STRK to capture and defend
+territories on the Core, a 3D sphere, while controllers display custom artwork.
+This repository contains the web application, game API, and Dojo contracts.
 
 ## Repository layout
 
