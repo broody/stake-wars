@@ -57,12 +57,6 @@ The repository pins the compatible Dojo toolchain in `.tool-versions`. Katana
 serves JSON-RPC at `http://127.0.0.1:5050` with Cartridge Controller and its
 local paymaster enabled.
 
-Cartridge Controller uses its production keychain at `https://x.cartridge.gg`
-by default. `VITE_KEYCHAIN_FRAME_URL` is available only when deliberately
-testing a different Controller keychain. The wallet chooser also discovers the
-Ready browser extension through the Starknet Wallet Standard and links to the
-appropriate browser store when it is not installed.
-
 The development frontend checks that the configured StakeWars World is deployed
 before showing a green KATANA status in the navigation. Open the game locally at
 [http://localhost:3000/?app=game](http://localhost:3000/?app=game).
