@@ -1,0 +1,29 @@
+{
+  "name": "stake-wars",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "starknet": "^10.0.2"
+    }
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter './apps/*' dev",
+    "dev:web": "pnpm --filter @stakewars/web dev",
+    "dev:web:sepolia": "pnpm --filter @stakewars/web dev:sepolia",
+    "dev:api": "pnpm --filter @stakewars/api dev",
+    "dev:torii": "./scripts/run-torii-sepolia.sh",
+    "dev:katana": "cd contracts && katana --dev --dev.no-fee --cartridge.paymaster --http.cors_origins '*'",
+    "contracts:build": "cd contracts && sozo build",
+    "contracts:deploy:local": "cd contracts && sozo build && sozo migrate",
+    "contracts:test": "cd contracts && sozo test",
+    "contracts:format": "cd contracts && scarb fmt",
+    "contracts:format:check": "cd contracts && scarb fmt --check",
+    "build": "pnpm --recursive --filter './apps/*' build",
+    "lint": "pnpm --recursive --filter './apps/*' lint",
+    "format": "pnpm --recursive --filter './apps/*' format",
+    "format:check": "pnpm --recursive --filter './apps/*' format:check",
+    "test": "pnpm --recursive --filter './apps/*' --if-present test"
+  }
+}

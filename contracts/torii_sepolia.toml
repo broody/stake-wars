@@ -1,0 +1,91 @@
+world_address = "0x1c1c6206be878c53432c493c4b13825d97379352553799ed83023c23a59af70"
+rpc = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+db_dir = "./contracts/.torii/sepolia"
+
+[runner]
+explorer = false
+check_contracts = true
+query_threads = 1
+indexer_threads = 1
+allocation_strategy = "balanced"
+
+[indexing]
+events_chunk_size = 256
+blocks_chunk_size = 512
+preconfirmed = false
+polling_interval = 1000
+max_concurrent_tasks = 8
+transactions = false
+contracts = [
+  "other:0x0755e4fbfd6ca9a17e532a0eb3027dd3202957d5bcc2912cbc5a7fb199cc78c6:13316365",
+]
+namespaces = ["stakewars"]
+models = []
+world_block = 13316365
+controllers = false
+strict_model_reader = false
+batch_chunk_size = 256
+external_contracts = false
+external_contract_whitelist = []
+
+[events]
+raw = true
+
+[erc]
+max_metadata_tasks = 8
+
+[sql]
+all_model_indices = false
+model_indices = []
+historical = []
+page_size = 32768
+cache_size = -32768
+hooks = []
+aggregators = []
+wal_autocheckpoint = 1000
+wal_truncate_size_threshold = 16777216
+optimize_interval = 3600
+busy_timeout = 5000
+acquire_timeout = 5000
+idle_timeout = 60000
+max_connections = 8
+soft_memory_limit = 201326592
+hard_memory_limit = 335544320
+
+[activity]
+enabled = false
+session_timeout = 3600
+excluded_entrypoints = []
+
+[snapshot]
+
+[metrics]
+metrics = false
+metrics_addr = "127.0.0.1"
+metrics_port = 9200
+
+[server]
+http_addr = "127.0.0.1"
+http_port = 8081
+mkcert = false
+
+[relay]
+port = 19090
+webrtc_port = 19091
+websocket_port = 19092
+peers = []
+
+[grpc]
+grpc_addr = "127.0.0.1"
+grpc_port = 50051
+subscription_buffer_size = 256
+optimistic = false
+tcp_keepalive_interval = 60
+http2_keepalive_interval = 30
+http2_keepalive_timeout = 10
+max_message_size = 16777216
+
+[messaging]
+max_age = 300000
+future_tolerance = 60000
+require_timestamp = false

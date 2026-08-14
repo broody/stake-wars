@@ -1,0 +1,31 @@
+[world]
+name = "StakeWars (Sepolia)"
+description = "StakeWars core territory-control world on Starknet Sepolia"
+website = "https://stakewars.gg"
+seed = "stakewars-sepolia"
+
+[world.socials]
+github = "https://github.com/broody/stake-wars"
+
+[namespace]
+default = "stakewars"
+
+[env]
+rpc_url = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119"
+
+[writers]
+"stakewars-GameConfig" = ["stakewars-admin"]
+"stakewars-OperatorState" = ["stakewars-control"]
+"stakewars-ControlPoint" = ["stakewars-control"]
+"stakewars-ConfigInitialized" = ["stakewars-admin"]
+"stakewars-PauseChanged" = ["stakewars-admin"]
+"stakewars-RulesChanged" = ["stakewars-admin"]
+"stakewars-StakingPoolChanged" = ["stakewars-admin"]
+"stakewars-AdminTransferred" = ["stakewars-admin"]
+"stakewars-ControlPointCaptured" = ["stakewars-control"]
+"stakewars-ControlPointDisplaced" = ["stakewars-control"]
+"stakewars-ControlPointReinforced" = ["stakewars-control"]
+"stakewars-ControlPointReleased" = ["stakewars-control"]
+"stakewars-ControlPointRedeployed" = ["stakewars-control"]
+"stakewars-OperatorDisqualified" = ["stakewars-control"]

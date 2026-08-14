@@ -1,0 +1,4 @@
+target
+manifest_*.json
+dojo_mainnet.toml
+dojo_*_secrets.toml

@@ -1,0 +1,45 @@
+app = "stakewars"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  DATABASE_PATH = "/data/stakewars.db"
+  MAX_IMAGE_BYTES = "2097152"
+  PORT = "8080"
+  STARKNET_CHAIN_ID = "SN_SEPOLIA"
+  STARKNET_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+  TORII_DB_DIR = "/data/torii"
+  TORII_CORS_ORIGINS = "https://stakewars.gg,https://play.stakewars.gg"
+  TORII_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+  TORII_STAKING_POOL_ADDRESS = "0x0755e4fbfd6ca9a17e532a0eb3027dd3202957d5bcc2912cbc5a7fb199cc78c6"
+  TORII_STAKING_POOL_BLOCK = "13316365"
+  TORII_URL = "http://127.0.0.1:8081"
+  TORII_WORLD_ADDRESS = "0x01c1c6206be878c53432c493c4b13825d97379352553799ed83023c23a59af70"
+  TORII_WORLD_BLOCK = "13316365"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/readyz"
+    timeout = "2s"
+
+[[mounts]]
+  source = "stakewars_data"
+  destination = "/data"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"

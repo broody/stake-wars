@@ -1,0 +1,3 @@
+[submodule "vendor/starknet-staking"]
+	path = vendor/starknet-staking
+	url = https://github.com/starkware-libs/starknet-staking.git
