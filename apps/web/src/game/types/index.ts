@@ -23,6 +23,7 @@ export interface ControlPointStatus {
 export interface IndexedControlPoint {
   id: number;
   controller: string;
+  controllerGeneration: bigint;
   allocatedStake: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
@@ -45,6 +46,7 @@ export type OperatorActivityType =
   | 'release'
   | 'redeployment'
   | 'disqualification'
+  | 'relinquishment'
   | 'yield_claim';
 
 export interface OperatorActivity {
@@ -75,6 +77,7 @@ export interface PoolMemberInfo {
   unclaimedRewards: bigint;
   commissionBps: number;
   unpoolAmount: bigint;
+  unpoolTime: number | null;
 }
 
 export interface YieldClaim {
@@ -90,6 +93,9 @@ export interface YieldClaim {
 
 export interface YieldSummary {
   stakedAmount: bigint;
+  unpoolAmount: bigint;
+  unpoolTime: number | null;
+  exitWaitWindowSeconds: number | null;
   claimedRewards: bigint | null;
   unclaimedRewards: bigint;
   lifetimeRewards: bigint | null;

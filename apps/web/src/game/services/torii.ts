@@ -2,6 +2,7 @@ import { config } from './config';
 import type {
   IndexedControlPoint,
   OperatorActivity,
+  OperatorActivityType,
   YieldClaim,
 } from '../types';
 import { isControlPointId } from '../utils/controlPointGeometry';
@@ -15,9 +16,26 @@ const CONTROL_POINTS_QUERY = `
         node {
           id
           controller
+          controller_generation
           allocated_stake
           ownership_generation
           controlled_since
+        }
+      }
+    }
+  }
+`;
+
+const OPERATOR_GENERATIONS_QUERY = `
+  query StakeWarsOperatorGenerations($operators: [ContractAddress]) {
+    stakewarsOperatorStateModels(
+      first: 2000
+      where: { operatorIN: $operators }
+    ) {
+      edges {
+        node {
+          operator
+          generation
         }
       }
     }
@@ -149,6 +167,98 @@ const OPERATOR_ACTIVITY_QUERY = `
         }
       }
     }
+    relinquishments: stakewarsOperatorRelinquishedModels(
+      first: 1000
+      where: { operator: $operator }
+    ) {
+      edges {
+        cursor
+        node {
+          operator
+          previous_generation
+          new_generation
+          released_allocation
+          released_point_count
+        }
+      }
+    }
+  }
+`;
+
+const OPERATOR_ACTIVITY_PAGE_QUERY = `
+  query StakeWarsOperatorActivityPage(
+    $operator: ContractAddress!
+    $capturesFirst: Int!
+    $lossesFirst: Int!
+    $reinforcementsFirst: Int!
+    $releasesFirst: Int!
+    $redeploymentsFirst: Int!
+    $disqualificationsFirst: Int!
+    $relinquishmentsFirst: Int!
+    $capturesAfter: Cursor
+    $lossesAfter: Cursor
+    $reinforcementsAfter: Cursor
+    $releasesAfter: Cursor
+    $redeploymentsAfter: Cursor
+    $disqualificationsAfter: Cursor
+    $relinquishmentsAfter: Cursor
+  ) {
+    captures: stakewarsControlPointCapturedModels(
+      first: $capturesFirst
+      after: $capturesAfter
+      where: { controller: $operator }
+    ) {
+      edges { cursor node { control_point_id controller previous_controller previous_allocation allocation ownership_generation } }
+      pageInfo { hasNextPage endCursor }
+    }
+    losses: stakewarsControlPointCapturedModels(
+      first: $lossesFirst
+      after: $lossesAfter
+      where: { previous_controller: $operator }
+    ) {
+      edges { cursor node { control_point_id controller previous_controller previous_allocation allocation ownership_generation } }
+      pageInfo { hasNextPage endCursor }
+    }
+    reinforcements: stakewarsControlPointReinforcedModels(
+      first: $reinforcementsFirst
+      after: $reinforcementsAfter
+      where: { controller: $operator }
+    ) {
+      edges { cursor node { control_point_id controller previous_allocation allocation ownership_generation } }
+      pageInfo { hasNextPage endCursor }
+    }
+    releases: stakewarsControlPointReleasedModels(
+      first: $releasesFirst
+      after: $releasesAfter
+      where: { previous_controller: $operator }
+    ) {
+      edges { cursor node { control_point_id previous_controller released_allocation ownership_generation } }
+      pageInfo { hasNextPage endCursor }
+    }
+    redeployments: stakewarsControlPointRedeployedModels(
+      first: $redeploymentsFirst
+      after: $redeploymentsAfter
+      where: { operator: $operator }
+    ) {
+      edges { cursor node { operator from_control_point_id to_control_point_id released_allocation new_allocation } }
+      pageInfo { hasNextPage endCursor }
+    }
+    disqualifications: stakewarsOperatorDisqualifiedModels(
+      first: $disqualificationsFirst
+      after: $disqualificationsAfter
+      where: { operator: $operator }
+    ) {
+      edges { cursor node { operator previous_generation new_generation previous_allocation live_delegated_amount invalidated_point_count } }
+      pageInfo { hasNextPage endCursor }
+    }
+    relinquishments: stakewarsOperatorRelinquishedModels(
+      first: $relinquishmentsFirst
+      after: $relinquishmentsAfter
+      where: { operator: $operator }
+    ) {
+      edges { cursor node { operator previous_generation new_generation released_allocation released_point_count } }
+      pageInfo { hasNextPage endCursor }
+    }
   }
 `;
 
@@ -169,6 +279,39 @@ const OPERATOR_DISPLACEMENTS_QUERY = `
           ownership_generation
         }
       }
+    }
+  }
+`;
+
+const OPERATOR_DISPLACEMENTS_PAGE_QUERY = `
+  query StakeWarsOperatorDisplacementsPage(
+    $operator: ContractAddress!
+    $pageSize: Int!
+    $after: Cursor
+  ) {
+    displacements: stakewarsControlPointDisplacedModels(
+      first: $pageSize
+      after: $after
+      where: { previous_controller: $operator }
+    ) {
+      edges { cursor node { control_point_id previous_controller new_controller released_allocation new_allocation ownership_generation } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const YIELD_CLAIMS_PAGE_QUERY = `
+  query StakeWarsYieldClaimsPage(
+    $keys: [String]
+    $pageSize: Int!
+    $after: Cursor
+  ) {
+    events(first: $pageSize, after: $after, keys: $keys) {
+      edges {
+        cursor
+        node { id keys data transactionHash executedAt }
+      }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
@@ -202,9 +345,21 @@ const POOL_EVENTS_QUERY = `
 interface ToriiControlPointNode {
   id: number | string;
   controller: string;
+  controller_generation: string;
   allocated_stake: string;
   ownership_generation: string;
   controlled_since?: string | null;
+}
+
+interface ToriiOperatorGenerationResponse {
+  data?: {
+    stakewarsOperatorStateModels?: {
+      edges?: Array<{
+        node?: { operator: string; generation: string };
+      }>;
+    };
+  };
+  errors?: Array<{ message?: string }>;
 }
 
 interface ToriiControlPointResponse {
@@ -223,6 +378,10 @@ interface ToriiEdge<T> {
 
 interface ToriiConnection<T> {
   edges?: Array<ToriiEdge<T>>;
+  pageInfo?: {
+    hasNextPage?: boolean;
+    endCursor?: string | null;
+  };
 }
 
 interface CaptureEventNode {
@@ -277,6 +436,11 @@ interface DisqualificationEventNode {
   invalidated_point_count: number | string;
 }
 
+interface RelinquishmentEventNode {
+  released_allocation: string;
+  released_point_count: number | string;
+}
+
 interface DisplacementEventNode {
   control_point_id: number | string;
   previous_controller: string;
@@ -293,6 +457,7 @@ interface ToriiOperatorActivityResponse {
     releases?: ToriiConnection<ReleaseEventNode>;
     redeployments?: ToriiConnection<RedeploymentEventNode>;
     disqualifications?: ToriiConnection<DisqualificationEventNode>;
+    relinquishments?: ToriiConnection<RelinquishmentEventNode>;
   };
   errors?: Array<{ message?: string }>;
 }
@@ -531,6 +696,17 @@ export function parseOperatorActivity(
           'live delegated amount'
         ),
         affectedPointCount: Number(node.invalidated_point_count),
+      }))
+    );
+  });
+
+  payload.data.relinquishments?.edges?.forEach((edge) => {
+    append(
+      activityFromEdge(edge, (position, node) => ({
+        ...position,
+        type: 'relinquishment',
+        amount: parseBigInt(node.released_allocation, 'released allocation'),
+        affectedPointCount: Number(node.released_point_count),
       }))
     );
   });
@@ -792,6 +968,327 @@ export async function getYieldClaims(
   throw new Error('Yield history exceeded the supported pagination limit');
 }
 
+const ACTIVITY_SOURCE_PAGE_SIZE = 20;
+
+interface OperatorControlActivityCursor {
+  captures: string | null;
+  losses: string | null;
+  reinforcements: string | null;
+  releases: string | null;
+  redeployments: string | null;
+  disqualifications: string | null;
+  relinquishments: string | null;
+  displacements: string | null;
+}
+
+export interface OperatorActivityFeedCursor
+  extends OperatorControlActivityCursor {
+  yieldClaims: string | null;
+}
+
+export interface OperatorActivityFeedPage {
+  activity: OperatorActivity[];
+  cursor: OperatorActivityFeedCursor | null;
+  warning: string | null;
+}
+
+function nextActivityCursor<T>(
+  connection: ToriiConnection<T> | undefined,
+  label: string
+): string | null {
+  if (!connection?.pageInfo) {
+    throw new Error(`Torii omitted ${label} pagination`);
+  }
+  if (!connection.pageInfo.hasNextPage) return null;
+  if (!connection.pageInfo.endCursor) {
+    throw new Error(`Torii returned an invalid ${label} cursor`);
+  }
+  return connection.pageInfo.endCursor;
+}
+
+function hasActivityCursor(cursor: OperatorActivityFeedCursor): boolean {
+  return Object.values(cursor).some((value) => value !== null);
+}
+
+async function getOperatorControlActivityPage(
+  operator: string,
+  cursor: OperatorControlActivityCursor | undefined,
+  filter: OperatorActivityType | undefined,
+  signal?: AbortSignal
+): Promise<{
+  activity: OperatorActivity[];
+  cursor: OperatorControlActivityCursor;
+}> {
+  const sourceEnabled = (key: keyof OperatorControlActivityCursor) => {
+    if (!filter) return true;
+    const sourceType: Record<
+      keyof OperatorControlActivityCursor,
+      OperatorActivityType
+    > = {
+      captures: 'capture',
+      losses: 'loss',
+      reinforcements: 'reinforcement',
+      releases: 'release',
+      redeployments: 'redeployment',
+      disqualifications: 'disqualification',
+      relinquishments: 'relinquishment',
+      displacements: 'loss',
+    };
+    return sourceType[key] === filter;
+  };
+  if (
+    filter === 'yield_claim' ||
+    (cursor && Object.values(cursor).every((value) => value === null))
+  ) {
+    return {
+      activity: [],
+      cursor: cursor ?? {
+        captures: null,
+        losses: null,
+        reinforcements: null,
+        releases: null,
+        redeployments: null,
+        disqualifications: null,
+        relinquishments: null,
+        displacements: null,
+      },
+    };
+  }
+  const active = (key: keyof OperatorControlActivityCursor) =>
+    sourceEnabled(key) && (cursor === undefined || cursor[key] !== null);
+  const payload = await queryTorii<ToriiOperatorActivityResponse>(
+    OPERATOR_ACTIVITY_PAGE_QUERY,
+    {
+      operator,
+      capturesFirst: active('captures') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      capturesAfter: cursor?.captures ?? null,
+      lossesFirst: active('losses') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      lossesAfter: cursor?.losses ?? null,
+      reinforcementsFirst: active('reinforcements')
+        ? ACTIVITY_SOURCE_PAGE_SIZE
+        : 0,
+      reinforcementsAfter: cursor?.reinforcements ?? null,
+      releasesFirst: active('releases') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      releasesAfter: cursor?.releases ?? null,
+      redeploymentsFirst: active('redeployments')
+        ? ACTIVITY_SOURCE_PAGE_SIZE
+        : 0,
+      redeploymentsAfter: cursor?.redeployments ?? null,
+      disqualificationsFirst: active('disqualifications')
+        ? ACTIVITY_SOURCE_PAGE_SIZE
+        : 0,
+      disqualificationsAfter: cursor?.disqualifications ?? null,
+      relinquishmentsFirst: active('relinquishments')
+        ? ACTIVITY_SOURCE_PAGE_SIZE
+        : 0,
+      relinquishmentsAfter: cursor?.relinquishments ?? null,
+    },
+    signal
+  );
+
+  let displacementPayload: ToriiDisplacementsResponse | null = null;
+  let displacementCursor: string | null = null;
+  if (active('displacements')) {
+    try {
+      const result = await queryTorii<ToriiDisplacementsResponse>(
+        OPERATOR_DISPLACEMENTS_PAGE_QUERY,
+        {
+          operator,
+          pageSize: ACTIVITY_SOURCE_PAGE_SIZE,
+          after: cursor?.displacements ?? null,
+        },
+        signal
+      );
+      if (!result.errors?.length) {
+        displacementPayload = result;
+        displacementCursor = nextActivityCursor(
+          result.data?.displacements,
+          'displacement activity'
+        );
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error;
+    }
+  }
+
+  const data = payload.data;
+  if (!data) {
+    return {
+      activity: parseOperatorActivity(payload, displacementPayload),
+      cursor: {
+        captures: null,
+        losses: null,
+        reinforcements: null,
+        releases: null,
+        redeployments: null,
+        disqualifications: null,
+        relinquishments: null,
+        displacements: displacementCursor,
+      },
+    };
+  }
+
+  return {
+    activity: parseOperatorActivity(payload, displacementPayload),
+    cursor: {
+      captures: active('captures')
+        ? nextActivityCursor(data.captures, 'capture activity')
+        : null,
+      losses: active('losses')
+        ? nextActivityCursor(data.losses, 'loss activity')
+        : null,
+      reinforcements: active('reinforcements')
+        ? nextActivityCursor(data.reinforcements, 'reinforcement activity')
+        : null,
+      releases: active('releases')
+        ? nextActivityCursor(data.releases, 'release activity')
+        : null,
+      redeployments: active('redeployments')
+        ? nextActivityCursor(data.redeployments, 'redeployment activity')
+        : null,
+      disqualifications: active('disqualifications')
+        ? nextActivityCursor(
+            data.disqualifications,
+            'disqualification activity'
+          )
+        : null,
+      relinquishments: active('relinquishments')
+        ? nextActivityCursor(data.relinquishments, 'relinquishment activity')
+        : null,
+      displacements: displacementCursor,
+    },
+  };
+}
+
+async function getYieldClaimActivityPage(
+  operator: string,
+  after: string | undefined,
+  signal?: AbortSignal
+): Promise<{ activity: OperatorActivity[]; cursor: string | null }> {
+  if (!config.stakingPoolAddress) {
+    throw new Error('The staking pool address is not configured');
+  }
+  const payload = await queryTorii<ToriiRawEventsResponse>(
+    YIELD_CLAIMS_PAGE_QUERY,
+    {
+      keys: [POOL_MEMBER_REWARD_CLAIMED_SELECTOR, operator],
+      pageSize: ACTIVITY_SOURCE_PAGE_SIZE,
+      after: after ?? null,
+    },
+    signal
+  );
+  const parsed = parseYieldClaimPage(
+    payload,
+    config.stakingPoolAddress,
+    operator
+  );
+  if (parsed.hasNextPage && !parsed.endCursor) {
+    throw new Error('Torii returned an invalid yield history cursor');
+  }
+  return {
+    activity: parsed.claims.map((claim) => ({
+      id: claim.id,
+      type: 'yield_claim',
+      blockNumber: claim.blockNumber,
+      eventIndex: claim.eventIndex,
+      transactionHash: claim.transactionHash,
+      amount: claim.amount,
+      counterparty: claim.rewardAddress,
+    })),
+    cursor: parsed.hasNextPage ? parsed.endCursor : null,
+  };
+}
+
+export async function getOperatorActivityFeedPage(
+  operator: string,
+  cursor?: OperatorActivityFeedCursor,
+  signal?: AbortSignal,
+  filter?: OperatorActivityType
+): Promise<OperatorActivityFeedPage> {
+  if (isZeroAddress(operator)) {
+    throw new Error('A connected Operator is required for activity');
+  }
+
+  const controlCursor = cursor
+    ? {
+        captures: cursor.captures,
+        losses: cursor.losses,
+        reinforcements: cursor.reinforcements,
+        releases: cursor.releases,
+        redeployments: cursor.redeployments,
+        disqualifications: cursor.disqualifications,
+        relinquishments: cursor.relinquishments,
+        displacements: cursor.displacements,
+      }
+    : undefined;
+  const [controlResult, claimResult] = await Promise.allSettled([
+    getOperatorControlActivityPage(operator, controlCursor, filter, signal),
+    (filter && filter !== 'yield_claim') || cursor?.yieldClaims === null
+      ? Promise.resolve({ activity: [], cursor: null })
+      : getYieldClaimActivityPage(
+          operator,
+          cursor?.yieldClaims ?? undefined,
+          signal
+        ),
+  ]);
+
+  if (
+    controlResult.status === 'rejected' &&
+    claimResult.status === 'rejected'
+  ) {
+    throw controlResult.reason;
+  }
+
+  const control =
+    controlResult.status === 'fulfilled'
+      ? controlResult.value
+      : {
+          activity: [],
+          cursor: {
+            captures: null,
+            losses: null,
+            reinforcements: null,
+            releases: null,
+            redeployments: null,
+            disqualifications: null,
+            relinquishments: null,
+            displacements: null,
+          },
+        };
+  const claims =
+    claimResult.status === 'fulfilled'
+      ? claimResult.value
+      : { activity: [], cursor: null };
+  const nextCursor: OperatorActivityFeedCursor = {
+    ...control.cursor,
+    yieldClaims: claims.cursor,
+  };
+  const warning =
+    controlResult.status === 'rejected'
+      ? `CONTROL EVENTS UNAVAILABLE · ${
+          controlResult.reason instanceof Error
+            ? controlResult.reason.message
+            : 'Unable to read event data.'
+        }`
+      : claimResult.status === 'rejected'
+        ? `YIELD EVENTS UNAVAILABLE · ${
+            claimResult.reason instanceof Error
+              ? claimResult.reason.message
+              : 'Unable to read event data.'
+          }`
+        : null;
+
+  return {
+    activity: [...control.activity, ...claims.activity].sort(
+      (left, right) =>
+        right.blockNumber - left.blockNumber ||
+        right.eventIndex - left.eventIndex
+    ),
+    cursor: hasActivityCursor(nextCursor) ? nextCursor : null,
+    warning,
+  };
+}
+
 export async function getOperatorActivity(
   operator: string,
   signal?: AbortSignal
@@ -848,6 +1345,10 @@ export function parseIndexedControlPoints(
     controlPoints.set(id, {
       id,
       controller: node.controller,
+      controllerGeneration: parseBigInt(
+        node.controller_generation,
+        'controller generation'
+      ),
       allocatedStake: parseBigInt(node.allocated_stake, 'allocated stake'),
       ownershipGeneration: parseBigInt(
         node.ownership_generation,
@@ -861,6 +1362,77 @@ export function parseIndexedControlPoints(
   });
 
   return [...controlPoints.values()].sort((left, right) => left.id - right.id);
+}
+
+export function filterControlPointsByOperatorGeneration(
+  controlPoints: IndexedControlPoint[],
+  operatorGenerations: ReadonlyArray<{
+    operator: string;
+    generation: bigint;
+  }>
+): IndexedControlPoint[] {
+  const generationByOperator = new Map(
+    operatorGenerations.map(({ operator, generation }) => [
+      parseBigInt(operator, 'operator address').toString(),
+      generation,
+    ])
+  );
+
+  return controlPoints.filter(({ controller, controllerGeneration }) => {
+    if (isZeroAddress(controller)) return true;
+    return (
+      generationByOperator.get(
+        parseBigInt(controller, 'controller address').toString()
+      ) === controllerGeneration
+    );
+  });
+}
+
+async function filterCurrentControlPoints(
+  controlPoints: IndexedControlPoint[],
+  signal?: AbortSignal
+): Promise<IndexedControlPoint[]> {
+  const controllers = [
+    ...new Map(
+      controlPoints
+        .filter(({ controller }) => !isZeroAddress(controller))
+        .map(({ controller }) => [
+          parseBigInt(controller, 'controller address').toString(),
+          controller,
+        ])
+    ).values(),
+  ];
+  if (controllers.length === 0) return controlPoints;
+
+  const payload = await queryTorii<ToriiOperatorGenerationResponse>(
+    OPERATOR_GENERATIONS_QUERY,
+    { operators: controllers },
+    signal
+  );
+  if (payload.errors?.length) {
+    throw new Error(
+      payload.errors[0]?.message ||
+        'Torii rejected the Operator generation query'
+    );
+  }
+  const operatorEdges = payload.data?.stakewarsOperatorStateModels?.edges;
+  if (!operatorEdges) {
+    throw new Error('Torii omitted the Operator generation collection');
+  }
+
+  return filterControlPointsByOperatorGeneration(
+    controlPoints,
+    operatorEdges.flatMap(({ node }) =>
+      node
+        ? [
+            {
+              operator: node.operator,
+              generation: parseBigInt(node.generation, 'operator generation'),
+            },
+          ]
+        : []
+    )
+  );
 }
 
 async function legacyControlStartTimes(
@@ -960,7 +1532,10 @@ export async function getIndexedControlPoints(
     );
   }
 
-  const controlPoints = parseIndexedControlPoints(payload);
+  const controlPoints = await filterCurrentControlPoints(
+    parseIndexedControlPoints(payload),
+    signal
+  );
   try {
     const fallbackTimes = await legacyControlStartTimes(controlPoints, signal);
     return controlPoints.map((point) => ({

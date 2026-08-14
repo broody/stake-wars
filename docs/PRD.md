@@ -68,10 +68,11 @@ Since the Official Staking Contract enforces a withdrawal delay, the game treats
 #### 3.1.4. Reinforcement and Release
 *   **Reinforcement:** A Controller may increase one or atomically reinforce up to 200 Control Points at a time, provided their total allocation remains within their live delegated balance. A selection of up to 1,000 owned points is submitted as sequential chunks.
 *   **Release:** A Controller may voluntarily release a Control Point. The point becomes neutral, its active image is hidden, and the released allocation becomes Floating Command Power.
+*   **Relinquish All:** An Operator may invalidate every Control Point they control with one constant-cost generation update. The individual Control Point models are not cleared; their prior controller generation becomes stale immediately.
 
 #### 3.1.5. Withdrawal
-*   **Explicit Unstaking:** The Operator initiates an unstake via the Official Contract (via the game UI or external explorer).
-*   **Latency:** Funds are subject to the official Starknet unbonding period (e.g., 7 days), but Game Utility is lost immediately upon the balance drop.
+*   **Explicit Unstaking:** The game UI submits one atomic account multicall that relinquishes every active Control Point and initiates a full exit through the Official Contract. Operators may still use the official contract directly.
+*   **Latency:** Funds are subject to the official Starknet unbonding period (currently seven days on Mainnet and five minutes on Sepolia). Game Utility is lost immediately, while the UI reads the official pool's unlock timestamp and shows withdrawal progress.
 
 ### 3.2. Controller Image Loop
 Control of a face is the visible reward for taking the High Ground.

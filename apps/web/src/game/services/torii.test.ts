@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   NEW_POOL_MEMBER_SELECTOR,
   POOL_MEMBER_REWARD_CLAIMED_SELECTOR,
+  filterControlPointsByOperatorGeneration,
   parseIndexedControlPoints,
   parseOperatorActivity,
   parsePoolMemberStartPage,
@@ -28,6 +29,7 @@ describe('Torii Control Point parsing', () => {
                 node: {
                   id: 1275,
                   controller: '0xabc',
+                  controller_generation: '0x4',
                   allocated_stake: '0x2386f26fc10000',
                   ownership_generation: '0x2',
                   controlled_since: '0x64',
@@ -37,6 +39,7 @@ describe('Torii Control Point parsing', () => {
                 node: {
                   id: '4',
                   controller: '0xdef',
+                  controller_generation: '0x3',
                   allocated_stake: '0x1',
                   ownership_generation: '0x1',
                 },
@@ -49,6 +52,7 @@ describe('Torii Control Point parsing', () => {
       {
         id: 4,
         controller: '0xdef',
+        controllerGeneration: 3n,
         allocatedStake: 1n,
         ownershipGeneration: 1n,
         controlledSince: null,
@@ -56,6 +60,7 @@ describe('Torii Control Point parsing', () => {
       {
         id: 1275,
         controller: '0xabc',
+        controllerGeneration: 4n,
         allocatedStake: 10_000_000_000_000_000n,
         ownershipGeneration: 2n,
         controlledSince: 100,
@@ -79,6 +84,7 @@ describe('Torii Control Point parsing', () => {
                 node: {
                   id: 2000,
                   controller: '0xabc',
+                  controller_generation: '0x1',
                   allocated_stake: '0x1',
                   ownership_generation: '0x1',
                 },
@@ -88,6 +94,40 @@ describe('Torii Control Point parsing', () => {
         },
       })
     ).toThrow('invalid Control Point ID');
+  });
+
+  it('drops stale ownership generations after a global relinquishment', () => {
+    expect(
+      filterControlPointsByOperatorGeneration(
+        [
+          {
+            id: 1,
+            controller: '0xabc',
+            controllerGeneration: 3n,
+            allocatedStake: 10n,
+            ownershipGeneration: 1n,
+            controlledSince: null,
+          },
+          {
+            id: 2,
+            controller: '0x0abc',
+            controllerGeneration: 4n,
+            allocatedStake: 20n,
+            ownershipGeneration: 1n,
+            controlledSince: null,
+          },
+          {
+            id: 3,
+            controller: '0x0',
+            controllerGeneration: 0n,
+            allocatedStake: 0n,
+            ownershipGeneration: 1n,
+            controlledSince: null,
+          },
+        ],
+        [{ operator: '0xabc', generation: 4n }]
+      ).map(({ id }) => id)
+    ).toEqual([2, 3]);
   });
 });
 
@@ -99,6 +139,7 @@ describe('Torii Operator activity parsing', () => {
     releases: { edges: [] },
     redeployments: { edges: [] },
     disqualifications: { edges: [] },
+    relinquishments: { edges: [] },
   };
 
   it('merges indexed event types in reverse chain order', () => {
@@ -217,6 +258,34 @@ describe('Torii Operator activity parsing', () => {
       secondaryAmount: 110n,
       counterparty: '0xdef',
     });
+  });
+
+  it('decodes a constant-cost global relinquishment', () => {
+    const activity = parseOperatorActivity({
+      data: {
+        ...emptyCollections,
+        relinquishments: {
+          edges: [
+            {
+              cursor: activityCursor(25, '0xexit', 4),
+              node: {
+                released_allocation: '700',
+                released_point_count: 2,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(activity).toEqual([
+      expect.objectContaining({
+        type: 'relinquishment',
+        amount: 700n,
+        affectedPointCount: 2,
+        transactionHash: '0xexit',
+      }),
+    ]);
   });
 
   it('rejects malformed activity cursors', () => {

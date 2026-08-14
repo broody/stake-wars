@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { YieldSummary } from '../types';
 
 export type ClaimPhase = 'idle' | 'submitting' | 'confirming';
+export type StakingActionPhase = 'idle' | 'submitting' | 'confirming';
 
 export interface YieldContextValue {
   summary: YieldSummary | null;
@@ -11,10 +12,15 @@ export interface YieldContextValue {
   isOpen: boolean;
   claimPhase: ClaimPhase;
   claimError: string | null;
-  openYield: () => void;
-  closeYield: () => void;
-  refreshYield: () => void;
+  unstakePhase: StakingActionPhase;
+  withdrawPhase: StakingActionPhase;
+  stakingError: string | null;
+  openStaking: () => void;
+  closeStaking: () => void;
+  refreshStaking: () => void;
   claimYield: () => Promise<void>;
+  unstakeAll: () => Promise<void>;
+  withdrawUnstaked: () => Promise<void>;
 }
 
 export const YieldContext = createContext<YieldContextValue | undefined>(

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { calculateYieldMetrics } from './yield';
+import {
+  accruedAtAnnualRate,
+  annualRateFractionDigits,
+  calculateYieldMetrics,
+  calculateYieldPercent,
+  rebaseAnimatedAnnualYield,
+} from './yield';
 
 const STRK = 10n ** 18n;
 const NOW = Date.parse('2026-08-12T00:00:00Z');
@@ -38,5 +44,52 @@ describe('calculateYieldMetrics', () => {
       projectedAnnualPercent: null,
       observationDays: null,
     });
+  });
+});
+
+describe('accruedAtAnnualRate', () => {
+  it('converts an annual reward projection into elapsed live rewards', () => {
+    const annualRewards = 100n * STRK;
+
+    expect(
+      accruedAtAnnualRate(annualRewards, 365.25 * 24 * 60 * 60 * 1000)
+    ).toBe(annualRewards);
+    expect(accruedAtAnnualRate(annualRewards, 1_000)).toBe(3_168_808_781_402n);
+  });
+
+  it('does not accrue for invalid or non-positive durations', () => {
+    expect(accruedAtAnnualRate(100n, 0)).toBe(0n);
+    expect(accruedAtAnnualRate(100n, Number.NaN)).toBe(0n);
+  });
+});
+
+describe('annualRateFractionDigits', () => {
+  it('shows the first fractional place that visibly advances', () => {
+    expect(annualRateFractionDigits(100n * STRK)).toBe(7);
+    expect(annualRateFractionDigits(1n * STRK)).toBe(9);
+  });
+
+  it('keeps the precision within readable bounds', () => {
+    expect(annualRateFractionDigits(0n)).toBe(4);
+    expect(annualRateFractionDigits(100n * STRK, 4, 6)).toBe(6);
+  });
+});
+
+describe('rebaseAnimatedAnnualYield', () => {
+  it('keeps the live value from moving backward after a refresh', () => {
+    expect(rebaseAnimatedAnnualYield(101n, 100n, false)).toBe(101n);
+    expect(rebaseAnimatedAnnualYield(100n, 102n, false)).toBe(102n);
+  });
+
+  it('accepts a lower value when the reward period resets', () => {
+    expect(rebaseAnimatedAnnualYield(101n, 0n, true)).toBe(0n);
+    expect(rebaseAnimatedAnnualYield(101n, null, true)).toBeNull();
+  });
+});
+
+describe('calculateYieldPercent', () => {
+  it('keeps a stabilized annual display consistent with current stake', () => {
+    expect(calculateYieldPercent(40n * STRK, 1_000n * STRK)).toBe(4);
+    expect(calculateYieldPercent(40n * STRK, 0n)).toBeNull();
   });
 });

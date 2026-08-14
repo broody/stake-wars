@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { decodeControlPointStatusesResult, encodeRpcFelt } from './starknet';
+import {
+  decodeControlPointStatusesResult,
+  decodePoolMemberInfoResult,
+  encodeRpcFelt,
+} from './starknet';
 
 describe('Starknet RPC calldata', () => {
   it('hex-encodes decimal-looking felt values explicitly', () => {
@@ -55,5 +59,40 @@ describe('Starknet RPC calldata', () => {
       stale: false,
       needsSync: true,
     });
+  });
+});
+
+describe('Staking pool membership decoding', () => {
+  it('decodes a pending withdrawal and its unlock timestamp', () => {
+    expect(
+      decodePoolMemberInfoResult(
+        ['0x0', '0xabc', '0x0', '0xa', '0x3e8', '0x64', '0x0', '0x77359400'],
+        '0xdef'
+      )
+    ).toEqual({
+      rewardAddress: '0xabc',
+      amount: 0n,
+      unclaimedRewards: 10n,
+      commissionBps: 1000,
+      unpoolAmount: 100n,
+      unpoolTime: 2_000_000_000,
+    });
+  });
+
+  it('decodes an active member without a pending withdrawal', () => {
+    expect(
+      decodePoolMemberInfoResult(
+        ['0x0', '0xabc', '0x64', '0x0', '0x3e8', '0x0', '0x1'],
+        '0xdef'
+      )
+    ).toMatchObject({
+      amount: 100n,
+      unpoolAmount: 0n,
+      unpoolTime: null,
+    });
+  });
+
+  it('decodes a missing pool member', () => {
+    expect(decodePoolMemberInfoResult(['0x1'], '0xabc')).toBeNull();
   });
 });

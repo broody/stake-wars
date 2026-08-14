@@ -376,6 +376,50 @@ export async function getStakingPoolInfo(
   };
 }
 
+export async function getStakingExitWaitWindow(
+  signal?: AbortSignal
+): Promise<number> {
+  const pool = await getStakingPoolInfo(signal);
+  const result = await callContract(
+    pool.stakingContractAddress,
+    'contract_parameters_v1',
+    [],
+    signal
+  );
+  return parseTimestamp(result[5], 'staking exit wait window');
+}
+
+export function decodePoolMemberInfoResult(
+  result: string[],
+  operator: string
+): PoolMemberInfo | null {
+  const optionVariant = parseFelt(result[0], 'pool membership option');
+
+  if (optionVariant === 1n) return null;
+  if (optionVariant !== 0n) {
+    throw new Error('Staking pool returned an invalid membership option');
+  }
+
+  const unpoolTimeVariant = parseFelt(result[6], 'unpooling timestamp option');
+  let unpoolTime: number | null;
+  if (unpoolTimeVariant === 0n) {
+    unpoolTime = parseTimestamp(result[7], 'unpooling timestamp');
+  } else if (unpoolTimeVariant === 1n) {
+    unpoolTime = null;
+  } else {
+    throw new Error('Staking pool returned an invalid unpooling timestamp');
+  }
+
+  return {
+    rewardAddress: result[1] ?? operator,
+    amount: parseFelt(result[2], 'staked amount'),
+    unclaimedRewards: parseFelt(result[3], 'unclaimed rewards'),
+    commissionBps: Number(parseFelt(result[4], 'member commission')),
+    unpoolAmount: parseFelt(result[5], 'unpooling amount'),
+    unpoolTime,
+  };
+}
+
 export async function getPoolMemberInfo(
   operator: string,
   signal?: AbortSignal
@@ -386,20 +430,7 @@ export async function getPoolMemberInfo(
     [operator],
     signal
   );
-  const optionVariant = parseFelt(result[0], 'pool membership option');
-
-  if (optionVariant === 1n) return null;
-  if (optionVariant !== 0n) {
-    throw new Error('Staking pool returned an invalid membership option');
-  }
-
-  return {
-    rewardAddress: result[1] ?? operator,
-    amount: parseFelt(result[2], 'staked amount'),
-    unclaimedRewards: parseFelt(result[3], 'unclaimed rewards'),
-    commissionBps: Number(parseFelt(result[4], 'member commission')),
-    unpoolAmount: parseFelt(result[5], 'unpooling amount'),
-  };
+  return decodePoolMemberInfoResult(result, operator);
 }
 
 export async function getStrkBalance(

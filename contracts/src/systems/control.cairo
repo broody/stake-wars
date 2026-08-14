@@ -45,6 +45,7 @@ pub trait IControl<TContractState> {
     fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
     fn reinforce_many(ref self: TContractState, reinforcements: Span<ReinforcementRequest>);
     fn release(ref self: TContractState, control_point_id: u32);
+    fn relinquish_all(ref self: TContractState);
     fn redeploy(
         ref self: TContractState,
         from_control_point_id: u32,
@@ -155,6 +156,17 @@ pub mod control {
         pub previous_allocation: u128,
         pub live_delegated_amount: u128,
         pub invalidated_point_count: u32,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct OperatorRelinquished {
+        #[key]
+        pub operator: ContractAddress,
+        pub previous_generation: u64,
+        pub new_generation: u64,
+        pub released_allocation: u128,
+        pub released_point_count: u32,
     }
 
     #[abi(embed_v0)]
@@ -275,6 +287,39 @@ pub mod control {
                         previous_controller: caller,
                         released_allocation,
                         ownership_generation: point.ownership_generation,
+                    },
+                );
+        }
+
+        fn relinquish_all(ref self: ContractState) {
+            // This exit path deliberately remains available while gameplay is paused.
+            self.initialized_config();
+
+            let caller = get_caller_address();
+            let mut world = self.world_default();
+            let mut operator: OperatorState = world.read_model(caller);
+
+            if operator.total_allocated == 0 && operator.controlled_point_count == 0 {
+                return;
+            }
+
+            assert(operator.generation > 0, 'invalid generation');
+            let previous_generation = operator.generation;
+            let released_allocation = operator.total_allocated;
+            let released_point_count = operator.controlled_point_count;
+
+            operator.generation += 1;
+            operator.total_allocated = 0;
+            operator.controlled_point_count = 0;
+            world.write_model(@operator);
+            world
+                .emit_event(
+                    @OperatorRelinquished {
+                        operator: caller,
+                        previous_generation,
+                        new_generation: operator.generation,
+                        released_allocation,
+                        released_point_count,
                     },
                 );
         }

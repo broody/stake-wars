@@ -17,8 +17,8 @@ function GameApp() {
         <Router>
           <WalletProvider>
             <TransactionToastProvider>
-              <YieldProvider>
-                <ControlPointProvider>
+              <ControlPointProvider>
+                <YieldProvider>
                   <Layout>
                     <Routes>
                       <Route path="/" element={<Home />} />
@@ -26,8 +26,8 @@ function GameApp() {
                       <Route path="/profile" element={<Profile />} />
                     </Routes>
                   </Layout>
-                </ControlPointProvider>
-              </YieldProvider>
+                </YieldProvider>
+              </ControlPointProvider>
             </TransactionToastProvider>
           </WalletProvider>
         </Router>

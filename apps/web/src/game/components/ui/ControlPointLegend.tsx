@@ -48,7 +48,7 @@ export function ControlPointLegend() {
       className="pointer-events-auto absolute bottom-24 left-4 w-48 border border-neutral-800 bg-black/80 px-3 py-2.5 font-mono text-[9px] tracking-[0.14em] text-neutral-500 backdrop-blur-sm sm:bottom-5"
     >
       <header className="mb-2 flex items-center justify-between border-b border-neutral-800 pb-2">
-        <span className="text-neutral-300">CONTROL SIGNAL</span>
+        <span className="text-neutral-300">CONTROL POINTS</span>
         <span
           role="status"
           aria-label={

@@ -38,6 +38,13 @@ delegated balance once and persist the caller's final allocation state once,
 while retaining one ownership update and event per Control Point. The single
 `capture` and `reinforce` entrypoints remain available for one-point actions.
 
+`relinquish_all` provides the constant-cost staking off-ramp: it advances the
+operator generation and clears the operator allocation totals with one model
+write, making every Control Point from the previous generation immediately
+stale without rewriting each point. Clients should submit it in the same account
+multicall as the official pool's `exit_delegation_pool_intent`, then call
+`exit_delegation_pool_action` after the pool-reported withdrawal timestamp.
+
 Before any production migration, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
 delegation-pool address and base-unit rule values, and place both World and

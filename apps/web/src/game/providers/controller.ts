@@ -93,6 +93,12 @@ const policies: SessionPolicies = {
               description: 'Release an owned point.',
             },
             {
+              name: 'Relinquish All Control Points',
+              entrypoint: 'relinquish_all',
+              description:
+                'Relinquish every Control Point in one generation update.',
+            },
+            {
               name: 'Redeploy Control Point',
               entrypoint: 'redeploy',
               description: 'Move allocated stake between Control Points.',

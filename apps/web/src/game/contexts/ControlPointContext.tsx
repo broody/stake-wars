@@ -345,6 +345,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
           next.set(controlPoint.id, {
             id: controlPoint.id,
             controller: controlPoint.controller,
+            controllerGeneration: operatorStatus?.generation || 1n,
             allocatedStake: controlPoint.allocatedStake,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
@@ -358,7 +359,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       }
       setControlPointError(null);
     },
-    []
+    [operatorStatus?.generation]
   );
 
   const confirmReinforcedControlPoints = useCallback(
@@ -384,9 +385,14 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       setIndexedControlPoints((current) => {
         const next = new Map(current);
         reinforcedControlPoints.forEach((controlPoint) => {
+          const previous = current.get(controlPoint.id);
           next.set(controlPoint.id, {
             id: controlPoint.id,
             controller: controlPoint.controller,
+            controllerGeneration:
+              previous?.controllerGeneration ||
+              operatorStatus?.generation ||
+              1n,
             allocatedStake: controlPoint.allocatedStake,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
@@ -401,7 +407,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       );
       setControlPointError(null);
     },
-    []
+    [operatorStatus?.generation]
   );
 
   useEffect(() => {

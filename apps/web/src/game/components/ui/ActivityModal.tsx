@@ -29,7 +29,7 @@ export function ActivityModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 px-4 py-20 font-mono backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 font-mono backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.currentTarget === event.target) onClose();
       }}
@@ -38,7 +38,7 @@ export function ActivityModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="activity-ledger-title"
-        className="activity-scrollbar max-h-full w-full max-w-5xl overflow-y-auto border border-neutral-500 bg-black shadow-[10px_10px_0_rgba(255,255,255,0.08)]"
+        className="activity-scrollbar h-full w-full max-w-5xl overflow-y-auto border border-neutral-500 bg-black shadow-[10px_10px_0_rgba(255,255,255,0.08)]"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between border-b border-grid bg-black px-5 py-4">
           <div>

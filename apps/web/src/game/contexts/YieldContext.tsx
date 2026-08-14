@@ -4,12 +4,20 @@ import { useProvider, useSendTransaction } from '@starknet-start/react';
 import { TransactionExecutionStatus } from 'starknet';
 import type { YieldSummary } from '../types';
 import { config } from '../services/config';
-import { getPoolMemberInfo } from '../services/starknet';
+import {
+  getPoolMemberInfo,
+  getStakingExitWaitWindow,
+} from '../services/starknet';
 import { getPoolMemberStart, getYieldClaims } from '../services/torii';
+import {
+  buildUnstakeAllCalls,
+  buildWithdrawUnstakedCall,
+} from '../services/staking';
 import { useTransactionToast } from './TransactionToastContext';
 import { YieldContext } from './useYield';
 import type { YieldContextValue } from './useYield';
 import { useWallet } from './WalletContext';
+import { useControlPoints } from './ControlPointContext';
 
 type ClaimPhase = 'idle' | 'submitting' | 'confirming';
 
@@ -19,6 +27,7 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function YieldProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
+  const { refreshControlPointIndex, refreshOperator } = useControlPoints();
   const { provider } = useProvider();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
@@ -30,10 +39,15 @@ export function YieldProvider({ children }: PropsWithChildren) {
   const [isOpen, setOpen] = useState(false);
   const [claimPhase, setClaimPhase] = useState<ClaimPhase>('idle');
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [unstakePhase, setUnstakePhase] = useState<ClaimPhase>('idle');
+  const [withdrawPhase, setWithdrawPhase] = useState<ClaimPhase>('idle');
+  const [stakingError, setStakingError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const claimedFloor = useRef<bigint | null>(null);
+  const pendingExitAmount = summary?.unpoolAmount ?? 0n;
+  const pendingExitTime = summary?.unpoolTime ?? null;
 
-  const refreshYield = useCallback(() => {
+  const refreshStaking = useCallback(() => {
     setRevision((current) => current + 1);
   }, []);
 
@@ -47,6 +61,9 @@ export function YieldProvider({ children }: PropsWithChildren) {
       setLoading(false);
       setClaimError(null);
       setClaimPhase('idle');
+      setUnstakePhase('idle');
+      setWithdrawPhase('idle');
+      setStakingError(null);
       claimedFloor.current = null;
       return () => controller.abort();
     }
@@ -67,66 +84,79 @@ export function YieldProvider({ children }: PropsWithChildren) {
       getPoolMemberInfo(address, controller.signal),
       getYieldClaims(address, controller.signal),
       getPoolMemberStart(address, controller.signal),
+      getStakingExitWaitWindow(controller.signal),
     ])
-      .then(([memberResult, claimsResult, memberStartResult]) => {
-        if (controller.signal.aborted) return;
-        if (memberResult.status === 'rejected') {
-          throw memberResult.reason;
-        }
+      .then(
+        ([memberResult, claimsResult, memberStartResult, exitWindowResult]) => {
+          if (controller.signal.aborted) return;
+          if (memberResult.status === 'rejected') {
+            throw memberResult.reason;
+          }
 
-        const member = memberResult.value;
-        const unclaimedRewards = member?.unclaimedRewards ?? 0n;
-        const memberSince =
-          memberStartResult.status === 'fulfilled'
-            ? memberStartResult.value
-            : null;
+          const member = memberResult.value;
+          const unclaimedRewards = member?.unclaimedRewards ?? 0n;
+          const memberSince =
+            memberStartResult.status === 'fulfilled'
+              ? memberStartResult.value
+              : null;
+          const exitWaitWindowSeconds =
+            exitWindowResult.status === 'fulfilled'
+              ? exitWindowResult.value
+              : null;
 
-        if (claimsResult.status === 'rejected') {
-          setHistoryError(
-            messageFrom(
-              claimsResult.reason,
-              'Unable to read indexed reward claims.'
-            )
+          if (claimsResult.status === 'rejected') {
+            setHistoryError(
+              messageFrom(
+                claimsResult.reason,
+                'Unable to read indexed reward claims.'
+              )
+            );
+            setSummary({
+              stakedAmount: member?.amount ?? 0n,
+              unpoolAmount: member?.unpoolAmount ?? 0n,
+              unpoolTime: member?.unpoolTime ?? null,
+              exitWaitWindowSeconds,
+              claimedRewards: null,
+              unclaimedRewards,
+              lifetimeRewards: null,
+              memberSince,
+              claimCount: 0,
+              rewardAddress: member?.rewardAddress ?? null,
+              commissionBps: member?.commissionBps ?? null,
+              claims: [],
+            });
+            return;
+          }
+
+          const indexedClaimedRewards = claimsResult.value.reduce(
+            (total, claim) => total + claim.amount,
+            0n
           );
+          const floor = claimedFloor.current;
+          const claimedRewards =
+            floor !== null && floor > indexedClaimedRewards
+              ? floor
+              : indexedClaimedRewards;
+          if (floor !== null && indexedClaimedRewards >= floor) {
+            claimedFloor.current = null;
+          }
+
           setSummary({
             stakedAmount: member?.amount ?? 0n,
-            claimedRewards: null,
+            unpoolAmount: member?.unpoolAmount ?? 0n,
+            unpoolTime: member?.unpoolTime ?? null,
+            exitWaitWindowSeconds,
+            claimedRewards,
             unclaimedRewards,
-            lifetimeRewards: null,
+            lifetimeRewards: claimedRewards + unclaimedRewards,
             memberSince,
-            claimCount: 0,
+            claimCount: claimsResult.value.length,
             rewardAddress: member?.rewardAddress ?? null,
             commissionBps: member?.commissionBps ?? null,
-            claims: [],
+            claims: claimsResult.value,
           });
-          return;
         }
-
-        const indexedClaimedRewards = claimsResult.value.reduce(
-          (total, claim) => total + claim.amount,
-          0n
-        );
-        const floor = claimedFloor.current;
-        const claimedRewards =
-          floor !== null && floor > indexedClaimedRewards
-            ? floor
-            : indexedClaimedRewards;
-        if (floor !== null && indexedClaimedRewards >= floor) {
-          claimedFloor.current = null;
-        }
-
-        setSummary({
-          stakedAmount: member?.amount ?? 0n,
-          claimedRewards,
-          unclaimedRewards,
-          lifetimeRewards: claimedRewards + unclaimedRewards,
-          memberSince,
-          claimCount: claimsResult.value.length,
-          rewardAddress: member?.rewardAddress ?? null,
-          commissionBps: member?.commissionBps ?? null,
-          claims: claimsResult.value,
-        });
-      })
+      )
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) {
           setSummary(null);
@@ -140,14 +170,40 @@ export function YieldProvider({ children }: PropsWithChildren) {
     return () => controller.abort();
   }, [address, revision]);
 
-  const openYield = useCallback(() => {
+  useEffect(() => {
+    if (
+      !isOpen ||
+      pendingExitAmount === 0n ||
+      pendingExitTime !== null ||
+      unstakePhase !== 'idle'
+    ) {
+      return;
+    }
+    const timeout = window.setTimeout(refreshStaking, 3_000);
+    return () => window.clearTimeout(timeout);
+  }, [
+    isOpen,
+    pendingExitAmount,
+    pendingExitTime,
+    refreshStaking,
+    unstakePhase,
+  ]);
+
+  const openStaking = useCallback(() => {
     setOpen(true);
     setClaimError(null);
+    setStakingError(null);
   }, []);
 
-  const closeYield = useCallback(() => {
-    if (claimPhase === 'idle') setOpen(false);
-  }, [claimPhase]);
+  const closeStaking = useCallback(() => {
+    if (
+      claimPhase === 'idle' &&
+      unstakePhase === 'idle' &&
+      withdrawPhase === 'idle'
+    ) {
+      setOpen(false);
+    }
+  }, [claimPhase, unstakePhase, withdrawPhase]);
 
   const claimYield = useCallback(async () => {
     if (
@@ -155,6 +211,8 @@ export function YieldProvider({ children }: PropsWithChildren) {
       !summary ||
       summary.unclaimedRewards === 0n ||
       claimPhase !== 'idle' ||
+      unstakePhase !== 'idle' ||
+      withdrawPhase !== 'idle' ||
       !config.stakingPoolAddress
     ) {
       return;
@@ -200,7 +258,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
             claimedRewards === null ? null : current.lifetimeRewards,
         };
       });
-      refreshYield();
+      refreshStaking();
     } catch (claimFailure) {
       const message = messageFrom(
         claimFailure,
@@ -218,9 +276,143 @@ export function YieldProvider({ children }: PropsWithChildren) {
     notifyFailed,
     notifySubmitting,
     provider,
-    refreshYield,
+    refreshStaking,
     summary,
     transaction,
+    unstakePhase,
+    withdrawPhase,
+  ]);
+
+  const unstakeAll = useCallback(async () => {
+    if (
+      !address ||
+      !summary ||
+      summary.stakedAmount === 0n ||
+      summary.unpoolAmount > 0n ||
+      claimPhase !== 'idle' ||
+      unstakePhase !== 'idle' ||
+      withdrawPhase !== 'idle' ||
+      !config.stakingPoolAddress
+    ) {
+      return;
+    }
+
+    const exitAmount = summary.stakedAmount;
+    let submittedHash: string | null = null;
+    setStakingError(null);
+    setUnstakePhase('submitting');
+
+    try {
+      const result = await transaction.sendAsync(
+        buildUnstakeAllCalls({
+          controlSystemAddress: config.controlSystemAddress,
+          stakingPoolAddress: config.stakingPoolAddress,
+          amount: exitAmount,
+        })
+      );
+      submittedHash = result.transaction_hash;
+      notifySubmitting(submittedHash, 'UNSTAKE & RELINQUISH');
+      setUnstakePhase('confirming');
+
+      await provider.waitForTransaction(submittedHash, {
+        errorStates: [TransactionExecutionStatus.REVERTED],
+      });
+      notifyConfirmed(submittedHash);
+      setSummary((current) =>
+        current
+          ? {
+              ...current,
+              stakedAmount: 0n,
+              unpoolAmount: current.unpoolAmount + exitAmount,
+            }
+          : current
+      );
+      refreshOperator();
+      refreshControlPointIndex();
+      refreshStaking();
+    } catch (unstakeFailure) {
+      const message = messageFrom(
+        unstakeFailure,
+        'The staking exit could not be initiated.'
+      );
+      if (submittedHash) notifyFailed(submittedHash, message);
+      setStakingError(message);
+    } finally {
+      setUnstakePhase('idle');
+    }
+  }, [
+    address,
+    claimPhase,
+    notifyConfirmed,
+    notifyFailed,
+    notifySubmitting,
+    provider,
+    refreshControlPointIndex,
+    refreshOperator,
+    refreshStaking,
+    summary,
+    transaction,
+    unstakePhase,
+    withdrawPhase,
+  ]);
+
+  const withdrawUnstaked = useCallback(async () => {
+    if (
+      !address ||
+      !summary ||
+      summary.unpoolAmount === 0n ||
+      summary.unpoolTime === null ||
+      summary.unpoolTime > Math.floor(Date.now() / 1_000) ||
+      claimPhase !== 'idle' ||
+      unstakePhase !== 'idle' ||
+      withdrawPhase !== 'idle' ||
+      !config.stakingPoolAddress
+    ) {
+      return;
+    }
+
+    let submittedHash: string | null = null;
+    setStakingError(null);
+    setWithdrawPhase('submitting');
+
+    try {
+      const result = await transaction.sendAsync([
+        buildWithdrawUnstakedCall(config.stakingPoolAddress, address),
+      ]);
+      submittedHash = result.transaction_hash;
+      notifySubmitting(submittedHash, 'WITHDRAW UNSTAKED STRK');
+      setWithdrawPhase('confirming');
+
+      await provider.waitForTransaction(submittedHash, {
+        errorStates: [TransactionExecutionStatus.REVERTED],
+      });
+      notifyConfirmed(submittedHash);
+      setSummary((current) =>
+        current ? { ...current, unpoolAmount: 0n, unpoolTime: null } : current
+      );
+      refreshStaking();
+    } catch (withdrawFailure) {
+      const message = messageFrom(
+        withdrawFailure,
+        'The unstaked STRK could not be withdrawn.'
+      );
+      if (submittedHash) notifyFailed(submittedHash, message);
+      setStakingError(message);
+    } finally {
+      setWithdrawPhase('idle');
+    }
+  }, [
+    address,
+    claimPhase,
+    notifyConfirmed,
+    notifyFailed,
+    notifySubmitting,
+    provider,
+    refreshStaking,
+    summary,
+    transaction,
+    unstakePhase,
+    withdrawPhase,
   ]);
 
   const value = useMemo<YieldContextValue>(
@@ -232,23 +424,33 @@ export function YieldProvider({ children }: PropsWithChildren) {
       isOpen,
       claimPhase,
       claimError,
-      openYield,
-      closeYield,
-      refreshYield,
+      unstakePhase,
+      withdrawPhase,
+      stakingError,
+      openStaking,
+      closeStaking,
+      refreshStaking,
       claimYield,
+      unstakeAll,
+      withdrawUnstaked,
     }),
     [
       claimError,
       claimPhase,
       claimYield,
-      closeYield,
+      closeStaking,
       error,
       historyError,
       isLoading,
       isOpen,
-      openYield,
-      refreshYield,
+      openStaking,
+      refreshStaking,
+      stakingError,
       summary,
+      unstakeAll,
+      unstakePhase,
+      withdrawPhase,
+      withdrawUnstaked,
     ]
   );
 

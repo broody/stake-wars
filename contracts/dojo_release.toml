@@ -28,3 +28,4 @@ default = "stakewars"
 "stakewars-ControlPointReleased" = ["stakewars-control"]
 "stakewars-ControlPointRedeployed" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
+"stakewars-OperatorRelinquished" = ["stakewars-control"]

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addressesMatch,
   formatStrk,
+  formatStrkFixed,
   isZeroAddress,
   parseStrk,
   shortAddress,
@@ -12,6 +13,11 @@ describe('Control Point formatting', () => {
     expect(formatStrk(10_000_000_000_000_000n)).toBe('0.01');
     expect(formatStrk(11_000_000_000_000_000n)).toBe('0.011');
     expect(formatStrk(1_234_567_890_000_000_000_000n)).toBe('1,234.5678');
+  });
+
+  it('keeps a fixed fractional width for live STRK values', () => {
+    expect(formatStrkFixed(1_230_000_000_000_000_000n, 6)).toBe('1.230000');
+    expect(formatStrkFixed(0n, 4)).toBe('0.0000');
   });
 
   it('recognizes neutral controller addresses', () => {

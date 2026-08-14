@@ -51,6 +51,7 @@ mod tests {
                 TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointRedeployed::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
+                TestResource::Event(control::e_OperatorRelinquished::TEST_CLASS_HASH),
                 TestResource::Contract(admin::TEST_CLASS_HASH),
                 TestResource::Contract(control::TEST_CLASS_HASH),
             ]
@@ -83,7 +84,7 @@ mod tests {
             resource_selector(@"ControlPointReinforced"),
             resource_selector(@"ControlPointReleased"),
             resource_selector(@"ControlPointRedeployed"),
-            resource_selector(@"OperatorDisqualified"),
+            resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRelinquished"),
         ]
             .span()
     }
@@ -535,6 +536,59 @@ mod tests {
         assert_eq!(recaptured.controller, challenger);
         assert_eq!(recaptured.allocated_stake, MINIMUM_STAKE);
         assert_eq!(recaptured.ownership_generation, 2);
+    }
+
+    #[test]
+    #[available_gas(500000000)]
+    fn relinquish_all_invalidates_every_point_without_clearing_each_model() {
+        let (world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(40, 250);
+        control.capture(41, 450);
+
+        control.relinquish_all();
+
+        let operator: OperatorState = world.read_model(player);
+        let first_model: ControlPoint = world.read_model(40_u32);
+        let second_model: ControlPoint = world.read_model(41_u32);
+        let first_status = control.get_control_point_status(40);
+        let second_status = control.get_control_point_status(41);
+
+        assert_eq!(operator.generation, 2);
+        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.controlled_point_count, 0);
+        assert_eq!(first_model.controller, player);
+        assert_eq!(first_model.controller_generation, 1);
+        assert_eq!(second_model.controller, player);
+        assert_eq!(second_model.controller_generation, 1);
+        assert_eq!(first_status.controller, 0.try_into().unwrap());
+        assert_eq!(second_status.controller, 0.try_into().unwrap());
+        assert(first_status.stale, 'first point not invalidated');
+        assert(second_status.stale, 'second point not invalidated');
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn relinquish_all_is_idempotent_and_available_while_paused() {
+        let (mut world, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        control.capture(50, 500);
+
+        let mut config: GameConfig = world.read_model(CONFIG_ID);
+        config.paused = true;
+        world.write_model_test(@config);
+
+        control.relinquish_all();
+        control.relinquish_all();
+
+        let operator: OperatorState = world.read_model(player);
+        assert_eq!(operator.generation, 2);
+        assert_eq!(operator.total_allocated, 0);
+        assert_eq!(operator.controlled_point_count, 0);
     }
 
     #[test]

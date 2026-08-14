@@ -28,6 +28,28 @@ export function formatStrk(amount: bigint, maximumFractionDigits = 4): string {
   return fractionText.length > 0 ? `${wholeText}.${fractionText}` : wholeText;
 }
 
+export function formatStrkFixed(
+  amount: bigint,
+  fractionDigits: number
+): string {
+  const digits = Math.max(
+    0,
+    Math.min(STRK_DECIMALS, Math.floor(fractionDigits))
+  );
+  const divisor = 10n ** BigInt(STRK_DECIMALS);
+  const whole = amount / divisor;
+  const fraction = amount % divisor;
+  const wholeText = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  if (digits === 0) return wholeText;
+
+  const fractionText = fraction
+    .toString()
+    .padStart(STRK_DECIMALS, '0')
+    .slice(0, digits);
+  return `${wholeText}.${fractionText}`;
+}
+
 export function shortAddress(address: string): string {
   return address.length > 14
     ? `${address.slice(0, 8)}…${address.slice(-6)}`

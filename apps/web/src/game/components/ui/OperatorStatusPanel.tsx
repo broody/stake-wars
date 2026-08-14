@@ -12,8 +12,12 @@ interface OperatorMetricProps {
 function OperatorMetric({ label, value, highlight }: OperatorMetricProps) {
   return (
     <div className="flex items-baseline justify-between gap-6">
-      <span className="text-dim">{label}</span>
-      <span className={highlight ? 'text-fg' : 'text-neutral-400'}>
+      <span className="text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
+        {label}
+      </span>
+      <span
+        className={`${highlight ? 'text-fg' : 'text-neutral-400'} transition-colors group-hover:text-white group-focus-visible:text-white`}
+      >
         {formatStrk(value)} STRK
       </span>
     </div>
@@ -22,7 +26,7 @@ function OperatorMetric({ label, value, highlight }: OperatorMetricProps) {
 
 export function OperatorStatusPanel() {
   const { address } = useWallet();
-  const { summary, isLoading: isYieldLoading, openYield } = useYield();
+  const { summary, isLoading: isYieldLoading, openStaking } = useYield();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useControlPoints();
 
@@ -46,7 +50,12 @@ export function OperatorStatusPanel() {
       )}
 
       {operatorStatus && (
-        <div className="mt-3 w-64 space-y-1 border-l border-neutral-700 pl-3">
+        <button
+          type="button"
+          onClick={openStaking}
+          className="group mt-3 block w-64 space-y-1 border-l border-neutral-700 pl-3 text-left transition-colors hover:border-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white"
+          aria-label="Open staking position"
+        >
           <OperatorMetric
             label="STAKED"
             value={operatorStatus.liveDelegatedAmount}
@@ -60,11 +69,7 @@ export function OperatorStatusPanel() {
             value={operatorStatus.availableStake}
             highlight
           />
-          <button
-            type="button"
-            onClick={openYield}
-            className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
+          <div className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors group-hover:text-white">
             <span>YIELD</span>
             <span className="text-white">
               {isYieldLoading && !summary
@@ -73,11 +78,11 @@ export function OperatorStatusPanel() {
                   ? '—'
                   : `${formatStrk(summary.lifetimeRewards)} STRK`}
             </span>
-          </button>
+          </div>
           {operatorStatus.needsSync && (
             <div className="pt-2 text-amber-400">SYNC REQUIRED</div>
           )}
-        </div>
+        </button>
       )}
     </aside>
   );
