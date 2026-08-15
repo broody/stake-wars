@@ -41,13 +41,13 @@ function LandingApp() {
       title: '03. CHALLENGE',
       description: (
         <>
-          Attack an occupied point by taking the high ground with 10% more
-          committed STRK. Every new leader resets a 12-hour timer. The{' '}
+          Attack an occupied point with an encrypted maximum bid during one
+          fixed 3-hour window. The{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             winner takes the point
-          </span>
-          . Losing commitments unlock after settlement and can be allocated
-          again. Existing commitments count toward each additive raise.
+          </span>{' '}
+          but commits only the runner-up price. Losing and excess bid collateral
+          unlock after settlement.
         </>
       ),
     },

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"stakewars.com/api/internal/api"
+	"stakewars.com/api/internal/auction"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
@@ -56,18 +57,47 @@ func run() error {
 			SessionTTL:   configuration.SessionTTL,
 		},
 	)
+	auctionService, err := auction.NewService(
+		db, configuration.StarknetChainID, configuration.AuctionPrivateKeyPEM,
+	)
+	if err != nil {
+		return err
+	}
+	if auctionService == nil {
+		slog.Warn("AUCTION_PRIVATE_KEY_PEM is not configured; sealed bidding is disabled")
+	}
+	settlementWorker, err := auction.NewWorker(auctionService, auction.WorkerConfig{
+		ToriiURL:          configuration.ToriiURL,
+		RPCURL:            configuration.StarknetRPCURL,
+		ControlSystem:     configuration.ControlSystemAddress,
+		AccountAddress:    configuration.AuctionSettlementAccountAddress,
+		AccountPublicKey:  configuration.AuctionSettlementPublicKey,
+		AccountPrivateKey: configuration.AuctionSettlementPrivateKey,
+	})
+	if err != nil {
+		return err
+	}
+	if auctionService != nil && settlementWorker == nil {
+		slog.Warn("auction settlement account is not fully configured; automatic settlement is disabled")
+	}
+	publicAuction := auctionService
+	if settlementWorker == nil {
+		publicAuction = nil
+	}
 
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
 		Handler: api.NewHandler(api.Dependencies{
-			DB:    db,
-			Auth:  authService,
-			Torii: toriiGateway,
+			DB:      db,
+			Auth:    authService,
+			Auction: publicAuction,
+			Torii:   toriiGateway,
 			Config: api.PublicConfig{
-				Network:       configuration.StarknetChainID,
-				MaxImageBytes: configuration.MaxImageBytes,
-				AuthEnabled:   configuration.StarknetRPCURL != "",
-				ToriiURL:      publicToriiURL(toriiGateway),
+				Network:        configuration.StarknetChainID,
+				MaxImageBytes:  configuration.MaxImageBytes,
+				AuthEnabled:    configuration.StarknetRPCURL != "",
+				ToriiURL:       publicToriiURL(toriiGateway),
+				AuctionEnabled: publicAuction != nil,
 			},
 			AllowedOrigins: configuration.AllowedOrigins,
 		}),
@@ -83,6 +113,9 @@ func run() error {
 		syscall.SIGTERM,
 	)
 	defer stop()
+	if settlementWorker != nil {
+		go settlementWorker.Run(ctx)
+	}
 
 	serverErrors := make(chan error, 1)
 	go func() {

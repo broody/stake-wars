@@ -168,7 +168,7 @@ describe('Torii Operator activity parsing', () => {
                 challenge_id: 1,
                 incumbent: '0xabc',
                 challenger: '0xdef',
-                challenger_power: '0x27147114878000',
+                challenger_locked_power: '0x27147114878000',
                 deadline: '1000',
               },
             },

@@ -11,21 +11,24 @@ import (
 	"slices"
 	"time"
 
+	"stakewars.com/api/internal/auction"
 	"stakewars.com/api/internal/auth"
 )
 
 const maxJSONBodyBytes = 64 * 1024
 
 type PublicConfig struct {
-	Network       string
-	MaxImageBytes int64
-	AuthEnabled   bool
-	ToriiURL      string
+	Network        string
+	MaxImageBytes  int64
+	AuthEnabled    bool
+	ToriiURL       string
+	AuctionEnabled bool
 }
 
 type Dependencies struct {
 	DB             *sql.DB
 	Auth           *auth.Service
+	Auction        *auction.Service
 	Config         PublicConfig
 	AllowedOrigins []string
 	Torii          *ToriiGateway
@@ -40,6 +43,8 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
+	mux.HandleFunc("GET /v1/auctions/key", server.auctionKey)
+	mux.HandleFunc("POST /v1/auctions/bids", server.storeSealedBid)
 	if dependencies.Torii != nil {
 		mux.Handle("/torii/graphql", dependencies.Torii)
 		mux.Handle("/torii/health", dependencies.Torii)
@@ -80,12 +85,47 @@ func (s *server) ready(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) publicConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"network":             s.dependencies.Config.Network,
-		"maxImageBytes":       s.dependencies.Config.MaxImageBytes,
-		"authEnabled":         s.dependencies.Config.AuthEnabled,
-		"toriiUrl":            s.dependencies.Config.ToriiURL,
-		"supportedImageTypes": []string{"image/webp", "image/jpeg", "image/png"},
+		"network":              s.dependencies.Config.Network,
+		"maxImageBytes":        s.dependencies.Config.MaxImageBytes,
+		"authEnabled":          s.dependencies.Config.AuthEnabled,
+		"toriiUrl":             s.dependencies.Config.ToriiURL,
+		"sealedBiddingEnabled": s.dependencies.Config.AuctionEnabled,
+		"supportedImageTypes":  []string{"image/webp", "image/jpeg", "image/png"},
 	})
+}
+
+func (s *server) auctionKey(w http.ResponseWriter, _ *http.Request) {
+	if s.dependencies.Auction == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "sealed bidding unavailable", "auction encryption is not configured")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	writeJSON(w, http.StatusOK, s.dependencies.Auction.PublicKey())
+}
+
+func (s *server) storeSealedBid(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Auction == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "sealed bidding unavailable", "auction encryption is not configured")
+		return
+	}
+	var envelope auction.Envelope
+	if err := decodeJSON(w, r, &envelope); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	err := s.dependencies.Auction.StoreEnvelope(r.Context(), envelope)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, map[string]string{"commitment": envelope.Commitment})
+	case errors.Is(err, auction.ErrInvalidEnvelope):
+		writeProblem(w, http.StatusBadRequest, "invalid sealed bid", "the encrypted bid envelope is invalid")
+	case errors.Is(err, auction.ErrEnvelopeExists):
+		writeProblem(w, http.StatusConflict, "sealed bid exists", "this bid commitment is already stored")
+	default:
+		slog.ErrorContext(r.Context(), "store sealed bid", "error", err)
+		writeProblem(w, http.StatusInternalServerError, "internal error", "could not store sealed bid")
+	}
 }
 
 func (s *server) createChallenge(w http.ResponseWriter, r *http.Request) {

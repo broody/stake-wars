@@ -20,33 +20,33 @@ type ControlReader interface {
 }
 
 type ControlPointStatus struct {
-	ID                   uint32
-	Controller           string
-	CapturePower         string
-	OwnershipGeneration  uint64
-	ControlledSince      uint64
-	RequiredStake        string
-	ActiveChallengeID    uint64
-	ChallengeLeader      string
-	ChallengeLeaderPower string
-	ChallengeDeadline    uint64
-	Stale                bool
-	NeedsSync            bool
+	ID                  uint32
+	Controller          string
+	CapturePower        string
+	OwnershipGeneration uint64
+	ControlledSince     uint64
+	RequiredStake       string
+	ActiveChallengeID   uint64
+	ChallengeBidCount   uint32
+	ChallengeDeadline   uint64
+	Stale               bool
+	NeedsSync           bool
 }
 
 type OperatorStatus struct {
-	Operator                  string
-	LiveDelegatedAmount       string
-	PointPower                string
-	ChallengePower            string
-	AvailablePower            string
-	Generation                uint64
-	ControlledPointCount      uint32
-	ActiveChallengeID         uint64
-	ActiveChallengeCommitment string
-	Retired                   bool
-	Exiting                   bool
-	NeedsSync                 bool
+	Operator                    string
+	LiveDelegatedAmount         string
+	PointPower                  string
+	ChallengePower              string
+	AvailablePower              string
+	Generation                  uint64
+	ControlledPointCount        uint32
+	ActiveChallengeID           uint64
+	ActiveChallengeCommitment   string
+	ActiveChallengeBidSubmitted bool
+	Retired                     bool
+	Exiting                     bool
+	NeedsSync                   bool
 }
 
 type RPCControlReader struct {
@@ -75,7 +75,7 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, err
 	}
-	if len(result) != 12 {
+	if len(result) != 11 {
 		return ControlPointStatus{}, fmt.Errorf("unexpected control point status length %d", len(result))
 	}
 
@@ -107,40 +107,35 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, fieldError("active_challenge_id", err)
 	}
-	challengeLeader, err := normalizeContractAddress(result[7])
+	challengeBidCount, err := parseUint(result[7], 32)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("challenge_leader", err)
+		return ControlPointStatus{}, fieldError("challenge_bid_count", err)
 	}
-	challengeLeaderPower, err := parseUintString(result[8], 128)
-	if err != nil {
-		return ControlPointStatus{}, fieldError("challenge_leader_power", err)
-	}
-	challengeDeadline, err := parseUint(result[9], 64)
+	challengeDeadline, err := parseUint(result[8], 64)
 	if err != nil {
 		return ControlPointStatus{}, fieldError("challenge_deadline", err)
 	}
-	stale, err := parseBool(result[10])
+	stale, err := parseBool(result[9])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("stale", err)
 	}
-	needsSync, err := parseBool(result[11])
+	needsSync, err := parseBool(result[10])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("needs_sync", err)
 	}
 
 	return ControlPointStatus{
-		ID:                   uint32(id),
-		Controller:           controller,
-		CapturePower:         capturePower,
-		OwnershipGeneration:  generation,
-		ControlledSince:      controlledSince,
-		RequiredStake:        requiredStake,
-		ActiveChallengeID:    activeChallengeID,
-		ChallengeLeader:      challengeLeader,
-		ChallengeLeaderPower: challengeLeaderPower,
-		ChallengeDeadline:    challengeDeadline,
-		Stale:                stale,
-		NeedsSync:            needsSync,
+		ID:                  uint32(id),
+		Controller:          controller,
+		CapturePower:        capturePower,
+		OwnershipGeneration: generation,
+		ControlledSince:     controlledSince,
+		RequiredStake:       requiredStake,
+		ActiveChallengeID:   activeChallengeID,
+		ChallengeBidCount:   uint32(challengeBidCount),
+		ChallengeDeadline:   challengeDeadline,
+		Stale:               stale,
+		NeedsSync:           needsSync,
 	}, nil
 }
 
@@ -156,7 +151,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 12 {
+	if len(result) != 13 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -196,32 +191,37 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("active_challenge_commitment", err)
 	}
-	retired, err := parseBool(result[9])
+	bidSubmitted, err := parseBool(result[9])
+	if err != nil {
+		return OperatorStatus{}, fieldError("active_challenge_bid_submitted", err)
+	}
+	retired, err := parseBool(result[10])
 	if err != nil {
 		return OperatorStatus{}, fieldError("retired", err)
 	}
-	exiting, err := parseBool(result[10])
+	exiting, err := parseBool(result[11])
 	if err != nil {
 		return OperatorStatus{}, fieldError("exiting", err)
 	}
-	needsSync, err := parseBool(result[11])
+	needsSync, err := parseBool(result[12])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
 
 	return OperatorStatus{
-		Operator:                  returnedOperator,
-		LiveDelegatedAmount:       live,
-		PointPower:                pointPower,
-		ChallengePower:            challengePower,
-		AvailablePower:            availablePower,
-		Generation:                generation,
-		ControlledPointCount:      uint32(pointCount),
-		ActiveChallengeID:         activeChallengeID,
-		ActiveChallengeCommitment: activeCommitment,
-		Retired:                   retired,
-		Exiting:                   exiting,
-		NeedsSync:                 needsSync,
+		Operator:                    returnedOperator,
+		LiveDelegatedAmount:         live,
+		PointPower:                  pointPower,
+		ChallengePower:              challengePower,
+		AvailablePower:              availablePower,
+		Generation:                  generation,
+		ControlledPointCount:        uint32(pointCount),
+		ActiveChallengeID:           activeChallengeID,
+		ActiveChallengeCommitment:   activeCommitment,
+		ActiveChallengeBidSubmitted: bidSubmitted,
+		Retired:                     retired,
+		Exiting:                     exiting,
+		NeedsSync:                   needsSync,
 	}, nil
 }
 

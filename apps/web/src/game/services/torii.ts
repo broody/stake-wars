@@ -68,22 +68,22 @@ const OPERATOR_ACTIVITY_QUERY = `
           control_point_id
           incumbent
           challenger
-          challenger_power
+          challenger_locked_power
           deadline
         }
       }
     }
-    leadership: stakewarsChallengeLeadershipChangedModels(
+    leadership: stakewarsSealedBidSubmittedModels(
       first: 1000
-      where: { leader: $operator }
+      where: { bidder: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id previous_leader leader leader_power deadline } }
+      edges { cursor node { challenge_id control_point_id bidder locked_power } }
     }
     settlements: stakewarsChallengeSettledModels(
       first: 1000
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner winning_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner runner_up_bid clearing_power ownership_generation } }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
       first: 1000
@@ -181,15 +181,15 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $lossesAfter
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger challenger_power deadline } }
+      edges { cursor node { challenge_id control_point_id incumbent challenger challenger_locked_power deadline } }
       pageInfo { hasNextPage endCursor }
     }
-    leadership: stakewarsChallengeLeadershipChangedModels(
+    leadership: stakewarsSealedBidSubmittedModels(
       first: $leadershipFirst
       after: $leadershipAfter
-      where: { leader: $operator }
+      where: { bidder: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id previous_leader leader leader_power deadline } }
+      edges { cursor node { challenge_id control_point_id bidder locked_power } }
       pageInfo { hasNextPage endCursor }
     }
     settlements: stakewarsChallengeSettledModels(
@@ -197,7 +197,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $settlementsAfter
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner winning_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner runner_up_bid clearing_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
@@ -353,24 +353,23 @@ interface ChallengeStartedEventNode {
   control_point_id: number | string;
   incumbent: string;
   challenger: string;
-  challenger_power: string;
+  challenger_locked_power: string;
   deadline: string;
 }
 
 interface LeadershipEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
-  previous_leader: string;
-  leader: string;
-  leader_power: string;
-  deadline: string;
+  bidder: string;
+  locked_power: string;
 }
 
 interface SettlementEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
   winner: string;
-  winning_power: string;
+  runner_up_bid: string;
+  clearing_power: string;
   ownership_generation: string;
 }
 
@@ -545,7 +544,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'challenge',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.challenger_power, 'challenger power'),
+        amount: parseBigInt(node.challenger_locked_power, 'bid collateral'),
         counterparty: node.incumbent,
       }))
     );
@@ -555,10 +554,9 @@ export function parseOperatorActivity(
     append(
       activityFromEdge(edge, (position, node) => ({
         ...position,
-        type: 'leadership',
+        type: 'challenge',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.leader_power, 'leader power'),
-        counterparty: node.previous_leader,
+        amount: parseBigInt(node.locked_power, 'bid collateral'),
       }))
     );
   });
@@ -569,7 +567,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'settlement',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.winning_power, 'winning power'),
+        amount: parseBigInt(node.clearing_power, 'clearing power'),
+        secondaryAmount: parseBigInt(node.runner_up_bid, 'runner-up bid'),
       }))
     );
   });
@@ -920,7 +919,7 @@ async function getOperatorControlActivityPage(
     > = {
       captures: 'capture',
       losses: 'challenge',
-      leadership: 'leadership',
+      leadership: 'challenge',
       settlements: 'settlement',
       reinforcements: 'reinforcement',
       releases: 'release',
@@ -1006,7 +1005,7 @@ async function getOperatorControlActivityPage(
         ? nextActivityCursor(data.losses, 'loss activity')
         : null,
       leadership: active('leadership')
-        ? nextActivityCursor(data.leadership, 'leadership activity')
+        ? nextActivityCursor(data.leadership, 'sealed bid activity')
         : null,
       settlements: active('settlements')
         ? nextActivityCursor(data.settlements, 'settlement activity')

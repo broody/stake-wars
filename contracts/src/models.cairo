@@ -11,6 +11,7 @@ pub struct GameConfig {
     pub id: u8,
     pub initialized: bool,
     pub admin: ContractAddress,
+    pub settlement_authority: ContractAddress,
     pub staking_pool: ContractAddress,
     pub minimum_stake: u128,
     pub challenge_premium_bps: u16,
@@ -60,12 +61,12 @@ pub struct Challenge {
     pub id: u64,
     pub control_point_id: u32,
     pub incumbent: ContractAddress,
-    pub leader: ContractAddress,
-    pub leader_power: u128,
     pub deadline: u64,
     pub participant_count: u32,
     pub settled: bool,
     pub winner: ContractAddress,
+    pub runner_up_bid: u128,
+    pub clearing_power: u128,
     pub settled_at: u64,
 }
 
@@ -76,9 +77,12 @@ pub struct ChallengeParticipant {
     pub challenge_id: u64,
     #[key]
     pub operator: ContractAddress,
-    pub commitment: u128,
+    pub locked_power: u128,
     pub point_power_included: u128,
+    pub bid_commitment: felt252,
+    pub submission_index: u32,
     pub operator_generation: u64,
     pub joined: bool,
+    pub bid_submitted: bool,
     pub resolved: bool,
 }

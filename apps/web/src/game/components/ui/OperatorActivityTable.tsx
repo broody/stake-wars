@@ -40,12 +40,7 @@ const eventPresentation: Record<
   },
   challenge: {
     marker: '>',
-    label: 'CHALLENGED',
-    markerClassName: 'border-white text-white',
-  },
-  leadership: {
-    marker: '↑',
-    label: 'TOOK LEAD',
+    label: 'SEALED BID',
     markerClassName: 'border-white text-white',
   },
   settlement: {
@@ -87,8 +82,7 @@ const activityFilterOptions: Array<{
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
-  { value: 'challenge', label: 'CHALLENGED' },
-  { value: 'leadership', label: 'TOOK LEAD' },
+  { value: 'challenge', label: 'SEALED BID' },
   { value: 'settlement', label: 'SETTLED' },
   { value: 'retirement', label: 'RETIRED' },
   { value: 'disqualification', label: 'BACKING FAILURE' },
@@ -112,9 +106,7 @@ function eventDetail(activity: OperatorActivity): string {
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
     case 'challenge':
-      return 'CHALLENGE OPENED';
-    case 'leadership':
-      return 'HIGH GROUND TAKEN';
+      return 'PUBLIC COLLATERAL LOCKED';
     case 'settlement':
       return 'CHALLENGE FINALIZED';
     case 'retirement':

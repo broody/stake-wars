@@ -191,7 +191,7 @@ export async function getControlPointStatus(
     [encodeRpcFelt(controlPointId)],
     signal
   );
-  if (result.length !== 12) {
+  if (result.length !== 11) {
     throw new Error('Control System returned an invalid Control Point status');
   }
   return decodeControlPointStatus(result, 0);
@@ -210,15 +210,13 @@ function decodeControlPointStatus(
       parseTimestamp(result[offset + 4], 'control start time') || null,
     requiredStake: parseFelt(result[offset + 5], 'required stake'),
     activeChallengeId: parseFelt(result[offset + 6], 'active challenge ID'),
-    challengeLeader: result[offset + 7] ?? '0x0',
-    challengeLeaderPower: parseFelt(
-      result[offset + 8],
-      'challenge leader power'
+    challengeBidCount: Number(
+      parseFelt(result[offset + 7], 'challenge bid count')
     ),
     challengeDeadline:
-      parseTimestamp(result[offset + 9], 'challenge deadline') || null,
-    stale: parseFelt(result[offset + 10], 'stale flag') !== 0n,
-    needsSync: parseFelt(result[offset + 11], 'sync flag') !== 0n,
+      parseTimestamp(result[offset + 8], 'challenge deadline') || null,
+    stale: parseFelt(result[offset + 9], 'stale flag') !== 0n,
+    needsSync: parseFelt(result[offset + 10], 'sync flag') !== 0n,
   };
 }
 
@@ -229,7 +227,7 @@ export function decodeControlPointStatusesResult(
   const resultLength = Number(
     parseFelt(result[0], 'Control Point status count')
   );
-  const statusWidth = 12;
+  const statusWidth = 11;
   if (
     resultLength !== expectedCount ||
     result.length !== 1 + resultLength * statusWidth
@@ -311,7 +309,7 @@ export async function getOperatorStatus(
     [operator],
     signal
   );
-  if (result.length !== 12) {
+  if (result.length !== 13) {
     throw new Error('Control System returned an invalid Operator status');
   }
 
@@ -328,9 +326,11 @@ export async function getOperatorStatus(
       result[8],
       'active challenge commitment'
     ),
-    retired: parseFelt(result[9], 'retired flag') !== 0n,
-    exiting: parseFelt(result[10], 'exiting flag') !== 0n,
-    needsSync: parseFelt(result[11], 'operator sync flag') !== 0n,
+    activeChallengeBidSubmitted:
+      parseFelt(result[9], 'active challenge bid flag') !== 0n,
+    retired: parseFelt(result[10], 'retired flag') !== 0n,
+    exiting: parseFelt(result[11], 'exiting flag') !== 0n,
+    needsSync: parseFelt(result[12], 'operator sync flag') !== 0n,
   };
 }
 
@@ -350,13 +350,13 @@ export async function getChallengeStatus(
     id: parseFelt(result[0], 'challenge ID'),
     controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
     incumbent: result[2] ?? '0x0',
-    leader: result[3] ?? '0x0',
-    leaderPower: parseFelt(result[4], 'leader power'),
-    requiredPower: parseFelt(result[5], 'required power'),
-    deadline: parseTimestamp(result[6], 'challenge deadline'),
-    participantCount: Number(parseFelt(result[7], 'participant count')),
-    settled: parseFelt(result[8], 'settled flag') !== 0n,
-    winner: result[9] ?? '0x0',
+    reservePower: parseFelt(result[3], 'reserve power'),
+    deadline: parseTimestamp(result[4], 'challenge deadline'),
+    participantCount: Number(parseFelt(result[5], 'participant count')),
+    settled: parseFelt(result[6], 'settled flag') !== 0n,
+    winner: result[7] ?? '0x0',
+    runnerUpBid: parseFelt(result[8], 'runner-up bid'),
+    clearingPower: parseFelt(result[9], 'clearing power'),
   };
 }
 

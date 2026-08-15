@@ -245,7 +245,7 @@ export function SelectionPanel() {
           <StakeRow
             label={
               selectedControlPoint?.activeChallengeId
-                ? 'NEXT LEAD'
+                ? 'AUCTION RESERVE'
                 : 'REQUIRED CHALLENGE'
             }
             value={selectedControlPoint?.requiredStake}
@@ -257,21 +257,16 @@ export function SelectionPanel() {
           <>
             <div className="border-t border-grid py-2">
               <div className="text-[10px] tracking-[0.18em] text-dim">
-                CHALLENGE LEADER
+                SEALED POSITIONS
               </div>
-              <div
-                className="mt-1 text-neutral-300"
-                title={selectedControlPoint?.challengeLeader}
-              >
-                {selectedControlPoint
-                  ? shortAddress(selectedControlPoint.challengeLeader)
-                  : '---'}
+              <div className="mt-1 text-neutral-300">
+                {selectedControlPoint?.challengeBidCount ?? 0}
               </div>
             </div>
-            <StakeRow
-              label="LEADER COMMITMENT"
-              value={selectedControlPoint?.challengeLeaderPower}
-            />
+            <div className="border-t border-grid py-2 text-[9px] leading-relaxed tracking-[0.12em] text-dim">
+              THE WINNING MAXIMUM STAYS HIDDEN. AFTER CLOSE, THE AUTHORIZED
+              SETTLER PUBLISHES ONLY THE RUNNER-UP AND CLEARING PRICES.
+            </div>
           </>
         ) : null}
 

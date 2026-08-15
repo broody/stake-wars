@@ -5,6 +5,7 @@ pub trait IAdmin<TContractState> {
     fn initialize(
         ref self: TContractState,
         staking_pool: ContractAddress,
+        settlement_authority: ContractAddress,
         minimum_stake: u128,
         challenge_premium_bps: u16,
         challenge_period_seconds: u64,
@@ -19,6 +20,7 @@ pub trait IAdmin<TContractState> {
         control_point_limit: u32,
     );
     fn set_staking_pool(ref self: TContractState, staking_pool: ContractAddress);
+    fn set_settlement_authority(ref self: TContractState, settlement_authority: ContractAddress);
     fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
 }
 
@@ -38,6 +40,7 @@ pub mod admin {
         #[key]
         pub admin: ContractAddress,
         pub staking_pool: ContractAddress,
+        pub settlement_authority: ContractAddress,
         pub minimum_stake: u128,
         pub challenge_premium_bps: u16,
         pub challenge_period_seconds: u64,
@@ -74,6 +77,15 @@ pub mod admin {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
+    pub struct SettlementAuthorityChanged {
+        #[key]
+        pub admin: ContractAddress,
+        pub previous_authority: ContractAddress,
+        pub new_authority: ContractAddress,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
     pub struct AdminTransferred {
         #[key]
         pub previous_admin: ContractAddress,
@@ -85,6 +97,7 @@ pub mod admin {
         fn initialize(
             ref self: ContractState,
             staking_pool: ContractAddress,
+            settlement_authority: ContractAddress,
             minimum_stake: u128,
             challenge_premium_bps: u16,
             challenge_period_seconds: u64,
@@ -100,6 +113,7 @@ pub mod admin {
                 'not world owner',
             );
             assert(!staking_pool.is_zero(), 'zero staking pool');
+            assert(!settlement_authority.is_zero(), 'zero settle authority');
             validate_rules(
                 minimum_stake, challenge_premium_bps, challenge_period_seconds, control_point_limit,
             );
@@ -110,6 +124,7 @@ pub mod admin {
                         id: CONFIG_ID,
                         initialized: true,
                         admin: caller,
+                        settlement_authority,
                         staking_pool,
                         minimum_stake,
                         challenge_premium_bps,
@@ -123,6 +138,7 @@ pub mod admin {
                     @ConfigInitialized {
                         admin: caller,
                         staking_pool,
+                        settlement_authority,
                         minimum_stake,
                         challenge_premium_bps,
                         challenge_period_seconds,
@@ -181,6 +197,26 @@ pub mod admin {
                 .emit_event(
                     @StakingPoolChanged {
                         admin: config.admin, previous_pool, new_pool: staking_pool,
+                    },
+                );
+        }
+
+        fn set_settlement_authority(
+            ref self: ContractState, settlement_authority: ContractAddress,
+        ) {
+            assert(!settlement_authority.is_zero(), 'zero settle authority');
+            let mut world = self.world_default();
+            let mut config = self.assert_admin();
+            assert(config.paused, 'pause required');
+            let previous_authority = config.settlement_authority;
+            config.settlement_authority = settlement_authority;
+            world.write_model(@config);
+            world
+                .emit_event(
+                    @SettlementAuthorityChanged {
+                        admin: config.admin,
+                        previous_authority,
+                        new_authority: settlement_authority,
                     },
                 );
         }

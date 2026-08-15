@@ -79,20 +79,16 @@ const policies: SessionPolicies = {
                 'Add selected delegated power to an owned Control Point.',
             },
             {
-              name: 'Challenge Control Point',
-              entrypoint: 'challenge',
-              description: 'Commit selected delegated power to a challenge.',
-            },
-            {
-              name: 'Challenge with Collateral',
-              entrypoint: 'challenge_with_collateral',
+              name: 'Submit Sealed Bid',
+              entrypoint: 'submit_sealed_bid',
               description:
-                'Sacrifice an owned Control Point and selected available power into a challenge.',
+                'Lock available delegated power behind an encrypted maximum bid.',
             },
             {
-              name: 'Settle Challenge',
-              entrypoint: 'settle_challenge',
-              description: 'Settle a challenge after its deadline.',
+              name: 'Submit Sealed Bid with Collateral',
+              entrypoint: 'submit_sealed_bid_with_collateral',
+              description:
+                'Sacrifice an owned Control Point into sealed bid collateral.',
             },
             {
               name: 'Release Control Point',

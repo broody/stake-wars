@@ -5,8 +5,8 @@ interface SmartGameActionCallsOptions {
   entrypoint:
     | 'capture'
     | 'reinforce'
-    | 'challenge'
-    | 'challenge_with_collateral';
+    | 'submit_sealed_bid'
+    | 'submit_sealed_bid_with_collateral';
   calldata: string[];
   allocation: bigint;
   availablePower: bigint;
@@ -75,7 +75,7 @@ export function buildSmartGameActionCalls({
 
 export function buildControlCall(
   controlSystemAddress: string,
-  entrypoint: 'release' | 'settle_challenge',
+  entrypoint: 'release',
   calldata: string[]
 ): Call[] {
   return [{ contractAddress: controlSystemAddress, entrypoint, calldata }];

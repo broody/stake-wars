@@ -10,8 +10,8 @@ import (
 
 func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	responses := [][]string{
-		{"0xc", "0x123", "0x64", "0x2", "0x3e8", "0x6e", "0x1", "0x456", "0x78", "0x4e20", "0x0", "0x1"},
-		{"0x123", "0x3e8", "0x64", "0xc8", "0x190", "0x2", "0x1", "0x1", "0xc8", "0x0", "0x0", "0x0"},
+		{"0xc", "0x123", "0x64", "0x2", "0x3e8", "0x6e", "0x1", "0x3", "0x4e20", "0x0", "0x1"},
+		{"0x123", "0x3e8", "0x64", "0xc8", "0x190", "0x2", "0x1", "0x1", "0xc8", "0x1", "0x0", "0x0", "0x0"},
 		{"0x1"},
 	}
 	callIndex := 0
@@ -50,6 +50,7 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	if operator.LiveDelegatedAmount != "1000" || operator.PointPower != "100" ||
 		operator.ChallengePower != "200" || operator.AvailablePower != "400" ||
 		operator.ActiveChallengeCommitment != "200" ||
+		!operator.ActiveChallengeBidSubmitted ||
 		operator.Generation != 2 || operator.NeedsSync {
 		t.Fatalf("unexpected operator status: %+v", operator)
 	}

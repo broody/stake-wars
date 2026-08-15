@@ -18,16 +18,16 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'challenge',
-        calldata: ['7', '420'],
+        entrypoint: 'submit_sealed_bid',
+        calldata: ['7', '1234'],
         allocation: 420n,
         availablePower: 420n,
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'challenge',
-        calldata: ['7', '420'],
+        entrypoint: 'submit_sealed_bid',
+        calldata: ['7', '1234'],
       },
     ]);
   });
@@ -72,16 +72,16 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'challenge_with_collateral',
-        calldata: ['7', '8', '100'],
+        entrypoint: 'submit_sealed_bid_with_collateral',
+        calldata: ['7', '8', '1234'],
         allocation: 100n,
         availablePower: 100n,
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'challenge_with_collateral',
-        calldata: ['7', '8', '100'],
+        entrypoint: 'submit_sealed_bid_with_collateral',
+        calldata: ['7', '8', '1234'],
       },
     ]);
   });
@@ -90,16 +90,16 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'challenge_with_collateral',
-        calldata: ['7', '8', '0'],
+        entrypoint: 'submit_sealed_bid_with_collateral',
+        calldata: ['7', '8', '1234'],
         allocation: 0n,
         availablePower: 0n,
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'challenge_with_collateral',
-        calldata: ['7', '8', '0'],
+        entrypoint: 'submit_sealed_bid_with_collateral',
+        calldata: ['7', '8', '1234'],
       },
     ]);
   });
