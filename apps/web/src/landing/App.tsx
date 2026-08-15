@@ -18,9 +18,9 @@ function LandingApp() {
           <span className="text-fg font-bold border-b border-dotted border-dim">
             Control Point
           </span>{' '}
-          on the Core. Stake $STRK to capture the territory. Your funds are
-          instantly staked through the official Starknet staking contract,
-          securing the L2 network while you fight for position.
+          on the Core. Your available delegated $STRK is automatically committed
+          to that territory through the official Starknet staking system. One
+          unit of delegation can back only one position.
         </>
       ),
     },
@@ -38,15 +38,16 @@ function LandingApp() {
       ),
     },
     {
-      title: '03. CLAIM',
+      title: '03. CHALLENGE',
       description: (
         <>
-          Extract your tribute. The yield is derived from{' '}
+          Attack an occupied point by taking the high ground with 10% more
+          committed STRK. Every new leader resets a 12-hour timer. The{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            validator rewards
+            winner takes the point
           </span>
-          , not token inflation. If you are displaced by a higher bidder,
-          re-deploy your funds instantly to strike a new target.
+          ; every losing commitment becomes forfeited game power for that
+          address. Existing commitments count toward each additive raise.
         </>
       ),
     },

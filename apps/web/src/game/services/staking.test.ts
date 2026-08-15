@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildUnstakeAllCalls, buildWithdrawUnstakedCall } from './staking';
 
 describe('staking exit calls', () => {
-  it('relinquishes the game generation before starting the official exit', () => {
+  it('permanently retires the address before starting the official exit', () => {
     expect(
       buildUnstakeAllCalls({
         controlSystemAddress: '0xcontrol',
@@ -12,7 +12,7 @@ describe('staking exit calls', () => {
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'relinquish_all',
+        entrypoint: 'retire',
         calldata: [],
       },
       {

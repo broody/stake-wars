@@ -20,23 +20,34 @@ type ControlReader interface {
 }
 
 type ControlPointStatus struct {
-	ID                  uint32
-	Controller          string
-	CapturePower        string
-	OwnershipGeneration uint64
-	ControlledSince     uint64
-	RequiredStake       string
-	Stale               bool
-	NeedsSync           bool
+	ID                   uint32
+	Controller           string
+	CapturePower         string
+	OwnershipGeneration  uint64
+	ControlledSince      uint64
+	RequiredStake        string
+	ActiveChallengeID    uint64
+	ChallengeLeader      string
+	ChallengeLeaderPower string
+	ChallengeDeadline    uint64
+	Stale                bool
+	NeedsSync            bool
 }
 
 type OperatorStatus struct {
-	Operator             string
-	LiveDelegatedAmount  string
-	RegisteredPower      string
-	Generation           uint64
-	ControlledPointCount uint32
-	NeedsSync            bool
+	Operator                  string
+	LiveDelegatedAmount       string
+	PointPower                string
+	ChallengePower            string
+	ForfeitedPower            string
+	AvailablePower            string
+	Generation                uint64
+	ControlledPointCount      uint32
+	ActiveChallengeID         uint64
+	ActiveChallengeCommitment string
+	Retired                   bool
+	Exiting                   bool
+	NeedsSync                 bool
 }
 
 type RPCControlReader struct {
@@ -65,7 +76,7 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, err
 	}
-	if len(result) != 8 {
+	if len(result) != 12 {
 		return ControlPointStatus{}, fmt.Errorf("unexpected control point status length %d", len(result))
 	}
 
@@ -93,24 +104,44 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, fieldError("required_stake", err)
 	}
-	stale, err := parseBool(result[6])
+	activeChallengeID, err := parseUint(result[6], 64)
+	if err != nil {
+		return ControlPointStatus{}, fieldError("active_challenge_id", err)
+	}
+	challengeLeader, err := normalizeContractAddress(result[7])
+	if err != nil {
+		return ControlPointStatus{}, fieldError("challenge_leader", err)
+	}
+	challengeLeaderPower, err := parseUintString(result[8], 128)
+	if err != nil {
+		return ControlPointStatus{}, fieldError("challenge_leader_power", err)
+	}
+	challengeDeadline, err := parseUint(result[9], 64)
+	if err != nil {
+		return ControlPointStatus{}, fieldError("challenge_deadline", err)
+	}
+	stale, err := parseBool(result[10])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("stale", err)
 	}
-	needsSync, err := parseBool(result[7])
+	needsSync, err := parseBool(result[11])
 	if err != nil {
 		return ControlPointStatus{}, fieldError("needs_sync", err)
 	}
 
 	return ControlPointStatus{
-		ID:                  uint32(id),
-		Controller:          controller,
-		CapturePower:        capturePower,
-		OwnershipGeneration: generation,
-		ControlledSince:     controlledSince,
-		RequiredStake:       requiredStake,
-		Stale:               stale,
-		NeedsSync:           needsSync,
+		ID:                   uint32(id),
+		Controller:           controller,
+		CapturePower:         capturePower,
+		OwnershipGeneration:  generation,
+		ControlledSince:      controlledSince,
+		RequiredStake:        requiredStake,
+		ActiveChallengeID:    activeChallengeID,
+		ChallengeLeader:      challengeLeader,
+		ChallengeLeaderPower: challengeLeaderPower,
+		ChallengeDeadline:    challengeDeadline,
+		Stale:                stale,
+		NeedsSync:            needsSync,
 	}, nil
 }
 
@@ -126,7 +157,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 6 {
+	if len(result) != 13 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -138,30 +169,65 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("live_delegated_amount", err)
 	}
-	registeredPower, err := parseUintString(result[2], 128)
+	pointPower, err := parseUintString(result[2], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("registered_power", err)
+		return OperatorStatus{}, fieldError("point_power", err)
 	}
-	generation, err := parseUint(result[3], 64)
+	challengePower, err := parseUintString(result[3], 128)
+	if err != nil {
+		return OperatorStatus{}, fieldError("challenge_power", err)
+	}
+	forfeitedPower, err := parseUintString(result[4], 128)
+	if err != nil {
+		return OperatorStatus{}, fieldError("forfeited_power", err)
+	}
+	availablePower, err := parseUintString(result[5], 128)
+	if err != nil {
+		return OperatorStatus{}, fieldError("available_power", err)
+	}
+	generation, err := parseUint(result[6], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	pointCount, err := parseUint(result[4], 32)
+	pointCount, err := parseUint(result[7], 32)
 	if err != nil {
 		return OperatorStatus{}, fieldError("controlled_point_count", err)
 	}
-	needsSync, err := parseBool(result[5])
+	activeChallengeID, err := parseUint(result[8], 64)
+	if err != nil {
+		return OperatorStatus{}, fieldError("active_challenge_id", err)
+	}
+	activeCommitment, err := parseUintString(result[9], 128)
+	if err != nil {
+		return OperatorStatus{}, fieldError("active_challenge_commitment", err)
+	}
+	retired, err := parseBool(result[10])
+	if err != nil {
+		return OperatorStatus{}, fieldError("retired", err)
+	}
+	exiting, err := parseBool(result[11])
+	if err != nil {
+		return OperatorStatus{}, fieldError("exiting", err)
+	}
+	needsSync, err := parseBool(result[12])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
 
 	return OperatorStatus{
-		Operator:             returnedOperator,
-		LiveDelegatedAmount:  live,
-		RegisteredPower:      registeredPower,
-		Generation:           generation,
-		ControlledPointCount: uint32(pointCount),
-		NeedsSync:            needsSync,
+		Operator:                  returnedOperator,
+		LiveDelegatedAmount:       live,
+		PointPower:                pointPower,
+		ChallengePower:            challengePower,
+		ForfeitedPower:            forfeitedPower,
+		AvailablePower:            availablePower,
+		Generation:                generation,
+		ControlledPointCount:      uint32(pointCount),
+		ActiveChallengeID:         activeChallengeID,
+		ActiveChallengeCommitment: activeCommitment,
+		Retired:                   retired,
+		Exiting:                   exiting,
+		NeedsSync:                 needsSync,
 	}, nil
 }
 

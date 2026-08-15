@@ -1,9 +1,11 @@
 # StakeWars
 
 StakeWars is a persistent, non-custodial strategy game built around Starknet
-validator delegation. Each Operator's complete live delegated STRK balance is
-their power for capturing and defending territories on the Core, a 3D sphere,
-while controllers display custom artwork.
+validator delegation. The game automatically commits each Operator's real STRK
+delegation to Control Points and 12-hour challenges without creating a separate
+user-managed power balance. Challenge commitments are additive, the winner
+takes the point, and losing commitments become permanent forfeited game power
+for that address.
 This repository contains the web application, game API, and Dojo contracts.
 
 ## Repository layout
@@ -48,16 +50,15 @@ pnpm dev:web
 pnpm dev:api
 ```
 
-Run the local Starknet chain and deploy the Dojo World in separate terminals:
+Normal frontend development uses the shared Sepolia World:
 
 ```bash
-pnpm dev:katana
-pnpm contracts:deploy:local
+pnpm dev:web
+pnpm dev:torii
 ```
 
-The repository pins the compatible Dojo toolchain in `.tool-versions`. Katana
-serves JSON-RPC at `http://127.0.0.1:5050` with Cartridge Controller and its
-local paymaster enabled.
+Katana is reserved for isolated contract tests. The repository pins the
+compatible Dojo toolchain in `.tool-versions`.
 
 The development frontend checks that the configured StakeWars World is deployed
 before showing a green KATANA status in the navigation. Open the game locally at
@@ -69,12 +70,11 @@ To run the frontend against the shared Sepolia deployment instead, use:
 pnpm dev:web:sepolia
 ```
 
-The Sepolia environment uses World
-`0x05b967630ebd14a4e07115980e42b834de5641c8295d933c150976509b996cbc`
-and control system
-`0x06b515aeff1100002c096de3b48be1d81dc79d266feb9d3cbbe82b332903bbd5`.
-It is initialized with a 0.01 STRK minimum capture power, a 10% challenge premium,
-and 2,000 control points.
+The World is initialized with a minimum capture power, a 10% challenge premium,
+a 43,200-second challenge period, and 2,000 Control Points. The Sepolia profile
+uses the breaking-change seed `stakewars-sepolia-challenges-v1`; deployed
+addresses in `apps/web/.env.sepolia` are updated only after a successful
+migration proves the new addresses.
 
 The API's runtime variables and authentication endpoints are documented in
 [`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and

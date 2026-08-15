@@ -69,23 +69,29 @@ const policies: SessionPolicies = {
             {
               name: 'Capture Control Point',
               entrypoint: 'capture',
-              description: 'Capture a neutral or contested Control Point.',
-            },
-            {
-              name: 'Capture Control Points',
-              entrypoint: 'capture_many',
               description:
-                'Capture multiple neutral or contested Control Points.',
+                'Commit all available power to a neutral Control Point.',
             },
             {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
-              description: 'Update an owned point to full live staking power.',
+              description:
+                'Commit all available power to an owned Control Point.',
             },
             {
-              name: 'Reinforce Control Points',
-              entrypoint: 'reinforce_many',
-              description: 'Update owned points to full live staking power.',
+              name: 'Challenge Control Point',
+              entrypoint: 'challenge',
+              description: 'Commit all available power to a challenge.',
+            },
+            {
+              name: 'Challenge with Collateral',
+              entrypoint: 'challenge_with_collateral',
+              description: 'Sacrifice an owned Control Point into a challenge.',
+            },
+            {
+              name: 'Settle Challenge',
+              entrypoint: 'settle_challenge',
+              description: 'Settle a challenge after its deadline.',
             },
             {
               name: 'Release Control Point',
@@ -93,10 +99,9 @@ const policies: SessionPolicies = {
               description: 'Release an owned point.',
             },
             {
-              name: 'Relinquish All Control Points',
-              entrypoint: 'relinquish_all',
-              description:
-                'Relinquish every Control Point in one generation update.',
+              name: 'Retire Operator Address',
+              entrypoint: 'retire',
+              description: 'Permanently retire this address from StakeWars.',
             },
           ],
         },

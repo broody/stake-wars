@@ -517,11 +517,13 @@ export function YieldModal() {
                         LEAVE STAKEWARS
                       </div>
                       <p className="mt-2 text-[10px] leading-relaxed text-neutral-500">
-                        Relinquishes {pointCount || 'all'} active Control
-                        {pointCount === 1 ? ' Point' : ' Points'} immediately
-                        and places your full active stake into the official
-                        Starknet exit window. This does not withdraw funds
-                        immediately.
+                        Permanently retires this address from StakeWars,
+                        invalidates {pointCount || 'all'} active Control
+                        {pointCount === 1 ? ' Point' : ' Points'}, and places
+                        your full active stake into the official Starknet exit
+                        window. Restaking later will not reactivate this
+                        address; playing again requires a new address. Funds are
+                        not withdrawn immediately.
                       </p>
                     </div>
                   </div>
@@ -562,7 +564,7 @@ export function YieldModal() {
                       className="mt-4 w-full border border-neutral-600 px-4 py-3 text-[10px] font-semibold tracking-[0.18em] text-neutral-300 transition-colors hover:border-amber-400 hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
                     >
                       {summary?.stakedAmount
-                        ? 'UNSTAKE & RELINQUISH ALL'
+                        ? 'UNSTAKE & PERMANENTLY RETIRE'
                         : 'NO ACTIVE STAKE'}
                     </button>
                   )}

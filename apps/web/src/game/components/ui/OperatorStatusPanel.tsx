@@ -57,10 +57,32 @@ export function OperatorStatusPanel() {
           aria-label="Open staking position"
         >
           <OperatorMetric
-            label="STAKING POWER"
+            label="LIVE DELEGATION"
             value={operatorStatus.liveDelegatedAmount}
             highlight
           />
+          <OperatorMetric
+            label="POINT COMMITMENTS"
+            value={operatorStatus.pointPower}
+          />
+          <OperatorMetric
+            label="CHALLENGE COMMITMENT"
+            value={operatorStatus.challengePower}
+          />
+          <OperatorMetric
+            label="FORFEITED"
+            value={operatorStatus.forfeitedPower}
+          />
+          <OperatorMetric
+            label="AVAILABLE"
+            value={operatorStatus.availablePower}
+            highlight
+          />
+          {operatorStatus.retired && (
+            <div className="pt-2 text-amber-400">
+              ADDRESS PERMANENTLY RETIRED
+            </div>
+          )}
           <div className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors group-hover:text-white">
             <span>YIELD</span>
             <span className="text-white">

@@ -135,6 +135,8 @@ describe('Torii Operator activity parsing', () => {
   const emptyCollections = {
     captures: { edges: [] },
     losses: { edges: [] },
+    leadership: { edges: [] },
+    settlements: { edges: [] },
     reinforcements: { edges: [] },
     releases: { edges: [] },
     disqualifications: { edges: [] },
@@ -152,8 +154,6 @@ describe('Torii Operator activity parsing', () => {
               node: {
                 control_point_id: 42,
                 controller: '0xabc',
-                previous_controller: '0x0',
-                previous_power: '0x0',
                 capture_power: '0x2386f26fc10000',
               },
             },
@@ -165,10 +165,11 @@ describe('Torii Operator activity parsing', () => {
               cursor: activityCursor(12, '0xloss', 3),
               node: {
                 control_point_id: 42,
-                controller: '0xdef',
-                previous_controller: '0xabc',
-                previous_power: '0x2386f26fc10000',
-                capture_power: '0x27147114878000',
+                challenge_id: 1,
+                incumbent: '0xabc',
+                challenger: '0xdef',
+                challenger_power: '0x27147114878000',
+                deadline: '1000',
               },
             },
           ],
@@ -179,7 +180,7 @@ describe('Torii Operator activity parsing', () => {
               cursor: activityCursor(11, '0xreinforce', 2),
               node: {
                 control_point_id: 42,
-                previous_power: '100',
+                added_power: '75',
                 capture_power: '175',
               },
             },
@@ -189,7 +190,7 @@ describe('Torii Operator activity parsing', () => {
     });
 
     expect(activity.map(({ type }) => type)).toEqual([
-      'loss',
+      'challenge',
       'reinforcement',
       'capture',
     ]);
@@ -197,9 +198,8 @@ describe('Torii Operator activity parsing', () => {
       blockNumber: 12,
       transactionHash: '0xloss',
       controlPointId: 42,
-      amount: 10_000_000_000_000_000n,
-      secondaryAmount: 11_000_000_000_000_000n,
-      counterparty: '0xdef',
+      amount: 11_000_000_000_000_000n,
+      counterparty: '0xabc',
     });
     expect(activity[1]).toMatchObject({
       amount: 75n,
@@ -207,26 +207,12 @@ describe('Torii Operator activity parsing', () => {
     });
   });
 
-  it('prefers explicit displacement events over capture-event inference', () => {
+  it('decodes explicit forfeiture events', () => {
     const transactionHash = '0xshared';
     const activity = parseOperatorActivity(
       {
         data: {
           ...emptyCollections,
-          losses: {
-            edges: [
-              {
-                cursor: activityCursor(20, transactionHash, 2),
-                node: {
-                  control_point_id: 9,
-                  controller: '0xdef',
-                  previous_controller: '0xabc',
-                  previous_power: '100',
-                  capture_power: '110',
-                },
-              },
-            ],
-          },
         },
       },
       {
@@ -236,11 +222,10 @@ describe('Torii Operator activity parsing', () => {
               {
                 cursor: activityCursor(20, transactionHash, 3),
                 node: {
-                  control_point_id: 9,
-                  previous_controller: '0xabc',
-                  new_controller: '0xdef',
-                  defeated_power: '100',
-                  capture_power: '110',
+                  challenge_id: 1,
+                  operator: '0xabc',
+                  amount: '100',
+                  total_forfeited_power: '110',
                 },
               },
             ],
@@ -252,14 +237,13 @@ describe('Torii Operator activity parsing', () => {
     expect(activity).toHaveLength(1);
     expect(activity[0]).toMatchObject({
       id: expect.stringContaining(':0x3'),
-      type: 'loss',
+      type: 'forfeiture',
       amount: 100n,
       secondaryAmount: 110n,
-      counterparty: '0xdef',
     });
   });
 
-  it('decodes a constant-cost global relinquishment', () => {
+  it('decodes permanent operator retirement', () => {
     const activity = parseOperatorActivity({
       data: {
         ...emptyCollections,
@@ -268,7 +252,7 @@ describe('Torii Operator activity parsing', () => {
             {
               cursor: activityCursor(25, '0xexit', 4),
               node: {
-                previous_registered_power: '700',
+                invalidated_power: '700',
                 released_point_count: 2,
               },
             },
@@ -279,7 +263,7 @@ describe('Torii Operator activity parsing', () => {
 
     expect(activity).toEqual([
       expect.objectContaining({
-        type: 'relinquishment',
+        type: 'retirement',
         amount: 700n,
         affectedPointCount: 2,
         transactionHash: '0xexit',
@@ -299,8 +283,6 @@ describe('Torii Operator activity parsing', () => {
                 node: {
                   control_point_id: 1,
                   controller: '0xabc',
-                  previous_controller: '0x0',
-                  previous_power: '0',
                   capture_power: '1',
                 },
               },

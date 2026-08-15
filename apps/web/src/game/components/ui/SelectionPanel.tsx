@@ -97,17 +97,6 @@ export function SelectionPanel() {
     Boolean(address) &&
     selectedControlPoint !== null &&
     addressesMatch(selectedControlPoint.controller, address ?? '0x0');
-  const claimableControlPoints = selectedControlPoints.filter(
-    (controlPoint) =>
-      !address || !addressesMatch(controlPoint.controller, address)
-  );
-  const fortifiableControlPoints = selectedControlPoints.filter(
-    (controlPoint) =>
-      Boolean(address) &&
-      addressesMatch(controlPoint.controller, address ?? '0x0') &&
-      !controlPoint.stale &&
-      !controlPoint.needsSync
-  );
   const isMultiSelection = selectedControlPointIds.length > 1;
   const selectedControlPointById = new Map(
     selectedControlPoints.map((point) => [point.id, point])
@@ -254,10 +243,36 @@ export function SelectionPanel() {
 
         {!isMultiSelection ? (
           <StakeRow
-            label="REQUIRED CHALLENGE"
+            label={
+              selectedControlPoint?.activeChallengeId
+                ? 'NEXT LEAD'
+                : 'REQUIRED CHALLENGE'
+            }
             value={selectedControlPoint?.requiredStake}
             emphasis
           />
+        ) : null}
+
+        {!isMultiSelection && selectedControlPoint?.activeChallengeId !== 0n ? (
+          <>
+            <div className="border-t border-grid py-2">
+              <div className="text-[10px] tracking-[0.18em] text-dim">
+                CHALLENGE LEADER
+              </div>
+              <div
+                className="mt-1 text-neutral-300"
+                title={selectedControlPoint?.challengeLeader}
+              >
+                {selectedControlPoint
+                  ? shortAddress(selectedControlPoint.challengeLeader)
+                  : '---'}
+              </div>
+            </div>
+            <StakeRow
+              label="LEADER COMMITMENT"
+              value={selectedControlPoint?.challengeLeaderPower}
+            />
+          </>
         ) : null}
 
         {selectedControlPoint ? (
@@ -268,21 +283,20 @@ export function SelectionPanel() {
               </div>
             )}
 
-            {claimableControlPoints.length > 0 &&
-            selectedControlPoints.length === selectedControlPointIds.length ? (
+            {!isMultiSelection &&
+            !selectedControlPoint.stale &&
+            !selectedControlPoint.needsSync ? (
               <CaptureControl
-                key={`capture-${selectedControlPointIds.join('-')}`}
-                controlPoints={claimableControlPoints}
+                key={`action-${selectedControlPoint.id}-${selectedControlPoint.activeChallengeId}`}
+                controlPoints={[selectedControlPoint]}
+                intent={controlledByOperator ? 'fortify' : 'capture'}
               />
             ) : null}
-
-            {fortifiableControlPoints.length > 0 &&
-            selectedControlPoints.length === selectedControlPointIds.length ? (
-              <CaptureControl
-                key={`fortify-${selectedControlPointIds.join('-')}`}
-                controlPoints={fortifiableControlPoints}
-                intent="fortify"
-              />
+            {isMultiSelection ? (
+              <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
+                Power is committed automatically. Select one Control Point to
+                act.
+              </div>
             ) : null}
           </>
         ) : null}

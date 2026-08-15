@@ -21,10 +21,20 @@ pub trait IStakingPool<TContractState> {
     ) -> Option<PoolMemberInfoV1>;
 }
 
-pub fn delegated_amount(staking_pool: ContractAddress, operator: ContractAddress) -> u128 {
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct DelegationState {
+    pub amount: u128,
+    pub exiting: bool,
+}
+
+pub fn delegation_state(
+    staking_pool: ContractAddress, operator: ContractAddress,
+) -> DelegationState {
     let dispatcher = IStakingPoolDispatcher { contract_address: staking_pool };
     match dispatcher.get_pool_member_info_v1(operator) {
-        Option::Some(info) => info.amount,
-        Option::None => 0,
+        Option::Some(info) => DelegationState {
+            amount: info.amount, exiting: info.unpool_amount > 0 || info.unpool_time.is_some(),
+        },
+        Option::None => DelegationState { amount: 0, exiting: false },
     }
 }

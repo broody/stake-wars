@@ -38,6 +38,31 @@ const eventPresentation: Record<
     label: 'RELEASED',
     markerClassName: 'border-neutral-600 text-neutral-400',
   },
+  challenge: {
+    marker: '>',
+    label: 'CHALLENGED',
+    markerClassName: 'border-white text-white',
+  },
+  leadership: {
+    marker: '↑',
+    label: 'TOOK LEAD',
+    markerClassName: 'border-white text-white',
+  },
+  settlement: {
+    marker: '◆',
+    label: 'SETTLED',
+    markerClassName: 'border-white text-white',
+  },
+  forfeiture: {
+    marker: '×',
+    label: 'FORFEITED',
+    markerClassName: 'border-amber-500 text-amber-400',
+  },
+  retirement: {
+    marker: '×',
+    label: 'RETIRED',
+    markerClassName: 'border-amber-500 text-amber-400',
+  },
   disqualification: {
     marker: '×',
     label: 'COMMAND RESET',
@@ -67,6 +92,11 @@ const activityFilterOptions: Array<{
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
+  { value: 'challenge', label: 'CHALLENGED' },
+  { value: 'leadership', label: 'TOOK LEAD' },
+  { value: 'settlement', label: 'SETTLED' },
+  { value: 'forfeiture', label: 'FORFEITED' },
+  { value: 'retirement', label: 'RETIRED' },
   { value: 'disqualification', label: 'COMMAND RESET' },
   { value: 'relinquishment', label: 'RELINQUISHED ALL' },
 ];
@@ -87,6 +117,16 @@ function eventDetail(activity: OperatorActivity): string {
         : `NEW POWER ${formatStrk(activity.secondaryAmount)} STRK`;
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
+    case 'challenge':
+      return 'CHALLENGE OPENED';
+    case 'leadership':
+      return 'HIGH GROUND TAKEN';
+    case 'settlement':
+      return 'CHALLENGE FINALIZED';
+    case 'forfeiture':
+      return 'POWER PERMANENTLY FORFEITED';
+    case 'retirement':
+      return 'ADDRESS PERMANENTLY RETIRED';
     case 'disqualification':
       return `${activity.affectedPointCount ?? 0} POINTS INVALIDATED`;
     case 'relinquishment':
@@ -106,6 +146,10 @@ function stakeDetail(activity: OperatorActivity): string {
       return `${amount} DEFEATED`;
     case 'release':
       return `${amount} PRIOR POWER`;
+    case 'forfeiture':
+      return `${amount} FORFEITED`;
+    case 'retirement':
+      return `${amount} INVALIDATED`;
     case 'reinforcement':
     case 'yield_claim':
       return `+${amount}`;

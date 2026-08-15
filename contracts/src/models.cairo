@@ -1,6 +1,7 @@
 use starknet::ContractAddress;
 
 pub const CONFIG_ID: u8 = 0;
+pub const CHALLENGE_COUNTER_ID: u8 = 0;
 pub const MAX_CONTROL_POINTS: u32 = 2_000;
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -13,6 +14,7 @@ pub struct GameConfig {
     pub staking_pool: ContractAddress,
     pub minimum_stake: u128,
     pub challenge_premium_bps: u16,
+    pub challenge_period_seconds: u64,
     pub control_point_limit: u32,
     pub paused: bool,
 }
@@ -23,8 +25,12 @@ pub struct OperatorState {
     #[key]
     pub operator: ContractAddress,
     pub generation: u64,
-    pub registered_power: u128,
+    pub point_power: u128,
+    pub challenge_power: u128,
+    pub forfeited_power: u128,
     pub controlled_point_count: u32,
+    pub active_challenge_id: u64,
+    pub retired: bool,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -37,4 +43,43 @@ pub struct ControlPoint {
     pub capture_power: u128,
     pub ownership_generation: u64,
     pub controlled_since: u64,
+    pub active_challenge_id: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct ChallengeCounter {
+    #[key]
+    pub id: u8,
+    pub next_id: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct Challenge {
+    #[key]
+    pub id: u64,
+    pub control_point_id: u32,
+    pub incumbent: ContractAddress,
+    pub leader: ContractAddress,
+    pub leader_power: u128,
+    pub deadline: u64,
+    pub participant_count: u32,
+    pub settled: bool,
+    pub winner: ContractAddress,
+    pub settled_at: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct ChallengeParticipant {
+    #[key]
+    pub challenge_id: u64,
+    #[key]
+    pub operator: ContractAddress,
+    pub commitment: u128,
+    pub point_power_included: u128,
+    pub operator_generation: u64,
+    pub joined: bool,
+    pub resolved: bool,
 }

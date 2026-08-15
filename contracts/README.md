@@ -1,9 +1,9 @@
 # StakeWars contracts
 
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
-reads each player's active `amount` from the official StakeWars delegation pool
-and uses that complete live balance as the player's power for every capture or
-reinforcement.
+reads each player's live delegation and unpooling state from the official
+StakeWars delegation pool. Game power is derived as live delegation minus point
+commitments, active-challenge commitments, and permanent forfeited power.
 
 ## Local commands
 
@@ -26,28 +26,39 @@ The upstream Starknet staking implementation is pinned at
 Scarb dependency because its Cairo toolchain is older than this Dojo package.
 
 The Control System exposes authoritative `get_operator_status`,
-`get_control_point_status`, `get_control_point_statuses`, and `can_manage_image`
-views. The batched status view reads up to 200 Control Points. Stale Torii models are
-therefore safe to use for discovery while security-sensitive clients confirm
-effective control on-chain. Permissionless reconciliation may call
-`sync_operator` or batch up to 50 unique addresses with `sync_operators`; healthy
-and previously unseen operators do not cause a model write or event.
+`get_control_point_status`, `get_control_point_statuses`,
+`get_challenge_status`, and `can_manage_image` views. The batched point-status
+view reads up to 200 Control Points. Stale Torii models are safe for discovery
+while security-sensitive clients confirm effective control on-chain.
+Permissionless reconciliation may call `sync_operator` or batch up to 50
+addresses with `sync_operators`.
 
-Operators may atomically capture or reinforce up to 200 Control Points with
-`capture_many` and `reinforce_many`. These entrypoints refresh the caller's live
-delegated balance once and apply that same full power to every point in the
-batch, while retaining one ownership update and event per Control Point. The
-single `capture` and `reinforce` entrypoints remain available for one-point
-actions.
+Every `capture`, `reinforce`, or `challenge` contribution automatically commits
+all power currently available to the caller. There are no user-selected
+allocation amounts and no batch capture/reinforcement entrypoints: once an
+action commits the available balance, it cannot back another point.
 
-`relinquish_all` provides the constant-cost staking off-ramp: it advances the
-operator generation and clears its registered backing power with one model
-write, making every Control Point from the previous generation immediately
-stale without rewriting each point. Clients should submit it in the same account
-multicall as the official pool's `exit_delegation_pool_intent`, then call
-`exit_delegation_pool_action` after the pool-reported withdrawal timestamp.
+An occupied point is contested through `challenge` or
+`challenge_with_collateral`. A qualifying participant must reach the configured
+premium over the current leader's cumulative commitment. Leadership changes
+reset the configured challenge period. The current leader cannot self-raise.
+After the deadline, `settle_challenge` transfers the point to the leader and
+turns every losing commitment into permanent forfeited power. Non-incumbent
+losers are reconciled lazily on their next action or operator sync, but their
+commitments stay locked until then.
+
+Collateral is a move, not duplicated backing:
+`challenge_with_collateral(target, source)` neutralizes an uncontested source
+point and adds its complete Capture Power to the same challenge transaction.
+
+`retire` (and the compatibility alias `relinquish_all`) permanently retires an
+address. It advances the ownership generation, invalidates all holdings, and
+prevents that address from playing again. An unpool intent made directly through
+the official pool is detected by game actions and operator synchronization and
+causes the same permanent retirement.
 
 Before any production migration, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
-delegation-pool address and base-unit rule values, and place both World and
+delegation-pool address and base-unit rule values (including the 43,200-second
+challenge period), and place both World and
 namespace ownership plus the stored game-admin role under the approved multisig.

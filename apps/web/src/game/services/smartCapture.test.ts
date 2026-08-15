@@ -1,115 +1,83 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildSmartBatchCaptureCalls,
-  buildSmartBatchReinforceCalls,
-  buildSmartCaptureCalls,
+  buildSmartGameActionCalls,
   encodeU256,
   stakeDeficit,
 } from './smartCapture';
 
 const shared = {
   controlSystemAddress: '0xcontrol',
-  liveDelegatedAmount: 1_000n,
   operatorAddress: '0xoperator',
   poolAddress: '0xpool',
   strkTokenAddress: '0xstrk',
   isPoolMember: true,
 };
 
-describe('full-stake capture calls', () => {
-  it('captures with the current live stake without allocating an amount', () => {
+describe('automatic commitment action calls', () => {
+  it('uses existing commitment plus available power before staking more', () => {
     expect(
-      buildSmartCaptureCalls({
+      buildSmartGameActionCalls({
         ...shared,
-        controlPointId: 7,
-        requiredStake: 900n,
+        entrypoint: 'challenge',
+        calldata: ['7'],
+        requiredPower: 2_420n,
+        existingCommitment: 2_000n,
+        availablePower: 420n,
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'capture',
+        entrypoint: 'challenge',
         calldata: ['7'],
       },
     ]);
   });
 
-  it('stakes only the deficit before capturing', () => {
-    expect(
-      buildSmartCaptureCalls({
-        ...shared,
-        controlPointId: 7,
-        requiredStake: 1_100n,
-      })
-    ).toEqual([
-      {
-        contractAddress: '0xstrk',
-        entrypoint: 'approve',
-        calldata: ['0xpool', '100', '0'],
-      },
-      {
-        contractAddress: '0xpool',
-        entrypoint: 'add_to_delegation_pool',
-        calldata: ['0xoperator', '100'],
-      },
-      {
-        contractAddress: '0xcontrol',
-        entrypoint: 'capture',
-        calldata: ['7'],
-      },
-    ]);
-  });
-
-  it('uses one full stake balance for every point in a batch', () => {
-    const calls = buildSmartBatchCaptureCalls({
+  it('stakes only the remaining deficit before the action', () => {
+    const calls = buildSmartGameActionCalls({
       ...shared,
-      controlPointIds: [7, 8],
-      requiredStake: 1_100n,
+      entrypoint: 'capture',
+      calldata: ['7'],
+      requiredPower: 1_100n,
+      existingCommitment: 0n,
+      availablePower: 1_000n,
     });
-
-    expect(calls[calls.length - 1]).toEqual({
+    expect(calls[0]).toEqual({
+      contractAddress: '0xstrk',
+      entrypoint: 'approve',
+      calldata: ['0xpool', '100', '0'],
+    });
+    expect(calls[2]).toEqual({
       contractAddress: '0xcontrol',
-      entrypoint: 'capture_many',
-      calldata: ['2', '7', '8'],
+      entrypoint: 'capture',
+      calldata: ['7'],
     });
-    expect(calls[0].calldata).toEqual(['0xpool', '100', '0']);
   });
 
-  it('fortifies selected points to the current live stake', () => {
+  it('builds a collateral sacrifice call without an allocation amount', () => {
     expect(
-      buildSmartBatchReinforceCalls({
-        controlPointIds: [7, 8],
-        controlSystemAddress: '0xcontrol',
+      buildSmartGameActionCalls({
+        ...shared,
+        entrypoint: 'challenge_with_collateral',
+        calldata: ['7', '8'],
+        requiredPower: 1_100n,
+        existingCommitment: 0n,
+        availablePower: 1_100n,
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'reinforce_many',
-        calldata: ['2', '7', '8'],
+        entrypoint: 'challenge_with_collateral',
+        calldata: ['7', '8'],
       },
     ]);
-  });
-
-  it('rejects empty and oversized batches', () => {
-    expect(() =>
-      buildSmartBatchCaptureCalls({
-        ...shared,
-        controlPointIds: [],
-        requiredStake: 1n,
-      })
-    ).toThrow('At least one Control Point is required');
-    expect(() =>
-      buildSmartBatchReinforceCalls({
-        controlPointIds: Array.from({ length: 201 }, (_, index) => index),
-        controlSystemAddress: '0xcontrol',
-      })
-    ).toThrow('At most 200 Control Points can be reinforced at once');
   });
 });
 
 describe('staking arithmetic', () => {
-  it('calculates only the additional live stake required', () => {
-    expect(stakeDeficit(1_100n, 1_000n)).toBe(100n);
-    expect(stakeDeficit(1_000n, 1_000n)).toBe(0n);
+  it('subtracts prior commitment and currently available power', () => {
+    expect(stakeDeficit(2_420n, 2_000n, 200n)).toBe(220n);
+    expect(stakeDeficit(2_420n, 2_000n, 420n)).toBe(0n);
   });
 
   it('encodes u256 values into low and high limbs', () => {

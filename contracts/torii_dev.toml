@@ -2,10 +2,16 @@
 historical = [
   "stakewars-ControlPoint",
   "stakewars-OperatorState",
+  "stakewars-Challenge",
+  "stakewars-ChallengeParticipant",
   "stakewars-ControlPointCaptured",
-  "stakewars-ControlPointDisplaced",
   "stakewars-ControlPointReinforced",
   "stakewars-ControlPointReleased",
+  "stakewars-ChallengeStarted",
+  "stakewars-ChallengeLeadershipChanged",
+  "stakewars-CollateralSacrificed",
+  "stakewars-ChallengeSettled",
+  "stakewars-PowerForfeited",
   "stakewars-OperatorDisqualified",
-  "stakewars-OperatorRelinquished",
+  "stakewars-OperatorRetired",
 ]

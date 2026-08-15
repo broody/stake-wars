@@ -2,6 +2,7 @@ import { hash } from 'starknet';
 import { config } from './config';
 import type {
   ControlPointStatus,
+  ChallengeStatus,
   OperatorStatus,
   PoolMemberInfo,
   StakingPoolInfo,
@@ -190,7 +191,7 @@ export async function getControlPointStatus(
     [encodeRpcFelt(controlPointId)],
     signal
   );
-  if (result.length !== 8) {
+  if (result.length !== 13) {
     throw new Error('Control System returned an invalid Control Point status');
   }
   return decodeControlPointStatus(result, 0);
@@ -208,8 +209,16 @@ function decodeControlPointStatus(
     controlledSince:
       parseTimestamp(result[offset + 4], 'control start time') || null,
     requiredStake: parseFelt(result[offset + 5], 'required stake'),
-    stale: parseFelt(result[offset + 6], 'stale flag') !== 0n,
-    needsSync: parseFelt(result[offset + 7], 'sync flag') !== 0n,
+    activeChallengeId: parseFelt(result[offset + 6], 'active challenge ID'),
+    challengeLeader: result[offset + 7] ?? '0x0',
+    challengeLeaderPower: parseFelt(
+      result[offset + 8],
+      'challenge leader power'
+    ),
+    challengeDeadline:
+      parseTimestamp(result[offset + 9], 'challenge deadline') || null,
+    stale: parseFelt(result[offset + 10], 'stale flag') !== 0n,
+    needsSync: parseFelt(result[offset + 11], 'sync flag') !== 0n,
   };
 }
 
@@ -220,7 +229,7 @@ export function decodeControlPointStatusesResult(
   const resultLength = Number(
     parseFelt(result[0], 'Control Point status count')
   );
-  const statusWidth = 8;
+  const statusWidth = 12;
   if (
     resultLength !== expectedCount ||
     result.length !== 1 + resultLength * statusWidth
@@ -302,17 +311,53 @@ export async function getOperatorStatus(
     [operator],
     signal
   );
-  if (result.length !== 6) {
+  if (result.length !== 12) {
     throw new Error('Control System returned an invalid Operator status');
   }
 
   return {
     operator: result[0] ?? operator,
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
-    registeredPower: parseFelt(result[2], 'registered power'),
-    generation: parseFelt(result[3], 'operator generation'),
-    controlledPointCount: Number(parseFelt(result[4], 'owned point count')),
-    needsSync: parseFelt(result[5], 'operator sync flag') !== 0n,
+    pointPower: parseFelt(result[2], 'point commitments'),
+    challengePower: parseFelt(result[3], 'challenge commitments'),
+    forfeitedPower: parseFelt(result[4], 'forfeited power'),
+    availablePower: parseFelt(result[5], 'available power'),
+    generation: parseFelt(result[6], 'operator generation'),
+    controlledPointCount: Number(parseFelt(result[7], 'owned point count')),
+    activeChallengeId: parseFelt(result[8], 'active challenge ID'),
+    activeChallengeCommitment: parseFelt(
+      result[9],
+      'active challenge commitment'
+    ),
+    retired: parseFelt(result[10], 'retired flag') !== 0n,
+    exiting: parseFelt(result[11], 'exiting flag') !== 0n,
+    needsSync: parseFelt(result[12], 'operator sync flag') !== 0n,
+  };
+}
+
+export async function getChallengeStatus(
+  challengeId: bigint,
+  signal?: AbortSignal
+): Promise<ChallengeStatus> {
+  const result = await callControlSystem(
+    'get_challenge_status',
+    [encodeRpcFelt(challengeId)],
+    signal
+  );
+  if (result.length !== 10) {
+    throw new Error('Control System returned an invalid Challenge status');
+  }
+  return {
+    id: parseFelt(result[0], 'challenge ID'),
+    controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
+    incumbent: result[2] ?? '0x0',
+    leader: result[3] ?? '0x0',
+    leaderPower: parseFelt(result[4], 'leader power'),
+    requiredPower: parseFelt(result[5], 'required power'),
+    deadline: parseTimestamp(result[6], 'challenge deadline'),
+    participantCount: Number(parseFelt(result[7], 'participant count')),
+    settled: parseFelt(result[8], 'settled flag') !== 0n,
+    winner: result[9] ?? '0x0',
   };
 }
 

@@ -7,6 +7,7 @@ pub trait IAdmin<TContractState> {
         staking_pool: ContractAddress,
         minimum_stake: u128,
         challenge_premium_bps: u16,
+        challenge_period_seconds: u64,
         control_point_limit: u32,
     );
     fn set_paused(ref self: TContractState, paused: bool);
@@ -14,6 +15,7 @@ pub trait IAdmin<TContractState> {
         ref self: TContractState,
         minimum_stake: u128,
         challenge_premium_bps: u16,
+        challenge_period_seconds: u64,
         control_point_limit: u32,
     );
     fn set_staking_pool(ref self: TContractState, staking_pool: ContractAddress);
@@ -38,6 +40,7 @@ pub mod admin {
         pub staking_pool: ContractAddress,
         pub minimum_stake: u128,
         pub challenge_premium_bps: u16,
+        pub challenge_period_seconds: u64,
         pub control_point_limit: u32,
     }
 
@@ -56,6 +59,7 @@ pub mod admin {
         pub admin: ContractAddress,
         pub minimum_stake: u128,
         pub challenge_premium_bps: u16,
+        pub challenge_period_seconds: u64,
         pub control_point_limit: u32,
     }
 
@@ -83,6 +87,7 @@ pub mod admin {
             staking_pool: ContractAddress,
             minimum_stake: u128,
             challenge_premium_bps: u16,
+            challenge_period_seconds: u64,
             control_point_limit: u32,
         ) {
             let mut world = self.world_default();
@@ -95,7 +100,9 @@ pub mod admin {
                 'not world owner',
             );
             assert(!staking_pool.is_zero(), 'zero staking pool');
-            validate_rules(minimum_stake, challenge_premium_bps, control_point_limit);
+            validate_rules(
+                minimum_stake, challenge_premium_bps, challenge_period_seconds, control_point_limit,
+            );
 
             world
                 .write_model(
@@ -106,6 +113,7 @@ pub mod admin {
                         staking_pool,
                         minimum_stake,
                         challenge_premium_bps,
+                        challenge_period_seconds,
                         control_point_limit,
                         paused: false,
                     },
@@ -117,6 +125,7 @@ pub mod admin {
                         staking_pool,
                         minimum_stake,
                         challenge_premium_bps,
+                        challenge_period_seconds,
                         control_point_limit,
                     },
                 );
@@ -134,14 +143,18 @@ pub mod admin {
             ref self: ContractState,
             minimum_stake: u128,
             challenge_premium_bps: u16,
+            challenge_period_seconds: u64,
             control_point_limit: u32,
         ) {
-            validate_rules(minimum_stake, challenge_premium_bps, control_point_limit);
+            validate_rules(
+                minimum_stake, challenge_premium_bps, challenge_period_seconds, control_point_limit,
+            );
             let mut world = self.world_default();
             let mut config = self.assert_admin();
             assert(control_point_limit >= config.control_point_limit, 'cannot reduce point limit');
             config.minimum_stake = minimum_stake;
             config.challenge_premium_bps = challenge_premium_bps;
+            config.challenge_period_seconds = challenge_period_seconds;
             config.control_point_limit = control_point_limit;
             world.write_model(@config);
             world
@@ -150,6 +163,7 @@ pub mod admin {
                         admin: config.admin,
                         minimum_stake,
                         challenge_premium_bps,
+                        challenge_period_seconds,
                         control_point_limit,
                     },
                 );
@@ -197,10 +211,16 @@ pub mod admin {
         }
     }
 
-    fn validate_rules(minimum_stake: u128, challenge_premium_bps: u16, point_limit: u32) {
+    fn validate_rules(
+        minimum_stake: u128,
+        challenge_premium_bps: u16,
+        challenge_period_seconds: u64,
+        point_limit: u32,
+    ) {
         assert(minimum_stake > 0, 'zero minimum stake');
         assert(challenge_premium_bps > 0, 'zero premium');
         assert(challenge_premium_bps <= 10_000, 'premium too high');
+        assert(challenge_period_seconds > 0, 'zero challenge period');
         assert(point_limit > 0, 'zero point limit');
         assert(point_limit <= MAX_CONTROL_POINTS, 'too many control points');
     }

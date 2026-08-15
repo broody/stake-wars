@@ -19,7 +19,7 @@ export function buildUnstakeAllCalls({
   return [
     {
       contractAddress: controlSystemAddress,
-      entrypoint: 'relinquish_all',
+      entrypoint: 'retire',
       calldata: [],
     },
     {
