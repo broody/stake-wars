@@ -27,7 +27,6 @@ pub struct OperatorState {
     pub generation: u64,
     pub point_power: u128,
     pub challenge_power: u128,
-    pub forfeited_power: u128,
     pub controlled_point_count: u32,
     pub active_challenge_id: u64,
     pub retired: bool,

@@ -53,11 +53,6 @@ const eventPresentation: Record<
     label: 'SETTLED',
     markerClassName: 'border-white text-white',
   },
-  forfeiture: {
-    marker: '×',
-    label: 'FORFEITED',
-    markerClassName: 'border-amber-500 text-amber-400',
-  },
   retirement: {
     marker: '×',
     label: 'RETIRED',
@@ -65,7 +60,7 @@ const eventPresentation: Record<
   },
   disqualification: {
     marker: '×',
-    label: 'COMMAND RESET',
+    label: 'BACKING FAILURE',
     markerClassName: 'border-amber-500 text-amber-400',
   },
   relinquishment: {
@@ -95,9 +90,8 @@ const activityFilterOptions: Array<{
   { value: 'challenge', label: 'CHALLENGED' },
   { value: 'leadership', label: 'TOOK LEAD' },
   { value: 'settlement', label: 'SETTLED' },
-  { value: 'forfeiture', label: 'FORFEITED' },
   { value: 'retirement', label: 'RETIRED' },
-  { value: 'disqualification', label: 'COMMAND RESET' },
+  { value: 'disqualification', label: 'BACKING FAILURE' },
   { value: 'relinquishment', label: 'RELINQUISHED ALL' },
 ];
 
@@ -123,12 +117,10 @@ function eventDetail(activity: OperatorActivity): string {
       return 'HIGH GROUND TAKEN';
     case 'settlement':
       return 'CHALLENGE FINALIZED';
-    case 'forfeiture':
-      return 'POWER PERMANENTLY FORFEITED';
     case 'retirement':
       return 'ADDRESS PERMANENTLY RETIRED';
     case 'disqualification':
-      return `${activity.affectedPointCount ?? 0} POINTS INVALIDATED`;
+      return `ADDRESS RETIRED · ${activity.affectedPointCount ?? 0} POINTS INVALIDATED`;
     case 'relinquishment':
       return `${activity.affectedPointCount ?? 0} POINTS RELINQUISHED`;
     case 'yield_claim':
@@ -146,8 +138,6 @@ function stakeDetail(activity: OperatorActivity): string {
       return `${amount} DEFEATED`;
     case 'release':
       return `${amount} PRIOR POWER`;
-    case 'forfeiture':
-      return `${amount} FORFEITED`;
     case 'retirement':
       return `${amount} INVALIDATED`;
     case 'reinforcement':
@@ -415,9 +405,8 @@ export function OperatorActivityTable({
           <div className="activity-scrollbar overflow-x-auto border-l border-t border-grid">
             <table className="w-full min-w-[760px] border-collapse text-left">
               <caption className="sr-only">
-                Captures, displacements, reinforcements, releases, command
-                resets, global relinquishments, and yield claims for this
-                Operator
+                Captures, challenges, reinforcements, releases, command resets,
+                retirements, and yield claims for this Operator
               </caption>
               <thead>
                 <tr className="text-[9px] tracking-[0.2em] text-dim">

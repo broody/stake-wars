@@ -32,6 +32,5 @@ default = "stakewars"
 "stakewars-ChallengeLeadershipChanged" = ["stakewars-control"]
 "stakewars-CollateralSacrificed" = ["stakewars-control"]
 "stakewars-ChallengeSettled" = ["stakewars-control"]
-"stakewars-PowerForfeited" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRetired" = ["stakewars-control"]

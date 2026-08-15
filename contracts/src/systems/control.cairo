@@ -25,7 +25,6 @@ pub struct OperatorStatus {
     pub live_delegated_amount: u128,
     pub point_power: u128,
     pub challenge_power: u128,
-    pub forfeited_power: u128,
     pub available_power: u128,
     pub generation: u64,
     pub controlled_point_count: u32,
@@ -52,12 +51,15 @@ pub struct ChallengeStatus {
 
 #[starknet::interface]
 pub trait IControl<TContractState> {
-    fn capture(ref self: TContractState, control_point_id: u32);
-    fn reinforce(ref self: TContractState, control_point_id: u32);
+    fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
+    fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
     fn release(ref self: TContractState, control_point_id: u32);
-    fn challenge(ref self: TContractState, control_point_id: u32);
+    fn challenge(ref self: TContractState, control_point_id: u32, contribution: u128);
     fn challenge_with_collateral(
-        ref self: TContractState, control_point_id: u32, collateral_point_id: u32,
+        ref self: TContractState,
+        control_point_id: u32,
+        collateral_point_id: u32,
+        additional_contribution: u128,
     );
     fn settle_challenge(ref self: TContractState, control_point_id: u32);
     fn retire(ref self: TContractState);
@@ -183,17 +185,6 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct PowerForfeited {
-        #[key]
-        pub challenge_id: u64,
-        #[key]
-        pub operator: ContractAddress,
-        pub amount: u128,
-        pub total_forfeited_power: u128,
-    }
-
-    #[derive(Copy, Drop, Serde)]
-    #[dojo::event]
     pub struct OperatorDisqualified {
         #[key]
         pub operator: ContractAddress,
@@ -217,7 +208,7 @@ pub mod control {
 
     #[abi(embed_v0)]
     impl ControlImpl of IControl<ContractState> {
-        fn capture(ref self: ContractState, control_point_id: u32) {
+        fn capture(ref self: ContractState, control_point_id: u32, allocation: u128) {
             let config = self.active_config();
             self.assert_control_point_id(config, control_point_id);
             let caller = get_caller_address();
@@ -236,13 +227,16 @@ pub mod control {
                 assert(!current, 'point occupied');
             }
 
-            let available = available_power(delegation.amount, operator);
-            assert(available >= config.minimum_stake, 'below minimum stake');
-            operator.point_power += available;
+            assert(allocation >= config.minimum_stake, 'below minimum stake');
+            assert(
+                allocation <= available_power(delegation.amount, operator),
+                'insufficient available power',
+            );
+            operator.point_power += allocation;
             operator.controlled_point_count += 1;
             point.controller = caller;
             point.controller_generation = operator.generation;
-            point.capture_power = available;
+            point.capture_power = allocation;
             point.ownership_generation += 1;
             point.controlled_since = get_block_timestamp();
             point.active_challenge_id = 0;
@@ -253,13 +247,13 @@ pub mod control {
                     @ControlPointCaptured {
                         control_point_id,
                         controller: caller,
-                        capture_power: available,
+                        capture_power: allocation,
                         ownership_generation: point.ownership_generation,
                     },
                 );
         }
 
-        fn reinforce(ref self: ContractState, control_point_id: u32) {
+        fn reinforce(ref self: ContractState, control_point_id: u32, additional_allocation: u128) {
             let config = self.active_config();
             self.assert_control_point_id(config, control_point_id);
             let caller = get_caller_address();
@@ -271,10 +265,13 @@ pub mod control {
             let mut point: ControlPoint = world.read_model(control_point_id);
             self.assert_controller(point, caller, operator);
             assert(point.active_challenge_id == 0, 'point challenged');
-            let added_power = available_power(delegation.amount, operator);
-            assert(added_power > 0, 'no available power');
-            operator.point_power += added_power;
-            point.capture_power += added_power;
+            assert(additional_allocation > 0, 'zero allocation');
+            assert(
+                additional_allocation <= available_power(delegation.amount, operator),
+                'insufficient available power',
+            );
+            operator.point_power += additional_allocation;
+            point.capture_power += additional_allocation;
             world.write_model(@operator);
             world.write_model(@point);
             world
@@ -282,7 +279,7 @@ pub mod control {
                     @ControlPointReinforced {
                         control_point_id,
                         controller: caller,
-                        added_power,
+                        added_power: additional_allocation,
                         capture_power: point.capture_power,
                         ownership_generation: point.ownership_generation,
                     },
@@ -314,14 +311,20 @@ pub mod control {
                 );
         }
 
-        fn challenge(ref self: ContractState, control_point_id: u32) {
-            self.challenge_internal(control_point_id, Option::None);
+        fn challenge(ref self: ContractState, control_point_id: u32, contribution: u128) {
+            self.challenge_internal(control_point_id, contribution, Option::None);
         }
 
         fn challenge_with_collateral(
-            ref self: ContractState, control_point_id: u32, collateral_point_id: u32,
+            ref self: ContractState,
+            control_point_id: u32,
+            collateral_point_id: u32,
+            additional_contribution: u128,
         ) {
-            self.challenge_internal(control_point_id, Option::Some(collateral_point_id));
+            self
+                .challenge_internal(
+                    control_point_id, additional_contribution, Option::Some(collateral_point_id),
+                );
         }
 
         fn settle_challenge(ref self: ContractState, control_point_id: u32) {
@@ -574,7 +577,6 @@ pub mod control {
                 live_delegated_amount: delegation.amount,
                 point_power: operator.point_power,
                 challenge_power: operator.challenge_power,
-                forfeited_power: operator.forfeited_power,
                 available_power: available_power(delegation.amount, operator),
                 generation: operator.generation,
                 controlled_point_count: operator.controlled_point_count,
@@ -668,12 +670,7 @@ pub mod control {
                 let previous_generation = operator.generation;
                 let invalidated_power = operator.point_power + operator.challenge_power;
                 let invalidated_point_count = operator.controlled_point_count;
-                operator.generation += 1;
-                operator.forfeited_power += invalidated_power;
-                operator.point_power = 0;
-                operator.challenge_power = 0;
-                operator.controlled_point_count = 0;
-                operator.active_challenge_id = 0;
+                self.retire_state(ref operator);
                 changed = true;
                 world
                     .emit_event(
@@ -722,16 +719,6 @@ pub mod control {
                         operator.point_power -= participant.point_power_included;
                         operator.controlled_point_count -= 1;
                     }
-                    operator.forfeited_power += participant.commitment;
-                    world
-                        .emit_event(
-                            @PowerForfeited {
-                                challenge_id: challenge.id,
-                                operator: operator.operator,
-                                amount: participant.commitment,
-                                total_forfeited_power: operator.forfeited_power,
-                            },
-                        );
                 }
             }
             operator.active_challenge_id = 0;
@@ -741,7 +728,10 @@ pub mod control {
         }
 
         fn challenge_internal(
-            ref self: ContractState, control_point_id: u32, collateral_point_id: Option<u32>,
+            ref self: ContractState,
+            control_point_id: u32,
+            contribution: u128,
+            collateral_point_id: Option<u32>,
         ) {
             let config = self.active_config();
             self.assert_control_point_id(config, control_point_id);
@@ -770,6 +760,7 @@ pub mod control {
                         delegation.amount,
                         challenge_id,
                         control_point_id,
+                        contribution,
                         collateral_point_id,
                     );
                 let required = minimum_challenge(point.capture_power, config.challenge_premium_bps);
@@ -845,9 +836,9 @@ pub mod control {
                     delegation.amount,
                     challenge.id,
                     control_point_id,
+                    contribution,
                     collateral_point_id,
                 );
-            assert(contribution > 0, 'no available power');
             let new_commitment = if participant.joined {
                 assert(!participant.resolved, 'position resolved');
                 participant.commitment + contribution
@@ -894,9 +885,13 @@ pub mod control {
             live_amount: u128,
             challenge_id: u64,
             target_point_id: u32,
+            contribution: u128,
             collateral_point_id: Option<u32>,
         ) -> u128 {
-            let available = available_power(live_amount, operator);
+            assert(
+                contribution <= available_power(live_amount, operator),
+                'insufficient available power',
+            );
             let mut collateral_power = 0;
             match collateral_point_id {
                 Option::Some(source_id) => {
@@ -920,7 +915,9 @@ pub mod control {
                 },
                 Option::None => {},
             }
-            available + collateral_power
+            let total_contribution = contribution + collateral_power;
+            assert(total_contribution > 0, 'zero contribution');
+            total_contribution
         }
 
         fn release_point(
@@ -974,16 +971,6 @@ pub mod control {
                     operator.point_power -= participant.point_power_included;
                     operator.controlled_point_count -= 1;
                 }
-                operator.forfeited_power += participant.commitment;
-                world
-                    .emit_event(
-                        @PowerForfeited {
-                            challenge_id,
-                            operator: operator_address,
-                            amount: participant.commitment,
-                            total_forfeited_power: operator.forfeited_power,
-                        },
-                    );
             }
             operator.active_challenge_id = 0;
             participant.resolved = true;
@@ -1020,7 +1007,6 @@ pub mod control {
 
         fn retire_state(self: @ContractState, ref operator: OperatorState) {
             operator.generation += 1;
-            operator.forfeited_power += operator.point_power + operator.challenge_power;
             operator.point_power = 0;
             operator.challenge_power = 0;
             operator.controlled_point_count = 0;
@@ -1030,10 +1016,13 @@ pub mod control {
     }
 
     fn total_obligations(operator: OperatorState) -> u128 {
-        operator.point_power + operator.challenge_power + operator.forfeited_power
+        operator.point_power + operator.challenge_power
     }
 
     fn available_power(live_amount: u128, operator: OperatorState) -> u128 {
+        if operator.retired {
+            return 0;
+        }
         let obligations = total_obligations(operator);
         if live_amount > obligations {
             live_amount - obligations

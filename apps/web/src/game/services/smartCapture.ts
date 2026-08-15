@@ -2,10 +2,13 @@ import type { Call } from 'starknet';
 
 interface SmartGameActionCallsOptions {
   controlSystemAddress: string;
-  entrypoint: 'capture' | 'challenge' | 'challenge_with_collateral';
+  entrypoint:
+    | 'capture'
+    | 'reinforce'
+    | 'challenge'
+    | 'challenge_with_collateral';
   calldata: string[];
-  requiredPower: bigint;
-  existingCommitment: bigint;
+  allocation: bigint;
   availablePower: bigint;
   operatorAddress: string;
   poolAddress: string;
@@ -16,14 +19,10 @@ interface SmartGameActionCallsOptions {
 const U128_MODULUS = 1n << 128n;
 
 export function stakeDeficit(
-  requiredPower: bigint,
-  existingCommitment: bigint,
+  allocation: bigint,
   availablePower: bigint
 ): bigint {
-  const immediatelyCommitted = existingCommitment + availablePower;
-  return requiredPower > immediatelyCommitted
-    ? requiredPower - immediatelyCommitted
-    : 0n;
+  return allocation > availablePower ? allocation - availablePower : 0n;
 }
 
 export function encodeU256(value: bigint): [string, string] {
@@ -37,8 +36,7 @@ export function buildSmartGameActionCalls({
   controlSystemAddress,
   entrypoint,
   calldata,
-  requiredPower,
-  existingCommitment,
+  allocation,
   availablePower,
   operatorAddress,
   poolAddress,
@@ -50,11 +48,7 @@ export function buildSmartGameActionCalls({
     entrypoint,
     calldata,
   };
-  const deficit = stakeDeficit(
-    requiredPower,
-    existingCommitment,
-    availablePower
-  );
+  const deficit = stakeDeficit(allocation, availablePower);
   if (deficit === 0n) return [actionCall];
 
   const [deficitLow, deficitHigh] = encodeU256(deficit);
@@ -81,7 +75,7 @@ export function buildSmartGameActionCalls({
 
 export function buildControlCall(
   controlSystemAddress: string,
-  entrypoint: 'reinforce' | 'release' | 'settle_challenge',
+  entrypoint: 'release' | 'settle_challenge',
   calldata: string[]
 ): Call[] {
   return [{ contractAddress: controlSystemAddress, entrypoint, calldata }];

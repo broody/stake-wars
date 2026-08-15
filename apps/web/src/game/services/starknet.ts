@@ -191,7 +191,7 @@ export async function getControlPointStatus(
     [encodeRpcFelt(controlPointId)],
     signal
   );
-  if (result.length !== 13) {
+  if (result.length !== 12) {
     throw new Error('Control System returned an invalid Control Point status');
   }
   return decodeControlPointStatus(result, 0);
@@ -320,18 +320,17 @@ export async function getOperatorStatus(
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
     pointPower: parseFelt(result[2], 'point commitments'),
     challengePower: parseFelt(result[3], 'challenge commitments'),
-    forfeitedPower: parseFelt(result[4], 'forfeited power'),
-    availablePower: parseFelt(result[5], 'available power'),
-    generation: parseFelt(result[6], 'operator generation'),
-    controlledPointCount: Number(parseFelt(result[7], 'owned point count')),
-    activeChallengeId: parseFelt(result[8], 'active challenge ID'),
+    availablePower: parseFelt(result[4], 'available power'),
+    generation: parseFelt(result[5], 'operator generation'),
+    controlledPointCount: Number(parseFelt(result[6], 'owned point count')),
+    activeChallengeId: parseFelt(result[7], 'active challenge ID'),
     activeChallengeCommitment: parseFelt(
-      result[9],
+      result[8],
       'active challenge commitment'
     ),
-    retired: parseFelt(result[10], 'retired flag') !== 0n,
-    exiting: parseFelt(result[11], 'exiting flag') !== 0n,
-    needsSync: parseFelt(result[12], 'operator sync flag') !== 0n,
+    retired: parseFelt(result[9], 'retired flag') !== 0n,
+    exiting: parseFelt(result[10], 'exiting flag') !== 0n,
+    needsSync: parseFelt(result[11], 'operator sync flag') !== 0n,
   };
 }
 

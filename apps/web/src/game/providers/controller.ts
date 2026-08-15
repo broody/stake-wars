@@ -70,23 +70,24 @@ const policies: SessionPolicies = {
               name: 'Capture Control Point',
               entrypoint: 'capture',
               description:
-                'Commit all available power to a neutral Control Point.',
+                'Allocate selected delegated power to a neutral Control Point.',
             },
             {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
               description:
-                'Commit all available power to an owned Control Point.',
+                'Add selected delegated power to an owned Control Point.',
             },
             {
               name: 'Challenge Control Point',
               entrypoint: 'challenge',
-              description: 'Commit all available power to a challenge.',
+              description: 'Commit selected delegated power to a challenge.',
             },
             {
               name: 'Challenge with Collateral',
               entrypoint: 'challenge_with_collateral',
-              description: 'Sacrifice an owned Control Point into a challenge.',
+              description:
+                'Sacrifice an owned Control Point and selected available power into a challenge.',
             },
             {
               name: 'Settle Challenge',

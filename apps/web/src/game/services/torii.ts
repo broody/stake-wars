@@ -235,42 +235,6 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
   }
 `;
 
-const OPERATOR_DISPLACEMENTS_QUERY = `
-  query StakeWarsOperatorForfeitures($operator: ContractAddress!) {
-    displacements: stakewarsPowerForfeitedModels(
-      first: 1000
-      where: { operator: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          challenge_id
-          operator
-          amount
-          total_forfeited_power
-        }
-      }
-    }
-  }
-`;
-
-const OPERATOR_DISPLACEMENTS_PAGE_QUERY = `
-  query StakeWarsOperatorForfeituresPage(
-    $operator: ContractAddress!
-    $pageSize: Int!
-    $after: Cursor
-  ) {
-    displacements: stakewarsPowerForfeitedModels(
-      first: $pageSize
-      after: $after
-      where: { operator: $operator }
-    ) {
-      edges { cursor node { challenge_id operator amount total_forfeited_power } }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`;
-
 const YIELD_CLAIMS_PAGE_QUERY = `
   query StakeWarsYieldClaimsPage(
     $keys: [String]
@@ -384,13 +348,6 @@ interface RelinquishmentEventNode {
   released_point_count: number | string;
 }
 
-interface DisplacementEventNode {
-  challenge_id: number | string;
-  operator: string;
-  amount: string;
-  total_forfeited_power: string;
-}
-
 interface ChallengeStartedEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
@@ -427,13 +384,6 @@ interface ToriiOperatorActivityResponse {
     releases?: ToriiConnection<ReleaseEventNode>;
     disqualifications?: ToriiConnection<DisqualificationEventNode>;
     relinquishments?: ToriiConnection<RelinquishmentEventNode>;
-  };
-  errors?: Array<{ message?: string }>;
-}
-
-interface ToriiDisplacementsResponse {
-  data?: {
-    displacements?: ToriiConnection<DisplacementEventNode>;
   };
   errors?: Array<{ message?: string }>;
 }
@@ -562,8 +512,7 @@ function activityFromEdge<T>(
 }
 
 export function parseOperatorActivity(
-  payload: ToriiOperatorActivityResponse,
-  displacementPayload?: ToriiDisplacementsResponse | null
+  payload: ToriiOperatorActivityResponse
 ): OperatorActivity[] {
   if (payload.errors?.length) {
     throw new Error(
@@ -677,29 +626,6 @@ export function parseOperatorActivity(
       }))
     );
   });
-
-  if (displacementPayload?.data?.displacements?.edges) {
-    displacementPayload.data.displacements.edges.forEach((edge) => {
-      const displaced = activityFromEdge(edge, (position, node) => ({
-        ...position,
-        type: 'forfeiture',
-        amount: parseBigInt(node.amount, 'forfeited power'),
-        secondaryAmount: parseBigInt(
-          node.total_forfeited_power,
-          'total forfeited power'
-        ),
-      }));
-      if (!displaced) return;
-
-      const legacyIndex = activity.findIndex(
-        (item) =>
-          item.type === 'forfeiture' &&
-          item.transactionHash === displaced.transactionHash
-      );
-      if (legacyIndex >= 0) activity.splice(legacyIndex, 1);
-      activity.push(displaced);
-    });
-  }
 
   return activity.sort(
     (left, right) =>
@@ -946,7 +872,6 @@ interface OperatorControlActivityCursor {
   releases: string | null;
   disqualifications: string | null;
   relinquishments: string | null;
-  displacements: string | null;
 }
 
 export interface OperatorActivityFeedCursor
@@ -1001,7 +926,6 @@ async function getOperatorControlActivityPage(
       releases: 'release',
       disqualifications: 'disqualification',
       relinquishments: 'retirement',
-      displacements: 'forfeiture',
     };
     return sourceType[key] === filter;
   };
@@ -1020,7 +944,6 @@ async function getOperatorControlActivityPage(
         releases: null,
         disqualifications: null,
         relinquishments: null,
-        displacements: null,
       },
     };
   }
@@ -1056,35 +979,10 @@ async function getOperatorControlActivityPage(
     signal
   );
 
-  let displacementPayload: ToriiDisplacementsResponse | null = null;
-  let displacementCursor: string | null = null;
-  if (active('displacements')) {
-    try {
-      const result = await queryTorii<ToriiDisplacementsResponse>(
-        OPERATOR_DISPLACEMENTS_PAGE_QUERY,
-        {
-          operator,
-          pageSize: ACTIVITY_SOURCE_PAGE_SIZE,
-          after: cursor?.displacements ?? null,
-        },
-        signal
-      );
-      if (!result.errors?.length) {
-        displacementPayload = result;
-        displacementCursor = nextActivityCursor(
-          result.data?.displacements,
-          'forfeiture activity'
-        );
-      }
-    } catch (error) {
-      if (signal?.aborted) throw error;
-    }
-  }
-
   const data = payload.data;
   if (!data) {
     return {
-      activity: parseOperatorActivity(payload, displacementPayload),
+      activity: parseOperatorActivity(payload),
       cursor: {
         captures: null,
         losses: null,
@@ -1094,13 +992,12 @@ async function getOperatorControlActivityPage(
         releases: null,
         disqualifications: null,
         relinquishments: null,
-        displacements: displacementCursor,
       },
     };
   }
 
   return {
-    activity: parseOperatorActivity(payload, displacementPayload),
+    activity: parseOperatorActivity(payload),
     cursor: {
       captures: active('captures')
         ? nextActivityCursor(data.captures, 'capture activity')
@@ -1129,7 +1026,6 @@ async function getOperatorControlActivityPage(
       relinquishments: active('relinquishments')
         ? nextActivityCursor(data.relinquishments, 'retirement activity')
         : null,
-      displacements: displacementCursor,
     },
   };
 }
@@ -1193,7 +1089,6 @@ export async function getOperatorActivityFeedPage(
         releases: cursor.releases,
         disqualifications: cursor.disqualifications,
         relinquishments: cursor.relinquishments,
-        displacements: cursor.displacements,
       }
     : undefined;
   const [controlResult, claimResult] = await Promise.allSettled([
@@ -1228,7 +1123,6 @@ export async function getOperatorActivityFeedPage(
             releases: null,
             disqualifications: null,
             relinquishments: null,
-            displacements: null,
           },
         };
   const claims =
@@ -1279,19 +1173,7 @@ export async function getOperatorActivity(
     signal
   );
 
-  let displacementPayload: ToriiDisplacementsResponse | null = null;
-  try {
-    const result = await queryTorii<ToriiDisplacementsResponse>(
-      OPERATOR_DISPLACEMENTS_QUERY,
-      { operator },
-      signal
-    );
-    if (!result.errors?.length) displacementPayload = result;
-  } catch (error) {
-    if (signal?.aborted) throw error;
-  }
-
-  return parseOperatorActivity(payload, displacementPayload);
+  return parseOperatorActivity(payload);
 }
 
 export function parseIndexedControlPoints(

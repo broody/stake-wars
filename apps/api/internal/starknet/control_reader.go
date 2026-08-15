@@ -39,7 +39,6 @@ type OperatorStatus struct {
 	LiveDelegatedAmount       string
 	PointPower                string
 	ChallengePower            string
-	ForfeitedPower            string
 	AvailablePower            string
 	Generation                uint64
 	ControlledPointCount      uint32
@@ -157,7 +156,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 13 {
+	if len(result) != 12 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -177,39 +176,35 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("challenge_power", err)
 	}
-	forfeitedPower, err := parseUintString(result[4], 128)
-	if err != nil {
-		return OperatorStatus{}, fieldError("forfeited_power", err)
-	}
-	availablePower, err := parseUintString(result[5], 128)
+	availablePower, err := parseUintString(result[4], 128)
 	if err != nil {
 		return OperatorStatus{}, fieldError("available_power", err)
 	}
-	generation, err := parseUint(result[6], 64)
+	generation, err := parseUint(result[5], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	pointCount, err := parseUint(result[7], 32)
+	pointCount, err := parseUint(result[6], 32)
 	if err != nil {
 		return OperatorStatus{}, fieldError("controlled_point_count", err)
 	}
-	activeChallengeID, err := parseUint(result[8], 64)
+	activeChallengeID, err := parseUint(result[7], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("active_challenge_id", err)
 	}
-	activeCommitment, err := parseUintString(result[9], 128)
+	activeCommitment, err := parseUintString(result[8], 128)
 	if err != nil {
 		return OperatorStatus{}, fieldError("active_challenge_commitment", err)
 	}
-	retired, err := parseBool(result[10])
+	retired, err := parseBool(result[9])
 	if err != nil {
 		return OperatorStatus{}, fieldError("retired", err)
 	}
-	exiting, err := parseBool(result[11])
+	exiting, err := parseBool(result[10])
 	if err != nil {
 		return OperatorStatus{}, fieldError("exiting", err)
 	}
-	needsSync, err := parseBool(result[12])
+	needsSync, err := parseBool(result[11])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
@@ -219,7 +214,6 @@ func (r *RPCControlReader) OperatorStatus(
 		LiveDelegatedAmount:       live,
 		PointPower:                pointPower,
 		ChallengePower:            challengePower,
-		ForfeitedPower:            forfeitedPower,
 		AvailablePower:            availablePower,
 		Generation:                generation,
 		ControlledPointCount:      uint32(pointCount),

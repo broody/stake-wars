@@ -38,7 +38,6 @@ export interface OperatorStatus {
   liveDelegatedAmount: bigint;
   pointPower: bigint;
   challengePower: bigint;
-  forfeitedPower: bigint;
   availablePower: bigint;
   generation: bigint;
   controlledPointCount: number;
@@ -70,7 +69,6 @@ export type OperatorActivityType =
   | 'challenge'
   | 'leadership'
   | 'settlement'
-  | 'forfeiture'
   | 'retirement'
   | 'disqualification'
   | 'relinquishment'

@@ -18,9 +18,9 @@ function LandingApp() {
           <span className="text-fg font-bold border-b border-dotted border-dim">
             Control Point
           </span>{' '}
-          on the Core. Your available delegated $STRK is automatically committed
-          to that territory through the official Starknet staking system. One
-          unit of delegation can back only one position.
+          on the Core. Choose how much of your available delegated $STRK to
+          allocate through the official Starknet staking system. One unit of
+          delegation can back only one position.
         </>
       ),
     },
@@ -46,8 +46,8 @@ function LandingApp() {
           <span className="text-fg font-bold border-b border-dotted border-dim">
             winner takes the point
           </span>
-          ; every losing commitment becomes forfeited game power for that
-          address. Existing commitments count toward each additive raise.
+          . Losing commitments unlock after settlement and can be allocated
+          again. Existing commitments count toward each additive raise.
         </>
       ),
     },

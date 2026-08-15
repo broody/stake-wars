@@ -207,42 +207,6 @@ describe('Torii Operator activity parsing', () => {
     });
   });
 
-  it('decodes explicit forfeiture events', () => {
-    const transactionHash = '0xshared';
-    const activity = parseOperatorActivity(
-      {
-        data: {
-          ...emptyCollections,
-        },
-      },
-      {
-        data: {
-          displacements: {
-            edges: [
-              {
-                cursor: activityCursor(20, transactionHash, 3),
-                node: {
-                  challenge_id: 1,
-                  operator: '0xabc',
-                  amount: '100',
-                  total_forfeited_power: '110',
-                },
-              },
-            ],
-          },
-        },
-      }
-    );
-
-    expect(activity).toHaveLength(1);
-    expect(activity[0]).toMatchObject({
-      id: expect.stringContaining(':0x3'),
-      type: 'forfeiture',
-      amount: 100n,
-      secondaryAmount: 110n,
-    });
-  });
-
   it('decodes permanent operator retirement', () => {
     const activity = parseOperatorActivity({
       data: {

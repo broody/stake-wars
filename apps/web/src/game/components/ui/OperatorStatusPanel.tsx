@@ -70,10 +70,6 @@ export function OperatorStatusPanel() {
             value={operatorStatus.challengePower}
           />
           <OperatorMetric
-            label="FORFEITED"
-            value={operatorStatus.forfeitedPower}
-          />
-          <OperatorMetric
             label="AVAILABLE"
             value={operatorStatus.availablePower}
             highlight

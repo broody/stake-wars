@@ -58,7 +58,6 @@ mod tests {
                 TestResource::Event(control::e_ChallengeLeadershipChanged::TEST_CLASS_HASH),
                 TestResource::Event(control::e_CollateralSacrificed::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengeSettled::TEST_CLASS_HASH),
-                TestResource::Event(control::e_PowerForfeited::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorRetired::TEST_CLASS_HASH),
                 TestResource::Contract(admin::TEST_CLASS_HASH),
@@ -95,8 +94,7 @@ mod tests {
             resource_selector(@"ControlPointReleased"), resource_selector(@"ChallengeStarted"),
             resource_selector(@"ChallengeLeadershipChanged"),
             resource_selector(@"CollateralSacrificed"), resource_selector(@"ChallengeSettled"),
-            resource_selector(@"PowerForfeited"), resource_selector(@"OperatorDisqualified"),
-            resource_selector(@"OperatorRetired"),
+            resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRetired"),
         ]
             .span()
     }
@@ -161,71 +159,71 @@ mod tests {
 
     #[test]
     #[available_gas(300000000)]
-    fn capture_commits_all_available_power() {
+    fn capture_commits_selected_power_and_leaves_remainder() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         testing::set_block_timestamp(1_000);
-        control.capture(42);
+        control.capture(42, 400);
 
         let point: ControlPoint = world.read_model(42_u32);
         let operator = control.get_operator_status(player);
-        assert_eq!(point.capture_power, 1_000);
+        assert_eq!(point.capture_power, 400);
         assert_eq!(point.controlled_since, 1_000);
-        assert_eq!(operator.point_power, 1_000);
-        assert_eq!(operator.available_power, 0);
-        assert_eq!(operator.forfeited_power, 0);
+        assert_eq!(operator.point_power, 400);
+        assert_eq!(operator.available_power, 600);
     }
 
     #[test]
     #[available_gas(400000000)]
-    fn added_delegation_can_capture_a_second_point_only() {
+    fn selected_allocations_can_back_multiple_points_without_duplication() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(40);
+        control.capture(40, 700);
         pool.set_amount(player, 1_200);
-        control.capture(41);
+        control.capture(41, 500);
 
         let first: ControlPoint = world.read_model(40_u32);
         let second: ControlPoint = world.read_model(41_u32);
         let operator: OperatorState = world.read_model(player);
-        assert_eq!(first.capture_power, 1_000);
-        assert_eq!(second.capture_power, 200);
+        assert_eq!(first.capture_power, 700);
+        assert_eq!(second.capture_power, 500);
         assert_eq!(operator.point_power, 1_200);
         assert_eq!(operator.controlled_point_count, 2);
     }
 
     #[test]
     #[available_gas(300000000)]
-    #[should_panic(expected: ('below minimum stake', 'ENTRYPOINT_FAILED'))]
+    #[should_panic(expected: ('insufficient available power', 'ENTRYPOINT_FAILED'))]
     fn existing_commitment_cannot_back_another_capture() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(1);
-        control.capture(2);
+        control.capture(1, 1_000);
+        control.capture(2, 100);
     }
 
     #[test]
     #[available_gas(350000000)]
-    fn reinforcement_adds_only_newly_available_power() {
+    fn reinforcement_adds_only_the_selected_power() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         testing::set_block_timestamp(1_000);
-        control.capture(1);
+        control.capture(1, 1_000);
         pool.set_amount(player, 1_500);
         testing::set_block_timestamp(2_000);
-        control.reinforce(1);
+        control.reinforce(1, 300);
 
         let point: ControlPoint = world.read_model(1_u32);
-        assert_eq!(point.capture_power, 1_500);
+        assert_eq!(point.capture_power, 1_300);
         assert_eq!(point.controlled_since, 1_000);
+        assert_eq!(control.get_operator_status(player).available_power, 200);
     }
 
     #[test]
@@ -235,12 +233,12 @@ mod tests {
         let incumbent = player_one();
         let challenger = player_two();
         pool.set_amount(incumbent, 1_000);
-        pool.set_amount(challenger, 1_100);
+        pool.set_amount(challenger, 1_500);
         testing::set_contract_address(incumbent);
-        control.capture(7);
+        control.capture(7, 1_000);
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(2_000);
-        control.challenge(7);
+        control.challenge(7, 1_100);
 
         let point: ControlPoint = world.read_model(7_u32);
         let challenge: Challenge = world.read_model(1_u64);
@@ -248,7 +246,7 @@ mod tests {
         assert_eq!(point.active_challenge_id, 1);
         assert_eq!(challenge.leader, challenger);
         assert_eq!(challenge.deadline, 2_000 + CHALLENGE_PERIOD);
-        assert_eq!(control.get_operator_status(challenger).available_power, 0);
+        assert_eq!(control.get_operator_status(challenger).available_power, 400);
     }
 
     #[test]
@@ -260,26 +258,25 @@ mod tests {
         pool.set_amount(incumbent, 1_000);
         pool.set_amount(challenger, 2_000);
         testing::set_contract_address(incumbent);
-        control.capture(7);
+        control.capture(7, 1_000);
 
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(100);
-        control.challenge(7);
+        control.challenge(7, 2_000);
         testing::set_contract_address(incumbent);
         pool.set_amount(incumbent, 2_200);
         testing::set_block_timestamp(200);
-        control.challenge(7);
+        control.challenge(7, 1_200);
         let after_defense: Challenge = world.read_model(1_u64);
         assert_eq!(after_defense.leader, incumbent);
         assert_eq!(after_defense.leader_power, 2_200);
 
         let challenger_before: OperatorState = world.read_model(challenger);
-        assert_eq!(challenger_before.forfeited_power, 0);
         assert_eq!(challenger_before.challenge_power, 2_000);
         pool.set_amount(challenger, 2_420);
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(300);
-        control.challenge(7);
+        control.challenge(7, 420);
         let final_raise: Challenge = world.read_model(1_u64);
         assert_eq!(final_raise.leader_power, 2_420);
 
@@ -290,8 +287,8 @@ mod tests {
         let winner: OperatorState = world.read_model(challenger);
         assert_eq!(point.controller, challenger);
         assert_eq!(point.capture_power, 2_420);
-        assert_eq!(loser.forfeited_power, 2_200);
         assert_eq!(loser.point_power, 0);
+        assert_eq!(control.get_operator_status(incumbent).available_power, 2_200);
         assert_eq!(winner.point_power, 2_420);
         assert_eq!(winner.challenge_power, 0);
     }
@@ -307,22 +304,24 @@ mod tests {
         pool.set_amount(challenger, 1_100);
         pool.set_amount(third, 1_210);
         testing::set_contract_address(incumbent);
-        control.capture(9);
+        control.capture(9, 1_000);
         testing::set_contract_address(challenger);
-        control.challenge(9);
+        control.challenge(9, 1_100);
         testing::set_contract_address(third);
-        control.challenge(9);
+        control.challenge(9, 1_210);
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(9);
         let unresolved: OperatorState = world.read_model(challenger);
         assert_eq!(unresolved.challenge_power, 1_100);
-        assert_eq!(unresolved.forfeited_power, 0);
         control.sync_operator(challenger);
         let resolved: OperatorState = world.read_model(challenger);
         assert_eq!(resolved.challenge_power, 0);
-        assert_eq!(resolved.forfeited_power, 1_100);
+        assert_eq!(control.get_operator_status(challenger).available_power, 1_100);
         assert_eq!(resolved.active_challenge_id, 0);
+        testing::set_contract_address(challenger);
+        control.capture(12, 1_100);
+        assert_eq!(control.get_control_point_status(12).controller, challenger);
     }
 
     #[test]
@@ -334,11 +333,11 @@ mod tests {
         pool.set_amount(incumbent, 1_000);
         pool.set_amount(challenger, 500);
         testing::set_contract_address(incumbent);
-        control.capture(10);
+        control.capture(10, 1_000);
         testing::set_contract_address(challenger);
-        control.capture(11);
+        control.capture(11, 500);
         pool.set_amount(challenger, 1_100);
-        control.challenge_with_collateral(10, 11);
+        control.challenge_with_collateral(10, 11, 600);
 
         let source: ControlPoint = world.read_model(11_u32);
         let participant: ChallengeParticipant = world.read_model((1_u64, challenger));
@@ -348,6 +347,26 @@ mod tests {
         assert_eq!(operator.point_power, 0);
         assert_eq!(operator.challenge_power, 1_100);
         assert_eq!(operator.controlled_point_count, 0);
+    }
+
+    #[test]
+    #[available_gas(650000000)]
+    fn collateral_can_supply_the_entire_selected_contribution() {
+        let (world, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 400);
+        pool.set_amount(challenger, 500);
+        testing::set_contract_address(incumbent);
+        control.capture(10, 400);
+        testing::set_contract_address(challenger);
+        control.capture(11, 500);
+        control.challenge_with_collateral(10, 11, 0);
+
+        let participant: ChallengeParticipant = world.read_model((1_u64, challenger));
+        let operator = control.get_operator_status(challenger);
+        assert_eq!(participant.commitment, 500);
+        assert_eq!(operator.available_power, 0);
     }
 
     #[test]
@@ -362,12 +381,12 @@ mod tests {
         pool.set_amount(b, 2_200);
         pool.set_amount(c, 1_000);
         testing::set_contract_address(a);
-        control.capture(1);
+        control.capture(1, 1_000);
         testing::set_contract_address(c);
-        control.capture(2);
+        control.capture(2, 1_000);
         testing::set_contract_address(b);
-        control.challenge(1);
-        control.challenge(2);
+        control.challenge(1, 1_100);
+        control.challenge(2, 1_100);
     }
 
     #[test]
@@ -377,7 +396,7 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(1);
+        control.capture(1, 400);
         control.release(1);
         let operator = control.get_operator_status(player);
         assert_eq!(operator.point_power, 0);
@@ -386,19 +405,20 @@ mod tests {
 
     #[test]
     #[available_gas(450000000)]
-    fn external_power_reduction_forfeits_obligations_and_invalidates_points() {
+    fn external_power_reduction_retires_operator_and_invalidates_points() {
         let (world, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(1);
+        control.capture(1, 1_000);
         pool.set_amount(player, 999);
         assert(control.get_operator_status(player).needs_sync, 'sync not detected');
         control.sync_operator(player);
         let operator: OperatorState = world.read_model(player);
         let point = control.get_control_point_status(1);
-        assert_eq!(operator.forfeited_power, 1_000);
+        assert(operator.retired, 'operator not retired');
         assert_eq!(operator.point_power, 0);
+        assert_eq!(control.get_operator_status(player).available_power, 0);
         assert(point.stale, 'point not invalidated');
     }
 
@@ -409,12 +429,12 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(1);
+        control.capture(1, 1_000);
         pool.set_unpool(player, 1_000, 99_999);
         control.sync_operator(player);
         let operator: OperatorState = world.read_model(player);
         assert(operator.retired, 'operator not retired');
-        assert_eq!(operator.forfeited_power, 1_000);
+        assert_eq!(control.get_operator_status(player).available_power, 0);
         assert(control.get_control_point_status(1).stale, 'point not invalidated');
     }
 
@@ -428,7 +448,7 @@ mod tests {
         testing::set_contract_address(player);
         control.retire();
         pool.set_amount(player, 10_000);
-        control.capture(1);
+        control.capture(1, 1_000);
     }
 
     #[test]
@@ -438,7 +458,7 @@ mod tests {
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
-        control.capture(1);
+        control.capture(1, 1_000);
         let mut config: GameConfig = world.read_model(CONFIG_ID);
         config.paused = true;
         world.write_model_test(@config);
@@ -458,9 +478,9 @@ mod tests {
         pool.set_amount(incumbent, 1_000);
         pool.set_amount(challenger, 1_100);
         testing::set_contract_address(incumbent);
-        control.capture(1);
+        control.capture(1, 1_000);
         testing::set_contract_address(challenger);
-        control.challenge(1);
+        control.challenge(1, 1_100);
         control.settle_challenge(1);
     }
 
@@ -474,11 +494,11 @@ mod tests {
         pool.set_amount(incumbent, 1_000);
         pool.set_amount(challenger, 1_200);
         testing::set_contract_address(incumbent);
-        control.capture(1);
+        control.capture(1, 1_000);
         testing::set_contract_address(challenger);
-        control.challenge(1);
+        control.challenge(1, 1_200);
         pool.set_amount(challenger, 1_300);
-        control.challenge(1);
+        control.challenge(1, 100);
     }
 
     #[test]

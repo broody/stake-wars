@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD): StakeWars.gg
 
-**Version:** 1.5
+**Version:** 1.7
 **Status:** Draft
 **Platform:** Starknet (L2)
 **Aesthetic:** Command Terminal / Retro-Futurist
@@ -11,9 +11,9 @@
 
 **StakeWars.gg** is a persistent, gamified staking interface built on Starknet. It transforms the passive act of network validation into a competitive "King of the Hill" strategy game.
 
-Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. The game automatically commits that real delegation to Control Points and challenges; players never manage a separate power currency or choose an arbitrary allocation amount. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
+Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Operators explicitly allocate portions of that real delegation to Control Points and challenges without creating a separate power currency. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by committing all currently available delegation. Taking an occupied point starts a 12-hour public challenge in which any eligible Operator may take the lead by reaching at least 10% more committed STRK than the current leader. Commitments are cumulative, leadership changes reset the timer, and settlement is winner-takes-all: the winner receives the Control Point while every losing commitment becomes permanently forfeited game power for that address. The current controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Control Point by choosing how much Available Power to commit. Taking an occupied point starts a 12-hour public challenge in which any eligible Operator may take the lead by reaching at least 10% more committed STRK than the current leader. Commitments are cumulative, leadership changes reset the timer, and settlement awards the Control Point to the winner while every losing allocation unlocks for reuse. The current controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -23,9 +23,8 @@ An Operator captures a neutral Control Point by committing all currently availab
 *   **Control Point:** A single triangular face on the Core. In the initial release it is a Dojo-native game territory, not a freely transferable NFT.
 *   **Operator:** The user/player.
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
-*   **Committed Power:** Live Delegation automatically bound to owned Control Points or an active challenge. It cannot simultaneously back another action.
-*   **Forfeited Power:** A permanent per-address game liability created by losing a challenge. The STRK remains in the official delegation pool and continues following official staking rules, but no longer provides game power.
-*   **Available Power:** `max(0, Live Delegation - Point Commitments - Challenge Commitments - Forfeited Power)`. Every capture, reinforcement, or challenge contribution automatically commits the full Available Power at that moment.
+*   **Committed Power:** The portion of Live Delegation an Operator has explicitly bound to owned Control Points or an active challenge. It cannot simultaneously back another action.
+*   **Available Power:** `max(0, Live Delegation - Point Commitments - Challenge Commitments)`. It is a derived limit, not a separate balance or token. Operators choose how much of it to commit to each action.
 *   **Capture Power:** The Committed Power recorded on a Control Point.
 *   **Controller:** The Operator currently holding a Control Point.
 *   **Challenge:** A 12-hour contest for an occupied Control Point.
@@ -37,26 +36,26 @@ An Operator captures a neutral Control Point by committing all currently availab
 
 ## 3. Core Gameplay Mechanics
 
-### 3.1. Territory Control (Automatic Commitment Accounting)
+### 3.1. Territory Control (Delegation-Backed Allocation Accounting)
 The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) tracks Control Point ownership and recorded Capture Power.
 
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
 *   **Action:** A transaction may first approve STRK and enter or add to the StakeWars validator's official delegation pool, then call a game action from the same Starknet account.
 *   **Authoritative Balance:** Before every power-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
-*   **Automatic Accounting:** The Game Layer records only obligations needed to prevent reuse: aggregate Point Commitments, the active Challenge Commitment, and permanent Forfeited Power. Available Power is derived from those obligations and Live Delegation; it is not a freely editable reserve or secondary token.
-*   **No Double Backing:** One unit of Live Delegation can support only one Point Commitment or Challenge Commitment at a time. Capturing with 1,000 STRK leaves zero Available Power. Adding 200 STRK later permits a second neutral capture with exactly 200 STRK.
-*   **Automatic Full Commitment:** Each capture, reinforcement, or challenge contribution commits all Available Power. Operators choose the action and target, not the amount.
-*   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator is disqualified from current holdings and challenges, and those commitments become Forfeited Power. Ownership generations make all affected Control Points neutral without iterating over all 2,000 points.
+*   **Allocation Accounting:** The Game Layer records only obligations needed to prevent reuse: aggregate Point Commitments and the active Challenge Commitment. Available Power is derived from those obligations and Live Delegation; it is not a freely editable reserve or secondary token.
+*   **No Double Backing:** One unit of Live Delegation can support only one Point Commitment or Challenge Commitment at a time. An Operator with 3,000 delegated STRK may allocate 1,000 to one Control Point and retain 2,000 Available Power for other actions, but the same 1,000 cannot back a second point or challenge.
+*   **Explicit Amounts:** Each capture, reinforcement, or challenge call specifies the amount of Available Power to commit. The contract verifies that the selected amount remains backed by Live Delegation at execution time.
+*   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Control Points neutral without iterating over all 2,000 points.
 *   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Control Point may be captured when Available Power meets the configured minimum stake. The action commits all Available Power to that point. The initial minimum is 100 STRK.
-*   **Reinforcement:** A Controller may commit all newly Available Power to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
+*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the configured minimum stake and no more than Available Power. The initial minimum is 100 STRK.
+*   **Reinforcement:** A Controller may allocate a selected positive amount of Available Power to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
 *   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Power returns to Available Power.
-*   **No Batch Capture:** Because the first capture consumes all Available Power, the game does not present allocation-style multi-capture or multi-reinforcement controls.
+*   **Multiple Positions:** An Operator may spread Live Delegation across multiple Control Points, provided total Point Commitments and Challenge Commitments never exceed Live Delegation.
 
 #### 3.1.3. Challenges and the High Ground
-*   **Starting a Challenge:** An eligible Challenger targets an occupied, uncontested Control Point and commits all Available Power. The initial commitment must be at least 10% greater than the incumbent's Capture Power.
+*   **Starting a Challenge:** An eligible Challenger targets an occupied, uncontested Control Point and selects a contribution from Available Power. The initial commitment must be at least 10% greater than the incumbent's Capture Power.
 *   **Incumbent Position:** The point's existing Capture Power automatically becomes the incumbent's opening commitment. It remains a Point Commitment until settlement; any later defense is added as a Challenge Commitment.
 *   **Open Participation:** Any eligible Operator may join the active challenge. One Operator address may participate in only one active challenge at a time, and one Control Point may have only one active challenge.
 *   **Additive Commitments:** Contributions accumulate for the life of the challenge. An outbid participant keeps their committed position and may regain the lead by adding newly delegated STRK or sacrificing another Control Point.
@@ -65,17 +64,17 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Example:** A controls a point with 1,000 STRK. B challenges with 2,000 STRK. A adds 1,200 STRK, bringing A's cumulative defense to 2,200 and taking the lead. B then needs only `ceil(2,200 × 1.10) - 2,000 = 420` additional STRK because B's original 2,000 remains committed.
 
 #### 3.1.4. Collateral Sacrifice
-*   An Operator may give up one other owned, uncontested Control Point and move that point's entire Capture Power into their active challenge contribution.
+*   An Operator may give up one other owned, uncontested Control Point and move that point's entire Capture Power into their active challenge contribution, optionally adding a selected amount of Available Power in the same action.
 *   The source point becomes neutral immediately and its image is hidden. Its commitment moves rather than duplicates, so total obligations remain backed by the same Live Delegation.
 *   Assets or future rewards attached to the source Control Point remain with that point and become available to future Controllers. This makes collateral sacrifice a strategic, potentially costly choice.
 
-#### 3.1.5. Settlement and Forfeiture
+#### 3.1.5. Settlement and Allocation Unlocking
 *   Anyone may settle a challenge after its current deadline. The current Leader becomes the new Controller and their cumulative commitment becomes the target point's Capture Power.
 *   If the Leader has retired or reduced delegation below their obligations before settlement, their position is invalid. The valid incumbent wins by default; if the incumbent is also invalid, the point becomes neutral. Non-leading challengers never inherit the win because the protocol does not maintain a hidden second-place ordering.
-*   The winner's commitment remains productive as a Point Commitment and is not forfeited.
-*   Every losing participant's entire cumulative commitment becomes permanent Forfeited Power for that address. Being outbid does not forfeit immediately; forfeiture occurs only when the challenge settles and that participant loses.
-*   Losing STRK is not transferred or slashed by StakeWars. It remains in the official pool, but no longer contributes to Available Power for that address.
-*   Challenge outcomes may be reconciled lazily on each participant's next action, provided liabilities remain locked and cannot be reused before reconciliation.
+*   The winner's cumulative commitment becomes the target Control Point's new Capture Power.
+*   Every losing Challenge Commitment unlocks after settlement and returns to Available Power. If the incumbent loses, the target point's prior Point Commitment also unlocks.
+*   StakeWars never transfers, escrows, or slashes STRK. Challenge allocations are accounting locks over delegation and may not back another action until settlement is reconciled.
+*   Challenge outcomes may be reconciled lazily on each participant's next action, provided allocations remain locked and cannot be reused before reconciliation.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
 *   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from StakeWars. Its ownership generation is invalidated, its Control Points become neutral, and it may never capture, reinforce, or challenge again.
@@ -93,7 +92,7 @@ Control of a face is the visible reward for taking the High Ground.
 *   **Storage Boundary:** Image bytes and moderation metadata remain off-chain. The Dojo World remains authoritative for who may display an image.
 
 ### 3.3. Initial Product Scope
-The first release intentionally excludes passive territory decay, recurring maintenance actions, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Control Point NFTs. These mechanics may be reconsidered only after observing whether automatic commitment, capture, challenge, forfeiture, image, and reinforcement loops are understandable and fun on Mainnet.
+The first release intentionally excludes passive territory decay, recurring maintenance actions, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Control Point NFTs. These mechanics may be reconsidered only after observing whether allocation, capture, challenge, settlement, image, and reinforcement loops are understandable and fun on Mainnet.
 
 ---
 
@@ -112,13 +111,13 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **States:**
     *   **Empty Control Point:** Wireframe outline.
     *   **Occupied Control Point:** Solid fill (White) or displays the Operator's custom image.
-    *   **Selected Control Point:** Highlights and displays the Controller, Capture Power, challenge status, current Leader, challenge deadline, next minimum lead, and the connected Operator's Live Delegation, commitments, Forfeited Power, and Available Power.
+    *   **Selected Control Point:** Highlights and displays the Controller, Capture Power, challenge status, current Leader, challenge deadline, next minimum lead, and the connected Operator's Live Delegation, commitments, and Available Power.
     *   **Control Tenure Relief:** In Control mode, every occupied Control Point is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Control Point panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
 *   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED CONTROL POINT 402 [10,000 STRK]`
-*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Start Challenge, Join/Raise, Collateral Sacrifice, Settle, and Retire transactions. The UI always previews the automatically committed amount and never asks the player to allocate arbitrary power.
+*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Start Challenge, Join/Raise, Collateral Sacrifice, Settle, and Retire transactions. Capture, reinforcement, and challenge actions ask for a STRK allocation, show Available Power, and preview any additional delegation needed before submission.
 
 ### 4.4. Operator Image Uploads
 *   **Control Requirement:** Only the wallet currently controlling a Control Point may assign or replace its image. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
@@ -137,7 +136,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 *   **Models:**
     *   `GameConfig`: Official STRK delegation pool address, minimum stake, 10% challenge premium, 12-hour challenge period, Control Point limit, and pause state.
-    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, active Challenge Commitment, permanent Forfeited Power, controlled-point count, active challenge ID, and retirement state.
+    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, active Challenge Commitment, controlled-point count, active challenge ID, and retirement state.
     *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Power, ownership generation, ownership timestamp, and active challenge ID.
     *   `Challenge`: Challenge ID, target Control Point, incumbent, current Leader and commitment, deadline, participant count, and settlement result.
     *   `ChallengeParticipant`: Challenge ID, Operator, cumulative commitment, the portion already represented by the target Point Commitment, and resolution state.
@@ -145,7 +144,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 *   **Staking Adapter:** Uses the official delegation pool's read-only `get_pool_member_info_v1` interface and treats its `amount`, `unpool_amount`, and `unpool_time` fields as authoritative delegation and exit state.
 *   **Admin System:** Provides narrowly scoped pause and configuration operations protected by Dojo World ownership. Production ownership should be held by a multisig.
 *   **Permissions:** Systems receive writer permission only for the specific models they modify. Reads are permissionless.
-*   **Events:** Capture, Reinforcement, Release, Challenge Started, Leadership Changed, Collateral Sacrificed, Challenge Settled, Forfeiture, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
+*   **Events:** Capture, Reinforcement, Release, Challenge Started, Leadership Changed, Collateral Sacrificed, Challenge Settled, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
 *   **Custody Boundary:** The Dojo World never holds or transfers staking assets.
 
 ### 5.2. Backend API (Fly.io)
@@ -214,10 +213,10 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 ## 6. User Stories
 
-1.  **As an Operator:** I want the game to derive Available Power from my real delegation and obligations so I never manage a separate allocation balance.
+1.  **As an Operator:** I want to choose how much of my real delegated STRK to allocate while the game derives Available Power automatically, so I can spread risk without managing a separate currency.
 2.  **As a Challenger:** I want to see the exact additional delegation or collateral required to take the lead and when the challenge can settle.
 3.  **As a Controller:** I want to upload an image to the face I control so my victory is visible on the Core.
-4.  **As a Challenge Participant:** I want prior contributions to count toward my next qualifying raise and to understand that my full commitment is forfeited only if I lose at settlement.
+4.  **As a Challenge Participant:** I want prior contributions to count toward my next qualifying raise and losing allocations to unlock after settlement.
 5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Control Point.
 6.  **As a Strategist:** I want to sacrifice another Control Point as collateral without duplicating its backing, accepting that its assets become contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
@@ -226,9 +225,9 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 ## 7. Roadmap / Phasing
 
-*   **Phase 1: The Mainnet Core MVP**
+*   **Phase 1: Delegation-Backed Allocation**
     *   Basic 3D Sphere.
-    *   Dojo World with automatic commitment accounting, 12-hour multi-party challenges, additive 10% High Ground raises, collateral sacrifice, winner-takes-all forfeiture, permanent retirement, and synchronization logic.
+    *   Dojo World with explicit delegation-backed allocation, 12-hour multi-party challenges, additive 10% High Ground raises, collateral sacrifice, allocation unlocking at settlement, permanent retirement, and synchronization logic.
     *   Mainnet integration with the StakeWars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
@@ -237,12 +236,15 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
-*   **Phase 2: The Command Expansion**
+*   **Phase 2: Sealed Vickrey Challenges**
+    *   Replace the public additive challenge bidding flow with private maximum bids and Vickrey-style settlement, after its encryption, forced-opening, payment, and failure assumptions are specified and tested independently.
+    *   Preserve explicit delegation-backed allocation and prevent bid commitments from backing another action while a sealed challenge is active.
+*   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.
     *   Live capture ticker, searchable gallery, and Operator profiles.
     *   Image moderation, reporting, replacement, and cleanup workflows.
     *   Recurring recovery drills, operational dashboards, and product analytics based on observed Mainnet usage.
-*   **Phase 3: The Mesh Expansion**
+*   **Phase 4: The Mesh Expansion**
     *   Migrate SQLite to managed PostgreSQL before enabling multiple active API Machines or multi-region writes.
     *   Horizontally scale the Fly API when measured traffic and reliability requirements justify it.
     *   Introduction of "Mesh Synergy" (Adjacency bonuses).

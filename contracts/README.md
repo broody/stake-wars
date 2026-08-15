@@ -3,7 +3,7 @@
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each player's live delegation and unpooling state from the official
 StakeWars delegation pool. Game power is derived as live delegation minus point
-commitments, active-challenge commitments, and permanent forfeited power.
+commitments and active-challenge commitments.
 
 ## Local commands
 
@@ -33,29 +33,33 @@ while security-sensitive clients confirm effective control on-chain.
 Permissionless reconciliation may call `sync_operator` or batch up to 50
 addresses with `sync_operators`.
 
-Every `capture`, `reinforce`, or `challenge` contribution automatically commits
-all power currently available to the caller. There are no user-selected
-allocation amounts and no batch capture/reinforcement entrypoints: once an
-action commits the available balance, it cannot back another point.
+Every `capture`, `reinforce`, or `challenge` call includes a user-selected STRK
+amount. The Control System accepts it only when the amount remains backed by the
+caller's derived Available Power. This lets an Operator spread delegation across
+positions without creating an editable reserve or allowing the same delegation
+to back more than one commitment.
 
 An occupied point is contested through `challenge` or
 `challenge_with_collateral`. A qualifying participant must reach the configured
 premium over the current leader's cumulative commitment. Leadership changes
 reset the configured challenge period. The current leader cannot self-raise.
 After the deadline, `settle_challenge` transfers the point to the leader and
-turns every losing commitment into permanent forfeited power. Non-incumbent
-losers are reconciled lazily on their next action or operator sync, but their
-commitments stay locked until then.
+unlocks every losing allocation. Non-incumbent losers are reconciled lazily on
+their next action or operator sync, but their commitments stay locked until
+then.
 
 Collateral is a move, not duplicated backing:
-`challenge_with_collateral(target, source)` neutralizes an uncontested source
-point and adds its complete Capture Power to the same challenge transaction.
+`challenge_with_collateral(target, source, additional_contribution)` neutralizes
+an uncontested source point, adds its complete Capture Power to the challenge,
+and optionally adds the selected amount of otherwise Available Power.
 
 `retire` (and the compatibility alias `relinquish_all`) permanently retires an
 address. It advances the ownership generation, invalidates all holdings, and
 prevents that address from playing again. An unpool intent made directly through
 the official pool is detected by game actions and operator synchronization and
-causes the same permanent retirement.
+causes the same permanent retirement. Any live-delegation reduction below the
+address's recorded Point and Challenge Commitments also permanently retires the
+address rather than creating a reusable backing gap.
 
 Before any production migration, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
