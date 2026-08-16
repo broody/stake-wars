@@ -91,7 +91,7 @@ export function ControlPointLegend() {
         />
         <LegendRow
           color={CONTROL_POINT_COLORS.opponent}
-          label="OTHER OPERATORS"
+          label="OTHERS"
           value={uncontestedOpponentCount}
         />
         {contestedControlPointIds.length > 0 ? (

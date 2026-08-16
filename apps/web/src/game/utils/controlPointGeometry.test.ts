@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   CONTROL_POINT_COUNT,
+  adjacentControlPointIds,
+  createControlPointBoundaryGeometry,
   createControlPointGeometry,
   createControlPointSetGeometry,
   createExtrudedControlPointGeometries,
@@ -47,6 +49,19 @@ describe('canonical Control Point geometry', () => {
     const geometry = createControlPointSetGeometry([3, 21, 987]);
 
     expect(geometry.getAttribute('position').count / 3).toBe(3);
+  });
+
+  it('keeps only the exterior boundary of adjacent Control Points', () => {
+    const controlPointId = 0;
+    const adjacentControlPointId = adjacentControlPointIds(controlPointId)[0];
+    const singleBoundary = createControlPointBoundaryGeometry([controlPointId]);
+    const combinedBoundary = createControlPointBoundaryGeometry([
+      controlPointId,
+      adjacentControlPointId,
+    ]);
+
+    expect(singleBoundary.getAttribute('position').count).toBe(6);
+    expect(combinedBoundary.getAttribute('position').count).toBe(8);
   });
 
   it('raises each Control Point to its configured absolute height', () => {

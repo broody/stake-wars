@@ -215,6 +215,64 @@ export function createControlPointSetGeometry(
   return geometry;
 }
 
+export function createControlPointBoundaryGeometry(
+  controlPointIds: number[],
+  heights?: ReadonlyMap<number, number>,
+  radius = CORE_RADIUS
+): THREE.BufferGeometry {
+  const boundaryEdges = new Map<string, number[]>();
+
+  [...new Set(controlPointIds)].forEach((controlPointId) => {
+    const { base, top } = raisedTrianglePositions(
+      controlPointId,
+      heights?.get(controlPointId) ?? 0,
+      radius
+    );
+
+    for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
+      const nextVertex = (vertex + 1) % VERTICES_PER_CONTROL_POINT;
+      const baseEdge = [
+        ...base.slice(
+          vertex * VALUES_PER_VERTEX,
+          (vertex + 1) * VALUES_PER_VERTEX
+        ),
+        ...base.slice(
+          nextVertex * VALUES_PER_VERTEX,
+          (nextVertex + 1) * VALUES_PER_VERTEX
+        ),
+      ];
+      const key = edgeKey(baseEdge);
+
+      if (boundaryEdges.has(key)) {
+        boundaryEdges.delete(key);
+        continue;
+      }
+
+      boundaryEdges.set(key, [
+        ...top.slice(
+          vertex * VALUES_PER_VERTEX,
+          (vertex + 1) * VALUES_PER_VERTEX
+        ),
+        ...top.slice(
+          nextVertex * VALUES_PER_VERTEX,
+          (nextVertex + 1) * VALUES_PER_VERTEX
+        ),
+      ]);
+    }
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(
+      [...boundaryEdges.values()].flat(),
+      VALUES_PER_VERTEX
+    )
+  );
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 function raisedTrianglePositions(
   controlPointId: number,
   height: number,

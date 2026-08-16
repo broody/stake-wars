@@ -44,7 +44,6 @@ type Action = 'capture' | 'reinforce' | 'bid' | 'settle';
 
 interface StakingContext {
   member: PoolMemberInfo | null;
-  walletBalance: bigint;
 }
 
 const MAX_U128 = (1n << 128n) - 1n;
@@ -66,6 +65,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [staking, setStaking] = useState<StakingContext | null>(null);
+  const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
   const [allocation, setAllocation] = useState('');
   const [collateralId, setCollateralId] = useState('');
   const [challenge, setChallenge] = useState<ChallengeStatus | null>(null);
@@ -189,18 +189,37 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
 
   useEffect(() => {
     const controller = new AbortController();
+    if (!address) {
+      setWalletBalance(null);
+      return () => controller.abort();
+    }
+    setWalletBalance(null);
+    getStrkBalance(address, controller.signal)
+      .then(setWalletBalance)
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Unable to read wallet STRK balance.'
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [address]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     if (!address || deficit === 0n || action === 'settle') {
       setStaking(null);
       return () => controller.abort();
     }
+    setStaking(null);
     Promise.all([
       getStakingPoolInfo(controller.signal),
       getPoolMemberInfo(address, controller.signal),
-      getStrkBalance(address, controller.signal),
     ])
-      .then(([, member, walletBalance]) =>
-        setStaking({ member, walletBalance })
-      )
+      .then(([, member]) => setStaking({ member }))
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(
@@ -223,9 +242,9 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     if (challenged && challengeLoading) return 'READING OPEN CONTEST';
     if (action === 'bid' && currentLeader) return 'YOU ARE CURRENTLY LEADING';
     if (parsedAllocation.error) return 'ENTER A VALID STRK AMOUNT';
-    if (deficit > 0n && !staking) return 'READING WALLET STRK';
-    if (deficit > (staking?.walletBalance ?? 0n))
-      return 'INSUFFICIENT WALLET STRK';
+    if (deficit > 0n && (!staking || walletBalance === null))
+      return 'READING WALLET STRK';
+    if (deficit > (walletBalance ?? 0n)) return 'INSUFFICIENT WALLET STRK';
     return null;
   }, [
     action,
@@ -240,6 +259,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     parsedAllocation.error,
     point,
     staking,
+    walletBalance,
   ]);
 
   const primaryDisabledReason = useMemo(() => {
@@ -558,10 +578,20 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               </div>
             )}
             {(action === 'capture' || action === 'bid') && (
-              <div className="flex justify-between gap-4">
-                <span>MINIMUM</span>
-                <span>{formatStrk(requiredPower, 18)} STRK</span>
-              </div>
+              <>
+                <div className="flex justify-between gap-4">
+                  <span>MINIMUM</span>
+                  <span>{formatStrk(requiredPower, 18)} STRK</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span>BALANCE</span>
+                  <span>
+                    {walletBalance === null
+                      ? '…'
+                      : `${formatStrk(walletBalance, 6)} STRK`}
+                  </span>
+                </div>
+              </>
             )}
             {action === 'bid' && personalBid > 0n && (
               <div className="flex justify-between gap-4">

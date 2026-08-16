@@ -27,8 +27,24 @@ function OperatorMetric({ label, value, highlight }: OperatorMetricProps) {
 export function OperatorStatusPanel() {
   const { address } = useWallet();
   const { summary, isLoading: isYieldLoading, openStaking } = useYield();
-  const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
-    useControlPoints();
+  const {
+    operatorStatus,
+    ownedControlPointIds,
+    contestedControlPointIds,
+    isOperatorLoading,
+    operatorError,
+    refreshOperator,
+  } = useControlPoints();
+  const contestedControlPointIdSet = new Set(contestedControlPointIds);
+  const defendedControlPointCount = ownedControlPointIds.filter(
+    (controlPointId) => contestedControlPointIdSet.has(controlPointId)
+  ).length;
+  const uncontestedControlPointCount = operatorStatus
+    ? Math.max(
+        0,
+        operatorStatus.controlledPointCount - defendedControlPointCount
+      )
+    : 0;
 
   return (
     <aside className="pointer-events-auto absolute left-4 top-20 font-mono text-[11px] tracking-wider text-fg">
@@ -57,27 +73,24 @@ export function OperatorStatusPanel() {
           aria-label="Open staking position"
         >
           <OperatorMetric
-            label="STAKED"
+            label="TOTAL STAKED"
             value={operatorStatus.liveDelegatedAmount}
             highlight
           />
-          <OperatorMetric label="GARRISONS" value={operatorStatus.pointPower} />
-          <OperatorMetric
-            label="ACTIVE BID LOCKS"
-            value={operatorStatus.challengePower}
-          />
-          <OperatorMetric label="SPENT" value={operatorStatus.spentPower} />
           <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
-            <span>OPEN POSITIONS</span>
+            <span>CONTROL POINTS</span>
             <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
-              {operatorStatus.activeChallengeCount}
+              {uncontestedControlPointCount}
             </span>
           </div>
-          <OperatorMetric
-            label="READY"
-            value={operatorStatus.availablePower}
-            highlight
-          />
+          {operatorStatus.activeChallengeCount > 0 && (
+            <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
+              <span>CONTESTED</span>
+              <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
+                {operatorStatus.activeChallengeCount}
+              </span>
+            </div>
+          )}
           {operatorStatus.retired && (
             <div className="pt-2 text-amber-400">
               ADDRESS PERMANENTLY RETIRED

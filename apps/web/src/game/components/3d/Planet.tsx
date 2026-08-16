@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import {
   CORE_RADIUS,
+  createControlPointBoundaryGeometry,
   createControlPointGeometry,
   createControlPointSetGeometry,
   createExtrudedControlPointGeometries,
@@ -33,9 +37,10 @@ const STRIPE_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform float uBaseOpacity;
   uniform float uStripeOpacity;
+  uniform vec2 uStripeDirection;
 
   void main() {
-    vec2 stripeDirection = normalize(vec2(1.0, 1.0));
+    vec2 stripeDirection = normalize(uStripeDirection);
     float stripePhase = dot(gl_FragCoord.xy, stripeDirection) * 0.28 - uTime * 7.0;
     float pulse = 0.12 * sin(uTime * 3.2);
     float stripe = smoothstep(-0.2 + pulse, 0.35 + pulse, sin(stripePhase));
@@ -119,6 +124,74 @@ function PopulatedControlPointLayer({
   );
 }
 
+interface ThickControlPointBorderLayerProps {
+  controlPointIds: number[];
+  color: THREE.ColorRepresentation;
+  scale: number;
+  heights?: ReadonlyMap<number, number>;
+}
+
+function ThickControlPointBorderLayer({
+  controlPointIds,
+  ...props
+}: ThickControlPointBorderLayerProps) {
+  if (controlPointIds.length === 0) {
+    return null;
+  }
+
+  return (
+    <PopulatedThickControlPointBorderLayer
+      controlPointIds={controlPointIds}
+      {...props}
+    />
+  );
+}
+
+function PopulatedThickControlPointBorderLayer({
+  controlPointIds,
+  color,
+  scale,
+  heights,
+}: ThickControlPointBorderLayerProps) {
+  const boundaryGeometry = useMemo(
+    () => createControlPointBoundaryGeometry(controlPointIds, heights),
+    [controlPointIds, heights]
+  );
+  const lineGeometry = useMemo(
+    () =>
+      new LineSegmentsGeometry().setPositions(
+        boundaryGeometry.getAttribute('position').array as Float32Array
+      ),
+    [boundaryGeometry]
+  );
+  const material = useMemo(
+    () =>
+      new LineMaterial({
+        color,
+        linewidth: 3,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+      }),
+    [color]
+  );
+  const border = useMemo(
+    () => new LineSegments2(lineGeometry, material),
+    [lineGeometry, material]
+  );
+
+  useEffect(
+    () => () => {
+      boundaryGeometry.dispose();
+      lineGeometry.dispose();
+      material.dispose();
+    },
+    [boundaryGeometry, lineGeometry, material]
+  );
+
+  return <primitive object={border} scale={scale} raycast={() => undefined} />;
+}
+
 interface ControlPointGridLayerProps {
   controlPointIds: number[];
   color: THREE.ColorRepresentation;
@@ -193,6 +266,7 @@ function AnimatedStripeControlPointLayer({
   color,
   baseOpacity,
   stripeOpacity,
+  stripeAngleDegrees,
   scale,
 }: {
   controlPointIds: number[];
@@ -200,6 +274,7 @@ function AnimatedStripeControlPointLayer({
   color: THREE.ColorRepresentation;
   baseOpacity: number;
   stripeOpacity: number;
+  stripeAngleDegrees: number;
   scale: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -210,14 +285,21 @@ function AnimatedStripeControlPointLayer({
         : createControlPointSetGeometry(controlPointIds),
     [controlPointIds, heights]
   );
+  const stripeAngleRadians = THREE.MathUtils.degToRad(stripeAngleDegrees);
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
       uColor: { value: new THREE.Color(color) },
       uBaseOpacity: { value: baseOpacity },
       uStripeOpacity: { value: stripeOpacity },
+      uStripeDirection: {
+        value: new THREE.Vector2(
+          Math.cos(stripeAngleRadians),
+          Math.sin(stripeAngleRadians)
+        ),
+      },
     }),
-    [baseOpacity, color, stripeOpacity]
+    [baseOpacity, color, stripeAngleRadians, stripeOpacity]
   );
   const prefersReducedMotion = useMemo(
     () =>
@@ -386,6 +468,14 @@ export function Planet({
     () => new Set(ownedControlPointIds),
     [ownedControlPointIds]
   );
+  const opponentControlPointIdSet = useMemo(
+    () => new Set(opponentControlPointIds),
+    [opponentControlPointIds]
+  );
+  const contestedControlPointIdSet = useMemo(
+    () => new Set(contestedControlPointIds),
+    [contestedControlPointIds]
+  );
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
 
   useEffect(() => {
@@ -471,6 +561,55 @@ export function Planet({
         ? projectionControlPointIds
         : selectedControlPointIds,
     [mode, projectionControlPointIds, selectedControlPointIds]
+  );
+  const selectedContestedControlPointIds = useMemo(
+    () =>
+      mode === 'control'
+        ? selectedControlPointIds.filter((controlPointId) =>
+            contestedControlPointIdSet.has(controlPointId)
+          )
+        : [],
+    [contestedControlPointIdSet, mode, selectedControlPointIds]
+  );
+  const standardActiveControlPointIds = useMemo(
+    () =>
+      mode === 'control'
+        ? selectedControlPointIds.filter(
+            (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+          )
+        : projectionControlPointIds,
+    [
+      contestedControlPointIdSet,
+      mode,
+      projectionControlPointIds,
+      selectedControlPointIds,
+    ]
+  );
+  const pendingChallengeControlPointIds = useMemo(
+    () =>
+      selectedControlPointIds.filter(
+        (controlPointId) =>
+          opponentControlPointIdSet.has(controlPointId) &&
+          !contestedControlPointIdSet.has(controlPointId)
+      ),
+    [
+      contestedControlPointIdSet,
+      opponentControlPointIdSet,
+      selectedControlPointIds,
+    ]
+  );
+  const pendingStandardControlPointIds = useMemo(
+    () =>
+      selectedControlPointIds.filter(
+        (controlPointId) =>
+          !opponentControlPointIdSet.has(controlPointId) &&
+          !contestedControlPointIdSet.has(controlPointId)
+      ),
+    [
+      contestedControlPointIdSet,
+      opponentControlPointIdSet,
+      selectedControlPointIds,
+    ]
   );
   const hoveredControlPointIds = useMemo(
     () => (hoveredControlPointId === null ? [] : [hoveredControlPointId]),
@@ -564,7 +703,7 @@ export function Planet({
       )}
 
       <ControlPointLayer
-        controlPointIds={activeControlPointIds}
+        controlPointIds={standardActiveControlPointIds}
         color={
           mode === 'control'
             ? CONTROL_POINT_COLORS.selected
@@ -572,10 +711,17 @@ export function Planet({
         }
         opacity={mode === 'projection' ? 0.62 : 0.2}
         scale={1.01}
-        edges={mode === 'control'}
-        edgeOpacity={1}
         heights={mode === 'control' ? controlPointHeights : undefined}
       />
+
+      {mode === 'control' ? (
+        <ThickControlPointBorderLayer
+          controlPointIds={standardActiveControlPointIds}
+          color={CONTROL_POINT_COLORS.selected}
+          scale={1.014}
+          heights={controlPointHeights}
+        />
+      ) : null}
 
       {mode === 'control' && contestedControlPointIds.length > 0 ? (
         <AnimatedStripeControlPointLayer
@@ -583,18 +729,43 @@ export function Planet({
           heights={controlPointHeights}
           color={CONTROL_POINT_COLORS.contested}
           baseOpacity={0}
-          stripeOpacity={0.9}
+          stripeOpacity={1}
+          stripeAngleDegrees={45}
           scale={1.012}
         />
       ) : null}
 
-      {isControlPointInteractionLocked && selectedControlPointIds.length > 0 ? (
+      {selectedContestedControlPointIds.length > 0 ? (
+        <ThickControlPointBorderLayer
+          controlPointIds={selectedContestedControlPointIds}
+          color={CONTROL_POINT_COLORS.contested}
+          scale={1.018}
+          heights={controlPointHeights}
+        />
+      ) : null}
+
+      {isControlPointInteractionLocked &&
+      pendingStandardControlPointIds.length > 0 ? (
         <AnimatedStripeControlPointLayer
-          controlPointIds={selectedControlPointIds}
+          controlPointIds={pendingStandardControlPointIds}
           heights={controlPointHeights}
           color={CONTROL_POINT_COLORS.transaction}
           baseOpacity={0.08}
           stripeOpacity={0.88}
+          stripeAngleDegrees={315}
+          scale={1.016}
+        />
+      ) : null}
+
+      {isControlPointInteractionLocked &&
+      pendingChallengeControlPointIds.length > 0 ? (
+        <AnimatedStripeControlPointLayer
+          controlPointIds={pendingChallengeControlPointIds}
+          heights={controlPointHeights}
+          color={CONTROL_POINT_COLORS.contested}
+          baseOpacity={0}
+          stripeOpacity={0.5}
+          stripeAngleDegrees={45}
           scale={1.016}
         />
       ) : null}
