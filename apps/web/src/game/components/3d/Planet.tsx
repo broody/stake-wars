@@ -6,6 +6,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useWallet } from '../../contexts/WalletContext';
 import {
   CORE_RADIUS,
   createControlPointBoundaryGeometry,
@@ -445,6 +446,7 @@ interface PlanetProps {
 export function Planet({
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
+  const { isConnected } = useWallet();
   const {
     mode,
     isControlPointInteractionLocked,
@@ -727,7 +729,11 @@ export function Planet({
         <AnimatedStripeControlPointLayer
           controlPointIds={contestedControlPointIds}
           heights={controlPointHeights}
-          color={CONTROL_POINT_COLORS.contested}
+          color={
+            isConnected
+              ? CONTROL_POINT_COLORS.contested
+              : CONTROL_POINT_COLORS.neutralGrid
+          }
           baseOpacity={0}
           stripeOpacity={1}
           stripeAngleDegrees={45}
