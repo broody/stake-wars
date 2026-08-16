@@ -2,11 +2,7 @@ import type { Call } from 'starknet';
 
 interface SmartGameActionCallsOptions {
   controlSystemAddress: string;
-  entrypoint:
-    | 'capture'
-    | 'reinforce'
-    | 'submit_sealed_bid'
-    | 'submit_sealed_bid_with_collateral';
+  entrypoint: 'capture' | 'reinforce' | 'bid' | 'bid_with_sacrifice';
   calldata: string[];
   allocation: bigint;
   availablePower: bigint;
@@ -39,6 +35,13 @@ export function stakeDeficit(
   availablePower: bigint
 ): bigint {
   return allocation > availablePower ? allocation - availablePower : 0n;
+}
+
+export function incrementalBidPower(
+  newTotalBid: bigint,
+  previousTotalBid: bigint
+): bigint {
+  return newTotalBid > previousTotalBid ? newTotalBid - previousTotalBid : 0n;
 }
 
 export function encodeU256(value: bigint): [string, string] {
@@ -150,7 +153,7 @@ function buildStakedGameActionCalls({
 
 export function buildControlCall(
   controlSystemAddress: string,
-  entrypoint: 'release',
+  entrypoint: 'release' | 'settle_challenge' | 'resolve_challenge_position',
   calldata: string[]
 ): Call[] {
   return [{ contractAddress: controlSystemAddress, entrypoint, calldata }];

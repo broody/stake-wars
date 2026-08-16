@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decodeChallengeStatusResult,
   decodeControlPointStatusesResult,
+  decodeOperatorStatusResult,
   decodePoolMemberInfoResult,
   encodeRpcFelt,
 } from './starknet';
@@ -45,6 +47,62 @@ describe('Starknet RPC calldata', () => {
       challengeDeadline: 20_000,
       stale: false,
       needsSync: true,
+    });
+  });
+
+  it('decodes allocation and open-contest status widths', () => {
+    expect(
+      decodeOperatorStatusResult(
+        [
+          '0xabc',
+          '0x3e8',
+          '0x64',
+          '0xc8',
+          '0x12c',
+          '0x190',
+          '0x2',
+          '0x3',
+          '0x4',
+          '0x0',
+          '0x0',
+          '0x1',
+        ],
+        '0xabc'
+      )
+    ).toMatchObject({
+      pointPower: 100n,
+      challengePower: 200n,
+      spentPower: 300n,
+      availablePower: 400n,
+      activeChallengeCount: 4,
+      needsSync: true,
+    });
+
+    expect(
+      decodeChallengeStatusResult([
+        '0x1',
+        '0x2a',
+        '0x111',
+        '0x222',
+        '0x1f4',
+        '0x111',
+        '0x190',
+        '0x4e20',
+        '0x3',
+        '0x4',
+        '0x0',
+        '0x0',
+        '0x0',
+        '0x0',
+      ])
+    ).toMatchObject({
+      controlPointId: 42,
+      leader: '0x222',
+      leadingBid: 500n,
+      lastLosingBid: 400n,
+      bidCount: 3,
+      participantCount: 4,
+      settled: false,
     });
   });
 });

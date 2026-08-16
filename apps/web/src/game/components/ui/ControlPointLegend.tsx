@@ -33,10 +33,18 @@ export function ControlPointLegend() {
     occupiedControlPointIds,
     ownedControlPointIds,
     opponentControlPointIds,
+    contestedControlPointIds,
     isControlPointIndexLoading,
     controlPointIndexError,
     refreshControlPointIndex,
   } = useControlPoints();
+  const contestedControlPointIdSet = new Set(contestedControlPointIds);
+  const uncontestedOwnedCount = ownedControlPointIds.filter(
+    (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+  ).length;
+  const uncontestedOpponentCount = opponentControlPointIds.filter(
+    (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+  ).length;
 
   if (mode !== 'control') return null;
 
@@ -79,13 +87,20 @@ export function ControlPointLegend() {
         <LegendRow
           color={CONTROL_POINT_COLORS.owned}
           label="OWNED BY YOU"
-          value={ownedControlPointIds.length}
+          value={uncontestedOwnedCount}
         />
         <LegendRow
           color={CONTROL_POINT_COLORS.opponent}
           label="OTHER OPERATORS"
-          value={opponentControlPointIds.length}
+          value={uncontestedOpponentCount}
         />
+        {contestedControlPointIds.length > 0 ? (
+          <LegendRow
+            color={CONTROL_POINT_COLORS.contested}
+            label="CONTESTED"
+            value={contestedControlPointIds.length}
+          />
+        ) : null}
         {neutralCount > 0 ? (
           <LegendRow
             color={CONTROL_POINT_COLORS.neutralGrid}

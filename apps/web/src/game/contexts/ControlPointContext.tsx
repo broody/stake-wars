@@ -38,6 +38,7 @@ interface ControlPointContextValue {
   occupiedControlPointIds: number[];
   ownedControlPointIds: number[];
   opponentControlPointIds: number[];
+  contestedControlPointIds: number[];
   controlPointOwnerGroups: number[][];
   controlPointControlledSince: ReadonlyMap<number, number>;
   projectionControlPointIds: number[];
@@ -349,6 +350,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
             capturePower: controlPoint.capturePower,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
+            activeChallengeId: controlPoint.activeChallengeId,
           });
         });
         return next;
@@ -396,6 +398,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
             capturePower: controlPoint.capturePower,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
+            activeChallengeId: controlPoint.activeChallengeId,
           });
         });
         return next;
@@ -544,7 +547,11 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
   const activeControlPoints = useMemo(() => {
     const points = new Map<
       number,
-      { controller: string; controlledSince: number | null }
+      {
+        controller: string;
+        controlledSince: number | null;
+        activeChallengeId: bigint;
+      }
     >();
 
     indexedControlPoints.forEach((controlPoint) => {
@@ -552,6 +559,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
         points.set(controlPoint.id, {
           controller: controlPoint.controller,
           controlledSince: controlPoint.controlledSince,
+          activeChallengeId: controlPoint.activeChallengeId,
         });
       }
     });
@@ -572,6 +580,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
             (indexed && addressesMatch(indexed.controller, status.controller)
               ? indexed.controlledSince
               : null),
+          activeChallengeId: status.activeChallengeId,
         });
       }
     });
@@ -583,12 +592,14 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     occupiedControlPointIds,
     ownedControlPointIds,
     opponentControlPointIds,
+    contestedControlPointIds,
     controlPointOwnerGroups,
     controlPointControlledSince,
   } = useMemo(() => {
     const occupied: number[] = [];
     const owned: number[] = [];
     const opponents: number[] = [];
+    const contested: number[] = [];
     const ownerGroups = new Map<string, number[]>();
     const controlledSince = new Map<number, number>();
 
@@ -605,6 +616,9 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       } else {
         opponents.push(id);
       }
+      if (point.activeChallengeId !== 0n) {
+        contested.push(id);
+      }
       if (point.controlledSince !== null) {
         controlledSince.set(id, point.controlledSince);
       }
@@ -614,11 +628,13 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     occupied.sort(ascending);
     owned.sort(ascending);
     opponents.sort(ascending);
+    contested.sort(ascending);
 
     return {
       occupiedControlPointIds: occupied,
       ownedControlPointIds: owned,
       opponentControlPointIds: opponents,
+      contestedControlPointIds: contested,
       controlPointOwnerGroups: [...ownerGroups.values()].map((ids) =>
         ids.sort(ascending)
       ),
@@ -638,6 +654,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       occupiedControlPointIds,
       ownedControlPointIds,
       opponentControlPointIds,
+      contestedControlPointIds,
       controlPointOwnerGroups,
       controlPointControlledSince,
       projectionControlPointIds,
@@ -673,6 +690,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       occupiedControlPointIds,
       ownedControlPointIds,
       opponentControlPointIds,
+      contestedControlPointIds,
       controlPointOwnerGroups,
       controlPointControlledSince,
       projectionControlPointIds,

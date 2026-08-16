@@ -34,19 +34,18 @@ type ControlPointStatus struct {
 }
 
 type OperatorStatus struct {
-	Operator                    string
-	LiveDelegatedAmount         string
-	PointPower                  string
-	ChallengePower              string
-	AvailablePower              string
-	Generation                  uint64
-	ControlledPointCount        uint32
-	ActiveChallengeID           uint64
-	ActiveChallengeCommitment   string
-	ActiveChallengeBidSubmitted bool
-	Retired                     bool
-	Exiting                     bool
-	NeedsSync                   bool
+	Operator             string
+	LiveDelegatedAmount  string
+	PointPower           string
+	ChallengePower       string
+	SpentPower           string
+	AvailablePower       string
+	Generation           uint64
+	ControlledPointCount uint32
+	ActiveChallengeCount uint32
+	Retired              bool
+	Exiting              bool
+	NeedsSync            bool
 }
 
 type RPCControlReader struct {
@@ -151,7 +150,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 13 {
+	if len(result) != 12 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -171,57 +170,52 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("challenge_power", err)
 	}
-	availablePower, err := parseUintString(result[4], 128)
+	spentPower, err := parseUintString(result[4], 128)
+	if err != nil {
+		return OperatorStatus{}, fieldError("spent_power", err)
+	}
+	availablePower, err := parseUintString(result[5], 128)
 	if err != nil {
 		return OperatorStatus{}, fieldError("available_power", err)
 	}
-	generation, err := parseUint(result[5], 64)
+	generation, err := parseUint(result[6], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	pointCount, err := parseUint(result[6], 32)
+	pointCount, err := parseUint(result[7], 32)
 	if err != nil {
 		return OperatorStatus{}, fieldError("controlled_point_count", err)
 	}
-	activeChallengeID, err := parseUint(result[7], 64)
+	activeChallengeCount, err := parseUint(result[8], 32)
 	if err != nil {
-		return OperatorStatus{}, fieldError("active_challenge_id", err)
+		return OperatorStatus{}, fieldError("active_challenge_count", err)
 	}
-	activeCommitment, err := parseUintString(result[8], 128)
-	if err != nil {
-		return OperatorStatus{}, fieldError("active_challenge_commitment", err)
-	}
-	bidSubmitted, err := parseBool(result[9])
-	if err != nil {
-		return OperatorStatus{}, fieldError("active_challenge_bid_submitted", err)
-	}
-	retired, err := parseBool(result[10])
+	retired, err := parseBool(result[9])
 	if err != nil {
 		return OperatorStatus{}, fieldError("retired", err)
 	}
-	exiting, err := parseBool(result[11])
+	exiting, err := parseBool(result[10])
 	if err != nil {
 		return OperatorStatus{}, fieldError("exiting", err)
 	}
-	needsSync, err := parseBool(result[12])
+	needsSync, err := parseBool(result[11])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
 
 	return OperatorStatus{
-		Operator:                    returnedOperator,
-		LiveDelegatedAmount:         live,
-		PointPower:                  pointPower,
-		ChallengePower:              challengePower,
-		AvailablePower:              availablePower,
-		Generation:                  generation,
-		ControlledPointCount:        uint32(pointCount),
-		ActiveChallengeID:           activeChallengeID,
-		ActiveChallengeCommitment:   activeCommitment,
-		ActiveChallengeBidSubmitted: bidSubmitted,
-		Retired:                     retired,
-		Exiting:                     exiting,
-		NeedsSync:                   needsSync,
+		Operator:             returnedOperator,
+		LiveDelegatedAmount:  live,
+		PointPower:           pointPower,
+		ChallengePower:       challengePower,
+		SpentPower:           spentPower,
+		AvailablePower:       availablePower,
+		Generation:           generation,
+		ControlledPointCount: uint32(pointCount),
+		ActiveChallengeCount: uint32(activeChallengeCount),
+		Retired:              retired,
+		Exiting:              exiting,
+		NeedsSync:            needsSync,
 	}, nil
 }
 

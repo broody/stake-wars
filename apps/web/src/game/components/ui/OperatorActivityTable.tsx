@@ -25,7 +25,7 @@ const eventPresentation: Record<
   },
   loss: {
     marker: '!',
-    label: 'DISPLACED',
+    label: 'LOST BID',
     markerClassName: 'border-amber-500 text-amber-400',
   },
   reinforcement: {
@@ -40,7 +40,7 @@ const eventPresentation: Record<
   },
   challenge: {
     marker: '>',
-    label: 'SEALED BID',
+    label: 'OPEN BID',
     markerClassName: 'border-white text-white',
   },
   settlement: {
@@ -78,11 +78,11 @@ const activityFilterOptions: Array<{
 }> = [
   { value: 'all', label: 'ALL EVENTS' },
   { value: 'capture', label: 'CAPTURED' },
-  { value: 'loss', label: 'DISPLACED' },
+  { value: 'loss', label: 'LOST BID' },
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
-  { value: 'challenge', label: 'SEALED BID' },
+  { value: 'challenge', label: 'OPEN BID' },
   { value: 'settlement', label: 'SETTLED' },
   { value: 'retirement', label: 'RETIRED' },
   { value: 'disqualification', label: 'BACKING FAILURE' },
@@ -98,7 +98,7 @@ function eventDetail(activity: OperatorActivity): string {
     case 'capture':
       return activity.counterparty ? 'TOOK HIGH GROUND' : 'NEUTRAL POINT';
     case 'loss':
-      return 'DEFEATED BY HIGHER POWER';
+      return 'FINAL BID SPENT AT SETTLEMENT';
     case 'reinforcement':
       return activity.secondaryAmount === undefined
         ? 'CAPTURE POWER INCREASED'
@@ -106,7 +106,7 @@ function eventDetail(activity: OperatorActivity): string {
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
     case 'challenge':
-      return 'PUBLIC COLLATERAL LOCKED';
+      return 'PUBLIC LEAD ESTABLISHED';
     case 'settlement':
       return 'CHALLENGE FINALIZED';
     case 'retirement':

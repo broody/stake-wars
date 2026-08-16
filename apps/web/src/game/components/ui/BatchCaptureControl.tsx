@@ -198,8 +198,6 @@ export function BatchCaptureControl({
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
     if (operatorStatus.retired) return 'ADDRESS PERMANENTLY RETIRED';
     if (operatorStatus.needsSync) return 'OPERATOR SYNC REQUIRED';
-    if (operatorStatus.activeChallengeId !== 0n)
-      return 'ACTIVE CHALLENGE MUST SETTLE FIRST';
     if (parsedAllocation.error) return 'ENTER A VALID ALLOCATION';
     if (selectedAllocation === null || selectedAllocation === 0n)
       return 'ENTER ALLOCATION PER POINT';
@@ -289,11 +287,7 @@ export function BatchCaptureControl({
           getControlPointStatuses(requestedPoints.map(({ id }) => id)),
           getOperatorStatus(address),
         ]);
-        if (
-          freshOperator.retired ||
-          freshOperator.needsSync ||
-          freshOperator.activeChallengeId !== 0n
-        ) {
+        if (freshOperator.retired || freshOperator.needsSync) {
           throw new Error('Operator is no longer eligible for batch actions.');
         }
         assertBatchIsActionable(

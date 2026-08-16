@@ -2,10 +2,11 @@
 
 StakeWars is a persistent, non-custodial strategy game built around Starknet
 validator delegation. Operators choose how much of their real delegated STRK to
-allocate to Control Points and 3-hour sealed Vickrey challenges without
-creating a separate power currency. Maximum bids are encrypted, the winner
-commits only the clearing price, and losing or excess collateral unlocks after
-settlement.
+allocate to Control Points and open ascending challenges without creating a
+separate power currency. Bids are public and each higher bid restarts the full
+response window. Returning bidders lock only the increase over their own prior
+bid; final losing bids become permanently spent game power while the underlying
+STRK remains delegated to the validator.
 This repository contains the web application, game API, and Dojo contracts.
 
 ## Repository layout
@@ -70,13 +71,12 @@ To run the frontend against the shared Sepolia deployment instead, use:
 pnpm dev:web:sepolia
 ```
 
-The World is initialized with a minimum capture power, a 10% challenge premium,
-a 10,800-second challenge period, and 2,000 Control Points. The game admin may
-change the challenge period for newly opened auctions through the on-chain rules
-configuration. The Sepolia profile
-uses the breaking-change seed `stakewars-sepolia-vickrey-v1`; deployed
-addresses in `apps/web/.env.sepolia` are updated only after a successful
-migration proves the new addresses.
+The World is initialized with a minimum capture power, a 10,800-second response
+window, and 2,000 Control Points. The game admin may change the response window
+through the on-chain rules configuration. Every accepted higher bid uses the
+then-current window, with no absolute contest-duration cap. Deployed addresses
+in `apps/web/.env.sepolia` are updated only after a successful deployment proves
+the new addresses.
 
 The API's runtime variables and authentication endpoints are documented in
 [`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and

@@ -33,6 +33,7 @@ describe('Torii Control Point parsing', () => {
                   capture_power: '0x2386f26fc10000',
                   ownership_generation: '0x2',
                   controlled_since: '0x64',
+                  active_challenge_id: '0x7',
                 },
               },
               {
@@ -42,6 +43,7 @@ describe('Torii Control Point parsing', () => {
                   controller_generation: '0x3',
                   capture_power: '0x1',
                   ownership_generation: '0x1',
+                  active_challenge_id: '0x0',
                 },
               },
             ],
@@ -56,6 +58,7 @@ describe('Torii Control Point parsing', () => {
         capturePower: 1n,
         ownershipGeneration: 1n,
         controlledSince: null,
+        activeChallengeId: 0n,
       },
       {
         id: 1275,
@@ -64,6 +67,7 @@ describe('Torii Control Point parsing', () => {
         capturePower: 10_000_000_000_000_000n,
         ownershipGeneration: 2n,
         controlledSince: 100,
+        activeChallengeId: 7n,
       },
     ]);
   });
@@ -87,6 +91,7 @@ describe('Torii Control Point parsing', () => {
                   controller_generation: '0x1',
                   capture_power: '0x1',
                   ownership_generation: '0x1',
+                  active_challenge_id: '0x0',
                 },
               },
             ],
@@ -107,6 +112,7 @@ describe('Torii Control Point parsing', () => {
             capturePower: 10n,
             ownershipGeneration: 1n,
             controlledSince: null,
+            activeChallengeId: 0n,
           },
           {
             id: 2,
@@ -115,6 +121,7 @@ describe('Torii Control Point parsing', () => {
             capturePower: 20n,
             ownershipGeneration: 1n,
             controlledSince: null,
+            activeChallengeId: 0n,
           },
           {
             id: 3,
@@ -123,6 +130,7 @@ describe('Torii Control Point parsing', () => {
             capturePower: 0n,
             ownershipGeneration: 1n,
             controlledSince: null,
+            activeChallengeId: 0n,
           },
         ],
         [{ operator: '0xabc', generation: 4n }]
@@ -166,10 +174,8 @@ describe('Torii Operator activity parsing', () => {
               node: {
                 control_point_id: 42,
                 challenge_id: 1,
-                incumbent: '0xabc',
-                challenger: '0xdef',
-                challenger_locked_power: '0x27147114878000',
-                deadline: '1000',
+                operator: '0xabc',
+                lost_power: '0x27147114878000',
               },
             },
           ],
@@ -190,7 +196,7 @@ describe('Torii Operator activity parsing', () => {
     });
 
     expect(activity.map(({ type }) => type)).toEqual([
-      'challenge',
+      'loss',
       'reinforcement',
       'capture',
     ]);
@@ -199,7 +205,6 @@ describe('Torii Operator activity parsing', () => {
       transactionHash: '0xloss',
       controlPointId: 42,
       amount: 11_000_000_000_000_000n,
-      counterparty: '0xabc',
     });
     expect(activity[1]).toMatchObject({
       amount: 75n,

@@ -79,16 +79,28 @@ const policies: SessionPolicies = {
                 'Add selected delegated power to an owned Control Point.',
             },
             {
-              name: 'Submit Sealed Bid',
-              entrypoint: 'submit_sealed_bid',
+              name: 'Place Open Bid',
+              entrypoint: 'bid',
               description:
-                'Lock available delegated power behind an encrypted maximum bid.',
+                'Place a visible STRK-backed bid on a contested Control Point.',
             },
             {
-              name: 'Submit Sealed Bid with Collateral',
-              entrypoint: 'submit_sealed_bid_with_collateral',
+              name: 'Sacrifice Control Point and Bid',
+              entrypoint: 'bid_with_sacrifice',
               description:
-                'Sacrifice an owned Control Point into sealed bid collateral.',
+                'Release an owned Control Point and use the freed garrison in an open bid.',
+            },
+            {
+              name: 'Settle Open Contest',
+              entrypoint: 'settle_challenge',
+              description:
+                'Finalize a contest after its response window expires.',
+            },
+            {
+              name: 'Resolve Challenge Position',
+              entrypoint: 'resolve_challenge_position',
+              description:
+                'Finalize a losing bid position after its contest settles.',
             },
             {
               name: 'Release Control Point',

@@ -19,6 +19,7 @@ const CONTROL_POINTS_QUERY = `
           capture_power
           ownership_generation
           controlled_since
+          active_challenge_id
         }
       }
     }
@@ -57,33 +58,31 @@ const OPERATOR_ACTIVITY_QUERY = `
         }
       }
     }
-    losses: stakewarsChallengeStartedModels(
+    losses: stakewarsChallengePositionResolvedModels(
       first: 1000
-      where: { challenger: $operator }
+      where: { operator: $operator }
     ) {
       edges {
         cursor
         node {
           challenge_id
           control_point_id
-          incumbent
-          challenger
-          challenger_locked_power
-          deadline
+          operator
+          lost_power
         }
       }
     }
-    leadership: stakewarsSealedBidSubmittedModels(
+    leadership: stakewarsBidPlacedModels(
       first: 1000
       where: { bidder: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id bidder locked_power } }
+      edges { cursor node { challenge_id control_point_id bidder bid added_power previous_leader previous_leading_bid deadline } }
     }
     settlements: stakewarsChallengeSettledModels(
       first: 1000
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner runner_up_bid clearing_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner loser winning_power losing_power ownership_generation } }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
       first: 1000
@@ -176,20 +175,20 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       edges { cursor node { control_point_id controller capture_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
-    losses: stakewarsChallengeStartedModels(
+    losses: stakewarsChallengePositionResolvedModels(
       first: $lossesFirst
       after: $lossesAfter
-      where: { challenger: $operator }
+      where: { operator: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger challenger_locked_power deadline } }
+      edges { cursor node { challenge_id control_point_id operator lost_power } }
       pageInfo { hasNextPage endCursor }
     }
-    leadership: stakewarsSealedBidSubmittedModels(
+    leadership: stakewarsBidPlacedModels(
       first: $leadershipFirst
       after: $leadershipAfter
       where: { bidder: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id bidder locked_power } }
+      edges { cursor node { challenge_id control_point_id bidder bid added_power previous_leader previous_leading_bid deadline } }
       pageInfo { hasNextPage endCursor }
     }
     settlements: stakewarsChallengeSettledModels(
@@ -197,7 +196,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $settlementsAfter
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner runner_up_bid clearing_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner loser winning_power losing_power ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
@@ -284,6 +283,7 @@ interface ToriiControlPointNode {
   capture_power: string;
   ownership_generation: string;
   controlled_since?: string | null;
+  active_challenge_id: string;
 }
 
 interface ToriiOperatorGenerationResponse {
@@ -348,36 +348,39 @@ interface RelinquishmentEventNode {
   released_point_count: number | string;
 }
 
-interface ChallengeStartedEventNode {
-  challenge_id: number | string;
-  control_point_id: number | string;
-  incumbent: string;
-  challenger: string;
-  challenger_locked_power: string;
-  deadline: string;
-}
-
-interface LeadershipEventNode {
+interface BidEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
   bidder: string;
-  locked_power: string;
+  bid: string;
+  added_power: string;
+  previous_leader: string;
+  previous_leading_bid: string;
+  deadline: string;
+}
+
+interface ChallengePositionResolvedEventNode {
+  challenge_id: number | string;
+  control_point_id: number | string;
+  operator: string;
+  lost_power: string;
 }
 
 interface SettlementEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
   winner: string;
-  runner_up_bid: string;
-  clearing_power: string;
+  loser: string;
+  winning_power: string;
+  losing_power: string;
   ownership_generation: string;
 }
 
 interface ToriiOperatorActivityResponse {
   data?: {
     captures?: ToriiConnection<CaptureEventNode>;
-    losses?: ToriiConnection<ChallengeStartedEventNode>;
-    leadership?: ToriiConnection<LeadershipEventNode>;
+    losses?: ToriiConnection<ChallengePositionResolvedEventNode>;
+    leadership?: ToriiConnection<BidEventNode>;
     settlements?: ToriiConnection<SettlementEventNode>;
     reinforcements?: ToriiConnection<ReinforcementEventNode>;
     releases?: ToriiConnection<ReleaseEventNode>;
@@ -542,10 +545,9 @@ export function parseOperatorActivity(
     append(
       activityFromEdge(edge, (position, node) => ({
         ...position,
-        type: 'challenge',
+        type: 'loss',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.challenger_locked_power, 'bid collateral'),
-        counterparty: node.incumbent,
+        amount: parseBigInt(node.lost_power, 'lost bid'),
       }))
     );
   });
@@ -556,7 +558,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'challenge',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.locked_power, 'bid collateral'),
+        amount: parseBigInt(node.bid, 'open bid'),
+        counterparty: node.previous_leader,
       }))
     );
   });
@@ -567,8 +570,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'settlement',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.clearing_power, 'clearing power'),
-        secondaryAmount: parseBigInt(node.runner_up_bid, 'runner-up bid'),
+        amount: parseBigInt(node.winning_power, 'winning power'),
+        secondaryAmount: parseBigInt(node.losing_power, 'last losing bid'),
       }))
     );
   });
@@ -918,7 +921,7 @@ async function getOperatorControlActivityPage(
       OperatorActivityType
     > = {
       captures: 'capture',
-      losses: 'challenge',
+      losses: 'loss',
       leadership: 'challenge',
       settlements: 'settlement',
       reinforcements: 'reinforcement',
@@ -1005,7 +1008,7 @@ async function getOperatorControlActivityPage(
         ? nextActivityCursor(data.losses, 'loss activity')
         : null,
       leadership: active('leadership')
-        ? nextActivityCursor(data.leadership, 'sealed bid activity')
+        ? nextActivityCursor(data.leadership, 'open bid activity')
         : null,
       settlements: active('settlements')
         ? nextActivityCursor(data.settlements, 'settlement activity')
@@ -1214,6 +1217,10 @@ export function parseIndexedControlPoints(
       controlledSince: parseUnixTimestamp(
         node.controlled_since,
         'control start time'
+      ),
+      activeChallengeId: parseBigInt(
+        node.active_challenge_id,
+        'active challenge ID'
       ),
     });
   });

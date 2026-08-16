@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD): StakeWars.gg
 
-**Version:** 1.8
+**Version:** 2.0
 **Status:** Draft
 **Platform:** Starknet (L2)
 **Aesthetic:** Command Terminal / Retro-Futurist
@@ -13,7 +13,7 @@
 
 Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Operators explicitly allocate portions of that real delegation to Control Points and challenges without creating a separate power currency. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by choosing how much Available Power to commit. Taking an occupied point starts a fixed 3-hour sealed Vickrey challenge. Operators submit encrypted maximum bids while the game contract locks their currently Available Power as public bid collateral. After bidding closes, the configured settlement authority decrypts the bids, the highest valid maximum wins, and the winner commits only the Vickrey clearing price while all losing and excess collateral unlocks. The current controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point starts an open ascending contest: every bid is public, must exceed the current lead, and restarts a configurable response window initially set to 3 hours. Each Operator maintains one cumulative bid and locks only the increment when raising it. Outbidding changes leadership without spending either position; when the contest expires, the winner's bid becomes the new garrison and every losing Operator's highest bid becomes Spent Power. Any eligible Operator may participate, there is no absolute contest-duration cap, and settlement is permissionless once a full response window passes without a higher bid. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -23,17 +23,16 @@ An Operator captures a neutral Control Point by choosing how much Available Powe
 *   **Control Point:** A single triangular face on the Core. In the initial release it is a Dojo-native game territory, not a freely transferable NFT.
 *   **Operator:** The user/player.
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
-*   **Committed Power:** The portion of Live Delegation an Operator has explicitly bound to owned Control Points or an active challenge. It cannot simultaneously back another action.
-*   **Available Power:** `max(0, Live Delegation - Point Commitments - Challenge Commitments)`. It is a derived limit, not a separate balance or token. Operators choose how much of it to commit to each action.
+*   **Committed Power:** Internal allocation accounting for the portion of Live Delegation bound to Control Point garrisons or active cumulative bid positions. It cannot simultaneously back another action.
+*   **Spent Power:** Staked STRK represented by a final losing Control Point defense or bid and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
+*   **Ready STRK:** `max(0, Live Delegation - Point Commitments - Active Bid Locks - Spent Power)`. This is derived contract accounting, not a token or user-managed currency. The UI may expose it contextually as the maximum currently usable STRK.
 *   **Capture Power:** The Committed Power recorded on a Control Point.
 *   **Controller:** The Operator currently holding a Control Point.
-*   **Challenge:** A sealed contest for an occupied Control Point. The initial duration is 3 hours and is configurable by the game admin.
-*   **Sealed Bid:** An encrypted maximum bid stored off-chain and bound to an on-chain commitment. The maximum is not published during bidding.
-*   **Bid Collateral:** The public delegation-backed ceiling locked on-chain for a sealed bid. The first implementation locks all Available Power, plus the target point's Capture Power for the incumbent and any sacrificed collateral point.
-*   **Reserve Price:** `ceil(Incumbent Capture Power × 11,000 / 10,000)`. A challenger bid below this amount is invalid.
-*   **Clearing Price:** The runner-up maximum bid, floored at the Reserve Price for a challenger win and at existing Capture Power for an incumbent defense.
-*   **Collateral Sacrifice:** Voluntarily giving up another owned Control Point and moving its existing commitment into an active challenge. The sacrificed point becomes neutral; any assets remain attached to it.
-*   **Settlement Authority:** The configured Starknet account or multisig authorized to publish the winner, runner-up bid, and Clearing Price after decrypting the sealed bids.
+*   **Challenge:** An open, ascending contest for an occupied Control Point.
+*   **Leading Bid:** The visible highest bid currently locked against a Challenge.
+*   **Response Window:** The configurable time allowed for another Operator to submit a higher bid. Every valid new leader resets the full window; there is no overall deadline.
+*   **Control Point Sacrifice:** Voluntarily giving up another owned, uncontested Control Point before bidding. The point becomes neutral and its garrison returns to Ready STRK for the same atomic bid transaction; any assets remain attached to the point.
+*   **Arbiter:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Arbiter cannot select winners, alter bids, or bypass contract validation.
 
 ---
 
@@ -45,45 +44,46 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
 *   **Action:** A transaction may first approve STRK and enter or add to the StakeWars validator's official delegation pool, then call a game action from the same Starknet account.
 *   **Authoritative Balance:** Before every power-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
-*   **Allocation Accounting:** The Game Layer records only obligations needed to prevent reuse: aggregate Point Commitments and the active Bid Collateral lock. Available Power is derived from those obligations and Live Delegation; it is not a freely editable reserve or secondary token.
-*   **No Double Backing:** One unit of Live Delegation can support only one Point Commitment or Challenge Commitment at a time. An Operator with 3,000 delegated STRK may allocate 1,000 to one Control Point and retain 2,000 Available Power for other actions, but the same 1,000 cannot back a second point or challenge.
-*   **Explicit Amounts:** Capture and reinforcement calls specify the amount to commit. A sealed bid specifies a private maximum in its encrypted envelope; the contract locks all Available Power as a temporary public ceiling and verifies that the eventual Clearing Price does not exceed it.
+*   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Point Commitments, aggregate active cumulative Bid Locks, and aggregate Spent Power. Ready STRK is derived from those obligations and Live Delegation.
+*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active bid position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Control Point and retain 2,000 Ready STRK, but the same 1,000 cannot back another action.
+*   **Explicit Amounts:** Capture, reinforcement, and bid calls specify visible STRK amounts. A first bid locks its exact total; a returning bid locks only the increase over that Operator's prior total.
 *   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Control Points neutral without iterating over all 2,000 points.
+*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the StakeWars application. Every normal power-sensitive game action performs the same authoritative check independently.
 *   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the configured minimum stake and no more than Available Power. The initial minimum is 100 STRK.
-*   **Reinforcement:** A Controller may allocate a selected positive amount of Available Power to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
-*   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Power returns to Available Power.
-*   **Multiple Positions:** An Operator may spread Live Delegation across multiple Control Points, provided total Point Commitments and Challenge Commitments never exceed Live Delegation.
+*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the configured minimum stake and no more than Ready STRK. The initial minimum is 100 STRK.
+*   **Reinforcement:** A Controller may allocate a selected positive amount of Ready STRK to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
+*   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Power returns to Ready STRK.
+*   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Control Points while sufficient Ready STRK remains.
 
-#### 3.1.3. Sealed Vickrey Challenges
-*   **Starting a Challenge:** An eligible Challenger targets an occupied, uncontested Control Point, enters a private maximum bid, encrypts it to the current auction key, stores the ciphertext with the API, and submits its commitment on-chain. The Challenger must have enough Bid Collateral to cover the 10%-premium Reserve Price.
-*   **Incumbent Position:** The point's existing Capture Power is the incumbent's default bid and remains a Point Commitment. The incumbent may submit one sealed maximum defense during the bidding period; all additional Available Power is then locked as Bid Collateral.
-*   **Open Participation:** Any eligible Operator may submit one sealed bid. One Operator address may participate in only one active challenge at a time, and one Control Point may have only one active challenge.
-*   **Fixed Timer:** The first valid challenger opens one bidding window using the admin-configured duration, initially 3 hours. Later bids do not reveal leadership and do not reset the deadline. Changing the configured duration affects only challenges opened after the change.
-*   **Winner and Ties:** The highest valid maximum wins. The incumbent wins an exact tie; otherwise the earliest on-chain submission wins an exact tie.
-*   **Vickrey Price:** A challenger winner commits `max(Reserve Price, runner-up maximum)`. An incumbent winner commits `max(previous Capture Power, runner-up maximum)`. The winning maximum remains private; the runner-up bid and resulting Clearing Price become public at settlement.
-*   **Example:** A controls a point with 1,000 STRK. B seals a maximum of 2,000 and C seals 1,500. B wins but commits only 1,500. If C had not bid, B would commit the 1,100 Reserve Price.
+#### 3.1.3. Open Ascending Challenges
+*   **Starting a Challenge:** Any eligible non-Controller may bid strictly more than an occupied, uncontested point's Capture Power. The bid amount and bidder are public.
+*   **Opening Risk:** The opening bid places the incumbent's existing garrison and challenger's bid at risk. Neither becomes Spent Power before settlement.
+*   **Open Participation:** Any eligible Operator other than the current leader may submit a strictly higher public total. Each Operator has one cumulative position per Challenge.
+*   **Incremental Raises:** A returning Operator locks only `New Total Bid - Own Previous Bid`. Example: after bidding 500 STRK, raising to 700 STRK requires only 200 additional Ready STRK. Being outbid changes the visible leader but does not spend or unlock the prior position.
+*   **Anti-Sniping Window:** Every valid higher bid resets the full admin-configured response window, initially 3 hours. The current leader cannot bid against itself to extend the clock. There is no absolute duration cap; a contest continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent bid calculates its new response window.
+*   **No Ties:** A bid equal to the current lead is rejected. The first accepted strictly higher bid becomes leader.
+*   **Example:** A has a 500 STRK position and B leads at 600. A may bid 700 by locking 200 additional STRK. B may then bid 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Power.
 
-#### 3.1.4. Collateral Sacrifice
-*   An Operator may give up one other owned, uncontested Control Point and move that point's entire Capture Power into the Bid Collateral for a sealed bid.
-*   The source point becomes neutral immediately and its image is hidden. Its commitment moves rather than duplicates, so total obligations remain backed by the same Live Delegation.
-*   Assets or future rewards attached to the source Control Point remain with that point and become available to future Controllers. This makes collateral sacrifice a strategic, potentially costly choice.
+#### 3.1.4. Control Point Sacrifice
+*   Any bidder may give up one other owned, uncontested Control Point within the same bid transaction.
+*   The source point becomes neutral immediately and its image is hidden. Its garrison returns to Ready STRK before the new bid is checked, so backing moves rather than duplicates.
+*   Assets or future rewards attached to the source Control Point remain with that point and become available to future Controllers. A defender may therefore abandon one front to fund a response on another.
 
-#### 3.1.5. Settlement and Allocation Unlocking
-*   Only the configured Settlement Authority may publish a result after the fixed deadline. The authority decrypts every available envelope, verifies its commitment and public Bid Collateral ceiling, applies the reserve and tie rules, and submits the winner, runner-up bid, and Clearing Price.
-*   The winner's Clearing Price becomes the target Control Point's new Capture Power. Any winning collateral above that price unlocks immediately.
-*   Every losing Bid Collateral lock unlocks after settlement and returns to Available Power. If the incumbent loses, the target point's prior Point Commitment also unlocks.
-*   StakeWars never transfers, escrows, or slashes STRK. Challenge allocations are accounting locks over delegation and may not back another action until settlement is reconciled.
-*   Non-winning participants may reconcile lazily on their next action, provided their collateral remains locked and cannot be reused before reconciliation.
-*   **Initial Trust Boundary:** The first deployment is a 1-of-1 decryption and settlement authority. It hides bids from other players and public chain observers but can technically decrypt early or misreport a result. The authority address can later be a threshold-controlled multisig without changing the auction models. A proof-verified settlement route remains a future hardening step.
-*   **Privacy Boundary:** The encrypted maximum bid, its nonce, and the winner's maximum remain private protocol inputs. Bidder addresses, submission timing, commitments, public Bid Collateral, delegation changes, the runner-up bid, and the Clearing Price are public. A just-in-time delegation top-up may therefore reveal or strongly suggest a bidder's maximum even though the plaintext bid is never published.
+#### 3.1.5. Settlement and Privacy Boundary
+*   After a full response window passes without a higher bid, any account may call `settle_challenge`. The contract derives the result from its current leader; there is no settlement authority or off-chain ranking.
+*   A valid leader's exact bid becomes the target Control Point's Capture Power. If the leader has invalidated its staking position before settlement, the point becomes neutral.
+*   Every non-winner loses its own highest cumulative bid. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Ready STRK by the same amount.
+*   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
+*   StakeWars never transfers, escrows, or slashes STRK. Spent Power is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
+*   **Public Deployment:** Operator identities, direct delegation, cumulative bids, incremental additions, bid timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
+*   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back StakeWars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
 *   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from StakeWars. Its ownership generation is invalidated, its Control Points become neutral, and it may never capture, reinforce, or challenge again.
 *   **Direct Official-Contract Actions:** The periodic operator synchronization process and every game action inspect official unpooling state, so initiating an exit outside the StakeWars UI is still detected.
-*   **Explicit Game Exit:** `relinquish_all` is a permanent retirement action, not a temporary release-all shortcut.
+*   **Explicit Game Exit:** `retire` is a permanent retirement action, not a temporary release-all shortcut.
 *   **Latency:** Funds remain subject to the official Starknet unbonding period. Retirement applies immediately when the unpool intent is detected; the UI may continue showing the official unlock timestamp.
 *   **New Identity:** A player may use another address, but it starts with no history or tenure. Address tenure is expected to influence future gameplay and cannot be transferred from a retired address.
 
@@ -115,13 +115,13 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **States:**
     *   **Empty Control Point:** Wireframe outline.
     *   **Occupied Control Point:** Solid fill (White) or displays the Operator's custom image.
-    *   **Selected Control Point:** Highlights and displays the Controller, Capture Power, sealed-position count, auction deadline, Reserve Price, and the connected Operator's Live Delegation, commitments, and Available Power. No current leader or maximum bid is shown.
+    *   **Selected Control Point:** Highlights and displays the Controller, Capture Power, current leader, leading bid, public bid count, response-window deadline, and the connected Operator's contextually relevant Ready STRK.
     *   **Control Tenure Relief:** In Control mode, every occupied Control Point is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Control Point panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
 *   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED CONTROL POINT 402 [10,000 STRK]`
-*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Submit Sealed Bid, Collateral Sacrifice, and Retire transactions. Sealed bidding asks for a private maximum, shows the public collateral ceiling and Reserve Price, and previews any additional delegation needed before submission. Settlement is automatic from the player's perspective.
+*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Open Bid, Control Point Sacrifice, permissionless Settlement, and Retire transactions. It clearly warns that a bid is public and the final losing total becomes Spent Power, shows the minimum strictly higher total and incremental lock, and previews any additional direct delegation needed.
 
 ### 4.4. Operator Image Uploads
 *   **Control Requirement:** Only the wallet currently controlling a Control Point may assign or replace its image. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
@@ -139,30 +139,29 @@ The first release intentionally excludes passive territory decay, recurring main
 StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store game state, systems enforce state transitions, and Torii indexes model and event updates for clients.
 
 *   **Models:**
-    *   `GameConfig`: Official STRK delegation pool address, settlement-authority address, minimum stake, 10% challenge premium, admin-configurable challenge period (initially 3 hours), Control Point limit, and pause state.
-    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, active Challenge Commitment, controlled-point count, active challenge ID, and retirement state.
+    *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (initially 3 hours), Control Point limit, and pause state.
+    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, aggregate active Bid Locks, aggregate Spent Power, controlled-point count, active-position count, and retirement state.
     *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Power, ownership generation, ownership timestamp, and active challenge ID.
-    *   `Challenge`: Challenge ID, target Control Point, incumbent, fixed deadline, participant count, winner, runner-up bid, Clearing Price, and settlement timestamp.
-    *   `ChallengeParticipant`: Challenge ID, Operator, public locked collateral, target Point Commitment included in that collateral, opaque bid commitment, generation, submission state, and resolution state.
-*   **Control System:** Implements Capture, Reinforce, Release, sealed-bid submission, Collateral Sacrifice, settlement-authority validation, allocation unlocking, permanent retirement, and Operator synchronization.
+    *   `Challenge`: Challenge ID, target Control Point, incumbent, current leader and generation, leading bid, latest displaced Operator and amount, resettable deadline, bid and participant counts, winner, and settlement timestamp.
+    *   `ChallengeParticipant`: Per-Challenge Operator position, cumulative bid, included incumbent garrison, Operator generation, and resolution result.
+*   **Control System:** Implements Capture, Reinforce, Release, incremental open ascending bids, deferred losing-bid spending, Control Point Sacrifice, permissionless settlement and position resolution, permanent retirement, and Operator synchronization.
 *   **Staking Adapter:** Uses the official delegation pool's read-only `get_pool_member_info_v1` interface and treats its `amount`, `unpool_amount`, and `unpool_time` fields as authoritative delegation and exit state.
 *   **Admin System:** Provides narrowly scoped pause and configuration operations protected by Dojo World ownership. Production ownership should be held by a multisig.
 *   **Permissions:** Systems receive writer permission only for the specific models they modify. Reads are permissionless.
-*   **Events:** Capture, Reinforcement, Release, Challenge Started, Sealed Bid Submitted, Collateral Sacrificed, Challenge Settled, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views. Bid events expose collateral and commitments, never plaintext maximum bids.
+*   **Events:** Capture, Reinforcement, Release, Challenge Started, Bid Placed, Control Point Sacrificed, Challenge Settled, Challenge Position Resolved, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
 *   **Custody Boundary:** The Dojo World never holds or transfers staking assets.
 
 ### 5.2. Backend API (Fly.io)
 *   **Runtime:** A Go API service deployed on Fly.io at `api.stakewars.gg`. The initial target is one shared-CPU Machine with 512 MB RAM in the `sjc` region. CPU and memory may be increased if observed load requires it.
 *   **Responsibilities:**
     *   Verify wallet challenges and current on-chain Control Point ownership.
-    *   Publish the active RSA-OAEP auction public key and store encrypted bid envelopes keyed by their on-chain commitment.
-    *   After a deadline, decrypt and validate envelopes, rank valid bids deterministically, and submit the settlement-authority transaction without requiring any participant to return.
+    *   Run the unprivileged Arbiter loop that settles expired Challenges, resolves remaining losing positions, and synchronizes known active Operators against the official staking contract.
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
     *   Serve game metadata and apply rate limits per wallet and IP address.
 *   **Initial Topology:** Run exactly one active API Machine while SQLite is the system of record. The Machine mounts a persistent Fly Volume at `/data`; normal deploys and restarts must preserve that volume. Do not add a second active API Machine that writes to the same SQLite database.
 *   **Storage Boundary:** Uploaded images are never stored on the Machine or Fly Volume. The volume contains only the SQLite database and its related files; image bytes are uploaded directly to Tigris.
-*   **Security:** Wallet challenges use short-lived, single-use nonces. Storage credentials and auction private-key shares are server-only secrets and must never be sent to the browser, logs, repository, or public configuration. Auction ciphertexts and bid commitments are safe to expose; plaintext maximums are not.
+*   **Security:** Wallet challenges use short-lived, single-use nonces. Storage credentials are server-only secrets and must never be sent to the browser, logs, repository, or public configuration. The Arbiter has no privileged game role or settlement discretion: every submitted maintenance transaction is independently validated by the Dojo World, and no backend decryption key exists.
 
 ### 5.3. Image Storage (Tigris)
 *   **Service:** Tigris S3-compatible object storage, provisioned through Fly.io.
@@ -219,21 +218,21 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 ## 6. User Stories
 
-1.  **As an Operator:** I want to choose how much of my real delegated STRK to allocate while the game derives Available Power automatically, so I can spread risk without managing a separate currency.
-2.  **As a Challenger:** I want to submit one private maximum bid, know the public Reserve Price and collateral lock, and leave settlement unattended.
+1.  **As an Operator:** I want every action expressed in STRK while the game tracks allocation, current leads, and spent capacity under the hood.
+2.  **As a Challenger:** I want to see the current lead and response window before deciding whether a higher public bid is worth permanently risking.
 3.  **As a Controller:** I want to upload an image to the face I control so my victory is visible on the Core.
-4.  **As a Challenge Participant:** I want losing collateral and any winning excess above the Clearing Price to unlock after settlement.
+4.  **As a Challenge Participant:** I want every higher bid to reset the response window so last-block sniping cannot bypass my chance to respond.
 5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Control Point.
-6.  **As a Strategist:** I want to sacrifice another Control Point as collateral without duplicating its backing, accepting that its assets become contestable.
+6.  **As a Strategist:** I want to sacrifice another Control Point to fund a higher bid without duplicating its backing, accepting that the abandoned territory becomes contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
 
 ---
 
 ## 7. Roadmap / Phasing
 
-*   **Phase 1: Delegation-Backed Allocation and Sealed Challenges**
+*   **Phase 1: Delegation-Backed Allocation and Open Challenges**
     *   Basic 3D Sphere.
-    *   Dojo World with explicit delegation-backed allocation, configurable-duration multi-party sealed Vickrey challenges (initially 3 hours), a 10%-premium Reserve Price, collateral sacrifice, authority-gated settlement, allocation unlocking, permanent retirement, and synchronization logic.
+    *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending challenges, resettable 3-hour response windows with no absolute duration cap, settlement-time losing-bid spending, Control Point sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
     *   Mainnet integration with the StakeWars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
@@ -242,9 +241,9 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
-*   **Phase 2: Threshold and Proof Hardening**
-    *   Replace the 1-of-1 auction key with a threshold-controlled settlement authority and documented key rotation and recovery ceremonies.
-    *   Add proof-verified ranking and settlement when Starknet's application proving path can verify the auction computation without revealing winning maximums.
+*   **Phase 2: Strategic Reserve Privacy**
+    *   Evaluate a wallet-mediated STRK20 flow for shielding undeployed reserves without changing the direct-delegation requirement.
+    *   Clearly disclose that shield/unshield legs and all deployed StakeWars bids remain public, and require a reviewed integration plan before implementation.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.
     *   Live capture ticker, searchable gallery, and Operator profiles.

@@ -250,8 +250,8 @@ export function SelectionPanel() {
           <StakeRow
             label={
               selectedControlPoint?.activeChallengeId
-                ? 'AUCTION RESERVE'
-                : 'REQUIRED CHALLENGE'
+                ? 'NEXT VALID BID'
+                : 'MINIMUM ATTACK'
             }
             value={selectedControlPoint?.requiredStake}
             emphasis
@@ -262,15 +262,15 @@ export function SelectionPanel() {
           <>
             <div className="border-t border-grid py-2">
               <div className="text-[10px] tracking-[0.18em] text-dim">
-                SEALED POSITIONS
+                PUBLIC BIDS
               </div>
               <div className="mt-1 text-neutral-300">
                 {selectedControlPoint?.challengeBidCount ?? 0}
               </div>
             </div>
             <div className="border-t border-grid py-2 text-[9px] leading-relaxed tracking-[0.12em] text-dim">
-              THE WINNING MAXIMUM STAYS HIDDEN. AFTER CLOSE, THE AUTHORIZED
-              SETTLER PUBLISHES ONLY THE RUNNER-UP AND CLEARING PRICES.
+              EACH HIGHER BID RESTARTS THE RESPONSE WINDOW. RETURNING OPERATORS
+              LOCK ONLY THEIR INCREMENT; LOSING FINAL POSITIONS BECOME SPENT.
             </div>
           </>
         ) : null}
@@ -287,8 +287,8 @@ export function SelectionPanel() {
               )}
 
             {!isMultiSelection &&
-            !selectedControlPoint.stale &&
-            !selectedControlPoint.needsSync ? (
+            ((!selectedControlPoint.stale && !selectedControlPoint.needsSync) ||
+              selectedControlPoint.activeChallengeId !== 0n) ? (
               <CaptureControl
                 key={`action-${selectedControlPoint.id}-${selectedControlPoint.activeChallengeId}`}
                 controlPoints={[selectedControlPoint]}

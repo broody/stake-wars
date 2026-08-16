@@ -3,6 +3,7 @@ import { config } from './config';
 import type {
   ControlPointStatus,
   ChallengeStatus,
+  ChallengeParticipantStatus,
   OperatorStatus,
   PoolMemberInfo,
   StakingPoolInfo,
@@ -309,7 +310,14 @@ export async function getOperatorStatus(
     [operator],
     signal
   );
-  if (result.length !== 13) {
+  return decodeOperatorStatusResult(result, operator);
+}
+
+export function decodeOperatorStatusResult(
+  result: string[],
+  operator: string
+): OperatorStatus {
+  if (result.length !== 12) {
     throw new Error('Control System returned an invalid Operator status');
   }
 
@@ -318,19 +326,16 @@ export async function getOperatorStatus(
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
     pointPower: parseFelt(result[2], 'point commitments'),
     challengePower: parseFelt(result[3], 'challenge commitments'),
-    availablePower: parseFelt(result[4], 'available power'),
-    generation: parseFelt(result[5], 'operator generation'),
-    controlledPointCount: Number(parseFelt(result[6], 'owned point count')),
-    activeChallengeId: parseFelt(result[7], 'active challenge ID'),
-    activeChallengeCommitment: parseFelt(
-      result[8],
-      'active challenge commitment'
+    spentPower: parseFelt(result[4], 'spent power'),
+    availablePower: parseFelt(result[5], 'available power'),
+    generation: parseFelt(result[6], 'operator generation'),
+    controlledPointCount: Number(parseFelt(result[7], 'owned point count')),
+    activeChallengeCount: Number(
+      parseFelt(result[8], 'active challenge count')
     ),
-    activeChallengeBidSubmitted:
-      parseFelt(result[9], 'active challenge bid flag') !== 0n,
-    retired: parseFelt(result[10], 'retired flag') !== 0n,
-    exiting: parseFelt(result[11], 'exiting flag') !== 0n,
-    needsSync: parseFelt(result[12], 'operator sync flag') !== 0n,
+    retired: parseFelt(result[9], 'retired flag') !== 0n,
+    exiting: parseFelt(result[10], 'exiting flag') !== 0n,
+    needsSync: parseFelt(result[11], 'operator sync flag') !== 0n,
   };
 }
 
@@ -343,20 +348,55 @@ export async function getChallengeStatus(
     [encodeRpcFelt(challengeId)],
     signal
   );
-  if (result.length !== 10) {
+  return decodeChallengeStatusResult(result);
+}
+
+export function decodeChallengeStatusResult(result: string[]): ChallengeStatus {
+  if (result.length !== 14) {
     throw new Error('Control System returned an invalid Challenge status');
   }
   return {
     id: parseFelt(result[0], 'challenge ID'),
     controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
     incumbent: result[2] ?? '0x0',
-    reservePower: parseFelt(result[3], 'reserve power'),
-    deadline: parseTimestamp(result[4], 'challenge deadline'),
-    participantCount: Number(parseFelt(result[5], 'participant count')),
-    settled: parseFelt(result[6], 'settled flag') !== 0n,
-    winner: result[7] ?? '0x0',
-    runnerUpBid: parseFelt(result[8], 'runner-up bid'),
-    clearingPower: parseFelt(result[9], 'clearing power'),
+    leader: result[3] ?? '0x0',
+    leadingBid: parseFelt(result[4], 'leading bid'),
+    lastLoser: result[5] ?? '0x0',
+    lastLosingBid: parseFelt(result[6], 'last losing bid'),
+    deadline: parseTimestamp(result[7], 'challenge deadline'),
+    bidCount: Number(parseFelt(result[8], 'bid count')),
+    participantCount: Number(parseFelt(result[9], 'participant count')),
+    settled: parseFelt(result[10], 'settled flag') !== 0n,
+    winner: result[11] ?? '0x0',
+    winningPower: parseFelt(result[12], 'winning power'),
+    losingPower: parseFelt(result[13], 'losing power'),
+  };
+}
+
+export async function getChallengeParticipantStatus(
+  challengeId: bigint,
+  operator: string,
+  signal?: AbortSignal
+): Promise<ChallengeParticipantStatus> {
+  const result = await callControlSystem(
+    'get_challenge_participant_status',
+    [encodeRpcFelt(challengeId), operator],
+    signal
+  );
+  if (result.length !== 8) {
+    throw new Error(
+      'Control System returned an invalid Challenge participant status'
+    );
+  }
+  return {
+    challengeId: parseFelt(result[0], 'challenge ID'),
+    operator: result[1] ?? operator,
+    bidPower: parseFelt(result[2], 'participant bid'),
+    pointPowerIncluded: parseFelt(result[3], 'participant point power'),
+    additionalPower: parseFelt(result[4], 'participant additional power'),
+    joined: parseFelt(result[5], 'participant joined flag') !== 0n,
+    resolved: parseFelt(result[6], 'participant resolved flag') !== 0n,
+    won: parseFelt(result[7], 'participant winner flag') !== 0n,
   };
 }
 

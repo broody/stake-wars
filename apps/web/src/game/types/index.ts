@@ -30,6 +30,7 @@ export interface IndexedControlPoint {
   capturePower: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
+  activeChallengeId: bigint;
 }
 
 export interface OperatorStatus {
@@ -37,12 +38,11 @@ export interface OperatorStatus {
   liveDelegatedAmount: bigint;
   pointPower: bigint;
   challengePower: bigint;
+  spentPower: bigint;
   availablePower: bigint;
   generation: bigint;
   controlledPointCount: number;
-  activeChallengeId: bigint;
-  activeChallengeCommitment: bigint;
-  activeChallengeBidSubmitted: boolean;
+  activeChallengeCount: number;
   retired: boolean;
   exiting: boolean;
   needsSync: boolean;
@@ -52,13 +52,28 @@ export interface ChallengeStatus {
   id: bigint;
   controlPointId: number;
   incumbent: string;
-  reservePower: bigint;
+  leader: string;
+  leadingBid: bigint;
+  lastLoser: string;
+  lastLosingBid: bigint;
   deadline: number;
+  bidCount: number;
   participantCount: number;
   settled: boolean;
   winner: string;
-  runnerUpBid: bigint;
-  clearingPower: bigint;
+  winningPower: bigint;
+  losingPower: bigint;
+}
+
+export interface ChallengeParticipantStatus {
+  challengeId: bigint;
+  operator: string;
+  bidPower: bigint;
+  pointPowerIncluded: bigint;
+  additionalPower: bigint;
+  joined: boolean;
+  resolved: boolean;
+  won: boolean;
 }
 
 export type OperatorActivityType =

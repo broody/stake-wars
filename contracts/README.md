@@ -1,9 +1,10 @@
 # StakeWars contracts
 
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
-reads each player's live delegation and unpooling state from the official
-StakeWars delegation pool. Game power is derived as live delegation minus point
-commitments and active-challenge commitments.
+reads each Operator's live delegation and unpooling state from the official
+StakeWars delegation pool. Game capacity is derived as live delegation minus
+Control Point garrisons, active cumulative bid positions, and permanently spent
+game power.
 
 ## Local commands
 
@@ -16,53 +17,66 @@ Run these commands from this directory. Local migration uses `dojo_dev.toml`.
 The release profile deliberately contains no RPC credentials or deployment
 account; production deployment settings must remain outside version control.
 
-The repository `.tool-versions` pins Scarb 2.13.1 because the Dojo 1.8 contract
-stack emits Sierra 1.7 for the stable Katana sequencer. From the repository root,
-start and migrate the local chain with `pnpm dev:katana` and
-`pnpm contracts:deploy:local` in separate terminals.
+The repository `.tool-versions` pins Scarb 2.13.1 for the Dojo 1.8 contract
+stack. Katana is reserved for isolated contract tests. Normal frontend and
+Torii development use the shared Sepolia World.
 
 The upstream Starknet staking implementation is pinned at
 `../vendor/starknet-staking` as an ABI reference. It is not linked as a direct
 Scarb dependency because its Cairo toolchain is older than this Dojo package.
 
+## Control System
+
 The Control System exposes authoritative `get_operator_status`,
 `get_control_point_status`, `get_control_point_statuses`,
-`get_challenge_status`, and `can_manage_image` views. The batched point-status
-view reads up to 200 Control Points. Stale Torii models are safe for discovery
-while security-sensitive clients confirm effective control on-chain.
-Permissionless reconciliation may call `sync_operator` or batch up to 50
-addresses with `sync_operators`.
+`get_challenge_status`, `get_challenge_participant_status`, and
+`can_manage_image` views. The batched point-status view reads up to 200 Control
+Points. Stale Torii models are safe for discovery while security-sensitive
+clients confirm effective control onchain. Permissionless reconciliation may
+call `sync_operator` or batch up to 50 addresses with `sync_operators`.
 
-Every `capture` or `reinforce` call includes a user-selected STRK amount. Sealed
-challenge calls contain only an opaque bid commitment and lock all currently
-Available Power as public bid collateral. The private maximum is encrypted to
-the auction key and may not exceed that public collateral ceiling.
+Every `capture`, `reinforce`, and `bid` call includes a visible STRK amount. An
+Operator may manage multiple Control Points and lead multiple challenges when
+their aggregate commitments fit within live delegation.
 
-An occupied point is contested through `submit_sealed_bid` or
-`submit_sealed_bid_with_collateral`. The first bid opens one fixed challenge
-period; later bids neither reveal a leader nor reset the deadline. The configured
-settlement authority publishes the winner, runner-up bid, and Vickrey clearing
-price. The winner commits only that price, while losing and excess collateral
-unlock. Non-winning participants may reconcile lazily on their next action or
-operator sync, but their collateral stays locked until then.
+An occupied point is contested through `bid` or `bid_with_sacrifice`:
 
-Collateral is a move, not duplicated backing:
-`submit_sealed_bid_with_collateral(target, source, commitment)` neutralizes an
-uncontested source point and moves its complete Capture Power into the sealed
-bid's collateral ceiling.
+- The opening bid must exceed the point's garrison. The incumbent's garrison and
+  the challenger's bid remain locked and at risk until settlement.
+- Any eligible Operator except the current leader may submit a strictly higher
+  public bid. A returning participant locks only the difference between the new
+  total and that Operator's own prior maximum.
+- Being outbid does not spend a position. Each participant's highest bid remains
+  locked so they may continue raising incrementally.
+- Every accepted bid sets a fresh full response-window deadline. There is no
+  absolute challenge-duration cap, and the current leader cannot extend the
+  clock by bidding against itself.
+- After the deadline, any account may call `settle_challenge`. The current
+  leader's exact bid becomes the new garrison and losing participants spend
+  their own highest bids as game power.
 
-`retire` (and the compatibility alias `relinquish_all`) permanently retires an
-address. It advances the ownership generation, invalidates all holdings, and
-prevents that address from playing again. An unpool intent made directly through
-the official pool is detected by game actions and operator synchronization and
-causes the same permanent retirement. Any live-delegation reduction below the
-address's recorded Point and Challenge Commitments also permanently retires the
-address rather than creating a reusable backing gap.
+Each bid is constant-cost. Settlement resolves the winner, incumbent, and final
+runner-up without iterating an unbounded participant list. Any additional losing
+position remains locked—which has the same Ready STRK effect as spent power—until
+any account calls `resolve_challenge_position(challenge_id, operator)` to move it
+to the Operator's Spent Power in O(1).
 
-Before any production migration, supply the Mainnet RPC and deployment keystore
+`bid_with_sacrifice(target, source, bid_power)` atomically neutralizes an owned,
+uncontested source point before validating the new bid. Its garrison returns to
+the Operator's Ready STRK; it is not duplicated or automatically spent.
+
+Spent power is permanent accounting for that Operator address. The contracts do
+not slash, escrow, or transfer the underlying STRK, which remains in the official
+delegation pool under its normal staking and reward rules.
+
+`retire` permanently retires an address. An unpool intent made directly through
+the official pool is detected by game actions and synchronization and causes the
+same retirement. A live delegation reduction below recorded obligations also
+retires the address rather than creating reusable backing.
+
+Before a production deployment, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
-delegation-pool address, settlement-authority address, and base-unit rule values
-(including the initial 10,800-second challenge period), and place both World and
-namespace ownership plus the stored game-admin role under the approved multisig.
-The admin may later update `challenge_period_seconds` through `set_rules`; an
-existing challenge keeps the deadline captured when it opened.
+delegation-pool address and base-unit rule values, and place World ownership,
+namespace ownership, and the game-admin role under the approved multisig. The
+admin may update `challenge_period_seconds`; each subsequent valid bid uses the
+current configured period when it resets the deadline.

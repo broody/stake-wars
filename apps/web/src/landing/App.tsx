@@ -41,13 +41,13 @@ function LandingApp() {
       title: '03. CHALLENGE',
       description: (
         <>
-          Attack an occupied point with an encrypted maximum bid during one
-          fixed 3-hour window. The{' '}
+          Attack an occupied point with a visible STRK bid. Every higher bid
+          restarts the response window, and any Operator can{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            winner takes the point
+            take the lead
           </span>{' '}
-          but commits only the runner-up price. Losing and excess bid collateral
-          unlock after settlement.
+          until the opposition runs out of STRK or chooses to stop. Displaced
+          bids are permanently spent.
         </>
       ),
     },

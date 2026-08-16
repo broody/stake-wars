@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProvider, useSendTransaction } from '@starknet-start/react';
 import { TransactionExecutionStatus } from 'starknet';
-import type { ControlPointStatus, PoolMemberInfo } from '../../types';
+import type {
+  ChallengeParticipantStatus,
+  ChallengeStatus,
+  ControlPointStatus,
+  PoolMemberInfo,
+} from '../../types';
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { config } from '../../services/config';
 import {
+  getChallengeParticipantStatus,
+  getChallengeStatus,
   getControlPointStatus,
   getOperatorStatus,
   getPoolMemberInfo,
@@ -14,11 +21,17 @@ import {
   getStrkBalance,
 } from '../../services/starknet';
 import {
+  buildControlCall,
   buildSmartGameActionCalls,
+  incrementalBidPower,
   stakeDeficit,
 } from '../../services/smartCapture';
-import { prepareSealedBid } from '../../services/sealedBids';
-import { addressesMatch, formatStrk, parseStrk } from '../../utils/format';
+import {
+  addressesMatch,
+  formatStrk,
+  parseStrk,
+  shortAddress,
+} from '../../utils/format';
 
 interface CaptureControlProps {
   controlPoints: ControlPointStatus[];
@@ -26,6 +39,7 @@ interface CaptureControlProps {
 }
 
 type Phase = 'idle' | 'submitting' | 'confirming';
+type Action = 'capture' | 'reinforce' | 'bid' | 'settle';
 
 interface StakingContext {
   member: PoolMemberInfo | null;
@@ -53,41 +67,39 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   const [staking, setStaking] = useState<StakingContext | null>(null);
   const [allocation, setAllocation] = useState('');
   const [collateralId, setCollateralId] = useState('');
+  const [challenge, setChallenge] = useState<ChallengeStatus | null>(null);
+  const [participant, setParticipant] =
+    useState<ChallengeParticipantStatus | null>(null);
+  const [challengeLoading, setChallengeLoading] = useState(false);
 
-  const challenged = point?.activeChallengeId !== 0n;
+  const pointId = point?.id;
+  const activeChallengeId = point?.activeChallengeId ?? 0n;
+  const challenged = activeChallengeId !== 0n;
   const owned = Boolean(
     address && point && addressesMatch(point.controller, address)
   );
   const neutral = point?.capturePower === 0n;
-  const action = challenged
-    ? 'challenge'
-    : neutral
-      ? 'capture'
-      : owned || intent === 'fortify'
-        ? 'reinforce'
-        : 'challenge';
   const expired = Boolean(
     challenged &&
       point.challengeDeadline &&
       point.challengeDeadline <= Date.now() / 1_000
   );
-  const bidSubmitted = Boolean(
-    challenged &&
-      operatorStatus?.activeChallengeId === point.activeChallengeId &&
-      operatorStatus.activeChallengeBidSubmitted
-  );
+  const action: Action = expired
+    ? 'settle'
+    : challenged
+      ? 'bid'
+      : neutral
+        ? 'capture'
+        : owned || intent === 'fortify'
+          ? 'reinforce'
+          : 'bid';
   const availablePower = operatorStatus?.availablePower ?? 0n;
   const requiredPower = point?.requiredStake ?? 0n;
-  const pointPowerIncluded = challenged && owned ? point.capturePower : 0n;
-  const minimumBidPower =
-    challenged && owned ? point.capturePower : requiredPower;
-  const bidBacking = availablePower + pointPowerIncluded;
+  const currentLeader = Boolean(
+    address && challenge && addressesMatch(challenge.leader, address)
+  );
   const suggestedAllocation =
-    action === 'capture'
-      ? requiredPower
-      : action === 'challenge'
-        ? minimumBidPower
-        : 0n;
+    action === 'capture' || action === 'bid' ? requiredPower : 0n;
 
   useEffect(() => {
     setError(null);
@@ -96,6 +108,44 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       suggestedAllocation > 0n ? formatStrk(suggestedAllocation, 18) : ''
     );
   }, [action, point?.id, suggestedAllocation]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!challenged || pointId === undefined) {
+      setChallenge(null);
+      setParticipant(null);
+      setChallengeLoading(false);
+      return () => controller.abort();
+    }
+    setChallengeLoading(true);
+    Promise.all([
+      getChallengeStatus(activeChallengeId, controller.signal),
+      address
+        ? getChallengeParticipantStatus(
+            activeChallengeId,
+            address,
+            controller.signal
+          )
+        : Promise.resolve(null),
+    ])
+      .then(([nextChallenge, nextParticipant]) => {
+        setChallenge(nextChallenge);
+        setParticipant(nextParticipant);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Unable to read the open contest.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setChallengeLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeChallengeId, address, challenged, pointId]);
 
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
@@ -113,24 +163,20 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     }
   }, [allocation]);
   const selectedAllocation = parsedAllocation.value;
-  const selectedAdditionalPower =
-    action === 'challenge' && selectedAllocation !== null
-      ? selectedAllocation > pointPowerIncluded
-        ? selectedAllocation - pointPowerIncluded
-        : 0n
-      : (selectedAllocation ?? 0n);
-  const deficit =
-    selectedAllocation === null
-      ? 0n
-      : stakeDeficit(selectedAdditionalPower, availablePower);
+  const personalBid = participant?.joined ? participant.bidPower : 0n;
+  const requestedPower = action === 'settle' ? 0n : (selectedAllocation ?? 0n);
+  const additionalBidPower =
+    action === 'bid'
+      ? incrementalBidPower(requestedPower, personalBid)
+      : requestedPower;
+  const deficit = stakeDeficit(additionalBidPower, availablePower);
   const currentPosition =
     action === 'reinforce' ? (point?.capturePower ?? 0n) : 0n;
-  const projectedCommitment =
-    currentPosition + (selectedAllocation === null ? 0n : selectedAllocation);
+  const projectedCommitment = currentPosition + requestedPower;
 
   useEffect(() => {
     const controller = new AbortController();
-    if (!address || deficit === 0n) {
+    if (!address || deficit === 0n || action === 'settle') {
       setStaking(null);
       return () => controller.abort();
     }
@@ -152,33 +198,30 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         }
       });
     return () => controller.abort();
-  }, [address, deficit]);
+  }, [action, address, deficit]);
 
   const commonDisabledReason = useMemo(() => {
     if (controlPoints.length !== 1 || !point) return 'SELECT ONE CONTROL POINT';
     if (!isConnected || !address) return 'CONNECT OPERATOR';
+    if (action === 'settle') return null;
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
     if (operatorStatus.retired) return 'ADDRESS PERMANENTLY RETIRED';
     if (operatorStatus.needsSync) return 'OPERATOR SYNC REQUIRED';
-    if (expired) return 'AWAITING AUTOMATIC SETTLEMENT';
-    if (bidSubmitted) return 'SEALED BID ALREADY SUBMITTED';
-    if (
-      operatorStatus.activeChallengeId !== 0n &&
-      operatorStatus.activeChallengeId !== point.activeChallengeId
-    ) {
-      return 'ALREADY IN ANOTHER CHALLENGE';
-    }
-    if (parsedAllocation.error) return 'ENTER A VALID ALLOCATION';
+    if (challenged && challengeLoading) return 'READING OPEN CONTEST';
+    if (action === 'bid' && currentLeader) return 'YOU ARE CURRENTLY LEADING';
+    if (parsedAllocation.error) return 'ENTER A VALID STRK AMOUNT';
     if (deficit > 0n && !staking) return 'READING WALLET STRK';
     if (deficit > (staking?.walletBalance ?? 0n))
       return 'INSUFFICIENT WALLET STRK';
     return null;
   }, [
+    action,
     address,
+    challenged,
+    challengeLoading,
     controlPoints.length,
+    currentLeader,
     deficit,
-    expired,
-    bidSubmitted,
     isConnected,
     operatorStatus,
     parsedAllocation.error,
@@ -187,24 +230,18 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   ]);
 
   const primaryDisabledReason = useMemo(() => {
-    if (commonDisabledReason || expired) return commonDisabledReason;
+    if (commonDisabledReason) return commonDisabledReason;
+    if (action === 'settle') return null;
     if (selectedAllocation === null || selectedAllocation === 0n)
-      return 'ENTER ALLOCATION';
-    if (action === 'capture' && selectedAllocation < requiredPower) {
-      return `ALLOCATE AT LEAST ${formatStrk(requiredPower, 18)} STRK`;
-    }
-    if (action === 'challenge' && selectedAllocation < minimumBidPower) {
-      return `ALLOCATE AT LEAST ${formatStrk(minimumBidPower, 18)} STRK`;
+      return 'ENTER STRK AMOUNT';
+    if (
+      (action === 'capture' || action === 'bid') &&
+      selectedAllocation < requiredPower
+    ) {
+      return `BID AT LEAST ${formatStrk(requiredPower, 18)} STRK`;
     }
     return null;
-  }, [
-    action,
-    commonDisabledReason,
-    expired,
-    minimumBidPower,
-    requiredPower,
-    selectedAllocation,
-  ]);
+  }, [action, commonDisabledReason, requiredPower, selectedAllocation]);
 
   const collateralCommonDisabledReason =
     commonDisabledReason === 'INSUFFICIENT WALLET STRK' ||
@@ -212,16 +249,12 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       ? null
       : commonDisabledReason;
 
-  const submit = async (withCollateral = false) => {
+  const submit = async (withSacrifice = false) => {
     if (
       !point ||
       !address ||
-      !operatorStatus ||
-      (withCollateral
-        ? collateralCommonDisabledReason
-        : commonDisabledReason) ||
-      (!withCollateral && primaryDisabledReason) ||
-      !config.controlSystemAddress
+      !config.controlSystemAddress ||
+      (withSacrifice ? collateralCommonDisabledReason : primaryDisabledReason)
     ) {
       return;
     }
@@ -231,139 +264,161 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     setControlPointInteractionLocked(true);
     let hash: string | null = null;
     try {
-      const [freshPoint, freshOperator] = await Promise.all([
-        getControlPointStatus(point.id),
-        getOperatorStatus(address),
-      ]);
+      const freshPoint = await getControlPointStatus(point.id);
       let calls;
       let label: string;
-      if (action === 'reinforce') {
-        if (allocationAmount === 0n) {
-          throw new Error('Enter the additional STRK allocation.');
-        }
-        const member =
-          stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
-            ? await getPoolMemberInfo(address)
-            : staking?.member;
-        calls = buildSmartGameActionCalls({
-          controlSystemAddress: config.controlSystemAddress,
-          entrypoint: 'reinforce',
-          calldata: [String(point.id), allocationAmount.toString()],
-          allocation: allocationAmount,
-          availablePower: freshOperator.availablePower,
-          operatorAddress: address,
-          poolAddress: config.stakingPoolAddress,
-          strkTokenAddress: config.strkTokenAddress,
-          isPoolMember: Boolean(member),
-        });
-        label = 'FORTIFICATION';
-      } else if (action === 'challenge') {
+
+      if (action === 'settle') {
         if (
-          freshPoint.challengeDeadline &&
-          freshPoint.challengeDeadline <= Date.now() / 1_000
+          freshPoint.activeChallengeId === 0n ||
+          !freshPoint.challengeDeadline ||
+          freshPoint.challengeDeadline > Date.now() / 1_000
         ) {
-          throw new Error('Bidding has closed. Settlement is automatic.');
-        }
-        if (
-          freshOperator.activeChallengeId === freshPoint.activeChallengeId &&
-          freshOperator.activeChallengeBidSubmitted
-        ) {
-          throw new Error('You already submitted a sealed bid.');
-        }
-        const freshPointIncluded = addressesMatch(
-          freshPoint.controller,
-          address
-        )
-          ? freshPoint.capturePower
-          : 0n;
-        let collateralPower = 0n;
-        let source: number | null = null;
-        if (withCollateral) {
-          source = Number(collateralId);
-          if (!Number.isInteger(source) || source < 0 || source === point.id) {
-            throw new Error(
-              'Enter a different owned Control Point ID as collateral.'
-            );
-          }
-          const sourcePoint = await getControlPointStatus(source);
-          if (
-            !addressesMatch(sourcePoint.controller, address) ||
-            sourcePoint.activeChallengeId !== 0n
-          ) {
-            throw new Error(
-              'Collateral must be an uncontested Control Point you own.'
-            );
-          }
-          collateralPower = sourcePoint.capturePower;
-        }
-        const freshMinimumBid = freshPointIncluded
-          ? freshPoint.capturePower
-          : freshPoint.requiredStake;
-        if (allocationAmount < freshMinimumBid) {
           throw new Error(
-            `Maximum bid must be at least ${formatStrk(
-              freshMinimumBid,
-              18
-            )} STRK.`
+            'The response window is still active or already settled.'
           );
         }
-        const nonAvailableBacking = freshPointIncluded + collateralPower;
-        const additionalNeeded =
-          allocationAmount > nonAvailableBacking
-            ? allocationAmount - nonAvailableBacking
-            : 0n;
-        const member =
-          stakeDeficit(additionalNeeded, freshOperator.availablePower) > 0n
-            ? await getPoolMemberInfo(address)
-            : staking?.member;
-        const sealed = await prepareSealedBid(
-          point.id,
-          address,
-          allocationAmount
+        calls = buildControlCall(
+          config.controlSystemAddress,
+          'settle_challenge',
+          [String(point.id)]
         );
-        const entrypoint = withCollateral
-          ? 'submit_sealed_bid_with_collateral'
-          : 'submit_sealed_bid';
-        calls = buildSmartGameActionCalls({
-          controlSystemAddress: config.controlSystemAddress,
-          entrypoint,
-          calldata: withCollateral
-            ? [String(point.id), String(source), sealed.commitment.toString()]
-            : [String(point.id), sealed.commitment.toString()],
-          allocation: additionalNeeded,
-          availablePower: freshOperator.availablePower,
-          operatorAddress: address,
-          poolAddress: config.stakingPoolAddress,
-          strkTokenAddress: config.strkTokenAddress,
-          isPoolMember: Boolean(member),
-        });
-        label = withCollateral ? 'SEALED COLLATERAL BID' : 'SEALED BID';
+        label = 'CONTEST SETTLEMENT';
       } else {
-        const entrypoint = 'capture';
-        if (allocationAmount < freshPoint.requiredStake) {
-          throw new Error(
-            `Allocation no longer reaches the required ${formatStrk(
-              freshPoint.requiredStake,
-              18
-            )} STRK commitment.`
+        if (!operatorStatus) throw new Error('Operator state is unavailable.');
+        const freshOperator = await getOperatorStatus(address);
+        if (action === 'reinforce') {
+          if (allocationAmount === 0n) {
+            throw new Error('Enter the additional STRK allocation.');
+          }
+          const member =
+            stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
+              ? await getPoolMemberInfo(address)
+              : staking?.member;
+          calls = buildSmartGameActionCalls({
+            controlSystemAddress: config.controlSystemAddress,
+            entrypoint: 'reinforce',
+            calldata: [String(point.id), allocationAmount.toString()],
+            allocation: allocationAmount,
+            availablePower: freshOperator.availablePower,
+            operatorAddress: address,
+            poolAddress: config.stakingPoolAddress,
+            strkTokenAddress: config.strkTokenAddress,
+            isPoolMember: Boolean(member),
+          });
+          label = 'FORTIFICATION';
+        } else if (action === 'bid') {
+          if (
+            freshPoint.activeChallengeId !== 0n &&
+            freshPoint.challengeDeadline &&
+            freshPoint.challengeDeadline <= Date.now() / 1_000
+          ) {
+            throw new Error('The response window ended. Settle the contest.');
+          }
+          let previousPersonalBid = 0n;
+          if (freshPoint.activeChallengeId !== 0n) {
+            const freshChallenge = await getChallengeStatus(
+              freshPoint.activeChallengeId
+            );
+            if (addressesMatch(freshChallenge.leader, address)) {
+              throw new Error('You are already the current leader.');
+            }
+            const freshParticipant = await getChallengeParticipantStatus(
+              freshPoint.activeChallengeId,
+              address
+            );
+            if (freshParticipant.joined && !freshParticipant.resolved) {
+              previousPersonalBid = freshParticipant.bidPower;
+            }
+          }
+
+          let sacrificedPower = 0n;
+          let source: number | null = null;
+          if (withSacrifice) {
+            source = Number(collateralId);
+            if (
+              !Number.isInteger(source) ||
+              source < 0 ||
+              source === point.id
+            ) {
+              throw new Error(
+                'Enter a different owned Control Point ID to sacrifice.'
+              );
+            }
+            const sourcePoint = await getControlPointStatus(source);
+            if (
+              !addressesMatch(sourcePoint.controller, address) ||
+              sourcePoint.activeChallengeId !== 0n
+            ) {
+              throw new Error(
+                'The sacrificed Control Point must be uncontested and owned by you.'
+              );
+            }
+            sacrificedPower = sourcePoint.capturePower;
+          }
+          if (allocationAmount < freshPoint.requiredStake) {
+            throw new Error(
+              `Bid must exceed the current lead with at least ${formatStrk(
+                freshPoint.requiredStake,
+                18
+              )} STRK.`
+            );
+          }
+          const addedBidPower = incrementalBidPower(
+            allocationAmount,
+            previousPersonalBid
           );
+          const allocationAfterSacrifice =
+            addedBidPower > sacrificedPower
+              ? addedBidPower - sacrificedPower
+              : 0n;
+          const member =
+            stakeDeficit(
+              allocationAfterSacrifice,
+              freshOperator.availablePower
+            ) > 0n
+              ? await getPoolMemberInfo(address)
+              : staking?.member;
+          calls = buildSmartGameActionCalls({
+            controlSystemAddress: config.controlSystemAddress,
+            entrypoint: withSacrifice ? 'bid_with_sacrifice' : 'bid',
+            calldata: withSacrifice
+              ? [String(point.id), String(source), allocationAmount.toString()]
+              : [String(point.id), allocationAmount.toString()],
+            allocation: allocationAfterSacrifice,
+            availablePower: freshOperator.availablePower,
+            operatorAddress: address,
+            poolAddress: config.stakingPoolAddress,
+            strkTokenAddress: config.strkTokenAddress,
+            isPoolMember: Boolean(member),
+          });
+          label = withSacrifice ? 'SACRIFICE + BID' : 'OPEN BID';
+        } else {
+          if (allocationAmount < freshPoint.requiredStake) {
+            throw new Error(
+              `Capture requires ${formatStrk(
+                freshPoint.requiredStake,
+                18
+              )} STRK.`
+            );
+          }
+          const member =
+            stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
+              ? await getPoolMemberInfo(address)
+              : staking?.member;
+          calls = buildSmartGameActionCalls({
+            controlSystemAddress: config.controlSystemAddress,
+            entrypoint: 'capture',
+            calldata: [String(point.id), allocationAmount.toString()],
+            allocation: allocationAmount,
+            availablePower: freshOperator.availablePower,
+            operatorAddress: address,
+            poolAddress: config.stakingPoolAddress,
+            strkTokenAddress: config.strkTokenAddress,
+            isPoolMember: Boolean(member),
+          });
+          label = 'CAPTURE';
         }
-        const member =
-          stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
-            ? await getPoolMemberInfo(address)
-            : staking?.member;
-        calls = buildSmartGameActionCalls({
-          controlSystemAddress: config.controlSystemAddress,
-          entrypoint,
-          calldata: [String(point.id), allocationAmount.toString()],
-          allocation: allocationAmount,
-          availablePower: freshOperator.availablePower,
-          operatorAddress: address,
-          poolAddress: config.stakingPoolAddress,
-          strkTokenAddress: config.strkTokenAddress,
-          isPoolMember: Boolean(member),
-        });
-        label = 'CAPTURE';
       }
 
       const result = await transaction.sendAsync(calls);
@@ -391,19 +446,25 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     }
   };
 
+  const actionLabel =
+    action === 'settle'
+      ? 'SETTLE CONTEST'
+      : action === 'bid'
+        ? challenged
+          ? 'TAKE THE LEAD'
+          : 'ATTACK'
+        : action.toUpperCase();
   const label =
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
         : primaryDisabledReason ||
-          (expired
-            ? 'AWAITING SETTLEMENT'
-            : deficit > 0n
-              ? `STAKE ${formatStrk(deficit, 18)} + ${
-                  action === 'challenge' ? 'SEAL BID' : action.toUpperCase()
-                }`
-              : `${action === 'challenge' ? 'SEAL BID' : action.toUpperCase()} WITH ${formatStrk(
+          (deficit > 0n && action !== 'settle'
+            ? `STAKE ${formatStrk(deficit, 18)} + ${actionLabel}`
+            : action === 'settle'
+              ? actionLabel
+              : `${actionLabel} WITH ${formatStrk(
                   selectedAllocation ?? 0n,
                   18
                 )} STRK`);
@@ -412,29 +473,51 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
         {challenged
-          ? 'SEALED VICKREY CHALLENGE'
+          ? 'OPEN STRK CONTEST'
           : neutral
             ? 'CAPTURE NEUTRAL POINT'
             : owned
               ? 'FORTIFY CONTROL POINT'
-              : 'CHALLENGE OWNER'}
+              : 'ATTACK CONTROL POINT'}
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
-        <div className="flex justify-between gap-4">
-          <span>AVAILABLE POWER</span>
-          <span className="text-fg">{formatStrk(availablePower, 18)} STRK</span>
-        </div>
-        {!expired && (
+        {action !== 'settle' && (
+          <div className="flex justify-between gap-4">
+            <span>READY STRK</span>
+            <span className="text-fg">
+              {formatStrk(availablePower, 18)} STRK
+            </span>
+          </div>
+        )}
+        {challenged && challenge && (
+          <>
+            <div className="flex justify-between gap-4">
+              <span>CURRENT LEADER</span>
+              <span className="text-fg">
+                {addressesMatch(challenge.leader, address ?? '0x0')
+                  ? 'YOU'
+                  : shortAddress(challenge.leader)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>LEADING BID</span>
+              <span className="text-fg">
+                {formatStrk(challenge.leadingBid, 18)} STRK
+              </span>
+            </div>
+          </>
+        )}
+        {action !== 'settle' && (
           <>
             <label
               className="block pt-1 text-dim"
               htmlFor={`allocation-${point?.id ?? 'none'}`}
             >
               {action === 'reinforce'
-                ? 'ADDITIONAL ALLOCATION'
-                : action === 'challenge'
-                  ? 'PRIVATE MAXIMUM BID'
-                  : 'POINT ALLOCATION'}
+                ? 'ADDITIONAL STRK'
+                : action === 'bid'
+                  ? 'PUBLIC BID'
+                  : 'CAPTURE STRK'}
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
               <input
@@ -452,45 +535,34 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
                 {parsedAllocation.error}
               </div>
             )}
-            {action !== 'challenge' && (
+            {action === 'reinforce' && (
               <div className="flex justify-between gap-4">
-                <span>CURRENT COMMITMENT</span>
-                <span>{formatStrk(currentPosition, 18)} STRK</span>
+                <span>RESULTING GARRISON</span>
+                <span>{formatStrk(projectedCommitment, 18)} STRK</span>
               </div>
             )}
-            {(action === 'capture' || action === 'challenge') && (
+            {(action === 'capture' || action === 'bid') && (
               <div className="flex justify-between gap-4">
-                <span>REQUIRED TOTAL</span>
-                <span>
-                  {formatStrk(
-                    action === 'challenge' ? minimumBidPower : requiredPower,
-                    18
-                  )}{' '}
-                  STRK
-                </span>
+                <span>MINIMUM</span>
+                <span>{formatStrk(requiredPower, 18)} STRK</span>
               </div>
             )}
-            <div className="flex justify-between gap-4 border-t border-grid pt-2">
-              <span>
-                {action === 'challenge'
-                  ? 'MAXIMUM BID (ENCRYPTED)'
-                  : 'RESULTING COMMITMENT'}
-              </span>
-              <span className="text-fg">
-                {formatStrk(projectedCommitment, 18)} STRK
-              </span>
-            </div>
-            {action === 'challenge' && (
+            {action === 'bid' && (
               <>
+                {personalBid > 0n && (
+                  <div className="flex justify-between gap-4">
+                    <span>YOUR CURRENT BID</span>
+                    <span>{formatStrk(personalBid, 18)} STRK</span>
+                  </div>
+                )}
                 <div className="flex justify-between gap-4">
-                  <span>PUBLIC BID COLLATERAL</span>
-                  <span>{formatStrk(bidBacking + deficit, 18)} STRK</span>
+                  <span>ADDITIONAL LOCK</span>
+                  <span>{formatStrk(additionalBidPower, 18)} STRK</span>
                 </div>
-                <p className="leading-relaxed text-dim">
-                  Your maximum stays encrypted. All available delegation is
-                  locked until settlement; the winner commits only the clearing
-                  price. Fresh staking remains public and may hint at your
-                  maximum.
+                <p className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-300">
+                  Raising a previous bid locks only the difference. If you do
+                  not win when the response window expires, your highest total
+                  bid becomes permanently spent game power.
                 </p>
               </>
             )}
@@ -498,7 +570,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         )}
         {challenged && point.challengeDeadline && (
           <div className="flex justify-between gap-4">
-            <span>DEADLINE</span>
+            <span>RESPONSE WINDOW</span>
             <span>
               {new Date(point.challengeDeadline * 1_000).toLocaleString()}
             </span>
@@ -506,7 +578,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         )}
         {challenged && (
           <div className="flex justify-between gap-4">
-            <span>SEALED POSITIONS</span>
+            <span>PUBLIC BIDS</span>
             <span>{point.challengeBidCount}</span>
           </div>
         )}
@@ -523,7 +595,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         >
           {label}
         </button>
-        {action === 'challenge' && !expired && (
+        {action === 'bid' && !currentLeader && (
           <div className="border-t border-grid pt-3">
             <label
               className="block text-dim"
@@ -544,15 +616,19 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
                 type="button"
                 onClick={() => void submit(true)}
                 disabled={
-                  !collateralId ||
-                  phase !== 'idle' ||
-                  Boolean(collateralCommonDisabledReason)
+                  Boolean(collateralCommonDisabledReason) ||
+                  !collateralId.trim() ||
+                  phase !== 'idle'
                 }
-                className="border border-neutral-600 px-3 text-fg hover:border-white disabled:text-neutral-600"
+                className="border border-neutral-500 px-3 py-2 text-[9px] tracking-[0.14em] text-neutral-300 hover:border-white hover:text-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
               >
-                SACRIFICE + SEAL BID
+                SACRIFICE + BID
               </button>
             </div>
+            <p className="mt-2 leading-relaxed text-dim">
+              The sacrificed point becomes neutral immediately and its garrison
+              becomes available for this bid.
+            </p>
           </div>
         )}
       </div>

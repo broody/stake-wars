@@ -6,7 +6,6 @@ primary_region = "sjc"
 
 [env]
   APP_ENV = "production"
-  CONTROL_SYSTEM_ADDRESS = "0x069e97b81ad92c42b072940a4a6ae2fc135c3ecbbda6c8171da9ed0a0c86cf9f"
   DATABASE_PATH = "/data/stakewars.db"
   MAX_IMAGE_BYTES = "2097152"
   PORT = "8080"
@@ -18,8 +17,8 @@ primary_region = "sjc"
   TORII_STAKING_POOL_ADDRESS = "0x0755e4fbfd6ca9a17e532a0eb3027dd3202957d5bcc2912cbc5a7fb199cc78c6"
   TORII_STAKING_POOL_BLOCK = "13316365"
   TORII_URL = "http://127.0.0.1:8081"
-  TORII_WORLD_ADDRESS = "0x051b18faa08df51a7cbab9b7d5edeba86992b9715d2ed58db15d3aef6a9b0223"
-  TORII_WORLD_BLOCK = "13529343"
+  TORII_WORLD_ADDRESS = "0x02e6e40bc2f50209b204b99db05a557184a8d7aaae41680f074c0acc7a4b86ec"
+  TORII_WORLD_BLOCK = "13541046"
 
 [http_service]
   internal_port = 8080

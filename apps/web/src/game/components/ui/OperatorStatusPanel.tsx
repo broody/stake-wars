@@ -57,20 +57,24 @@ export function OperatorStatusPanel() {
           aria-label="Open staking position"
         >
           <OperatorMetric
-            label="LIVE DELEGATION"
+            label="STAKED"
             value={operatorStatus.liveDelegatedAmount}
             highlight
           />
+          <OperatorMetric label="GARRISONS" value={operatorStatus.pointPower} />
           <OperatorMetric
-            label="POINT COMMITMENTS"
-            value={operatorStatus.pointPower}
-          />
-          <OperatorMetric
-            label="CHALLENGE COMMITMENT"
+            label="ACTIVE BID LOCKS"
             value={operatorStatus.challengePower}
           />
+          <OperatorMetric label="SPENT" value={operatorStatus.spentPower} />
+          <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
+            <span>OPEN POSITIONS</span>
+            <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
+              {operatorStatus.activeChallengeCount}
+            </span>
+          </div>
           <OperatorMetric
-            label="AVAILABLE"
+            label="READY"
             value={operatorStatus.availablePower}
             highlight
           />

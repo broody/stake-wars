@@ -356,6 +356,7 @@ export function Planet({
     selectedControlPointIds,
     ownedControlPointIds,
     opponentControlPointIds,
+    contestedControlPointIds,
     occupiedControlPointIds,
     controlPointOwnerGroups,
     controlPointControlledSince,
@@ -371,6 +372,24 @@ export function Planet({
   const ownedControlPointIdSet = useMemo(
     () => new Set(ownedControlPointIds),
     [ownedControlPointIds]
+  );
+  const contestedControlPointIdSet = useMemo(
+    () => new Set(contestedControlPointIds),
+    [contestedControlPointIds]
+  );
+  const uncontestedOwnedControlPointIds = useMemo(
+    () =>
+      ownedControlPointIds.filter(
+        (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+      ),
+    [contestedControlPointIdSet, ownedControlPointIds]
+  );
+  const uncontestedOpponentControlPointIds = useMemo(
+    () =>
+      opponentControlPointIds.filter(
+        (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+      ),
+    [contestedControlPointIdSet, opponentControlPointIds]
   );
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
 
@@ -497,7 +516,7 @@ export function Planet({
       {mode === 'control' ? (
         <>
           <ExtrudedControlPointLayer
-            controlPointIds={opponentControlPointIds}
+            controlPointIds={uncontestedOpponentControlPointIds}
             controlPointGroups={controlPointOwnerGroups}
             heights={controlPointHeights}
             topColor={CONTROL_POINT_COLORS.opponent}
@@ -507,7 +526,7 @@ export function Planet({
             onPointerOut={() => setHoveredControlPointId(null)}
           />
           <ExtrudedControlPointLayer
-            controlPointIds={ownedControlPointIds}
+            controlPointIds={uncontestedOwnedControlPointIds}
             controlPointGroups={controlPointOwnerGroups}
             heights={controlPointHeights}
             topColor={CONTROL_POINT_COLORS.owned}
@@ -516,16 +535,32 @@ export function Planet({
             onHoverControlPoint={handleControlPointHover}
             onPointerOut={() => setHoveredControlPointId(null)}
           />
+          <ExtrudedControlPointLayer
+            controlPointIds={contestedControlPointIds}
+            controlPointGroups={controlPointOwnerGroups}
+            heights={controlPointHeights}
+            topColor={CONTROL_POINT_COLORS.contested}
+            sideColor={CONTROL_POINT_COLORS.contestedSide}
+            onClickControlPoint={handleControlPointClick}
+            onHoverControlPoint={handleControlPointHover}
+            onPointerOut={() => setHoveredControlPointId(null)}
+          />
           <ControlPointGridLayer
-            controlPointIds={opponentControlPointIds}
+            controlPointIds={uncontestedOpponentControlPointIds}
             color={CONTROL_POINT_COLORS.opponentGrid}
             heights={controlPointHeights}
           />
           <ControlPointGridLayer
-            controlPointIds={ownedControlPointIds}
+            controlPointIds={uncontestedOwnedControlPointIds}
             color={CONTROL_POINT_COLORS.ownedGrid}
             heights={controlPointHeights}
             opacity={0.42}
+          />
+          <ControlPointGridLayer
+            controlPointIds={contestedControlPointIds}
+            color={CONTROL_POINT_COLORS.contestedGrid}
+            heights={controlPointHeights}
+            opacity={0.68}
           />
         </>
       ) : (

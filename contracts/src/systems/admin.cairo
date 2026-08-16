@@ -5,9 +5,7 @@ pub trait IAdmin<TContractState> {
     fn initialize(
         ref self: TContractState,
         staking_pool: ContractAddress,
-        settlement_authority: ContractAddress,
         minimum_stake: u128,
-        challenge_premium_bps: u16,
         challenge_period_seconds: u64,
         control_point_limit: u32,
     );
@@ -15,12 +13,10 @@ pub trait IAdmin<TContractState> {
     fn set_rules(
         ref self: TContractState,
         minimum_stake: u128,
-        challenge_premium_bps: u16,
         challenge_period_seconds: u64,
         control_point_limit: u32,
     );
     fn set_staking_pool(ref self: TContractState, staking_pool: ContractAddress);
-    fn set_settlement_authority(ref self: TContractState, settlement_authority: ContractAddress);
     fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
 }
 
@@ -40,9 +36,7 @@ pub mod admin {
         #[key]
         pub admin: ContractAddress,
         pub staking_pool: ContractAddress,
-        pub settlement_authority: ContractAddress,
         pub minimum_stake: u128,
-        pub challenge_premium_bps: u16,
         pub challenge_period_seconds: u64,
         pub control_point_limit: u32,
     }
@@ -61,7 +55,6 @@ pub mod admin {
         #[key]
         pub admin: ContractAddress,
         pub minimum_stake: u128,
-        pub challenge_premium_bps: u16,
         pub challenge_period_seconds: u64,
         pub control_point_limit: u32,
     }
@@ -77,15 +70,6 @@ pub mod admin {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct SettlementAuthorityChanged {
-        #[key]
-        pub admin: ContractAddress,
-        pub previous_authority: ContractAddress,
-        pub new_authority: ContractAddress,
-    }
-
-    #[derive(Copy, Drop, Serde)]
-    #[dojo::event]
     pub struct AdminTransferred {
         #[key]
         pub previous_admin: ContractAddress,
@@ -97,9 +81,7 @@ pub mod admin {
         fn initialize(
             ref self: ContractState,
             staking_pool: ContractAddress,
-            settlement_authority: ContractAddress,
             minimum_stake: u128,
-            challenge_premium_bps: u16,
             challenge_period_seconds: u64,
             control_point_limit: u32,
         ) {
@@ -113,10 +95,7 @@ pub mod admin {
                 'not world owner',
             );
             assert(!staking_pool.is_zero(), 'zero staking pool');
-            assert(!settlement_authority.is_zero(), 'zero settle authority');
-            validate_rules(
-                minimum_stake, challenge_premium_bps, challenge_period_seconds, control_point_limit,
-            );
+            validate_rules(minimum_stake, challenge_period_seconds, control_point_limit);
 
             world
                 .write_model(
@@ -124,10 +103,8 @@ pub mod admin {
                         id: CONFIG_ID,
                         initialized: true,
                         admin: caller,
-                        settlement_authority,
                         staking_pool,
                         minimum_stake,
-                        challenge_premium_bps,
                         challenge_period_seconds,
                         control_point_limit,
                         paused: false,
@@ -138,9 +115,7 @@ pub mod admin {
                     @ConfigInitialized {
                         admin: caller,
                         staking_pool,
-                        settlement_authority,
                         minimum_stake,
-                        challenge_premium_bps,
                         challenge_period_seconds,
                         control_point_limit,
                     },
@@ -158,18 +133,14 @@ pub mod admin {
         fn set_rules(
             ref self: ContractState,
             minimum_stake: u128,
-            challenge_premium_bps: u16,
             challenge_period_seconds: u64,
             control_point_limit: u32,
         ) {
-            validate_rules(
-                minimum_stake, challenge_premium_bps, challenge_period_seconds, control_point_limit,
-            );
+            validate_rules(minimum_stake, challenge_period_seconds, control_point_limit);
             let mut world = self.world_default();
             let mut config = self.assert_admin();
             assert(control_point_limit >= config.control_point_limit, 'cannot reduce point limit');
             config.minimum_stake = minimum_stake;
-            config.challenge_premium_bps = challenge_premium_bps;
             config.challenge_period_seconds = challenge_period_seconds;
             config.control_point_limit = control_point_limit;
             world.write_model(@config);
@@ -178,7 +149,6 @@ pub mod admin {
                     @RulesChanged {
                         admin: config.admin,
                         minimum_stake,
-                        challenge_premium_bps,
                         challenge_period_seconds,
                         control_point_limit,
                     },
@@ -197,26 +167,6 @@ pub mod admin {
                 .emit_event(
                     @StakingPoolChanged {
                         admin: config.admin, previous_pool, new_pool: staking_pool,
-                    },
-                );
-        }
-
-        fn set_settlement_authority(
-            ref self: ContractState, settlement_authority: ContractAddress,
-        ) {
-            assert(!settlement_authority.is_zero(), 'zero settle authority');
-            let mut world = self.world_default();
-            let mut config = self.assert_admin();
-            assert(config.paused, 'pause required');
-            let previous_authority = config.settlement_authority;
-            config.settlement_authority = settlement_authority;
-            world.write_model(@config);
-            world
-                .emit_event(
-                    @SettlementAuthorityChanged {
-                        admin: config.admin,
-                        previous_authority,
-                        new_authority: settlement_authority,
                     },
                 );
         }
@@ -247,15 +197,8 @@ pub mod admin {
         }
     }
 
-    fn validate_rules(
-        minimum_stake: u128,
-        challenge_premium_bps: u16,
-        challenge_period_seconds: u64,
-        point_limit: u32,
-    ) {
+    fn validate_rules(minimum_stake: u128, challenge_period_seconds: u64, point_limit: u32) {
         assert(minimum_stake > 0, 'zero minimum stake');
-        assert(challenge_premium_bps > 0, 'zero premium');
-        assert(challenge_premium_bps <= 10_000, 'premium too high');
         assert(challenge_period_seconds > 0, 'zero challenge period');
         assert(point_limit > 0, 'zero point limit');
         assert(point_limit <= MAX_CONTROL_POINTS, 'too many control points');

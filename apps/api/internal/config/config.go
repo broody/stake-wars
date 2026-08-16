@@ -28,21 +28,16 @@ var productionOrigins = []string{
 // Config contains runtime settings. Secrets are read from the environment and
 // never persisted by this package.
 type Config struct {
-	Environment                     string
-	Port                            string
-	DatabasePath                    string
-	StarknetRPCURL                  string
-	StarknetChainID                 string
-	ToriiURL                        string
-	AuctionPrivateKeyPEM            string
-	ControlSystemAddress            string
-	AuctionSettlementAccountAddress string
-	AuctionSettlementPublicKey      string
-	AuctionSettlementPrivateKey     string
-	MaxImageBytes                   int64
-	ChallengeTTL                    time.Duration
-	SessionTTL                      time.Duration
-	AllowedOrigins                  []string
+	Environment     string
+	Port            string
+	DatabasePath    string
+	StarknetRPCURL  string
+	StarknetChainID string
+	ToriiURL        string
+	MaxImageBytes   int64
+	ChallengeTTL    time.Duration
+	SessionTTL      time.Duration
+	AllowedOrigins  []string
 }
 
 // Load reads and validates runtime configuration from the environment.
@@ -93,21 +88,16 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Environment:                     environment,
-		Port:                            valueOrDefault("PORT", defaultPort),
-		DatabasePath:                    valueOrDefault("DATABASE_PATH", defaultDatabasePath),
-		StarknetRPCURL:                  strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
-		StarknetChainID:                 valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
-		ToriiURL:                        toriiURL,
-		AuctionPrivateKeyPEM:            os.Getenv("AUCTION_PRIVATE_KEY_PEM"),
-		ControlSystemAddress:            strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
-		AuctionSettlementAccountAddress: strings.TrimSpace(os.Getenv("AUCTION_SETTLEMENT_ACCOUNT_ADDRESS")),
-		AuctionSettlementPublicKey:      strings.TrimSpace(os.Getenv("AUCTION_SETTLEMENT_PUBLIC_KEY")),
-		AuctionSettlementPrivateKey:     strings.TrimSpace(os.Getenv("AUCTION_SETTLEMENT_PRIVATE_KEY")),
-		MaxImageBytes:                   maxImageBytes,
-		ChallengeTTL:                    challengeTTL,
-		SessionTTL:                      sessionTTL,
-		AllowedOrigins:                  origins,
+		Environment:     environment,
+		Port:            valueOrDefault("PORT", defaultPort),
+		DatabasePath:    valueOrDefault("DATABASE_PATH", defaultDatabasePath),
+		StarknetRPCURL:  strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
+		StarknetChainID: valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
+		ToriiURL:        toriiURL,
+		MaxImageBytes:   maxImageBytes,
+		ChallengeTTL:    challengeTTL,
+		SessionTTL:      sessionTTL,
+		AllowedOrigins:  origins,
 	}, nil
 }
 

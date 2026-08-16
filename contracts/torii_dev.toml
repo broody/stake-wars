@@ -8,9 +8,10 @@ historical = [
   "stakewars-ControlPointReinforced",
   "stakewars-ControlPointReleased",
   "stakewars-ChallengeStarted",
-  "stakewars-SealedBidSubmitted",
-  "stakewars-CollateralSacrificed",
+  "stakewars-BidPlaced",
+  "stakewars-ControlPointSacrificed",
   "stakewars-ChallengeSettled",
+  "stakewars-ChallengePositionResolved",
   "stakewars-OperatorDisqualified",
   "stakewars-OperatorRetired",
 ]
