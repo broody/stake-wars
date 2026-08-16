@@ -11,6 +11,7 @@ import {
   CORE_RADIUS,
   createControlPointBoundaryGeometry,
   createControlPointGeometry,
+  createControlPointGroupGridGeometries,
   createControlPointSetGeometry,
   createExtrudedControlPointGeometries,
   createRaisedControlPointSetGeometry,
@@ -194,70 +195,79 @@ function PopulatedThickControlPointBorderLayer({
 }
 
 interface ControlPointGridLayerProps {
-  controlPointIds: number[];
+  controlPointGroups: number[][];
   color: THREE.ColorRepresentation;
   heights: ReadonlyMap<number, number>;
   opacity?: number;
+  innerOpacity?: number;
 }
 
 function ControlPointGridLayer({
-  controlPointIds,
+  controlPointGroups,
   color,
   heights,
   opacity = 0.86,
+  innerOpacity = 0.42,
 }: ControlPointGridLayerProps) {
-  const materialRef = useRef<THREE.LineBasicMaterial>(null);
-  const geometry = useMemo(
+  const boundaryMaterialRef = useRef<THREE.LineBasicMaterial>(null);
+  const internalMaterialRef = useRef<THREE.LineBasicMaterial>(null);
+  const geometries = useMemo(
     () =>
-      createRaisedControlPointSetGeometry(
-        controlPointIds,
+      createControlPointGroupGridGeometries(
+        controlPointGroups,
         heights,
         TENURE_SURFACE_RADIUS
       ),
-    [controlPointIds, heights]
-  );
-  const edgeGeometry = useMemo(
-    () => new THREE.EdgesGeometry(geometry),
-    [geometry]
+    [controlPointGroups, heights]
   );
 
   useEffect(
     () => () => {
-      edgeGeometry.dispose();
-      geometry.dispose();
+      geometries.boundaries.dispose();
+      geometries.interiors.dispose();
     },
-    [edgeGeometry, geometry]
+    [geometries]
   );
 
   useFrame(({ camera }) => {
-    if (!materialRef.current) return;
-
     const fadeProgress = THREE.MathUtils.smoothstep(
       camera.position.length(),
       CONTROL_POINT_GRID_FULL_DISTANCE,
       CONTROL_POINT_GRID_FADE_DISTANCE
     );
-    materialRef.current.opacity = opacity * (1 - fadeProgress);
+    if (boundaryMaterialRef.current) {
+      boundaryMaterialRef.current.opacity = opacity * (1 - fadeProgress);
+    }
+    if (internalMaterialRef.current) {
+      internalMaterialRef.current.opacity = innerOpacity * (1 - fadeProgress);
+    }
   });
 
-  if (controlPointIds.length === 0) {
+  if (controlPointGroups.length === 0) {
     return null;
   }
 
   return (
-    <lineSegments
-      geometry={edgeGeometry}
-      scale={1.0015}
-      raycast={() => undefined}
-    >
-      <lineBasicMaterial
-        ref={materialRef}
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-      />
-    </lineSegments>
+    <group scale={1.0015}>
+      <lineSegments geometry={geometries.interiors} raycast={() => undefined}>
+        <lineBasicMaterial
+          ref={internalMaterialRef}
+          color={color}
+          transparent
+          opacity={innerOpacity}
+          depthWrite={false}
+        />
+      </lineSegments>
+      <lineSegments geometry={geometries.boundaries} raycast={() => undefined}>
+        <lineBasicMaterial
+          ref={boundaryMaterialRef}
+          color={color}
+          transparent
+          opacity={opacity}
+          depthWrite={false}
+        />
+      </lineSegments>
+    </group>
   );
 }
 
@@ -328,6 +338,30 @@ function AnimatedStripeControlPointLayer({
         side={THREE.DoubleSide}
       />
     </mesh>
+  );
+}
+
+export function ControlPointContestLayer({
+  controlPointIds,
+  heights,
+  color,
+}: {
+  controlPointIds: number[];
+  heights: ReadonlyMap<number, number>;
+  color: THREE.ColorRepresentation;
+}) {
+  if (controlPointIds.length === 0) return null;
+
+  return (
+    <AnimatedStripeControlPointLayer
+      controlPointIds={controlPointIds}
+      heights={heights}
+      color={color}
+      baseOpacity={0}
+      stripeOpacity={1}
+      stripeAngleDegrees={45}
+      scale={1.012}
+    />
   );
 }
 
@@ -436,6 +470,91 @@ function ExtrudedControlPointLayer({
         <meshBasicMaterial color={topColor} side={THREE.DoubleSide} />
       </mesh>
     </group>
+  );
+}
+
+interface ControlPointOwnershipLayersProps {
+  ownedControlPointIds: number[];
+  opponentControlPointIds: number[];
+  controlPointOwnerGroups: number[][];
+  controlPointHeights: ReadonlyMap<number, number>;
+  onClickControlPoint: (
+    controlPointId: number,
+    event: ThreeEvent<MouseEvent>
+  ) => void;
+  onHoverControlPoint: (
+    controlPointId: number,
+    event: ThreeEvent<PointerEvent>
+  ) => void;
+  onPointerOut: () => void;
+}
+
+export function ControlPointOwnershipLayers({
+  ownedControlPointIds,
+  opponentControlPointIds,
+  controlPointOwnerGroups,
+  controlPointHeights,
+  onClickControlPoint,
+  onHoverControlPoint,
+  onPointerOut,
+}: ControlPointOwnershipLayersProps) {
+  const { ownedControlPointGroups, opponentControlPointGroups } =
+    useMemo(() => {
+      const ownedControlPointIdSet = new Set(ownedControlPointIds);
+      const ownedGroups: number[][] = [];
+      const opponentGroups: number[][] = [];
+
+      controlPointOwnerGroups.forEach((controlPointIds) => {
+        const firstControlPointId = controlPointIds[0];
+        if (firstControlPointId === undefined) return;
+        if (ownedControlPointIdSet.has(firstControlPointId)) {
+          ownedGroups.push(controlPointIds);
+        } else {
+          opponentGroups.push(controlPointIds);
+        }
+      });
+
+      return {
+        ownedControlPointGroups: ownedGroups,
+        opponentControlPointGroups: opponentGroups,
+      };
+    }, [controlPointOwnerGroups, ownedControlPointIds]);
+
+  return (
+    <>
+      <ExtrudedControlPointLayer
+        controlPointIds={opponentControlPointIds}
+        controlPointGroups={controlPointOwnerGroups}
+        heights={controlPointHeights}
+        topColor={CONTROL_POINT_COLORS.opponent}
+        sideColor={CONTROL_POINT_COLORS.opponentSide}
+        onClickControlPoint={onClickControlPoint}
+        onHoverControlPoint={onHoverControlPoint}
+        onPointerOut={onPointerOut}
+      />
+      <ExtrudedControlPointLayer
+        controlPointIds={ownedControlPointIds}
+        controlPointGroups={controlPointOwnerGroups}
+        heights={controlPointHeights}
+        topColor={CONTROL_POINT_COLORS.owned}
+        sideColor={CONTROL_POINT_COLORS.ownedSide}
+        onClickControlPoint={onClickControlPoint}
+        onHoverControlPoint={onHoverControlPoint}
+        onPointerOut={onPointerOut}
+      />
+      <ControlPointGridLayer
+        controlPointGroups={opponentControlPointGroups}
+        color={CONTROL_POINT_COLORS.opponentGrid}
+        heights={controlPointHeights}
+      />
+      <ControlPointGridLayer
+        controlPointGroups={ownedControlPointGroups}
+        color={CONTROL_POINT_COLORS.ownedGrid}
+        heights={controlPointHeights}
+        opacity={0.42}
+        innerOpacity={0.2}
+      />
+    </>
   );
 }
 
@@ -650,39 +769,15 @@ export function Planet({
       </mesh>
 
       {mode === 'control' ? (
-        <>
-          <ExtrudedControlPointLayer
-            controlPointIds={opponentControlPointIds}
-            controlPointGroups={controlPointOwnerGroups}
-            heights={controlPointHeights}
-            topColor={CONTROL_POINT_COLORS.opponent}
-            sideColor={CONTROL_POINT_COLORS.opponentSide}
-            onClickControlPoint={handleControlPointClick}
-            onHoverControlPoint={handleControlPointHover}
-            onPointerOut={() => setHoveredControlPointId(null)}
-          />
-          <ExtrudedControlPointLayer
-            controlPointIds={ownedControlPointIds}
-            controlPointGroups={controlPointOwnerGroups}
-            heights={controlPointHeights}
-            topColor={CONTROL_POINT_COLORS.owned}
-            sideColor={CONTROL_POINT_COLORS.ownedSide}
-            onClickControlPoint={handleControlPointClick}
-            onHoverControlPoint={handleControlPointHover}
-            onPointerOut={() => setHoveredControlPointId(null)}
-          />
-          <ControlPointGridLayer
-            controlPointIds={opponentControlPointIds}
-            color={CONTROL_POINT_COLORS.opponentGrid}
-            heights={controlPointHeights}
-          />
-          <ControlPointGridLayer
-            controlPointIds={ownedControlPointIds}
-            color={CONTROL_POINT_COLORS.ownedGrid}
-            heights={controlPointHeights}
-            opacity={0.42}
-          />
-        </>
+        <ControlPointOwnershipLayers
+          ownedControlPointIds={ownedControlPointIds}
+          opponentControlPointIds={opponentControlPointIds}
+          controlPointOwnerGroups={controlPointOwnerGroups}
+          controlPointHeights={controlPointHeights}
+          onClickControlPoint={handleControlPointClick}
+          onHoverControlPoint={handleControlPointHover}
+          onPointerOut={() => setHoveredControlPointId(null)}
+        />
       ) : (
         <ControlPointLayer
           controlPointIds={ownedControlPointIds}
@@ -726,7 +821,7 @@ export function Planet({
       ) : null}
 
       {mode === 'control' && contestedControlPointIds.length > 0 ? (
-        <AnimatedStripeControlPointLayer
+        <ControlPointContestLayer
           controlPointIds={contestedControlPointIds}
           heights={controlPointHeights}
           color={
@@ -734,10 +829,6 @@ export function Planet({
               ? CONTROL_POINT_COLORS.contested
               : CONTROL_POINT_COLORS.neutralGrid
           }
-          baseOpacity={0}
-          stripeOpacity={1}
-          stripeAngleDegrees={45}
-          scale={1.012}
         />
       ) : null}
 

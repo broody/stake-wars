@@ -5,6 +5,7 @@ import {
   adjacentControlPointIds,
   createControlPointBoundaryGeometry,
   createControlPointGeometry,
+  createControlPointGroupGridGeometries,
   createControlPointSetGeometry,
   createExtrudedControlPointGeometries,
   createRaisedControlPointSetGeometry,
@@ -166,6 +167,19 @@ describe('canonical Control Point geometry', () => {
     expect(Array.from(separateOwnerPositions)).not.toEqual(
       Array.from(originalPositions)
     );
+
+    const sharedOwnerGrid = createControlPointGroupGridGeometries([
+      adjacentControlPoints!,
+    ]);
+    const separateOwnerGrid = createControlPointGroupGridGeometries(
+      adjacentControlPoints!.map((id) => [id])
+    );
+    expect(sharedOwnerGrid.boundaries.getAttribute('position').count).toBe(8);
+    expect(sharedOwnerGrid.interiors.getAttribute('position').count).toBe(2);
+    expect(separateOwnerGrid.boundaries.getAttribute('position').count).toBe(
+      12
+    );
+    expect(separateOwnerGrid.interiors.getAttribute('position').count).toBe(0);
 
     const heights = new Map(
       adjacentControlPoints!.map((controlPointId) => [controlPointId, 0.5])

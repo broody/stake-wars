@@ -1,0 +1,529 @@
+import {
+  CONTROL_POINT_COUNT,
+  adjacentControlPointIds,
+} from './controlPointGeometry';
+
+export type OwnershipDistribution = 'contiguous' | 'mixed' | 'scattered';
+
+const UNOCCUPIED_CONTROL_POINT_COUNT = Math.round(CONTROL_POINT_COUNT * 0.08);
+const UNOCCUPIED_REGION_COUNT = 12;
+export const STAKE_RELIEF_CAP_STRK = 100_000;
+export const MAX_STAKE_RELIEF_HEIGHT = 0.9;
+
+export interface OwnershipScenario {
+  id: string;
+  title: string;
+  description: string;
+  distribution: OwnershipDistribution;
+  ownerCount: number;
+  ownerByControlPoint: readonly number[];
+  controlPointIdsByOwner: readonly (readonly number[])[];
+  unoccupiedControlPointIds: readonly number[];
+  contestedControlPointIds: readonly number[];
+  ownerAddresses: readonly string[];
+  stakedStrkByOwner: readonly number[];
+  counts: readonly number[];
+  seed: number;
+}
+
+interface OwnershipScenarioDefinition {
+  id: string;
+  title: string;
+  description: string;
+  distribution: OwnershipDistribution;
+  ownerCount: number;
+  seed: number;
+}
+
+export const OWNERSHIP_SCENARIO_DEFINITIONS: readonly OwnershipScenarioDefinition[] =
+  [
+    {
+      id: 'frontiers',
+      title: 'FRONTIERS',
+      description: 'A few Operators holding large, contiguous territories.',
+      distribution: 'contiguous',
+      ownerCount: 8,
+      seed: 11,
+    },
+    {
+      id: 'city-states',
+      title: 'CITY STATES',
+      description: 'Thirty-two Operators forming smaller contiguous regions.',
+      distribution: 'contiguous',
+      ownerCount: 32,
+      seed: 29,
+    },
+    {
+      id: 'fractured',
+      title: 'FRACTURED',
+      description:
+        'Ninety-six Operators with clustered cores and remote holdings.',
+      distribution: 'mixed',
+      ownerCount: 96,
+      seed: 47,
+    },
+    {
+      id: 'saturated',
+      title: 'SATURATED',
+      description:
+        'Three hundred twenty Operators spread across a densely occupied Core.',
+      distribution: 'scattered',
+      ownerCount: 320,
+      seed: 83,
+    },
+  ];
+
+function createRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function shuffledControlPointIds(random: () => number): number[] {
+  const ids = Array.from({ length: CONTROL_POINT_COUNT }, (_, id) => id);
+  for (let index = ids.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [ids[index], ids[swapIndex]] = [ids[swapIndex], ids[index]];
+  }
+  return ids;
+}
+
+function keepsOccupiedCoreConnected(
+  selected: ReadonlySet<number>,
+  candidate: number
+): boolean {
+  let firstOccupiedControlPointId = -1;
+  for (
+    let controlPointId = 0;
+    controlPointId < CONTROL_POINT_COUNT;
+    controlPointId += 1
+  ) {
+    if (controlPointId !== candidate && !selected.has(controlPointId)) {
+      firstOccupiedControlPointId = controlPointId;
+      break;
+    }
+  }
+  if (firstOccupiedControlPointId === -1) return false;
+
+  const visited = new Set<number>();
+  const pending = [firstOccupiedControlPointId];
+  while (pending.length > 0) {
+    const controlPointId = pending.pop();
+    if (controlPointId === undefined || visited.has(controlPointId)) continue;
+    visited.add(controlPointId);
+    adjacentControlPointIds(controlPointId).forEach((neighborId) => {
+      if (
+        neighborId !== candidate &&
+        !selected.has(neighborId) &&
+        !visited.has(neighborId)
+      ) {
+        pending.push(neighborId);
+      }
+    });
+  }
+
+  return visited.size === CONTROL_POINT_COUNT - selected.size - 1;
+}
+
+function clusteredUnoccupiedControlPointIds(seed: number): number[] {
+  const random = createRandom(seed ^ 0xa341316c);
+  const shuffledIds = shuffledControlPointIds(random);
+  const selected = new Set<number>();
+  let seedIndex = 0;
+
+  for (let region = 0; region < UNOCCUPIED_REGION_COUNT; region += 1) {
+    while (
+      seedIndex < shuffledIds.length &&
+      selected.has(shuffledIds[seedIndex])
+    ) {
+      seedIndex += 1;
+    }
+    const regionSeed = shuffledIds[seedIndex];
+    if (regionSeed === undefined) break;
+    seedIndex += 1;
+
+    const regionTarget = Math.ceil(
+      (UNOCCUPIED_CONTROL_POINT_COUNT - selected.size) /
+        (UNOCCUPIED_REGION_COUNT - region)
+    );
+    const pending = [regionSeed];
+    const queued = new Set(pending);
+    let addedToRegion = 0;
+
+    while (pending.length > 0 && addedToRegion < regionTarget) {
+      const controlPointId = pending.shift();
+      if (controlPointId === undefined || selected.has(controlPointId))
+        continue;
+
+      const neighbors = [...adjacentControlPointIds(controlPointId)];
+      if (random() > 0.5) neighbors.reverse();
+      neighbors.forEach((neighborId) => {
+        if (!selected.has(neighborId) && !queued.has(neighborId)) {
+          pending.push(neighborId);
+          queued.add(neighborId);
+        }
+      });
+
+      if (!keepsOccupiedCoreConnected(selected, controlPointId)) continue;
+      selected.add(controlPointId);
+      addedToRegion += 1;
+    }
+  }
+
+  for (const controlPointId of shuffledIds) {
+    if (selected.size >= UNOCCUPIED_CONTROL_POINT_COUNT) break;
+    if (keepsOccupiedCoreConnected(selected, controlPointId)) {
+      selected.add(controlPointId);
+    }
+  }
+
+  return [...selected].sort((left, right) => left - right);
+}
+
+function ownerWeights(ownerCount: number, random: () => number): number[] {
+  return Array.from({ length: ownerCount }, () => {
+    const skew = random();
+    return 0.45 + skew * skew * 2.8;
+  });
+}
+
+function contiguousOwnership(
+  ownerCount: number,
+  seed: number,
+  unoccupiedControlPointIds: ReadonlySet<number>
+): number[] {
+  const random = createRandom(seed);
+  const shuffledIds = shuffledControlPointIds(random).filter(
+    (controlPointId) => !unoccupiedControlPointIds.has(controlPointId)
+  );
+  const assignments = Array<number>(CONTROL_POINT_COUNT).fill(-1);
+  const weights = ownerWeights(ownerCount, random);
+  const counts = Array<number>(ownerCount).fill(1);
+  const frontiers = Array.from({ length: ownerCount }, () => [] as number[]);
+
+  for (let owner = 0; owner < ownerCount; owner += 1) {
+    const controlPointId = shuffledIds[owner];
+    assignments[controlPointId] = owner;
+  }
+
+  for (let owner = 0; owner < ownerCount; owner += 1) {
+    const seedControlPointId = shuffledIds[owner];
+    frontiers[owner].push(...adjacentControlPointIds(seedControlPointId));
+  }
+
+  let assignedCount = ownerCount;
+  while (assignedCount < shuffledIds.length) {
+    let nextOwner = -1;
+    let lowestPressure = Number.POSITIVE_INFINITY;
+
+    for (let owner = 0; owner < ownerCount; owner += 1) {
+      const frontier = frontiers[owner];
+      while (
+        frontier.length > 0 &&
+        (assignments[frontier[frontier.length - 1]] !== -1 ||
+          unoccupiedControlPointIds.has(frontier[frontier.length - 1]))
+      ) {
+        frontier.pop();
+      }
+      if (frontier.length === 0) continue;
+
+      const pressure = counts[owner] / weights[owner];
+      if (pressure < lowestPressure) {
+        lowestPressure = pressure;
+        nextOwner = owner;
+      }
+    }
+
+    if (nextOwner === -1) {
+      throw new Error('Unable to complete contiguous ownership scenario');
+    }
+
+    const frontier = frontiers[nextOwner];
+    const nextControlPointId = frontier.pop();
+    if (nextControlPointId === undefined) continue;
+    assignments[nextControlPointId] = nextOwner;
+    counts[nextOwner] += 1;
+    assignedCount += 1;
+
+    const neighbors = [...adjacentControlPointIds(nextControlPointId)];
+    if (random() > 0.5) neighbors.reverse();
+    neighbors.forEach((neighbor) => {
+      if (
+        assignments[neighbor] === -1 &&
+        !unoccupiedControlPointIds.has(neighbor)
+      ) {
+        frontier.push(neighbor);
+      }
+    });
+  }
+
+  return assignments;
+}
+
+function scatteredOwnership(
+  ownerCount: number,
+  seed: number,
+  unoccupiedControlPointIds: ReadonlySet<number>
+): number[] {
+  const random = createRandom(seed);
+  const shuffledIds = shuffledControlPointIds(random).filter(
+    (controlPointId) => !unoccupiedControlPointIds.has(controlPointId)
+  );
+  const weights = ownerWeights(ownerCount, random);
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+  const assignments = Array<number>(CONTROL_POINT_COUNT).fill(-1);
+
+  for (let owner = 0; owner < ownerCount; owner += 1) {
+    assignments[shuffledIds[owner]] = owner;
+  }
+
+  for (let index = ownerCount; index < shuffledIds.length; index += 1) {
+    let draw = random() * totalWeight;
+    let owner = ownerCount - 1;
+    for (let candidate = 0; candidate < ownerCount; candidate += 1) {
+      draw -= weights[candidate];
+      if (draw <= 0) {
+        owner = candidate;
+        break;
+      }
+    }
+    assignments[shuffledIds[index]] = owner;
+  }
+
+  return assignments;
+}
+
+function mixedOwnership(
+  ownerCount: number,
+  seed: number,
+  unoccupiedControlPointIds: ReadonlySet<number>
+): number[] {
+  const assignments = contiguousOwnership(
+    ownerCount,
+    seed,
+    unoccupiedControlPointIds
+  );
+  const random = createRandom(seed ^ 0x9e3779b9);
+  const occupiedControlPointIds = Array.from(
+    { length: CONTROL_POINT_COUNT },
+    (_, controlPointId) => controlPointId
+  ).filter((controlPointId) => !unoccupiedControlPointIds.has(controlPointId));
+  const swapCount = Math.floor(occupiedControlPointIds.length * 0.22);
+
+  for (let swap = 0; swap < swapCount; swap += 1) {
+    const left =
+      occupiedControlPointIds[
+        Math.floor(random() * occupiedControlPointIds.length)
+      ];
+    let right =
+      occupiedControlPointIds[
+        Math.floor(random() * occupiedControlPointIds.length)
+      ];
+    if (assignments[left] === assignments[right]) {
+      const rightIndex = occupiedControlPointIds.indexOf(right);
+      right =
+        occupiedControlPointIds[
+          (rightIndex + 1 + Math.floor(random() * 97)) %
+            occupiedControlPointIds.length
+        ];
+    }
+    [assignments[left], assignments[right]] = [
+      assignments[right],
+      assignments[left],
+    ];
+  }
+
+  return assignments;
+}
+
+function contestedOwnershipFronts(
+  ownerByControlPoint: readonly number[],
+  ownerCount: number,
+  seed: number
+): number[] {
+  const boundaryControlPointIds = ownerByControlPoint.flatMap(
+    (owner, controlPointId) =>
+      owner >= 0 &&
+      adjacentControlPointIds(controlPointId).some((neighborId) => {
+        const neighborOwner = ownerByControlPoint[neighborId];
+        return neighborOwner >= 0 && neighborOwner !== owner;
+      })
+        ? [controlPointId]
+        : []
+  );
+  const boundarySet = new Set(boundaryControlPointIds);
+  const random = createRandom(seed ^ 0x7f4a7c15);
+
+  for (let index = boundaryControlPointIds.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [boundaryControlPointIds[index], boundaryControlPointIds[swapIndex]] = [
+      boundaryControlPointIds[swapIndex],
+      boundaryControlPointIds[index],
+    ];
+  }
+
+  const targetCount = Math.min(
+    boundaryControlPointIds.length,
+    Math.round(18 + Math.sqrt(ownerCount) * 5)
+  );
+  const frontCount = Math.min(
+    6,
+    Math.max(2, Math.round(Math.log2(ownerCount) / 2))
+  );
+  const selected = new Set<number>();
+  let seedIndex = 0;
+
+  for (let front = 0; front < frontCount; front += 1) {
+    while (
+      seedIndex < boundaryControlPointIds.length &&
+      selected.has(boundaryControlPointIds[seedIndex])
+    ) {
+      seedIndex += 1;
+    }
+    const frontSeed = boundaryControlPointIds[seedIndex];
+    if (frontSeed === undefined) break;
+    seedIndex += 1;
+
+    const frontTarget = Math.ceil(
+      (targetCount - selected.size) / (frontCount - front)
+    );
+    const pending = [frontSeed];
+    const queued = new Set(pending);
+    let addedToFront = 0;
+
+    while (pending.length > 0 && addedToFront < frontTarget) {
+      const controlPointId = pending.shift();
+      if (controlPointId === undefined || selected.has(controlPointId))
+        continue;
+      selected.add(controlPointId);
+      addedToFront += 1;
+
+      const neighbors = [...adjacentControlPointIds(controlPointId)];
+      if (random() > 0.5) neighbors.reverse();
+      neighbors.forEach((neighborId) => {
+        if (
+          boundarySet.has(neighborId) &&
+          !selected.has(neighborId) &&
+          !queued.has(neighborId)
+        ) {
+          pending.push(neighborId);
+          queued.add(neighborId);
+        }
+      });
+    }
+  }
+
+  for (const controlPointId of boundaryControlPointIds) {
+    if (selected.size >= targetCount) break;
+    selected.add(controlPointId);
+  }
+
+  return [...selected].sort((left, right) => left - right);
+}
+
+function mockOwnerAddress(owner: number, seed: number): string {
+  const random = createRandom(seed + owner * 1_009 + 17);
+  const chunks = Array.from({ length: 8 }, () =>
+    Math.floor(random() * 0x1_0000_0000)
+      .toString(16)
+      .padStart(8, '0')
+  );
+  return `0x${chunks.join('')}`;
+}
+
+function simulatedStakedStrk(ownerCount: number, seed: number): number[] {
+  const random = createRandom(seed ^ 0xc8013ea4);
+  const stakes = Array.from({ length: ownerCount }, () => {
+    const exponent = 2 + Math.pow(random(), 1.35) * 4;
+    return Math.max(100, Math.round(Math.pow(10, exponent) / 10) * 10);
+  });
+  if (stakes.length > 0) {
+    stakes[stakes.length - 1] = STAKE_RELIEF_CAP_STRK * 5;
+  }
+  return stakes;
+}
+
+export function stakeReliefHeight(
+  stakedStrk: number,
+  logarithmic = true
+): number {
+  if (!Number.isFinite(stakedStrk) || stakedStrk <= 0) return 0;
+  const cappedStake = Math.min(stakedStrk, STAKE_RELIEF_CAP_STRK);
+  if (!logarithmic) {
+    return MAX_STAKE_RELIEF_HEIGHT * (cappedStake / STAKE_RELIEF_CAP_STRK);
+  }
+  return (
+    (MAX_STAKE_RELIEF_HEIGHT * Math.log1p(cappedStake)) /
+    Math.log1p(STAKE_RELIEF_CAP_STRK)
+  );
+}
+
+export function createOwnershipScenario(
+  definition: OwnershipScenarioDefinition
+): OwnershipScenario {
+  if (
+    !Number.isInteger(definition.ownerCount) ||
+    definition.ownerCount < 1 ||
+    definition.ownerCount > CONTROL_POINT_COUNT
+  ) {
+    throw new RangeError('Owner count must fit within the Control Point count');
+  }
+
+  const unoccupiedControlPointIds = clusteredUnoccupiedControlPointIds(
+    definition.seed
+  );
+  const unoccupiedControlPointIdSet = new Set(unoccupiedControlPointIds);
+  const ownerByControlPoint =
+    definition.distribution === 'contiguous'
+      ? contiguousOwnership(
+          definition.ownerCount,
+          definition.seed,
+          unoccupiedControlPointIdSet
+        )
+      : definition.distribution === 'mixed'
+        ? mixedOwnership(
+            definition.ownerCount,
+            definition.seed,
+            unoccupiedControlPointIdSet
+          )
+        : scatteredOwnership(
+            definition.ownerCount,
+            definition.seed,
+            unoccupiedControlPointIdSet
+          );
+  const controlPointIdsByOwner = Array.from(
+    { length: definition.ownerCount },
+    () => [] as number[]
+  );
+  ownerByControlPoint.forEach((owner, controlPointId) => {
+    if (owner >= 0) controlPointIdsByOwner[owner].push(controlPointId);
+  });
+
+  return {
+    ...definition,
+    ownerByControlPoint,
+    controlPointIdsByOwner,
+    unoccupiedControlPointIds,
+    contestedControlPointIds: contestedOwnershipFronts(
+      ownerByControlPoint,
+      definition.ownerCount,
+      definition.seed
+    ),
+    ownerAddresses: Array.from({ length: definition.ownerCount }, (_, owner) =>
+      mockOwnerAddress(owner, definition.seed)
+    ),
+    stakedStrkByOwner: simulatedStakedStrk(
+      definition.ownerCount,
+      definition.seed
+    ),
+    counts: controlPointIdsByOwner.map((ids) => ids.length),
+  };
+}
+
+export const OWNERSHIP_SCENARIOS: readonly OwnershipScenario[] =
+  OWNERSHIP_SCENARIO_DEFINITIONS.map(createOwnershipScenario);

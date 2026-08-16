@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ControlPointProvider } from './contexts/ControlPointContext';
 import { WalletProvider } from './contexts/WalletContext';
@@ -9,6 +10,12 @@ import { Profile } from './pages/Profile';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
+
+const OwnershipLab = lazy(() =>
+  import('./pages/OwnershipLab').then((module) => ({
+    default: module.OwnershipLab,
+  }))
+);
 
 function GameApp() {
   return (
@@ -24,6 +31,14 @@ function GameApp() {
                       <Route path="/" element={<Home />} />
                       <Route path="/gallery" element={<Gallery />} />
                       <Route path="/profile" element={<Profile />} />
+                      <Route
+                        path="/ownership-lab"
+                        element={
+                          <Suspense fallback={null}>
+                            <OwnershipLab />
+                          </Suspense>
+                        }
+                      />
                     </Routes>
                   </Layout>
                 </YieldProvider>
