@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   OwnershipGlobe,
+  type GlobePerformanceMetrics,
   type OwnershipReliefMode,
 } from '../components/3d/OwnershipGlobe';
 import {
@@ -9,7 +10,20 @@ import {
   type OwnershipScenario,
 } from '../utils/ownershipScenarios';
 import { CONTROL_POINT_COUNT } from '../utils/controlPointGeometry';
+import {
+  EXAMPLE_IMAGE_ATLAS_GPU_BYTES,
+  EXAMPLE_IMAGE_ATLAS_HEIGHT,
+  EXAMPLE_IMAGE_ATLAS_WIDTH,
+  EXAMPLE_IMAGE_DETAIL_SIZE,
+  selectExampleImageControlPointIds,
+} from '../utils/exampleImageAtlas';
 import { shortAddress } from '../utils/format';
+
+const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, CONTROL_POINT_COUNT] as const;
+
+function formatMebibytes(bytes: number): string {
+  return `${Math.round(bytes / 1_048_576)} MIB`;
+}
 
 function scenarioStats(scenario: OwnershipScenario): {
   largest: number;
@@ -28,15 +42,39 @@ function OwnershipScenarioCard({
   scenario,
   reliefMode,
   logarithmicScale,
+  imageControlPointIds,
 }: {
   scenario: OwnershipScenario;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
+  imageControlPointIds: readonly number[];
 }) {
   const [markedOwner, setMarkedOwner] = useState(0);
   const [hoveredControlPointId, setHoveredControlPointId] = useState<
     number | null
   >(null);
+  const [performance, setPerformance] =
+    useState<GlobePerformanceMetrics | null>(null);
+  const [selectedDetailControlPointId, setSelectedDetailControlPointId] =
+    useState<number | null>(null);
+  const imageControlPointIdSet = useMemo(
+    () => new Set(imageControlPointIds),
+    [imageControlPointIds]
+  );
+  const activeSelectedDetailControlPointId =
+    selectedDetailControlPointId !== null &&
+    imageControlPointIdSet.has(selectedDetailControlPointId)
+      ? selectedDetailControlPointId
+      : null;
+
+  useEffect(() => {
+    if (
+      selectedDetailControlPointId !== null &&
+      !imageControlPointIdSet.has(selectedDetailControlPointId)
+    ) {
+      setSelectedDetailControlPointId(null);
+    }
+  }, [imageControlPointIdSet, selectedDetailControlPointId]);
   const validMarkedOwner =
     markedOwner >= 0 && markedOwner < scenario.ownerCount ? markedOwner : 0;
   const stats = useMemo(() => scenarioStats(scenario), [scenario]);
@@ -55,10 +93,16 @@ function OwnershipScenarioCard({
   const inspectedAddress = scenario.ownerAddresses[inspectedOwner];
   const inspectedCount = scenario.counts[inspectedOwner];
   const inspectedStake = scenario.stakedStrkByOwner[inspectedOwner] ?? 0;
-  const selectOwner = useCallback((owner: number) => {
-    setMarkedOwner(owner);
-    setHoveredControlPointId(null);
-  }, []);
+  const selectControlPoint = useCallback(
+    (controlPointId: number, owner: number) => {
+      if (owner >= 0) setMarkedOwner(owner);
+      setSelectedDetailControlPointId(
+        imageControlPointIdSet.has(controlPointId) ? controlPointId : null
+      );
+      setHoveredControlPointId(null);
+    },
+    [imageControlPointIdSet]
+  );
 
   const cycleOwner = (direction: -1 | 1) => {
     setMarkedOwner(
@@ -66,6 +110,7 @@ function OwnershipScenarioCard({
         (current + direction + scenario.ownerCount) % scenario.ownerCount
     );
     setHoveredControlPointId(null);
+    setSelectedDetailControlPointId(null);
   };
 
   return (
@@ -102,6 +147,14 @@ function OwnershipScenarioCard({
                 CONTESTED
               </div>
             </div>
+            <div>
+              <div className="text-xl tabular-nums text-fg">
+                {imageControlPointIds.length.toLocaleString()}
+              </div>
+              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
+                IMAGES
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -112,8 +165,11 @@ function OwnershipScenarioCard({
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
           logarithmicScale={logarithmicScale}
+          imageControlPointIds={imageControlPointIds}
+          selectedDetailControlPointId={activeSelectedDetailControlPointId}
+          onPerformanceSample={setPerformance}
           onHoverControlPoint={setHoveredControlPointId}
-          onSelectOwner={selectOwner}
+          onSelectControlPoint={selectControlPoint}
         />
       </div>
 
@@ -163,6 +219,16 @@ function OwnershipScenarioCard({
                     : ''}
                 </div>
               )}
+              {activeSelectedDetailControlPointId === null ? null : (
+                <div className="mt-1 text-[8px] tabular-nums tracking-[0.1em] text-amber-300">
+                  DETAIL TEXTURE · CP-
+                  {String(activeSelectedDetailControlPointId).padStart(
+                    4,
+                    '0'
+                  )}{' '}
+                  · {EXAMPLE_IMAGE_DETAIL_SIZE} PX
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -192,20 +258,58 @@ function OwnershipScenarioCard({
           ))}
         </dl>
       </div>
+
+      <dl className="grid grid-cols-2 gap-px border-t border-grid bg-grid sm:grid-cols-4 lg:grid-cols-7">
+        {[
+          ['FPS', performance?.fps ?? '—'],
+          ['DRAW CALLS', performance?.drawCalls ?? '—'],
+          ['TRIANGLES', performance?.triangles.toLocaleString() ?? '—'],
+          ['GPU TEXTURES', performance?.textures ?? '—'],
+          ['CAMERA', performance ? performance.cameraDistance.toFixed(1) : '—'],
+          ['IMAGE ATLAS', imageControlPointIds.length > 0 ? '1 CALL' : 'OFF'],
+          [
+            'DETAIL TIER',
+            performance && performance.textures > 1
+              ? `${EXAMPLE_IMAGE_DETAIL_SIZE} PX`
+              : 'OFF',
+          ],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-[#050505] px-4 py-3 text-center">
+            <dt className="text-[8px] tracking-[0.14em] text-neutral-600">
+              {label}
+            </dt>
+            <dd className="mt-1 text-[10px] tabular-nums text-neutral-300">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </article>
   );
 }
 
-export function OwnershipLab() {
+export function CoreLab() {
   const [selectedScenarioId, setSelectedScenarioId] = useState(
     () => OWNERSHIP_SCENARIOS[0]?.id ?? ''
   );
   const [reliefMode, setReliefMode] = useState<OwnershipReliefMode>('flat');
   const [logarithmicScale, setLogarithmicScale] = useState(true);
+  const [requestedImageCount, setRequestedImageCount] = useState(256);
   const selectedScenario =
     OWNERSHIP_SCENARIOS.find(
       (scenario) => scenario.id === selectedScenarioId
     ) ?? OWNERSHIP_SCENARIOS[0];
+  const imageControlPointIds = useMemo(
+    () =>
+      selectedScenario
+        ? selectExampleImageControlPointIds(
+            selectedScenario.ownerByControlPoint,
+            requestedImageCount,
+            selectedScenario.seed
+          )
+        : [],
+    [requestedImageCount, selectedScenario]
+  );
 
   if (!selectedScenario) return null;
 
@@ -215,16 +319,20 @@ export function OwnershipLab() {
         <header className="grid gap-6 border-l-2 border-amber-300 pl-4 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <p className="text-[9px] tracking-[0.24em] text-amber-300">
-              VISUAL REVIEW ENDPOINT
+              RENDER + STATE EXPERIMENTS
             </p>
             <h1 className="mt-2 text-2xl tracking-[0.16em] text-fg sm:text-3xl">
-              OWNERSHIP DENSITY LAB
+              CORE SYSTEMS LAB
             </h1>
             <p className="mt-3 max-w-3xl text-[10px] leading-6 tracking-[0.08em] text-neutral-500">
               Every globe contains all 2,000 Control Points. Drag to rotate,
               scroll to zoom, hover to inspect a tile, and select a tile to mark
               its owner across the complete Core. Red stripes mark active
-              contests; black regions are unoccupied. Stake relief has a hard{' '}
+              contests; black regions are unoccupied. Example images use one
+              atlas-backed draw call; these procedural samples isolate render
+              cost from future network and decode cost. Select an imaged tile,
+              or zoom close and hover, to add one {EXAMPLE_IMAGE_DETAIL_SIZE}px
+              detail texture. Stake relief has a hard{' '}
               {STAKE_RELIEF_CAP_STRK.toLocaleString()} STRK height cap.
             </p>
           </div>
@@ -251,6 +359,22 @@ export function OwnershipLab() {
             <span className="text-right text-amber-300">LIGHT GOLD</span>
             <span className="text-neutral-600">CONTESTED</span>
             <span className="text-right text-red-500">RED STRIPES</span>
+            <span className="text-neutral-600">IMAGES</span>
+            <span className="text-right text-fg">
+              {imageControlPointIds.length.toLocaleString()}
+            </span>
+            <span className="text-neutral-600">ATLAS</span>
+            <span className="text-right text-fg">
+              {EXAMPLE_IMAGE_ATLAS_WIDTH} × {EXAMPLE_IMAGE_ATLAS_HEIGHT}
+            </span>
+            <span className="text-neutral-600">ATLAS RGBA</span>
+            <span className="text-right text-fg">
+              {formatMebibytes(EXAMPLE_IMAGE_ATLAS_GPU_BYTES)}
+            </span>
+            <span className="text-neutral-600">DETAIL TIER</span>
+            <span className="text-right text-fg">
+              {EXAMPLE_IMAGE_DETAIL_SIZE} PX · 1 MAX
+            </span>
             <span className="text-neutral-600">RELIEF</span>
             <span className="text-right text-fg">
               {reliefMode === 'stake' ? 'STAKED STRK' : 'FLAT'}
@@ -271,7 +395,7 @@ export function OwnershipLab() {
         </header>
 
         <div className="mt-8 max-w-[1100px]">
-          <div className="mb-4 grid gap-px border border-neutral-700 bg-grid sm:grid-cols-2">
+          <div className="mb-4 grid gap-px border border-neutral-700 bg-grid lg:grid-cols-3">
             <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
               <span className="text-[9px] tracking-[0.18em] text-neutral-500">
                 SCENARIO
@@ -327,6 +451,32 @@ export function OwnershipLab() {
                 </label>
               ) : null}
             </div>
+
+            <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5 lg:grid-cols-1 lg:items-stretch">
+              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
+                EXAMPLE IMAGES
+              </span>
+              <select
+                value={requestedImageCount}
+                onChange={(event) =>
+                  setRequestedImageCount(Number(event.target.value))
+                }
+                className="min-w-0 border border-neutral-600 bg-black px-3 py-2 text-[10px] tracking-[0.12em] text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                {IMAGE_COUNT_OPTIONS.map((count) => (
+                  <option key={count} value={count}>
+                    {count === 0
+                      ? 'NONE'
+                      : count === CONTROL_POINT_COUNT
+                        ? `ALL OCCUPIED · ${(
+                            CONTROL_POINT_COUNT -
+                            selectedScenario.unoccupiedControlPointIds.length
+                          ).toLocaleString()}`
+                        : `${count.toLocaleString()} IMAGES`}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <OwnershipScenarioCard
@@ -334,6 +484,7 @@ export function OwnershipLab() {
             scenario={selectedScenario}
             reliefMode={reliefMode}
             logarithmicScale={logarithmicScale}
+            imageControlPointIds={imageControlPointIds}
           />
         </div>
       </div>

@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -16,26 +16,76 @@ import {
   ControlPointContestLayer,
   ControlPointOwnershipLayers,
 } from './Planet';
+import {
+  ExampleDetailImageLayer,
+  ExampleImageLayer,
+} from './ExampleImageLayer';
 
 const DRAG_SELECTION_THRESHOLD_PX = 5;
+const DETAIL_HOVER_CAMERA_DISTANCE = 10.5;
 export type OwnershipReliefMode = 'flat' | 'stake';
+export interface GlobePerformanceMetrics {
+  fps: number;
+  drawCalls: number;
+  triangles: number;
+  textures: number;
+  cameraDistance: number;
+}
+
+function PerformanceProbe({
+  onSample,
+}: {
+  onSample: (metrics: GlobePerformanceMetrics) => void;
+}) {
+  const elapsed = useRef(0);
+  const frames = useRef(0);
+
+  useFrame(({ camera, gl }, delta) => {
+    elapsed.current += delta;
+    frames.current += 1;
+    if (elapsed.current < 1) return;
+
+    onSample({
+      fps: Math.round(frames.current / elapsed.current),
+      drawCalls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      textures: gl.info.memory.textures,
+      cameraDistance: Number(camera.position.length().toFixed(1)),
+    });
+    elapsed.current = 0;
+    frames.current = 0;
+  });
+
+  return null;
+}
 
 function OwnershipSphere({
   scenario,
   markedOwner,
   reliefMode,
   logarithmicScale,
+  imageControlPointIds,
+  selectedDetailControlPointId,
   onHoverControlPoint,
-  onSelectOwner,
+  onSelectControlPoint,
 }: {
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
+  imageControlPointIds: readonly number[];
+  selectedDetailControlPointId: number | null;
   onHoverControlPoint: (controlPointId: number | null) => void;
-  onSelectOwner: (owner: number) => void;
+  onSelectControlPoint: (controlPointId: number, owner: number) => void;
 }) {
+  const { camera } = useThree();
+  const [hoveredDetailControlPointId, setHoveredDetailControlPointId] =
+    useState<number | null>(null);
   const geometry = useMemo(() => createControlPointGeometry(), []);
+  const imageControlPointIdSet = useMemo(
+    () => new Set(imageControlPointIds),
+    [imageControlPointIds]
+  );
   const controlPointOwnerGroups = useMemo(
     () => scenario.controlPointIdsByOwner.map((ids) => [...ids]),
     [scenario]
@@ -68,6 +118,11 @@ function OwnershipSphere({
     () => [...scenario.contestedControlPointIds],
     [scenario]
   );
+  const detailControlPointId =
+    selectedDetailControlPointId !== null &&
+    imageControlPointIdSet.has(selectedDetailControlPointId)
+      ? selectedDetailControlPointId
+      : hoveredDetailControlPointId;
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
@@ -87,6 +142,14 @@ function OwnershipSphere({
   ) => {
     event.stopPropagation();
     onHoverControlPoint(controlPointId);
+    const nextDetailControlPointId =
+      imageControlPointIdSet.has(controlPointId) &&
+      camera.position.length() <= DETAIL_HOVER_CAMERA_DISTANCE
+        ? controlPointId
+        : null;
+    setHoveredDetailControlPointId((current) =>
+      current === nextDetailControlPointId ? current : nextDetailControlPointId
+    );
   };
 
   const handleClickControlPoint = (
@@ -96,7 +159,7 @@ function OwnershipSphere({
     event.stopPropagation();
     if (event.delta > DRAG_SELECTION_THRESHOLD_PX) return;
     const owner = scenario.ownerByControlPoint[controlPointId];
-    if (owner >= 0) onSelectOwner(owner);
+    onSelectControlPoint(controlPointId, owner);
   };
 
   return (
@@ -109,7 +172,10 @@ function OwnershipSphere({
             handleHoverControlPoint(controlPointId, event);
           }
         }}
-        onPointerOut={() => onHoverControlPoint(null)}
+        onPointerOut={() => {
+          onHoverControlPoint(null);
+          setHoveredDetailControlPointId(null);
+        }}
         onClick={(event) => {
           const controlPointId = controlPointIdFromEvent(event);
           if (controlPointId !== null) {
@@ -140,8 +206,23 @@ function OwnershipSphere({
         controlPointHeights={controlPointHeights}
         onClickControlPoint={handleClickControlPoint}
         onHoverControlPoint={handleHoverControlPoint}
-        onPointerOut={() => onHoverControlPoint(null)}
+        onPointerOut={() => {
+          onHoverControlPoint(null);
+          setHoveredDetailControlPointId(null);
+        }}
       />
+
+      <ExampleImageLayer
+        controlPointIds={imageControlPointIds}
+        heights={controlPointHeights}
+      />
+
+      {detailControlPointId === null ? null : (
+        <ExampleDetailImageLayer
+          controlPointId={detailControlPointId}
+          heights={controlPointHeights}
+        />
+      )}
 
       <ControlPointContestLayer
         controlPointIds={contestedControlPointIds}
@@ -157,15 +238,21 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
   markedOwner,
   reliefMode,
   logarithmicScale,
+  imageControlPointIds,
+  selectedDetailControlPointId,
+  onPerformanceSample,
   onHoverControlPoint,
-  onSelectOwner,
+  onSelectControlPoint,
 }: {
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
+  imageControlPointIds: readonly number[];
+  selectedDetailControlPointId: number | null;
+  onPerformanceSample: (metrics: GlobePerformanceMetrics) => void;
   onHoverControlPoint: (controlPointId: number | null) => void;
-  onSelectOwner: (owner: number) => void;
+  onSelectControlPoint: (controlPointId: number, owner: number) => void;
 }) {
   const validMarkedOwner =
     markedOwner >= 0 && markedOwner < scenario.ownerCount ? markedOwner : 0;
@@ -174,7 +261,7 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
     <div
       className="h-full min-h-[320px] w-full"
       role="img"
-      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedControlPointIds.length} unoccupied Control Points, ${scenario.contestedControlPointIds.length} contested, and ${reliefMode === 'stake' ? `stake-based ${logarithmicScale ? 'logarithmic' : 'linear'} relief` : 'flat relief'}`}
+      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedControlPointIds.length} unoccupied Control Points, ${scenario.contestedControlPointIds.length} contested, ${imageControlPointIds.length} example images, and ${reliefMode === 'stake' ? `stake-based ${logarithmicScale ? 'logarithmic' : 'linear'} relief` : 'flat relief'}`}
     >
       <Canvas
         camera={{ position: [0, 0, 13], fov: 48 }}
@@ -187,9 +274,12 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
           logarithmicScale={logarithmicScale}
+          imageControlPointIds={imageControlPointIds}
+          selectedDetailControlPointId={selectedDetailControlPointId}
           onHoverControlPoint={onHoverControlPoint}
-          onSelectOwner={onSelectOwner}
+          onSelectControlPoint={onSelectControlPoint}
         />
+        <PerformanceProbe onSample={onPerformanceSample} />
         <ArcballControls minDistance={8} maxDistance={18} enablePan={false} />
       </Canvas>
     </div>

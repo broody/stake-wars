@@ -11,7 +11,7 @@ const searchParams = new URLSearchParams(window.location.search);
 const isGameApp =
   hostname === 'play.stakewars.gg' ||
   hostname.startsWith('play.') ||
-  window.location.pathname === '/ownership-lab' ||
+  window.location.pathname === '/core-lab' ||
   searchParams.get('app') === 'game';
 
 async function renderApp() {

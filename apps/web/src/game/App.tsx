@@ -11,9 +11,9 @@ import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
 
-const OwnershipLab = lazy(() =>
+const CoreLab = lazy(() =>
   import('./pages/OwnershipLab').then((module) => ({
-    default: module.OwnershipLab,
+    default: module.CoreLab,
   }))
 );
 
@@ -32,10 +32,10 @@ function GameApp() {
                       <Route path="/gallery" element={<Gallery />} />
                       <Route path="/profile" element={<Profile />} />
                       <Route
-                        path="/ownership-lab"
+                        path="/core-lab"
                         element={
                           <Suspense fallback={null}>
-                            <OwnershipLab />
+                            <CoreLab />
                           </Suspense>
                         }
                       />
