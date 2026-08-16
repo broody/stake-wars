@@ -4,6 +4,7 @@ description = "StakeWars core territory-control world on Starknet Sepolia"
 website = "https://stakewars.gg"
 seed = "stakewars-sepolia-incr-v1"
 # Initialize GameConfig.minimum_stake with 100000000000000000 (0.1 STRK).
+# Initialize GameConfig.challenge_period_seconds with 180 (3 minutes).
 
 [world.socials]
 github = "https://github.com/broody/stake-wars"

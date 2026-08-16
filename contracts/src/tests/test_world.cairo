@@ -7,9 +7,10 @@ mod tests {
         spawn_test_world,
     };
     use stakewars::models::{
-        CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_MINIMUM_STAKE,
-        OperatorState, SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter,
-        m_ChallengeParticipant, m_ControlPoint, m_GameConfig, m_OperatorState,
+        CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_CHALLENGE_PERIOD_SECONDS,
+        MAINNET_MINIMUM_STAKE, OperatorState, SEPOLIA_CHALLENGE_PERIOD_SECONDS,
+        SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter, m_ChallengeParticipant,
+        m_ControlPoint, m_GameConfig, m_OperatorState,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
@@ -158,9 +159,11 @@ mod tests {
     }
 
     #[test]
-    fn network_minimum_stake_presets_use_strk_base_units() {
+    fn network_rule_presets_match_expected_values() {
         assert_eq!(SEPOLIA_MINIMUM_STAKE, 100_000_000_000_000_000);
         assert_eq!(MAINNET_MINIMUM_STAKE, 100_000_000_000_000_000_000);
+        assert_eq!(SEPOLIA_CHALLENGE_PERIOD_SECONDS, 180);
+        assert_eq!(MAINNET_CHALLENGE_PERIOD_SECONDS, 10_800);
     }
 
     #[test]

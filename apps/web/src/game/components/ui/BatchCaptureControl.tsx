@@ -42,7 +42,6 @@ type Phase = 'idle' | 'submitting' | 'confirming';
 
 interface StakingContext {
   member: PoolMemberInfo | null;
-  walletBalance: bigint;
 }
 
 interface CompletedBatch {
@@ -115,6 +114,7 @@ export function BatchCaptureControl({
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [staking, setStaking] = useState<StakingContext | null>(null);
+  const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
   const [isSplitModalOpen, setSplitModalOpen] = useState(false);
   const [splitBatches, setSplitBatches] = useState<SplitTransactionBatch[]>([]);
   const [completedSelectionIds, setCompletedSelectionIds] = useState<number[]>(
@@ -158,18 +158,37 @@ export function BatchCaptureControl({
 
   useEffect(() => {
     const controller = new AbortController();
+    if (!address) {
+      setWalletBalance(null);
+      return () => controller.abort();
+    }
+    setWalletBalance(null);
+    getStrkBalance(address, controller.signal)
+      .then(setWalletBalance)
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Unable to read wallet STRK balance.'
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [address]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     if (!address || deficit === 0n) {
       setStaking(null);
       return () => controller.abort();
     }
+    setStaking(null);
     Promise.all([
       getStakingPoolInfo(controller.signal),
       getPoolMemberInfo(address, controller.signal),
-      getStrkBalance(address, controller.signal),
     ])
-      .then(([, member, walletBalance]) =>
-        setStaking({ member, walletBalance })
-      )
+      .then(([, member]) => setStaking({ member }))
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(
@@ -203,9 +222,9 @@ export function BatchCaptureControl({
       return 'ENTER ALLOCATION PER POINT';
     if (!isFortifying && selectedAllocation < requiredPower)
       return `ALLOCATE AT LEAST ${formatStrk(requiredPower, 18)} STRK EACH`;
-    if (deficit > 0n && !staking) return 'READING WALLET STRK';
-    if (deficit > (staking?.walletBalance ?? 0n))
-      return 'INSUFFICIENT WALLET STRK';
+    if (deficit > 0n && (!staking || walletBalance === null))
+      return 'READING WALLET STRK';
+    if (deficit > (walletBalance ?? 0n)) return 'INSUFFICIENT WALLET STRK';
     return null;
   }, [
     address,
@@ -221,6 +240,7 @@ export function BatchCaptureControl({
     requiredPower,
     selectedAllocation,
     staking,
+    walletBalance,
   ]);
 
   const isBusy = phase !== 'idle';
@@ -496,10 +516,20 @@ export function BatchCaptureControl({
           </div>
         )}
         {!isFortifying && (
-          <div className="flex justify-between gap-4">
-            <span>MINIMUM EACH</span>
-            <span>{formatStrk(requiredPower, 18)} STRK</span>
-          </div>
+          <>
+            <div className="flex justify-between gap-4">
+              <span>MINIMUM EACH</span>
+              <span>{formatStrk(requiredPower, 18)} STRK</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>BALANCE</span>
+              <span>
+                {walletBalance === null
+                  ? '…'
+                  : `${formatStrk(walletBalance, 6)} STRK`}
+              </span>
+            </div>
+          </>
         )}
         <div className="flex justify-between gap-4 border-t border-grid pt-2">
           <span>TOTAL COMMITMENT</span>

@@ -5,6 +5,8 @@ pub const CHALLENGE_COUNTER_ID: u8 = 0;
 pub const MAX_CONTROL_POINTS: u32 = 2_000;
 pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
 pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
+pub const SEPOLIA_CHALLENGE_PERIOD_SECONDS: u64 = 180; // 3 minutes
+pub const MAINNET_CHALLENGE_PERIOD_SECONDS: u64 = 10_800; // 3 hours
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]

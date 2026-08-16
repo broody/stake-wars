@@ -91,4 +91,5 @@ outside version control, initialize the World with the official StakeWars STRK
 delegation-pool address and base-unit rule values, and place World ownership,
 namespace ownership, and the game-admin role under the approved multisig. The
 admin may update `challenge_period_seconds`; each subsequent valid bid uses the
-current configured period when it resets the deadline.
+current configured period when it resets the deadline. Sepolia uses 180 seconds
+(3 minutes) for testing; Mainnet launches with 10,800 seconds (3 hours).

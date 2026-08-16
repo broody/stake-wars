@@ -13,7 +13,7 @@
 
 Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Operators explicitly allocate portions of that real delegation to Control Points and challenges without creating a separate power currency. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point starts an open ascending contest: every bid is public, must raise the current lead by at least 10%, and restarts a configurable response window initially set to 3 hours. Each Operator maintains one cumulative bid and locks only the increment when raising it. Outbidding changes leadership without spending either position; when the contest expires, the winner's bid becomes the new garrison and every losing Operator's highest bid becomes Spent Power. Any eligible Operator may participate, there is no absolute contest-duration cap, and settlement is permissionless once a full response window passes without a higher bid. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point starts an open ascending contest: every bid is public, must raise the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative bid and locks only the increment when raising it. Outbidding changes leadership without spending either position; when the contest expires, the winner's bid becomes the new garrison and every losing Operator's highest bid becomes Spent Power. Any eligible Operator may participate, there is no absolute contest-duration cap, and settlement is permissionless once a full response window passes without a higher bid. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -62,7 +62,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Opening Risk:** The opening bid places the incumbent's existing garrison and challenger's bid at risk. Neither becomes Spent Power before settlement.
 *   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the next STRK base unit. Each Operator has one cumulative position per Challenge.
 *   **Incremental Raises:** A returning Operator locks only `New Total Bid - Own Previous Bid`. Example: after bidding 500 STRK, raising to 700 STRK requires only 200 additional Ready STRK. Being outbid changes the visible leader but does not spend or unlock the prior position.
-*   **Anti-Sniping Window:** Every valid higher bid resets the full admin-configured response window, initially 3 hours. The current leader cannot bid against itself to extend the clock. There is no absolute duration cap; a contest continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent bid calculates its new response window.
+*   **Anti-Sniping Window:** Every valid higher bid resets the full admin-configured response window: **3 minutes on Sepolia** for rapid testing and initially **3 hours on Mainnet**. The current leader cannot bid against itself to extend the clock. There is no absolute duration cap; a contest continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent bid calculates its new response window.
 *   **Minimum Raise:** Bids below the 10% minimum—including ties and one-base-unit raises—are rejected. The first accepted qualifying bid becomes leader.
 *   **Example:** A has a 500 STRK position and B leads at 600. A may bid 700 by locking 200 additional STRK. B may then bid 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Power.
 
@@ -139,7 +139,7 @@ The first release intentionally excludes passive territory decay, recurring main
 StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store game state, systems enforce state transitions, and Torii indexes model and event updates for clients.
 
 *   **Models:**
-    *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (initially 3 hours), Control Point limit, and pause state.
+    *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (3 minutes on Sepolia; initially 3 hours on Mainnet), Control Point limit, and pause state.
     *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, aggregate active Bid Locks, aggregate Spent Power, controlled-point count, active-position count, and retirement state.
     *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Power, ownership generation, ownership timestamp, and active challenge ID.
     *   `Challenge`: Challenge ID, target Control Point, incumbent, current leader and generation, leading bid, latest displaced Operator and amount, resettable deadline, bid and participant counts, winner, and settlement timestamp.
@@ -232,7 +232,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 *   **Phase 1: Delegation-Backed Allocation and Open Challenges**
     *   Basic 3D Sphere.
-    *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending challenges, resettable 3-hour response windows with no absolute duration cap, settlement-time losing-bid spending, Control Point sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
+    *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending challenges, resettable network-configured response windows (3 minutes on Sepolia; initially 3 hours on Mainnet) with no absolute duration cap, settlement-time losing-bid spending, Control Point sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
     *   Mainnet integration with the StakeWars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.

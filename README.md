@@ -71,12 +71,13 @@ To run the frontend against the shared Sepolia deployment instead, use:
 pnpm dev:web:sepolia
 ```
 
-The World is initialized with a minimum capture power, a 10,800-second response
-window, and 2,000 Control Points. The game admin may change the response window
-through the on-chain rules configuration. Every accepted higher bid uses the
-then-current window, with no absolute contest-duration cap. Deployed addresses
-in `apps/web/.env.sepolia` are updated only after a successful deployment proves
-the new addresses.
+The shared Sepolia World uses a 0.1 STRK minimum capture power, a 180-second
+response window, and 2,000 Control Points. Mainnet launches with a 100 STRK
+minimum and a 10,800-second response window. The game admin may change the
+response window through the on-chain rules configuration. Every accepted higher
+bid uses the then-current window, with no absolute contest-duration cap.
+Deployed addresses in `apps/web/.env.sepolia` are updated only after a successful
+deployment proves the new addresses.
 
 The API's runtime variables and authentication endpoints are documented in
 [`apps/api/README.md`](apps/api/README.md). The initial image limit is 2 MiB and

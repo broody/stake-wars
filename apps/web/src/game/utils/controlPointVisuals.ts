@@ -8,7 +8,7 @@ export const CONTROL_POINT_COLORS = {
   opponentGrid: '#666666',
   opponentSide: '#4a4a4a',
   contested: '#e53935',
-  selected: '#ffd166',
+  selected: '#86b8c2',
   transaction: '#ffd166',
   hover: '#ffffff',
 } as const;
