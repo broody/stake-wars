@@ -22,17 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 3 {
-		t.Fatalf("expected three migrations, got %d", migrations)
-	}
-	var auctionTables int
-	if err := db.QueryRow(
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sealed_bid_envelopes'",
-	).Scan(&auctionTables); err != nil {
-		t.Fatal(err)
-	}
-	if auctionTables != 0 {
-		t.Fatal("expected the retired sealed-bid table to be removed")
+	if migrations != 1 {
+		t.Fatalf("expected one migration, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`

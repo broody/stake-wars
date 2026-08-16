@@ -58,8 +58,8 @@ mod tests {
                 TestResource::Event(control::e_ControlPointCaptured::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReinforced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ChallengeStarted::TEST_CLASS_HASH),
-                TestResource::Event(control::e_BidPlaced::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ChallengeInitiated::TEST_CLASS_HASH),
+                TestResource::Event(control::e_ChallengeEscalated::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ControlPointSacrificed::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengeSettled::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengePositionResolved::TEST_CLASS_HASH),
@@ -96,8 +96,8 @@ mod tests {
             resource_selector(@"ChallengeCounter"), resource_selector(@"Challenge"),
             resource_selector(@"ChallengeParticipant"), resource_selector(@"ControlPointCaptured"),
             resource_selector(@"ControlPointReinforced"),
-            resource_selector(@"ControlPointReleased"), resource_selector(@"ChallengeStarted"),
-            resource_selector(@"BidPlaced"), resource_selector(@"ControlPointSacrificed"),
+            resource_selector(@"ControlPointReleased"), resource_selector(@"ChallengeInitiated"),
+            resource_selector(@"ChallengeEscalated"), resource_selector(@"ControlPointSacrificed"),
             resource_selector(@"ChallengeSettled"), resource_selector(@"ChallengePositionResolved"),
             resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRetired"),
         ]
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     #[available_gas(800000000)]
-    fn opening_bid_keeps_defense_at_risk_and_locks_visible_lead() {
+    fn opening_challenge_keeps_defense_at_risk_and_locks_visible_lead() {
         let (world, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -221,15 +221,15 @@ mod tests {
         control.capture(7, 400);
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(2_000);
-        control.bid(7, 500);
+        control.challenge(7, 500);
 
         let challenge: Challenge = world.read_model(1_u64);
         let defender = control.get_operator_status(incumbent);
         let attacker = control.get_operator_status(challenger);
         assert_eq!(challenge.leader, challenger);
-        assert_eq!(challenge.leading_bid, 500);
+        assert_eq!(challenge.leading_power, 500);
         assert_eq!(challenge.last_loser, incumbent);
-        assert_eq!(challenge.last_losing_bid, 400);
+        assert_eq!(challenge.last_losing_power, 400);
         assert_eq!(challenge.deadline, 2_000 + CHALLENGE_PERIOD);
         assert_eq!(defender.point_power, 400);
         assert_eq!(defender.spent_power, 0);
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     #[available_gas(1300000000)]
-    fn any_operator_can_outbid_and_each_raise_resets_the_window() {
+    fn any_operator_can_take_lead_and_each_raise_resets_the_window() {
         let (world, control, pool) = setup();
         let incumbent = player_one();
         let first = player_two();
@@ -268,17 +268,17 @@ mod tests {
         control.capture(9, 400);
         testing::set_contract_address(first);
         testing::set_block_timestamp(100);
-        control.bid(9, 500);
+        control.challenge(9, 500);
         testing::set_contract_address(second);
         testing::set_block_timestamp(1_000);
-        control.bid(9, 550);
+        control.challenge(9, 550);
 
         let challenge: Challenge = world.read_model(1_u64);
         let displaced = control.get_operator_status(first);
         let leader = control.get_operator_status(second);
         assert_eq!(challenge.leader, second);
-        assert_eq!(challenge.leading_bid, 550);
-        assert_eq!(challenge.bid_count, 2);
+        assert_eq!(challenge.leading_power, 550);
+        assert_eq!(challenge.lead_change_count, 2);
         assert_eq!(challenge.deadline, 1_000 + CHALLENGE_PERIOD);
         assert_eq!(challenge.participant_count, 3);
         assert_eq!(displaced.challenge_power, 500);
@@ -301,19 +301,19 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(9, 400);
         testing::set_contract_address(first);
-        control.bid(9, 500);
+        control.challenge(9, 500);
         testing::set_contract_address(second);
-        control.bid(9, 600);
+        control.challenge(9, 600);
         testing::set_contract_address(first);
-        control.bid(9, 700);
+        control.challenge(9, 700);
 
         let challenge: Challenge = world.read_model(1_u64);
         let returned = control.get_operator_status(first);
         let displaced = control.get_operator_status(second);
         assert_eq!(challenge.leader, first);
-        assert_eq!(challenge.leading_bid, 700);
+        assert_eq!(challenge.leading_power, 700);
         let position: ChallengeParticipant = world.read_model((1_u64, first));
-        assert_eq!(position.bid_power, 700);
+        assert_eq!(position.committed_power, 700);
         assert_eq!(returned.spent_power, 0);
         assert_eq!(returned.challenge_power, 700);
         assert_eq!(returned.available_power, 0);
@@ -333,14 +333,14 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(1, 400);
         testing::set_contract_address(challenger);
-        control.bid(1, 500);
-        control.bid(1, 600);
+        control.challenge(1, 500);
+        control.challenge(1, 600);
     }
 
     #[test]
     #[available_gas(900000000)]
-    #[should_panic(expected: ('bid not high enough', 'ENTRYPOINT_FAILED'))]
-    fn opening_bid_must_raise_the_garrison_by_ten_percent() {
+    #[should_panic(expected: ('challenge too weak', 'ENTRYPOINT_FAILED'))]
+    fn opening_challenge_must_raise_the_garrison_by_ten_percent() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -349,12 +349,12 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(1, 100);
         testing::set_contract_address(challenger);
-        control.bid(1, 109);
+        control.challenge(1, 109);
     }
 
     #[test]
     #[available_gas(900000000)]
-    #[should_panic(expected: ('bid not high enough', 'ENTRYPOINT_FAILED'))]
+    #[should_panic(expected: ('challenge too weak', 'ENTRYPOINT_FAILED'))]
     fn interested_operator_must_raise_the_public_lead_by_ten_percent() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
@@ -366,14 +366,14 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(1, 400);
         testing::set_contract_address(leader);
-        control.bid(1, 500);
+        control.challenge(1, 500);
         testing::set_contract_address(interested);
-        control.bid(1, 549);
+        control.challenge(1, 549);
     }
 
     #[test]
     #[available_gas(900000000)]
-    fn permissionless_settlement_allocates_the_winning_bid() {
+    fn permissionless_settlement_allocates_the_winning_power() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -384,7 +384,7 @@ mod tests {
         control.capture(7, 400);
         testing::set_contract_address(challenger);
         testing::set_block_timestamp(100);
-        control.bid(7, 500);
+        control.challenge(7, 500);
         testing::set_contract_address(settler);
         testing::set_block_timestamp(100 + CHALLENGE_PERIOD);
         control.settle_challenge(7);
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     #[available_gas(1600000000)]
-    fn alternating_bidders_add_only_increments_and_loser_spends_final_bid() {
+    fn alternating_challengers_add_only_increments_and_loser_spends_final_commitment() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -412,15 +412,15 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(7, 400);
         testing::set_contract_address(challenger);
-        control.bid(7, 500);
+        control.challenge(7, 500);
         testing::set_contract_address(incumbent);
-        control.bid(7, 700);
+        control.challenge(7, 700);
         let incumbent_mid = control.get_operator_status(incumbent);
         assert_eq!(incumbent_mid.point_power, 400);
         assert_eq!(incumbent_mid.challenge_power, 300);
         assert_eq!(incumbent_mid.spent_power, 0);
         testing::set_contract_address(challenger);
-        control.bid(7, 800);
+        control.challenge(7, 800);
         let challenger_mid = control.get_operator_status(challenger);
         assert_eq!(challenger_mid.challenge_power, 800);
         assert_eq!(challenger_mid.spent_power, 0);
@@ -454,11 +454,11 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(8, 400);
         testing::set_contract_address(first);
-        control.bid(8, 500);
+        control.challenge(8, 500);
         testing::set_contract_address(runner_up);
-        control.bid(8, 600);
+        control.challenge(8, 600);
         testing::set_contract_address(winner);
-        control.bid(8, 700);
+        control.challenge(8, 700);
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(8);
 
@@ -488,14 +488,14 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(1, 400);
         testing::set_contract_address(challenger);
-        control.bid(1, 500);
+        control.challenge(1, 500);
         control.settle_challenge(1);
     }
 
     #[test]
     #[available_gas(800000000)]
     #[should_panic(expected: ('challenge ended', 'ENTRYPOINT_FAILED'))]
-    fn expired_challenge_rejects_last_second_late_bid() {
+    fn expired_challenge_rejects_a_late_power_commitment() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -506,15 +506,15 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.capture(1, 400);
         testing::set_contract_address(challenger);
-        control.bid(1, 500);
+        control.challenge(1, 500);
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         testing::set_contract_address(late);
-        control.bid(1, 600);
+        control.challenge(1, 600);
     }
 
     #[test]
     #[available_gas(1200000000)]
-    fn defender_can_sacrifice_another_point_to_counterbid() {
+    fn defender_can_sacrifice_another_point_to_retake_the_lead() {
         let (_, control, pool) = setup();
         let defender = player_one();
         let attacker = player_two();
@@ -524,9 +524,9 @@ mod tests {
         control.capture(10, 400);
         control.capture(11, 300);
         testing::set_contract_address(attacker);
-        control.bid(10, 900);
+        control.challenge(10, 900);
         testing::set_contract_address(defender);
-        control.bid_with_sacrifice(10, 11, 1_000);
+        control.challenge_with_sacrifice(10, 11, 1_000);
 
         let source = control.get_control_point_status(11);
         let status = control.get_operator_status(defender);
@@ -552,8 +552,8 @@ mod tests {
         testing::set_contract_address(second_incumbent);
         control.capture(2, 100);
         testing::set_contract_address(operator);
-        control.bid(1, 110);
-        control.bid(2, 110);
+        control.challenge(1, 110);
+        control.challenge(2, 110);
         control.capture(3, 100);
         control.reinforce(3, 100);
 

@@ -25,7 +25,7 @@ const eventPresentation: Record<
   },
   loss: {
     marker: '!',
-    label: 'LOST BID',
+    label: 'LOST CHALLENGE',
     markerClassName: 'border-amber-500 text-amber-400',
   },
   reinforcement: {
@@ -38,9 +38,14 @@ const eventPresentation: Record<
     label: 'RELEASED',
     markerClassName: 'border-neutral-600 text-neutral-400',
   },
-  challenge: {
+  challenge_initiated: {
     marker: '>',
-    label: 'OPEN BID',
+    label: 'INITIATED CHALLENGE',
+    markerClassName: 'border-white text-white',
+  },
+  challenge_escalated: {
+    marker: '↑',
+    label: 'ESCALATED CHALLENGE',
     markerClassName: 'border-white text-white',
   },
   settlement: {
@@ -78,11 +83,12 @@ const activityFilterOptions: Array<{
 }> = [
   { value: 'all', label: 'ALL EVENTS' },
   { value: 'capture', label: 'CAPTURED' },
-  { value: 'loss', label: 'LOST BID' },
+  { value: 'loss', label: 'LOST CHALLENGE' },
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
-  { value: 'challenge', label: 'OPEN BID' },
+  { value: 'challenge_initiated', label: 'INITIATED CHALLENGE' },
+  { value: 'challenge_escalated', label: 'ESCALATED CHALLENGE' },
   { value: 'settlement', label: 'SETTLED' },
   { value: 'retirement', label: 'RETIRED' },
   { value: 'disqualification', label: 'BACKING FAILURE' },
@@ -98,15 +104,17 @@ function eventDetail(activity: OperatorActivity): string {
     case 'capture':
       return activity.counterparty ? 'TOOK HIGH GROUND' : 'NEUTRAL POINT';
     case 'loss':
-      return 'FINAL BID SPENT AT SETTLEMENT';
+      return 'FINAL COMMITMENT SPENT AT SETTLEMENT';
     case 'reinforcement':
       return activity.secondaryAmount === undefined
         ? 'CAPTURE POWER INCREASED'
         : `NEW POWER ${formatStrk(activity.secondaryAmount)} STRK`;
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
-    case 'challenge':
-      return 'PUBLIC LEAD ESTABLISHED';
+    case 'challenge_initiated':
+      return 'PUBLIC CHALLENGE OPENED';
+    case 'challenge_escalated':
+      return 'NEW LEADER ESTABLISHED';
     case 'settlement':
       return 'CHALLENGE FINALIZED';
     case 'retirement':

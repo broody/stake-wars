@@ -43,7 +43,7 @@ describe('Starknet RPC calldata', () => {
       controlledSince: 1_000_000_000,
       requiredStake: 110n,
       activeChallengeId: 1n,
-      challengeBidCount: 3,
+      challengeLeadChangeCount: 3,
       challengeDeadline: 20_000,
       stale: false,
       needsSync: true,
@@ -98,9 +98,9 @@ describe('Starknet RPC calldata', () => {
     ).toMatchObject({
       controlPointId: 42,
       leader: '0x222',
-      leadingBid: 500n,
-      lastLosingBid: 400n,
-      bidCount: 3,
+      leadingPower: 500n,
+      lastLosingPower: 400n,
+      leadChangeCount: 3,
       participantCount: 4,
       settled: false,
     });

@@ -41,13 +41,13 @@ function LandingApp() {
       title: '03. CHALLENGE',
       description: (
         <>
-          Attack an occupied point with a visible STRK bid. Every higher bid
-          restarts the response window, and any Operator can{' '}
+          Challenge an occupied point with a visible STRK power commitment.
+          Every escalation restarts the response window, and any Operator can{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             take the lead
           </span>{' '}
           until the opposition runs out of STRK or chooses to stop. Displaced
-          bids are permanently spent.
+          losing commitments are permanently spent.
         </>
       ),
     },

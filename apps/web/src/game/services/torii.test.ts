@@ -143,7 +143,8 @@ describe('Torii Operator activity parsing', () => {
   const emptyCollections = {
     captures: { edges: [] },
     losses: { edges: [] },
-    leadership: { edges: [] },
+    initiations: { edges: [] },
+    escalations: { edges: [] },
     settlements: { edges: [] },
     reinforcements: { edges: [] },
     releases: { edges: [] },
@@ -210,6 +211,60 @@ describe('Torii Operator activity parsing', () => {
       amount: 75n,
       secondaryAmount: 175n,
     });
+  });
+
+  it('distinguishes challenge initiation from escalation', () => {
+    const activity = parseOperatorActivity({
+      data: {
+        ...emptyCollections,
+        initiations: {
+          edges: [
+            {
+              cursor: activityCursor(20, '0xinitiate', 1),
+              node: {
+                challenge_id: 7,
+                control_point_id: 42,
+                incumbent: '0xdef',
+                challenger: '0xabc',
+                defender_power_at_risk: '500',
+                committed_power: '550',
+                deadline: '1000',
+              },
+            },
+          ],
+        },
+        escalations: {
+          edges: [
+            {
+              cursor: activityCursor(21, '0xescalate', 2),
+              node: {
+                challenge_id: 7,
+                control_point_id: 42,
+                challenger: '0xabc',
+                committed_power: '700',
+                added_power: '150',
+                previous_leader: '0xdef',
+                previous_leading_power: '600',
+                deadline: '1100',
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(activity).toMatchObject([
+      {
+        type: 'challenge_escalated',
+        amount: 700n,
+        counterparty: '0xdef',
+      },
+      {
+        type: 'challenge_initiated',
+        amount: 550n,
+        counterparty: '0xdef',
+      },
+    ]);
   });
 
   it('decodes permanent operator retirement', () => {

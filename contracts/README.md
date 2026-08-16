@@ -3,8 +3,8 @@
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each Operator's live delegation and unpooling state from the official
 StakeWars delegation pool. Game capacity is derived as live delegation minus
-Control Point garrisons, active cumulative bid positions, and permanently spent
-game power.
+Control Point garrisons, active cumulative challenge commitments, and
+permanently spent game power.
 
 ## Local commands
 
@@ -35,9 +35,9 @@ Points. Stale Torii models are safe for discovery while security-sensitive
 clients confirm effective control onchain. Permissionless reconciliation may
 call `sync_operator` or batch up to 50 addresses with `sync_operators`.
 
-Every `capture`, `reinforce`, and `bid` call includes a visible STRK amount. An
-Operator may manage multiple Control Points and lead multiple challenges when
-their aggregate commitments fit within live delegation.
+Every `capture`, `reinforce`, and `challenge` call includes a visible STRK
+amount. An Operator may manage multiple Control Points and lead multiple
+challenges when their aggregate commitments fit within live delegation.
 
 The network deployment presets use 18-decimal STRK base units:
 
@@ -49,33 +49,36 @@ World initialization must pass the applicable preset into
 `GameConfig.minimum_stake`; the frontend reads the resulting onchain rule and
 must not substitute its own environment-specific minimum.
 
-An occupied point is contested through `bid` or `bid_with_sacrifice`:
+An occupied point is contested through `challenge` or
+`challenge_with_sacrifice`:
 
-- The opening bid must raise the point's garrison by at least 10%, rounded up to
-  the next STRK base unit. The incumbent's garrison and the challenger's bid
-  remain locked and at risk until settlement.
-- Any eligible Operator except the current leader may submit a public bid at
-  least 10% above the current lead, rounded up to the next STRK base unit. A
-  returning participant locks only the difference between the new total and
-  that Operator's own prior maximum.
-- Being outbid does not spend a position. Each participant's highest bid remains
-  locked so they may continue raising incrementally.
-- Every accepted bid sets a fresh full response-window deadline. There is no
-  absolute challenge-duration cap, and the current leader cannot extend the
-  clock by bidding against itself.
+- The initiating commitment must exceed the point's garrison by at least 10%,
+  rounded up to the next STRK base unit. The incumbent's garrison and the
+  challenger's commitment remain locked and at risk until settlement.
+- Any eligible Operator except the current leader may publicly commit at least
+  10% more power than the current lead, rounded up to the next STRK base unit. A
+  returning participant locks only the difference between the new commitment
+  and that Operator's own prior maximum.
+- Losing the lead does not spend a position. Each participant's highest
+  commitment remains locked so they may continue escalating incrementally.
+- Every accepted escalation sets a fresh full response-window deadline. There
+  is no absolute challenge-duration cap, and the current leader cannot extend
+  the clock by challenging itself.
 - After the deadline, any account may call `settle_challenge`. The current
-  leader's exact bid becomes the new garrison and losing participants spend
-  their own highest bids as game power.
+  leader's exact commitment becomes the new garrison and losing participants
+  spend their own highest commitments as game power.
 
-Each bid is constant-cost. Settlement resolves the winner, incumbent, and final
-runner-up without iterating an unbounded participant list. Any additional losing
-position remains locked—which has the same Ready STRK effect as spent power—until
-any account calls `resolve_challenge_position(challenge_id, operator)` to move it
-to the Operator's Spent Power in O(1).
+Each challenge action is constant-cost. Settlement resolves the winner,
+incumbent, and final runner-up without iterating an unbounded participant list.
+Any additional losing position remains locked—which has the same Ready STRK
+effect as spent power—until any account calls
+`resolve_challenge_position(challenge_id, operator)` to move it to the
+Operator's Spent Power in O(1).
 
-`bid_with_sacrifice(target, source, bid_power)` atomically neutralizes an owned,
-uncontested source point before validating the new bid. Its garrison returns to
-the Operator's Ready STRK; it is not duplicated or automatically spent.
+`challenge_with_sacrifice(target, source, committed_power)` atomically
+neutralizes an owned, uncontested source point before validating the new
+commitment. Its garrison returns to the Operator's Ready STRK; it is not
+duplicated or automatically spent.
 
 Spent power is permanent accounting for that Operator address. The contracts do
 not slash, escrow, or transfer the underlying STRK, which remains in the official
@@ -90,6 +93,7 @@ Before a production deployment, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official StakeWars STRK
 delegation-pool address and base-unit rule values, and place World ownership,
 namespace ownership, and the game-admin role under the approved multisig. The
-admin may update `challenge_period_seconds`; each subsequent valid bid uses the
-current configured period when it resets the deadline. Sepolia uses 180 seconds
-(3 minutes) for testing; Mainnet launches with 10,800 seconds (3 hours).
+admin may update `challenge_period_seconds`; each subsequent valid lead change
+uses the current configured period when it resets the deadline. Sepolia uses
+180 seconds (3 minutes) for testing; Mainnet launches with 10,800 seconds (3
+hours).

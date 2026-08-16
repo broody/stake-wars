@@ -20,17 +20,17 @@ type ControlReader interface {
 }
 
 type ControlPointStatus struct {
-	ID                  uint32
-	Controller          string
-	CapturePower        string
-	OwnershipGeneration uint64
-	ControlledSince     uint64
-	RequiredStake       string
-	ActiveChallengeID   uint64
-	ChallengeBidCount   uint32
-	ChallengeDeadline   uint64
-	Stale               bool
-	NeedsSync           bool
+	ID                       uint32
+	Controller               string
+	CapturePower             string
+	OwnershipGeneration      uint64
+	ControlledSince          uint64
+	RequiredStake            string
+	ActiveChallengeID        uint64
+	ChallengeLeadChangeCount uint32
+	ChallengeDeadline        uint64
+	Stale                    bool
+	NeedsSync                bool
 }
 
 type OperatorStatus struct {
@@ -106,9 +106,9 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, fieldError("active_challenge_id", err)
 	}
-	challengeBidCount, err := parseUint(result[7], 32)
+	challengeLeadChangeCount, err := parseUint(result[7], 32)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("challenge_bid_count", err)
+		return ControlPointStatus{}, fieldError("challenge_lead_change_count", err)
 	}
 	challengeDeadline, err := parseUint(result[8], 64)
 	if err != nil {
@@ -124,17 +124,17 @@ func (r *RPCControlReader) ControlPointStatus(
 	}
 
 	return ControlPointStatus{
-		ID:                  uint32(id),
-		Controller:          controller,
-		CapturePower:        capturePower,
-		OwnershipGeneration: generation,
-		ControlledSince:     controlledSince,
-		RequiredStake:       requiredStake,
-		ActiveChallengeID:   activeChallengeID,
-		ChallengeBidCount:   uint32(challengeBidCount),
-		ChallengeDeadline:   challengeDeadline,
-		Stale:               stale,
-		NeedsSync:           needsSync,
+		ID:                       uint32(id),
+		Controller:               controller,
+		CapturePower:             capturePower,
+		OwnershipGeneration:      generation,
+		ControlledSince:          controlledSince,
+		RequiredStake:            requiredStake,
+		ActiveChallengeID:        activeChallengeID,
+		ChallengeLeadChangeCount: uint32(challengeLeadChangeCount),
+		ChallengeDeadline:        challengeDeadline,
+		Stale:                    stale,
+		NeedsSync:                needsSync,
 	}, nil
 }
 

@@ -3,7 +3,7 @@ use starknet::ContractAddress;
 pub const MAX_SYNC_BATCH: usize = 50;
 pub const MAX_STATUS_BATCH: usize = 200;
 const MAX_U128: u128 = 340282366920938463463374607431768211455;
-const MINIMUM_BID_RAISE_DIVISOR: u128 = 10;
+const MINIMUM_CHALLENGE_RAISE_DIVISOR: u128 = 10;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ControlPointStatus {
@@ -14,7 +14,7 @@ pub struct ControlPointStatus {
     pub controlled_since: u64,
     pub required_stake: u128,
     pub active_challenge_id: u64,
-    pub challenge_bid_count: u32,
+    pub challenge_lead_change_count: u32,
     pub challenge_deadline: u64,
     pub stale: bool,
     pub needs_sync: bool,
@@ -42,11 +42,11 @@ pub struct ChallengeStatus {
     pub control_point_id: u32,
     pub incumbent: ContractAddress,
     pub leader: ContractAddress,
-    pub leading_bid: u128,
+    pub leading_power: u128,
     pub last_loser: ContractAddress,
-    pub last_losing_bid: u128,
+    pub last_losing_power: u128,
     pub deadline: u64,
-    pub bid_count: u32,
+    pub lead_change_count: u32,
     pub participant_count: u32,
     pub settled: bool,
     pub winner: ContractAddress,
@@ -58,7 +58,7 @@ pub struct ChallengeStatus {
 pub struct ChallengeParticipantStatus {
     pub challenge_id: u64,
     pub operator: ContractAddress,
-    pub bid_power: u128,
+    pub committed_power: u128,
     pub point_power_included: u128,
     pub additional_power: u128,
     pub joined: bool,
@@ -71,12 +71,12 @@ pub trait IControl<TContractState> {
     fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
     fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
     fn release(ref self: TContractState, control_point_id: u32);
-    fn bid(ref self: TContractState, control_point_id: u32, bid_power: u128);
-    fn bid_with_sacrifice(
+    fn challenge(ref self: TContractState, control_point_id: u32, committed_power: u128);
+    fn challenge_with_sacrifice(
         ref self: TContractState,
         control_point_id: u32,
         sacrificed_control_point_id: u32,
-        bid_power: u128,
+        committed_power: u128,
     );
     fn settle_challenge(ref self: TContractState, control_point_id: u32);
     fn resolve_challenge_position(
@@ -155,31 +155,32 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct ChallengeStarted {
+    pub struct ChallengeInitiated {
         #[key]
         pub challenge_id: u64,
         #[key]
         pub control_point_id: u32,
-        pub incumbent: ContractAddress,
+        #[key]
         pub challenger: ContractAddress,
+        pub incumbent: ContractAddress,
         pub defender_power_at_risk: u128,
-        pub opening_bid: u128,
+        pub committed_power: u128,
         pub deadline: u64,
     }
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct BidPlaced {
+    pub struct ChallengeEscalated {
         #[key]
         pub challenge_id: u64,
         #[key]
         pub control_point_id: u32,
         #[key]
-        pub bidder: ContractAddress,
-        pub bid: u128,
+        pub challenger: ContractAddress,
+        pub committed_power: u128,
         pub added_power: u128,
         pub previous_leader: ContractAddress,
-        pub previous_leading_bid: u128,
+        pub previous_leading_power: u128,
         pub deadline: u64,
     }
 
@@ -345,17 +346,20 @@ pub mod control {
                 );
         }
 
-        fn bid(ref self: ContractState, control_point_id: u32, bid_power: u128) {
-            self.place_bid(control_point_id, bid_power, Option::None);
+        fn challenge(ref self: ContractState, control_point_id: u32, committed_power: u128) {
+            self.commit_challenge_power(control_point_id, committed_power, Option::None);
         }
 
-        fn bid_with_sacrifice(
+        fn challenge_with_sacrifice(
             ref self: ContractState,
             control_point_id: u32,
             sacrificed_control_point_id: u32,
-            bid_power: u128,
+            committed_power: u128,
         ) {
-            self.place_bid(control_point_id, bid_power, Option::Some(sacrificed_control_point_id));
+            self
+                .commit_challenge_power(
+                    control_point_id, committed_power, Option::Some(sacrificed_control_point_id),
+                );
         }
 
         fn settle_challenge(ref self: ContractState, control_point_id: u32) {
@@ -375,12 +379,12 @@ pub mod control {
                 && winner_position.joined
                 && !winner_position.resolved
                 && winner_position.operator_generation == leader.generation
-                && winner_position.bid_power == challenge.leading_bid;
+                && winner_position.committed_power == challenge.leading_power;
             let mut winner = zero_address();
             let mut winning_power = 0;
             if leader_valid {
                 winner = challenge.leader;
-                winning_power = challenge.leading_bid;
+                winning_power = challenge.leading_power;
                 let additional_power = winning_power - winner_position.point_power_included;
                 assert(leader.challenge_power >= additional_power, 'challenge power invariant');
                 assert(leader.active_challenge_count > 0, 'challenge count invariant');
@@ -419,7 +423,7 @@ pub mod control {
 
             challenge.settled = true;
             challenge.winning_power = winning_power;
-            challenge.losing_power = challenge.last_losing_bid;
+            challenge.losing_power = challenge.last_losing_power;
             challenge.settled_at = get_block_timestamp();
             world.write_model(@point);
             world.write_model(@challenge);
@@ -431,7 +435,7 @@ pub mod control {
                         winner,
                         loser: challenge.last_loser,
                         winning_power,
-                        losing_power: challenge.last_losing_bid,
+                        losing_power: challenge.last_losing_power,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -517,11 +521,11 @@ pub mod control {
                 control_point_id: challenge.control_point_id,
                 incumbent: challenge.incumbent,
                 leader: challenge.leader,
-                leading_bid: challenge.leading_bid,
+                leading_power: challenge.leading_power,
                 last_loser: challenge.last_loser,
-                last_losing_bid: challenge.last_losing_bid,
+                last_losing_power: challenge.last_losing_power,
                 deadline: challenge.deadline,
-                bid_count: challenge.bid_count,
+                lead_change_count: challenge.lead_change_count,
                 participant_count: challenge.participant_count,
                 settled: challenge.settled,
                 winner: challenge.winner,
@@ -539,15 +543,17 @@ pub mod control {
             let challenge: Challenge = world.read_model(challenge_id);
             assert(challenge.id == challenge_id, 'challenge not found');
             let participant: ChallengeParticipant = world.read_model((challenge_id, operator));
-            let additional_power = if participant.bid_power > participant.point_power_included {
-                participant.bid_power - participant.point_power_included
+            let additional_power = if participant
+                .committed_power > participant
+                .point_power_included {
+                participant.committed_power - participant.point_power_included
             } else {
                 0
             };
             ChallengeParticipantStatus {
                 challenge_id,
                 operator,
-                bid_power: participant.bid_power,
+                committed_power: participant.committed_power,
                 point_power_included: participant.point_power_included,
                 additional_power,
                 joined: participant.joined,
@@ -671,19 +677,19 @@ pub mod control {
                 }
             }
 
-            let mut challenge_bid_count = 0;
+            let mut challenge_lead_change_count = 0;
             let mut challenge_deadline = 0;
             let mut required_stake = if controller.is_zero() {
                 config.minimum_stake
             } else {
-                next_bid_required(capture_power)
+                minimum_challenge_power(capture_power)
             };
             if point.active_challenge_id > 0 {
                 let challenge: Challenge = world.read_model(point.active_challenge_id);
                 if !challenge.settled {
-                    challenge_bid_count = challenge.bid_count;
+                    challenge_lead_change_count = challenge.lead_change_count;
                     challenge_deadline = challenge.deadline;
-                    required_stake = next_bid_required(challenge.leading_bid);
+                    required_stake = minimum_challenge_power(challenge.leading_power);
                 }
             }
 
@@ -695,7 +701,7 @@ pub mod control {
                 controlled_since,
                 required_stake,
                 active_challenge_id: point.active_challenge_id,
-                challenge_bid_count,
+                challenge_lead_change_count,
                 challenge_deadline,
                 stale,
                 needs_sync,
@@ -743,10 +749,10 @@ pub mod control {
             (operator, delegation, changed)
         }
 
-        fn place_bid(
+        fn commit_challenge_power(
             ref self: ContractState,
             control_point_id: u32,
-            bid_power: u128,
+            committed_power: u128,
             sacrificed_control_point_id: Option<u32>,
         ) {
             let config = self.active_config();
@@ -763,21 +769,24 @@ pub mod control {
                     .refresh_operator(point.controller, config.staking_pool);
                 self.assert_controller(point, point.controller, incumbent);
                 assert(caller != point.controller, 'already controller');
-                assert(bid_power > point.capture_power, 'bid not high enough');
-                assert(bid_power >= next_bid_required(point.capture_power), 'bid not high enough');
+                assert(committed_power > point.capture_power, 'challenge too weak');
+                assert(
+                    committed_power >= minimum_challenge_power(point.capture_power),
+                    'challenge too weak',
+                );
                 let challenge_id = self.next_challenge_id();
                 self
                     .sacrifice_if_requested(
                         ref operator, challenge_id, control_point_id, sacrificed_control_point_id,
                     );
                 assert(
-                    bid_power <= available_power(delegation.amount, operator),
+                    committed_power <= available_power(delegation.amount, operator),
                     'insufficient available power',
                 );
                 let deadline = get_block_timestamp() + config.challenge_period_seconds;
                 let defender_power_at_risk = point.capture_power;
                 incumbent.active_challenge_count += 1;
-                operator.challenge_power += bid_power;
+                operator.challenge_power += committed_power;
                 operator.active_challenge_count += 1;
                 point.active_challenge_id = challenge_id;
                 let challenge = Challenge {
@@ -786,11 +795,11 @@ pub mod control {
                     incumbent: point.controller,
                     leader: caller,
                     leader_generation: operator.generation,
-                    leading_bid: bid_power,
+                    leading_power: committed_power,
                     last_loser: point.controller,
-                    last_losing_bid: defender_power_at_risk,
+                    last_losing_power: defender_power_at_risk,
                     deadline,
-                    bid_count: 1,
+                    lead_change_count: 1,
                     participant_count: 2,
                     settled: false,
                     winner: zero_address(),
@@ -801,7 +810,7 @@ pub mod control {
                 let incumbent_position = ChallengeParticipant {
                     challenge_id,
                     operator: point.controller,
-                    bid_power: defender_power_at_risk,
+                    committed_power: defender_power_at_risk,
                     point_power_included: defender_power_at_risk,
                     operator_generation: incumbent.generation,
                     joined: true,
@@ -811,7 +820,7 @@ pub mod control {
                 let challenger_position = ChallengeParticipant {
                     challenge_id,
                     operator: caller,
-                    bid_power,
+                    committed_power,
                     point_power_included: 0,
                     operator_generation: operator.generation,
                     joined: true,
@@ -826,26 +835,13 @@ pub mod control {
                 world.write_model(@challenger_position);
                 world
                     .emit_event(
-                        @ChallengeStarted {
+                        @ChallengeInitiated {
                             challenge_id,
                             control_point_id,
                             incumbent: point.controller,
                             challenger: caller,
                             defender_power_at_risk,
-                            opening_bid: bid_power,
-                            deadline,
-                        },
-                    );
-                world
-                    .emit_event(
-                        @BidPlaced {
-                            challenge_id,
-                            control_point_id,
-                            bidder: caller,
-                            bid: bid_power,
-                            added_power: bid_power,
-                            previous_leader: point.controller,
-                            previous_leading_bid: defender_power_at_risk,
+                            committed_power,
                             deadline,
                         },
                     );
@@ -856,20 +852,23 @@ pub mod control {
             assert(!challenge.settled, 'challenge settled');
             assert(get_block_timestamp() < challenge.deadline, 'challenge ended');
             assert(caller != challenge.leader, 'already leading');
-            assert(bid_power > challenge.leading_bid, 'bid not high enough');
-            assert(bid_power >= next_bid_required(challenge.leading_bid), 'bid not high enough');
+            assert(committed_power > challenge.leading_power, 'challenge too weak');
+            assert(
+                committed_power >= minimum_challenge_power(challenge.leading_power),
+                'challenge too weak',
+            );
             let mut participant: ChallengeParticipant = world.read_model((challenge.id, caller));
-            let previous_personal_bid = if participant.joined {
+            let previous_commitment = if participant.joined {
                 assert(!participant.resolved, 'position resolved');
                 assert(
                     participant.operator_generation == operator.generation,
                     'position generation mismatch',
                 );
-                participant.bid_power
+                participant.committed_power
             } else {
                 0
             };
-            let added_power = bid_power - previous_personal_bid;
+            let added_power = committed_power - previous_commitment;
             self
                 .sacrifice_if_requested(
                     ref operator, challenge.id, control_point_id, sacrificed_control_point_id,
@@ -879,7 +878,7 @@ pub mod control {
                 'insufficient available power',
             );
             let previous_leader = challenge.leader;
-            let previous_leading_bid = challenge.leading_bid;
+            let previous_leading_power = challenge.leading_power;
             let deadline = get_block_timestamp() + config.challenge_period_seconds;
             operator.challenge_power += added_power;
             if !participant.joined {
@@ -893,27 +892,27 @@ pub mod control {
                 participant.resolved = false;
                 participant.won = false;
             }
-            participant.bid_power = bid_power;
+            participant.committed_power = committed_power;
             challenge.leader = caller;
             challenge.leader_generation = operator.generation;
-            challenge.leading_bid = bid_power;
+            challenge.leading_power = committed_power;
             challenge.last_loser = previous_leader;
-            challenge.last_losing_bid = previous_leading_bid;
+            challenge.last_losing_power = previous_leading_power;
             challenge.deadline = deadline;
-            challenge.bid_count += 1;
+            challenge.lead_change_count += 1;
             world.write_model(@operator);
             world.write_model(@participant);
             world.write_model(@challenge);
             world
                 .emit_event(
-                    @BidPlaced {
+                    @ChallengeEscalated {
                         challenge_id: challenge.id,
                         control_point_id,
-                        bidder: caller,
-                        bid: bid_power,
+                        challenger: caller,
+                        committed_power,
                         added_power,
                         previous_leader,
-                        previous_leading_bid,
+                        previous_leading_power,
                         deadline,
                     },
                 );
@@ -965,7 +964,7 @@ pub mod control {
                 return 0;
             }
 
-            let lost_power = participant.bid_power;
+            let lost_power = participant.committed_power;
             let additional_power = lost_power - participant.point_power_included;
             let (mut operator, _, _) = self.refresh_operator(operator_address, config.staking_pool);
             if valid_challenge_operator(operator, participant.operator_generation) {
@@ -1077,13 +1076,13 @@ pub mod control {
         }
     }
 
-    fn next_bid_required(current_bid: u128) -> u128 {
-        if current_bid == super::MAX_U128 {
-            return current_bid;
+    fn minimum_challenge_power(current_power: u128) -> u128 {
+        if current_power == super::MAX_U128 {
+            return current_power;
         }
 
-        let quotient = current_bid / super::MINIMUM_BID_RAISE_DIVISOR;
-        let remainder = current_bid % super::MINIMUM_BID_RAISE_DIVISOR;
+        let quotient = current_power / super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
+        let remainder = current_power % super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
         let rounded_tenth = quotient + if remainder > 0 {
             1
         } else {
@@ -1095,10 +1094,10 @@ pub mod control {
             1
         };
 
-        if increment > super::MAX_U128 - current_bid {
+        if increment > super::MAX_U128 - current_power {
             super::MAX_U128
         } else {
-            current_bid + increment
+            current_power + increment
         }
     }
 

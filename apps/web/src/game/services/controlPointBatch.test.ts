@@ -15,7 +15,7 @@ function point(
     controlledSince: null,
     requiredStake: 100n,
     activeChallengeId: 0n,
-    challengeBidCount: 0,
+    challengeLeadChangeCount: 0,
     challengeDeadline: null,
     stale: false,
     needsSync: false,

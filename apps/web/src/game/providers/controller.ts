@@ -79,16 +79,16 @@ const policies: SessionPolicies = {
                 'Add selected delegated power to an owned Control Point.',
             },
             {
-              name: 'Place Open Bid',
-              entrypoint: 'bid',
+              name: 'Challenge Control Point',
+              entrypoint: 'challenge',
               description:
-                'Place a visible STRK-backed bid on a contested Control Point.',
+                'Commit visible STRK-backed power to challenge a Control Point.',
             },
             {
-              name: 'Sacrifice Control Point and Bid',
-              entrypoint: 'bid_with_sacrifice',
+              name: 'Sacrifice and Challenge',
+              entrypoint: 'challenge_with_sacrifice',
               description:
-                'Release an owned Control Point and use the freed garrison in an open bid.',
+                'Release an owned Control Point and commit its freed garrison to a challenge.',
             },
             {
               name: 'Settle Open Contest',
@@ -100,7 +100,7 @@ const policies: SessionPolicies = {
               name: 'Resolve Challenge Position',
               entrypoint: 'resolve_challenge_position',
               description:
-                'Finalize a losing bid position after its contest settles.',
+                'Finalize a losing power commitment after its challenge settles.',
             },
             {
               name: 'Release Control Point',

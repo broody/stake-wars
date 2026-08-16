@@ -1,8 +1,8 @@
 # StakeWars API
 
-The Go API owns wallet authentication and off-chain image metadata. Open bids
-and challenge settlement are handled directly by the Dojo World; the API holds
-no bid envelopes, encryption keys, settlement key, or STRK. Image bytes are
+The Go API owns wallet authentication and off-chain image metadata. Open
+Challenges and settlement are handled directly by the Dojo World; the API
+holds no game funds, encryption keys, settlement key, or STRK. Image bytes are
 uploaded directly to Tigris rather than passing through this service.
 
 ## Local development

@@ -3,7 +3,7 @@ import {
   buildSmartBatchGameActionCalls,
   buildSmartGameActionCalls,
   encodeU256,
-  incrementalBidPower,
+  incrementalCommittedPower,
   stakeDeficit,
 } from './smartCapture';
 
@@ -20,7 +20,7 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'bid',
+        entrypoint: 'challenge',
         calldata: ['7', '420'],
         allocation: 420n,
         availablePower: 420n,
@@ -28,7 +28,7 @@ describe('allocation action calls', () => {
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'bid',
+        entrypoint: 'challenge',
         calldata: ['7', '420'],
       },
     ]);
@@ -74,7 +74,7 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'bid_with_sacrifice',
+        entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
         allocation: 100n,
         availablePower: 100n,
@@ -82,7 +82,7 @@ describe('allocation action calls', () => {
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'bid_with_sacrifice',
+        entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
       },
     ]);
@@ -92,7 +92,7 @@ describe('allocation action calls', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
-        entrypoint: 'bid_with_sacrifice',
+        entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
         allocation: 0n,
         availablePower: 0n,
@@ -100,7 +100,7 @@ describe('allocation action calls', () => {
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'bid_with_sacrifice',
+        entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
       },
     ]);
@@ -160,9 +160,9 @@ describe('allocation action calls', () => {
 });
 
 describe('staking arithmetic', () => {
-  it('locks only the increase over an operator previous cumulative bid', () => {
-    expect(incrementalBidPower(700n, 500n)).toBe(200n);
-    expect(incrementalBidPower(500n, 500n)).toBe(0n);
+  it('locks only the increase over an operator previous challenge commitment', () => {
+    expect(incrementalCommittedPower(700n, 500n)).toBe(200n);
+    expect(incrementalCommittedPower(500n, 500n)).toBe(0n);
   });
 
   it('stakes only the portion of a selected allocation that is unavailable', () => {

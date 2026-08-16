@@ -72,11 +72,17 @@ const OPERATOR_ACTIVITY_QUERY = `
         }
       }
     }
-    leadership: stakewarsBidPlacedModels(
+    initiations: stakewarsChallengeInitiatedModels(
       first: 1000
-      where: { bidder: $operator }
+      where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id bidder bid added_power previous_leader previous_leading_bid deadline } }
+      edges { cursor node { challenge_id control_point_id incumbent challenger defender_power_at_risk committed_power deadline } }
+    }
+    escalations: stakewarsChallengeEscalatedModels(
+      first: 1000
+      where: { challenger: $operator }
+    ) {
+      edges { cursor node { challenge_id control_point_id challenger committed_power added_power previous_leader previous_leading_power deadline } }
     }
     settlements: stakewarsChallengeSettledModels(
       first: 1000
@@ -152,7 +158,8 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
     $operator: ContractAddress!
     $capturesFirst: Int!
     $lossesFirst: Int!
-    $leadershipFirst: Int!
+    $initiationsFirst: Int!
+    $escalationsFirst: Int!
     $settlementsFirst: Int!
     $reinforcementsFirst: Int!
     $releasesFirst: Int!
@@ -160,7 +167,8 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
     $relinquishmentsFirst: Int!
     $capturesAfter: Cursor
     $lossesAfter: Cursor
-    $leadershipAfter: Cursor
+    $initiationsAfter: Cursor
+    $escalationsAfter: Cursor
     $settlementsAfter: Cursor
     $reinforcementsAfter: Cursor
     $releasesAfter: Cursor
@@ -183,12 +191,20 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       edges { cursor node { challenge_id control_point_id operator lost_power } }
       pageInfo { hasNextPage endCursor }
     }
-    leadership: stakewarsBidPlacedModels(
-      first: $leadershipFirst
-      after: $leadershipAfter
-      where: { bidder: $operator }
+    initiations: stakewarsChallengeInitiatedModels(
+      first: $initiationsFirst
+      after: $initiationsAfter
+      where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id bidder bid added_power previous_leader previous_leading_bid deadline } }
+      edges { cursor node { challenge_id control_point_id incumbent challenger defender_power_at_risk committed_power deadline } }
+      pageInfo { hasNextPage endCursor }
+    }
+    escalations: stakewarsChallengeEscalatedModels(
+      first: $escalationsFirst
+      after: $escalationsAfter
+      where: { challenger: $operator }
+    ) {
+      edges { cursor node { challenge_id control_point_id challenger committed_power added_power previous_leader previous_leading_power deadline } }
       pageInfo { hasNextPage endCursor }
     }
     settlements: stakewarsChallengeSettledModels(
@@ -348,14 +364,24 @@ interface RelinquishmentEventNode {
   released_point_count: number | string;
 }
 
-interface BidEventNode {
+interface ChallengeInitiatedEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
-  bidder: string;
-  bid: string;
+  incumbent: string;
+  challenger: string;
+  defender_power_at_risk: string;
+  committed_power: string;
+  deadline: string;
+}
+
+interface ChallengeEscalatedEventNode {
+  challenge_id: number | string;
+  control_point_id: number | string;
+  challenger: string;
+  committed_power: string;
   added_power: string;
   previous_leader: string;
-  previous_leading_bid: string;
+  previous_leading_power: string;
   deadline: string;
 }
 
@@ -380,7 +406,8 @@ interface ToriiOperatorActivityResponse {
   data?: {
     captures?: ToriiConnection<CaptureEventNode>;
     losses?: ToriiConnection<ChallengePositionResolvedEventNode>;
-    leadership?: ToriiConnection<BidEventNode>;
+    initiations?: ToriiConnection<ChallengeInitiatedEventNode>;
+    escalations?: ToriiConnection<ChallengeEscalatedEventNode>;
     settlements?: ToriiConnection<SettlementEventNode>;
     reinforcements?: ToriiConnection<ReinforcementEventNode>;
     releases?: ToriiConnection<ReleaseEventNode>;
@@ -547,18 +574,30 @@ export function parseOperatorActivity(
         ...position,
         type: 'loss',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.lost_power, 'lost bid'),
+        amount: parseBigInt(node.lost_power, 'lost challenge power'),
       }))
     );
   });
 
-  edges(payload.data.leadership).forEach((edge) => {
+  edges(payload.data.initiations).forEach((edge) => {
     append(
       activityFromEdge(edge, (position, node) => ({
         ...position,
-        type: 'challenge',
+        type: 'challenge_initiated',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.bid, 'open bid'),
+        amount: parseBigInt(node.committed_power, 'committed challenge power'),
+        counterparty: node.incumbent,
+      }))
+    );
+  });
+
+  edges(payload.data.escalations).forEach((edge) => {
+    append(
+      activityFromEdge(edge, (position, node) => ({
+        ...position,
+        type: 'challenge_escalated',
+        controlPointId: parseControlPointId(node.control_point_id),
+        amount: parseBigInt(node.committed_power, 'committed challenge power'),
         counterparty: node.previous_leader,
       }))
     );
@@ -571,7 +610,7 @@ export function parseOperatorActivity(
         type: 'settlement',
         controlPointId: parseControlPointId(node.control_point_id),
         amount: parseBigInt(node.winning_power, 'winning power'),
-        secondaryAmount: parseBigInt(node.losing_power, 'last losing bid'),
+        secondaryAmount: parseBigInt(node.losing_power, 'last losing power'),
       }))
     );
   });
@@ -868,7 +907,8 @@ const ACTIVITY_SOURCE_PAGE_SIZE = 20;
 interface OperatorControlActivityCursor {
   captures: string | null;
   losses: string | null;
-  leadership: string | null;
+  initiations: string | null;
+  escalations: string | null;
   settlements: string | null;
   reinforcements: string | null;
   releases: string | null;
@@ -922,7 +962,8 @@ async function getOperatorControlActivityPage(
     > = {
       captures: 'capture',
       losses: 'loss',
-      leadership: 'challenge',
+      initiations: 'challenge_initiated',
+      escalations: 'challenge_escalated',
       settlements: 'settlement',
       reinforcements: 'reinforcement',
       releases: 'release',
@@ -940,7 +981,8 @@ async function getOperatorControlActivityPage(
       cursor: cursor ?? {
         captures: null,
         losses: null,
-        leadership: null,
+        initiations: null,
+        escalations: null,
         settlements: null,
         reinforcements: null,
         releases: null,
@@ -959,8 +1001,10 @@ async function getOperatorControlActivityPage(
       capturesAfter: cursor?.captures ?? null,
       lossesFirst: active('losses') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
       lossesAfter: cursor?.losses ?? null,
-      leadershipFirst: active('leadership') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
-      leadershipAfter: cursor?.leadership ?? null,
+      initiationsFirst: active('initiations') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      initiationsAfter: cursor?.initiations ?? null,
+      escalationsFirst: active('escalations') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      escalationsAfter: cursor?.escalations ?? null,
       settlementsFirst: active('settlements') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
       settlementsAfter: cursor?.settlements ?? null,
       reinforcementsFirst: active('reinforcements')
@@ -988,7 +1032,8 @@ async function getOperatorControlActivityPage(
       cursor: {
         captures: null,
         losses: null,
-        leadership: null,
+        initiations: null,
+        escalations: null,
         settlements: null,
         reinforcements: null,
         releases: null,
@@ -1007,8 +1052,11 @@ async function getOperatorControlActivityPage(
       losses: active('losses')
         ? nextActivityCursor(data.losses, 'loss activity')
         : null,
-      leadership: active('leadership')
-        ? nextActivityCursor(data.leadership, 'open bid activity')
+      initiations: active('initiations')
+        ? nextActivityCursor(data.initiations, 'challenge initiation activity')
+        : null,
+      escalations: active('escalations')
+        ? nextActivityCursor(data.escalations, 'challenge escalation activity')
         : null,
       settlements: active('settlements')
         ? nextActivityCursor(data.settlements, 'settlement activity')
@@ -1085,7 +1133,8 @@ export async function getOperatorActivityFeedPage(
     ? {
         captures: cursor.captures,
         losses: cursor.losses,
-        leadership: cursor.leadership,
+        initiations: cursor.initiations,
+        escalations: cursor.escalations,
         settlements: cursor.settlements,
         reinforcements: cursor.reinforcements,
         releases: cursor.releases,
@@ -1119,7 +1168,8 @@ export async function getOperatorActivityFeedPage(
           cursor: {
             captures: null,
             losses: null,
-            leadership: null,
+            initiations: null,
+            escalations: null,
             settlements: null,
             reinforcements: null,
             releases: null,

@@ -211,8 +211,8 @@ function decodeControlPointStatus(
       parseTimestamp(result[offset + 4], 'control start time') || null,
     requiredStake: parseFelt(result[offset + 5], 'required stake'),
     activeChallengeId: parseFelt(result[offset + 6], 'active challenge ID'),
-    challengeBidCount: Number(
-      parseFelt(result[offset + 7], 'challenge bid count')
+    challengeLeadChangeCount: Number(
+      parseFelt(result[offset + 7], 'challenge lead change count')
     ),
     challengeDeadline:
       parseTimestamp(result[offset + 8], 'challenge deadline') || null,
@@ -360,11 +360,11 @@ export function decodeChallengeStatusResult(result: string[]): ChallengeStatus {
     controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
     incumbent: result[2] ?? '0x0',
     leader: result[3] ?? '0x0',
-    leadingBid: parseFelt(result[4], 'leading bid'),
+    leadingPower: parseFelt(result[4], 'leading power'),
     lastLoser: result[5] ?? '0x0',
-    lastLosingBid: parseFelt(result[6], 'last losing bid'),
+    lastLosingPower: parseFelt(result[6], 'last losing power'),
     deadline: parseTimestamp(result[7], 'challenge deadline'),
-    bidCount: Number(parseFelt(result[8], 'bid count')),
+    leadChangeCount: Number(parseFelt(result[8], 'lead change count')),
     participantCount: Number(parseFelt(result[9], 'participant count')),
     settled: parseFelt(result[10], 'settled flag') !== 0n,
     winner: result[11] ?? '0x0',
@@ -391,7 +391,7 @@ export async function getChallengeParticipantStatus(
   return {
     challengeId: parseFelt(result[0], 'challenge ID'),
     operator: result[1] ?? operator,
-    bidPower: parseFelt(result[2], 'participant bid'),
+    committedPower: parseFelt(result[2], 'participant committed power'),
     pointPowerIncluded: parseFelt(result[3], 'participant point power'),
     additionalPower: parseFelt(result[4], 'participant additional power'),
     joined: parseFelt(result[5], 'participant joined flag') !== 0n,
