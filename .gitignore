@@ -28,3 +28,4 @@ contracts/.torii/
 *.njsproj
 *.sln
 *.sw?
+.vercel

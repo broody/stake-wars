@@ -9,7 +9,9 @@ import {
 } from '../../utils/format';
 import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
 import { CaptureControl } from './CaptureControl';
+import { BatchCaptureControl } from './BatchCaptureControl';
 import { formatControlPointTenure } from '../../utils/controlPointTenure';
+import { groupBatchControlPoints } from '../../services/controlPointBatch';
 
 const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 
@@ -98,6 +100,9 @@ export function SelectionPanel() {
     selectedControlPoint !== null &&
     addressesMatch(selectedControlPoint.controller, address ?? '0x0');
   const isMultiSelection = selectedControlPointIds.length > 1;
+  const batchGroups = groupBatchControlPoints(selectedControlPoints, address);
+  const hasLoadedFullSelection =
+    selectedControlPoints.length === selectedControlPointIds.length;
   const selectedControlPointById = new Map(
     selectedControlPoints.map((point) => [point.id, point])
   );
@@ -272,11 +277,14 @@ export function SelectionPanel() {
 
         {selectedControlPoint ? (
           <>
-            {(selectedControlPoint.stale || selectedControlPoint.needsSync) && (
-              <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-                This Control Point has stale Operator state and must be synced.
-              </div>
-            )}
+            {!isMultiSelection &&
+              (selectedControlPoint.stale ||
+                selectedControlPoint.needsSync) && (
+                <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
+                  This Control Point has stale Operator state and must be
+                  synced.
+                </div>
+              )}
 
             {!isMultiSelection &&
             !selectedControlPoint.stale &&
@@ -287,11 +295,31 @@ export function SelectionPanel() {
                 intent={controlledByOperator ? 'fortify' : 'capture'}
               />
             ) : null}
-            {isMultiSelection ? (
-              <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-                Power is committed automatically. Select one Control Point to
-                act.
-              </div>
+            {isMultiSelection && hasLoadedFullSelection ? (
+              <>
+                {batchGroups.neutral.length > 0 && (
+                  <BatchCaptureControl
+                    key={`batch-capture-${batchGroups.neutral.map(({ id }) => id).join('-')}`}
+                    controlPoints={batchGroups.neutral}
+                    intent="capture"
+                  />
+                )}
+                {batchGroups.owned.length > 0 && (
+                  <BatchCaptureControl
+                    key={`batch-fortify-${batchGroups.owned.map(({ id }) => id).join('-')}`}
+                    controlPoints={batchGroups.owned}
+                    intent="fortify"
+                  />
+                )}
+                {batchGroups.individualOnly.length > 0 && (
+                  <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
+                    {batchGroups.individualOnly.length} selected Control Point
+                    {batchGroups.individualOnly.length === 1 ? '' : 's'} require
+                    an individual challenge or state sync and are excluded from
+                    batch actions.
+                  </div>
+                )}
+              </>
             ) : null}
           </>
         ) : null}

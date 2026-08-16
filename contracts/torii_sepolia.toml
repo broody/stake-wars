@@ -1,4 +1,4 @@
-world_address = "0x5b967630ebd14a4e07115980e42b834de5641c8295d933c150976509b996cbc"
+world_address = "0x51b18faa08df51a7cbab9b7d5edeba86992b9715d2ed58db15d3aef6a9b0223"
 rpc = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
 db_dir = "./contracts/.torii/sepolia"
 
@@ -21,7 +21,7 @@ contracts = [
 ]
 namespaces = ["stakewars"]
 models = []
-world_block = 13474219
+world_block = 13529343
 controllers = false
 strict_model_reader = false
 batch_chunk_size = 256

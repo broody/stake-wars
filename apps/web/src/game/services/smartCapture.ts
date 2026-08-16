@@ -16,6 +16,22 @@ interface SmartGameActionCallsOptions {
   isPoolMember: boolean;
 }
 
+interface BatchGameAction {
+  entrypoint: 'capture' | 'reinforce';
+  calldata: string[];
+}
+
+interface SmartBatchGameActionCallsOptions {
+  actions: BatchGameAction[];
+  controlSystemAddress: string;
+  allocation: bigint;
+  availablePower: bigint;
+  operatorAddress: string;
+  poolAddress: string;
+  strkTokenAddress: string;
+  isPoolMember: boolean;
+}
+
 const U128_MODULUS = 1n << 128n;
 
 export function stakeDeficit(
@@ -48,8 +64,67 @@ export function buildSmartGameActionCalls({
     entrypoint,
     calldata,
   };
+  return buildStakedGameActionCalls({
+    actionCalls: [actionCall],
+    allocation,
+    availablePower,
+    operatorAddress,
+    poolAddress,
+    strkTokenAddress,
+    isPoolMember,
+  });
+}
+
+export function buildSmartBatchGameActionCalls({
+  actions,
+  controlSystemAddress,
+  allocation,
+  availablePower,
+  operatorAddress,
+  poolAddress,
+  strkTokenAddress,
+  isPoolMember,
+}: SmartBatchGameActionCallsOptions): Call[] {
+  if (actions.length === 0) {
+    throw new RangeError('At least one Control Point action is required');
+  }
+
+  return buildStakedGameActionCalls({
+    actionCalls: actions.map(({ entrypoint, calldata }) => ({
+      contractAddress: controlSystemAddress,
+      entrypoint,
+      calldata,
+    })),
+    allocation,
+    availablePower,
+    operatorAddress,
+    poolAddress,
+    strkTokenAddress,
+    isPoolMember,
+  });
+}
+
+interface StakedGameActionCallsOptions {
+  actionCalls: Call[];
+  allocation: bigint;
+  availablePower: bigint;
+  operatorAddress: string;
+  poolAddress: string;
+  strkTokenAddress: string;
+  isPoolMember: boolean;
+}
+
+function buildStakedGameActionCalls({
+  actionCalls,
+  allocation,
+  availablePower,
+  operatorAddress,
+  poolAddress,
+  strkTokenAddress,
+  isPoolMember,
+}: StakedGameActionCallsOptions): Call[] {
   const deficit = stakeDeficit(allocation, availablePower);
-  if (deficit === 0n) return [actionCall];
+  if (deficit === 0n) return actionCalls;
 
   const [deficitLow, deficitHigh] = encodeU256(deficit);
   return [
@@ -69,7 +144,7 @@ export function buildSmartGameActionCalls({
           entrypoint: 'enter_delegation_pool',
           calldata: [operatorAddress, deficit.toString()],
         },
-    actionCall,
+    ...actionCalls,
   ];
 }
 

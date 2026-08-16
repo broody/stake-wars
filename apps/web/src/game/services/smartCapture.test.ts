@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSmartBatchGameActionCalls,
   buildSmartGameActionCalls,
   encodeU256,
   stakeDeficit,
@@ -102,6 +103,58 @@ describe('allocation action calls', () => {
         calldata: ['7', '8', '1234'],
       },
     ]);
+  });
+
+  it('stakes one aggregate deficit before repeated control calls', () => {
+    expect(
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: [
+          { entrypoint: 'capture', calldata: ['7', '100'] },
+          { entrypoint: 'capture', calldata: ['8', '100'] },
+          { entrypoint: 'capture', calldata: ['9', '100'] },
+        ],
+        allocation: 300n,
+        availablePower: 100n,
+      })
+    ).toEqual([
+      {
+        contractAddress: '0xstrk',
+        entrypoint: 'approve',
+        calldata: ['0xpool', '200', '0'],
+      },
+      {
+        contractAddress: '0xpool',
+        entrypoint: 'add_to_delegation_pool',
+        calldata: ['0xoperator', '200'],
+      },
+      {
+        contractAddress: '0xcontrol',
+        entrypoint: 'capture',
+        calldata: ['7', '100'],
+      },
+      {
+        contractAddress: '0xcontrol',
+        entrypoint: 'capture',
+        calldata: ['8', '100'],
+      },
+      {
+        contractAddress: '0xcontrol',
+        entrypoint: 'capture',
+        calldata: ['9', '100'],
+      },
+    ]);
+  });
+
+  it('rejects an empty batch', () => {
+    expect(() =>
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: [],
+        allocation: 0n,
+        availablePower: 0n,
+      })
+    ).toThrow('At least one Control Point action is required');
   });
 });
 
