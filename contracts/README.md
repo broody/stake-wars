@@ -39,13 +39,25 @@ Every `capture`, `reinforce`, and `bid` call includes a visible STRK amount. An
 Operator may manage multiple Control Points and lead multiple challenges when
 their aggregate commitments fit within live delegation.
 
+The network deployment presets use 18-decimal STRK base units:
+
+- Sepolia testing: `SEPOLIA_MINIMUM_STAKE = 100000000000000000` (0.1 STRK).
+- Mainnet production: `MAINNET_MINIMUM_STAKE = 100000000000000000000` (100
+  STRK).
+
+World initialization must pass the applicable preset into
+`GameConfig.minimum_stake`; the frontend reads the resulting onchain rule and
+must not substitute its own environment-specific minimum.
+
 An occupied point is contested through `bid` or `bid_with_sacrifice`:
 
-- The opening bid must exceed the point's garrison. The incumbent's garrison and
-  the challenger's bid remain locked and at risk until settlement.
-- Any eligible Operator except the current leader may submit a strictly higher
-  public bid. A returning participant locks only the difference between the new
-  total and that Operator's own prior maximum.
+- The opening bid must raise the point's garrison by at least 10%, rounded up to
+  the next STRK base unit. The incumbent's garrison and the challenger's bid
+  remain locked and at risk until settlement.
+- Any eligible Operator except the current leader may submit a public bid at
+  least 10% above the current lead, rounded up to the next STRK base unit. A
+  returning participant locks only the difference between the new total and
+  that Operator's own prior maximum.
 - Being outbid does not spend a position. Each participant's highest bid remains
   locked so they may continue raising incrementally.
 - Every accepted bid sets a fresh full response-window deadline. There is no

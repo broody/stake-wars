@@ -3,6 +3,7 @@ use starknet::ContractAddress;
 pub const MAX_SYNC_BATCH: usize = 50;
 pub const MAX_STATUS_BATCH: usize = 200;
 const MAX_U128: u128 = 340282366920938463463374607431768211455;
+const MINIMUM_BID_RAISE_DIVISOR: u128 = 10;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ControlPointStatus {
@@ -763,6 +764,7 @@ pub mod control {
                 self.assert_controller(point, point.controller, incumbent);
                 assert(caller != point.controller, 'already controller');
                 assert(bid_power > point.capture_power, 'bid not high enough');
+                assert(bid_power >= next_bid_required(point.capture_power), 'bid not high enough');
                 let challenge_id = self.next_challenge_id();
                 self
                     .sacrifice_if_requested(
@@ -855,6 +857,7 @@ pub mod control {
             assert(get_block_timestamp() < challenge.deadline, 'challenge ended');
             assert(caller != challenge.leader, 'already leading');
             assert(bid_power > challenge.leading_bid, 'bid not high enough');
+            assert(bid_power >= next_bid_required(challenge.leading_bid), 'bid not high enough');
             let mut participant: ChallengeParticipant = world.read_model((challenge.id, caller));
             let previous_personal_bid = if participant.joined {
                 assert(!participant.resolved, 'position resolved');
@@ -1076,9 +1079,26 @@ pub mod control {
 
     fn next_bid_required(current_bid: u128) -> u128 {
         if current_bid == super::MAX_U128 {
-            current_bid
+            return current_bid;
+        }
+
+        let quotient = current_bid / super::MINIMUM_BID_RAISE_DIVISOR;
+        let remainder = current_bid % super::MINIMUM_BID_RAISE_DIVISOR;
+        let rounded_tenth = quotient + if remainder > 0 {
+            1
         } else {
-            current_bid + 1
+            0
+        };
+        let increment = if rounded_tenth > 0 {
+            rounded_tenth
+        } else {
+            1
+        };
+
+        if increment > super::MAX_U128 - current_bid {
+            super::MAX_U128
+        } else {
+            current_bid + increment
         }
     }
 

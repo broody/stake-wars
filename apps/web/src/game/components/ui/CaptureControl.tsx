@@ -28,6 +28,7 @@ import {
 } from '../../services/smartCapture';
 import {
   addressesMatch,
+  formatCountdown,
   formatStrk,
   parseStrk,
   shortAddress,
@@ -71,6 +72,9 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   const [participant, setParticipant] =
     useState<ChallengeParticipantStatus | null>(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
+  const [clockSeconds, setClockSeconds] = useState(() =>
+    Math.floor(Date.now() / 1_000)
+  );
 
   const pointId = point?.id;
   const activeChallengeId = point?.activeChallengeId ?? 0n;
@@ -82,7 +86,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   const expired = Boolean(
     challenged &&
       point.challengeDeadline &&
-      point.challengeDeadline <= Date.now() / 1_000
+      point.challengeDeadline <= clockSeconds
   );
   const action: Action = expired
     ? 'settle'
@@ -100,6 +104,15 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   );
   const suggestedAllocation =
     action === 'capture' || action === 'bid' ? requiredPower : 0n;
+
+  useEffect(() => {
+    if (!challenged || !point?.challengeDeadline) return;
+
+    const updateClock = () => setClockSeconds(Math.floor(Date.now() / 1_000));
+    updateClock();
+    const interval = window.setInterval(updateClock, 1_000);
+    return () => window.clearInterval(interval);
+  }, [challenged, point?.challengeDeadline]);
 
   useEffect(() => {
     setError(null);
@@ -473,38 +486,41 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
         {challenged
-          ? 'OPEN STRK CONTEST'
+          ? owned
+            ? 'DEFEND CONTROL POINT'
+            : 'CONTEST CONTROL POINT'
           : neutral
-            ? 'CAPTURE NEUTRAL POINT'
+            ? 'CAPTURE CONTROL POINT'
             : owned
               ? 'FORTIFY CONTROL POINT'
               : 'ATTACK CONTROL POINT'}
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
-        {action !== 'settle' && (
-          <div className="flex justify-between gap-4">
-            <span>READY STRK</span>
-            <span className="text-fg">
-              {formatStrk(availablePower, 18)} STRK
-            </span>
-          </div>
-        )}
         {challenged && challenge && (
           <>
             <div className="flex justify-between gap-4">
               <span>CURRENT LEADER</span>
-              <span className="text-fg">
-                {addressesMatch(challenge.leader, address ?? '0x0')
-                  ? 'YOU'
-                  : shortAddress(challenge.leader)}
+              <span className="flex items-baseline gap-2 text-fg">
+                <span title={challenge.leader}>
+                  {shortAddress(challenge.leader)}
+                </span>
+                {currentLeader && <span className="text-amber-300">(YOU)</span>}
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>LEADING BID</span>
+              <span>CURRENT BID</span>
               <span className="text-fg">
                 {formatStrk(challenge.leadingBid, 18)} STRK
               </span>
             </div>
+            {point.challengeDeadline && (
+              <div className="flex justify-between gap-4">
+                <span>TIME LEFT</span>
+                <span className="text-fg tabular-nums">
+                  {formatCountdown(point.challengeDeadline - clockSeconds)}
+                </span>
+              </div>
+            )}
           </>
         )}
         {action !== 'settle' && (
@@ -516,7 +532,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               {action === 'reinforce'
                 ? 'ADDITIONAL STRK'
                 : action === 'bid'
-                  ? 'PUBLIC BID'
+                  ? 'BID'
                   : 'CAPTURE STRK'}
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
@@ -547,40 +563,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
                 <span>{formatStrk(requiredPower, 18)} STRK</span>
               </div>
             )}
-            {action === 'bid' && (
-              <>
-                {personalBid > 0n && (
-                  <div className="flex justify-between gap-4">
-                    <span>YOUR CURRENT BID</span>
-                    <span>{formatStrk(personalBid, 18)} STRK</span>
-                  </div>
-                )}
-                <div className="flex justify-between gap-4">
-                  <span>ADDITIONAL LOCK</span>
-                  <span>{formatStrk(additionalBidPower, 18)} STRK</span>
-                </div>
-                <p className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-300">
-                  Raising a previous bid locks only the difference. If you do
-                  not win when the response window expires, your highest total
-                  bid becomes permanently spent game power.
-                </p>
-              </>
+            {action === 'bid' && personalBid > 0n && (
+              <div className="flex justify-between gap-4">
+                <span>YOUR CURRENT BID</span>
+                <span>{formatStrk(personalBid, 18)} STRK</span>
+              </div>
             )}
           </>
-        )}
-        {challenged && point.challengeDeadline && (
-          <div className="flex justify-between gap-4">
-            <span>RESPONSE WINDOW</span>
-            <span>
-              {new Date(point.challengeDeadline * 1_000).toLocaleString()}
-            </span>
-          </div>
-        )}
-        {challenged && (
-          <div className="flex justify-between gap-4">
-            <span>PUBLIC BIDS</span>
-            <span>{point.challengeBidCount}</span>
-          </div>
         )}
         {error && (
           <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">

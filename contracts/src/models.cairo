@@ -3,6 +3,8 @@ use starknet::ContractAddress;
 pub const CONFIG_ID: u8 = 0;
 pub const CHALLENGE_COUNTER_ID: u8 = 0;
 pub const MAX_CONTROL_POINTS: u32 = 2_000;
+pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
+pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]

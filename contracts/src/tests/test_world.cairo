@@ -7,8 +7,9 @@ mod tests {
         spawn_test_world,
     };
     use stakewars::models::{
-        CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, OperatorState, m_Challenge,
-        m_ChallengeCounter, m_ChallengeParticipant, m_ControlPoint, m_GameConfig, m_OperatorState,
+        CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_MINIMUM_STAKE,
+        OperatorState, SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter,
+        m_ChallengeParticipant, m_ControlPoint, m_GameConfig, m_OperatorState,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
@@ -157,6 +158,12 @@ mod tests {
     }
 
     #[test]
+    fn network_minimum_stake_presets_use_strk_base_units() {
+        assert_eq!(SEPOLIA_MINIMUM_STAKE, 100_000_000_000_000_000);
+        assert_eq!(MAINNET_MINIMUM_STAKE, 100_000_000_000_000_000_000);
+    }
+
+    #[test]
     #[available_gas(500000000)]
     fn capture_and_reinforcement_commit_selected_power() {
         let (_, control, pool) = setup();
@@ -227,7 +234,21 @@ mod tests {
         assert_eq!(defender.available_power, 600);
         assert_eq!(attacker.challenge_power, 500);
         assert_eq!(attacker.available_power, 500);
-        assert_eq!(control.get_control_point_status(7).required_stake, 501);
+        assert_eq!(control.get_control_point_status(7).required_stake, 550);
+    }
+
+    #[test]
+    #[available_gas(700000000)]
+    fn minimum_raise_is_ten_percent_rounded_up() {
+        let (_, control, pool) = setup();
+        let incumbent = player_one();
+        pool.set_amount(incumbent, 1_000);
+        testing::set_contract_address(incumbent);
+        control.capture(1, 100);
+        control.capture(2, 101);
+
+        assert_eq!(control.get_control_point_status(1).required_stake, 110);
+        assert_eq!(control.get_control_point_status(2).required_stake, 112);
     }
 
     #[test]
@@ -247,20 +268,20 @@ mod tests {
         control.bid(9, 500);
         testing::set_contract_address(second);
         testing::set_block_timestamp(1_000);
-        control.bid(9, 600);
+        control.bid(9, 550);
 
         let challenge: Challenge = world.read_model(1_u64);
         let displaced = control.get_operator_status(first);
         let leader = control.get_operator_status(second);
         assert_eq!(challenge.leader, second);
-        assert_eq!(challenge.leading_bid, 600);
+        assert_eq!(challenge.leading_bid, 550);
         assert_eq!(challenge.bid_count, 2);
         assert_eq!(challenge.deadline, 1_000 + CHALLENGE_PERIOD);
         assert_eq!(challenge.participant_count, 3);
         assert_eq!(displaced.challenge_power, 500);
         assert_eq!(displaced.spent_power, 0);
         assert_eq!(displaced.active_challenge_count, 1);
-        assert_eq!(leader.challenge_power, 600);
+        assert_eq!(leader.challenge_power, 550);
         assert_eq!(leader.active_challenge_count, 1);
     }
 
@@ -316,7 +337,22 @@ mod tests {
     #[test]
     #[available_gas(900000000)]
     #[should_panic(expected: ('bid not high enough', 'ENTRYPOINT_FAILED'))]
-    fn interested_operator_must_strictly_exceed_the_public_lead() {
+    fn opening_bid_must_raise_the_garrison_by_ten_percent() {
+        let (_, control, pool) = setup();
+        let incumbent = player_one();
+        let challenger = player_two();
+        pool.set_amount(incumbent, 1_000);
+        pool.set_amount(challenger, 1_000);
+        testing::set_contract_address(incumbent);
+        control.capture(1, 100);
+        testing::set_contract_address(challenger);
+        control.bid(1, 109);
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    #[should_panic(expected: ('bid not high enough', 'ENTRYPOINT_FAILED'))]
+    fn interested_operator_must_raise_the_public_lead_by_ten_percent() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let leader = player_two();
@@ -329,7 +365,7 @@ mod tests {
         testing::set_contract_address(leader);
         control.bid(1, 500);
         testing::set_contract_address(interested);
-        control.bid(1, 500);
+        control.bid(1, 549);
     }
 
     #[test]
@@ -513,14 +549,14 @@ mod tests {
         testing::set_contract_address(second_incumbent);
         control.capture(2, 100);
         testing::set_contract_address(operator);
-        control.bid(1, 101);
-        control.bid(2, 101);
+        control.bid(1, 110);
+        control.bid(2, 110);
         control.capture(3, 100);
         control.reinforce(3, 100);
 
         let active = control.get_operator_status(operator);
         assert_eq!(active.active_challenge_count, 2);
-        assert_eq!(active.challenge_power, 202);
+        assert_eq!(active.challenge_power, 220);
         assert_eq!(active.point_power, 200);
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
@@ -529,7 +565,7 @@ mod tests {
         let settled = control.get_operator_status(operator);
         assert_eq!(settled.active_challenge_count, 0);
         assert_eq!(settled.challenge_power, 0);
-        assert_eq!(settled.point_power, 402);
+        assert_eq!(settled.point_power, 420);
         assert_eq!(settled.controlled_point_count, 3);
     }
 

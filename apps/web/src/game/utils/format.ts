@@ -50,6 +50,17 @@ export function formatStrkFixed(
   return `${wholeText}.${fractionText}`;
 }
 
+export function formatCountdown(remainingSeconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(remainingSeconds));
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => value.toString().padStart(2, '0'))
+    .join(':');
+}
+
 export function shortAddress(address: string): string {
   return address.length > 14
     ? `${address.slice(0, 8)}…${address.slice(-6)}`

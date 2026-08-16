@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import { useWallet } from '../../contexts/WalletContext';
 import {
@@ -10,34 +10,7 @@ import {
 import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
 import { CaptureControl } from './CaptureControl';
 import { BatchCaptureControl } from './BatchCaptureControl';
-import { formatControlPointTenure } from '../../utils/controlPointTenure';
 import { groupBatchControlPoints } from '../../services/controlPointBatch';
-
-const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
-
-interface StakeRowProps {
-  label: string;
-  value?: bigint;
-  emphasis?: boolean;
-}
-
-function StakeRow({ label, value, emphasis = false }: StakeRowProps) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 border-t border-grid py-2">
-      <span className="text-[10px] tracking-[0.18em] text-dim">{label}</span>
-      <span className={emphasis ? 'text-fg' : 'text-neutral-300'}>
-        {value === undefined ? (
-          '---'
-        ) : (
-          <>
-            {formatStrk(value)}{' '}
-            <span className="text-[10px] text-dim">STRK</span>
-          </>
-        )}
-      </span>
-    </div>
-  );
-}
 
 export function SelectionPanel() {
   const { address } = useWallet();
@@ -47,21 +20,11 @@ export function SelectionPanel() {
     mode,
     selectedControlPoint,
     selectedControlPoints,
-    controlPointControlledSince,
     isControlPointInteractionLocked,
     controlPointError,
     selectControlPoint,
     refreshControlPoint,
   } = useControlPoints();
-  const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
-
-  useEffect(() => {
-    const interval = window.setInterval(
-      () => setTenureClock(Date.now() / 1_000),
-      TENURE_CLOCK_INTERVAL_MS
-    );
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (
@@ -103,37 +66,6 @@ export function SelectionPanel() {
   const batchGroups = groupBatchControlPoints(selectedControlPoints, address);
   const hasLoadedFullSelection =
     selectedControlPoints.length === selectedControlPointIds.length;
-  const selectedControlPointById = new Map(
-    selectedControlPoints.map((point) => [point.id, point])
-  );
-  const selectedTenures = selectedControlPointIds
-    .map(
-      (id) =>
-        selectedControlPointById.get(id)?.controlledSince ??
-        controlPointControlledSince.get(id) ??
-        null
-    )
-    .filter((controlledSince): controlledSince is number =>
-      Number.isFinite(controlledSince)
-    );
-  const formattedTenure = (() => {
-    if (!isMultiSelection && neutral) return '—';
-    if (selectedTenures.length === 0) return '---';
-    const formatted = [...selectedTenures]
-      .sort((left, right) => right - left)
-      .map((controlledSince) =>
-        formatControlPointTenure(controlledSince, tenureClock)
-      );
-    if (!isMultiSelection) return formatted[0];
-    const unique = [...new Set(formatted)];
-    return unique.length === 1
-      ? unique[0]
-      : `${unique[0]} – ${unique[unique.length - 1]}`;
-  })();
-  const tenureTitle =
-    !isMultiSelection && selectedTenures[0] !== undefined
-      ? `Controlled since ${new Date(selectedTenures[0] * 1_000).toLocaleString()}`
-      : undefined;
 
   return (
     <aside className="pointer-events-auto absolute left-3 right-3 top-20 border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:left-auto sm:right-4 sm:w-[22rem]">
@@ -180,97 +112,42 @@ export function SelectionPanel() {
 
         {!isMultiSelection ? (
           <>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="border-b border-grid pb-3">
+              <div className="text-[10px] tracking-[0.18em] text-dim">
+                OWNER
+              </div>
+              <div className="mt-1 flex items-baseline gap-2 tracking-wider text-neutral-300">
+                <span title={selectedControlPoint?.controller}>
+                  {!selectedControlPoint
+                    ? '---'
+                    : neutral
+                      ? '—'
+                      : shortAddress(selectedControlPoint.controller)}
+                </span>
+                {controlledByOperator && (
+                  <span
+                    className="text-[9px] tracking-[0.16em]"
+                    style={{ color: CONTROL_POINT_COLORS.owned }}
+                  >
+                    (YOU)
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-baseline justify-between gap-6 py-2">
               <span className="text-[10px] tracking-[0.18em] text-dim">
-                STATUS
+                STAKED
               </span>
-              <span
-                className="flex items-center gap-2 tracking-[0.14em]"
-                style={{
-                  color: controlledByOperator
-                    ? CONTROL_POINT_COLORS.owned
-                    : undefined,
-                }}
-              >
+              <span className="text-neutral-300">
                 {selectedControlPoint ? (
                   <>
-                    <span
-                      className={`h-1.5 w-1.5 ${neutral ? 'bg-neutral-600' : controlledByOperator ? '' : 'bg-white'}`}
-                      style={{
-                        backgroundColor: controlledByOperator
-                          ? CONTROL_POINT_COLORS.owned
-                          : undefined,
-                      }}
-                    />
-                    {neutral
-                      ? 'NEUTRAL'
-                      : controlledByOperator
-                        ? 'OWNED BY YOU'
-                        : 'OCCUPIED'}
+                    {formatStrk(selectedControlPoint.capturePower, 18)}{' '}
+                    <span className="text-[10px] text-dim">STRK</span>
                   </>
                 ) : (
                   '---'
                 )}
               </span>
-            </div>
-
-            <div className="border-t border-grid py-2">
-              <div className="text-[10px] tracking-[0.18em] text-dim">
-                OWNER
-              </div>
-              <div
-                className="mt-1 tracking-wider text-neutral-300"
-                title={selectedControlPoint?.controller}
-              >
-                {!selectedControlPoint
-                  ? '---'
-                  : neutral
-                    ? '—'
-                    : shortAddress(selectedControlPoint.controller)}
-              </div>
-            </div>
-
-            <StakeRow
-              label="CAPTURE POWER"
-              value={selectedControlPoint?.capturePower}
-            />
-          </>
-        ) : null}
-
-        <div className="flex items-baseline justify-between gap-6 border-t border-grid py-2">
-          <span className="text-[10px] tracking-[0.18em] text-dim">
-            HELD FOR
-          </span>
-          <span className="text-neutral-300" title={tenureTitle}>
-            {formattedTenure}
-          </span>
-        </div>
-
-        {!isMultiSelection ? (
-          <StakeRow
-            label={
-              selectedControlPoint?.activeChallengeId
-                ? 'NEXT VALID BID'
-                : 'MINIMUM ATTACK'
-            }
-            value={selectedControlPoint?.requiredStake}
-            emphasis
-          />
-        ) : null}
-
-        {!isMultiSelection && selectedControlPoint?.activeChallengeId !== 0n ? (
-          <>
-            <div className="border-t border-grid py-2">
-              <div className="text-[10px] tracking-[0.18em] text-dim">
-                PUBLIC BIDS
-              </div>
-              <div className="mt-1 text-neutral-300">
-                {selectedControlPoint?.challengeBidCount ?? 0}
-              </div>
-            </div>
-            <div className="border-t border-grid py-2 text-[9px] leading-relaxed tracking-[0.12em] text-dim">
-              EACH HIGHER BID RESTARTS THE RESPONSE WINDOW. RETURNING OPERATORS
-              LOCK ONLY THEIR INCREMENT; LOSING FINAL POSITIONS BECOME SPENT.
             </div>
           </>
         ) : null}

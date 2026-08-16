@@ -3,6 +3,7 @@ name = "StakeWars"
 description = "StakeWars core territory-control world"
 website = "https://stakewars.gg"
 seed = "stakewars-mainnet"
+# Initialize GameConfig.minimum_stake with 100000000000000000000 (100 STRK).
 
 [world.socials]
 github = "https://github.com/broody/stake-wars"

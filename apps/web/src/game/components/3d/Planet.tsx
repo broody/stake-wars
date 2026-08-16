@@ -22,21 +22,24 @@ const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 const CONTROL_POINT_GRID_FULL_DISTANCE = 10;
 const CONTROL_POINT_GRID_FADE_DISTANCE = 22;
 
-const TRANSACTION_VERTEX_SHADER = `
+const STRIPE_VERTEX_SHADER = `
   void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 
-const TRANSACTION_FRAGMENT_SHADER = `
+const STRIPE_FRAGMENT_SHADER = `
   uniform float uTime;
   uniform vec3 uColor;
+  uniform float uBaseOpacity;
+  uniform float uStripeOpacity;
 
   void main() {
-    float stripePhase = gl_FragCoord.y * 0.28 - uTime * 7.0;
+    vec2 stripeDirection = normalize(vec2(1.0, 1.0));
+    float stripePhase = dot(gl_FragCoord.xy, stripeDirection) * 0.28 - uTime * 7.0;
     float pulse = 0.12 * sin(uTime * 3.2);
     float stripe = smoothstep(-0.2 + pulse, 0.35 + pulse, sin(stripePhase));
-    float opacity = mix(0.08, 0.88, stripe);
+    float opacity = mix(uBaseOpacity, uStripeOpacity, stripe);
 
     gl_FragColor = vec4(uColor, opacity);
     #include <tonemapping_fragment>
@@ -184,12 +187,20 @@ function ControlPointGridLayer({
   );
 }
 
-function TransactionControlPointLayer({
+function AnimatedStripeControlPointLayer({
   controlPointIds,
   heights,
+  color,
+  baseOpacity,
+  stripeOpacity,
+  scale,
 }: {
   controlPointIds: number[];
   heights?: ReadonlyMap<number, number>;
+  color: THREE.ColorRepresentation;
+  baseOpacity: number;
+  stripeOpacity: number;
+  scale: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const geometry = useMemo(
@@ -202,9 +213,11 @@ function TransactionControlPointLayer({
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uColor: { value: new THREE.Color(CONTROL_POINT_COLORS.transaction) },
+      uColor: { value: new THREE.Color(color) },
+      uBaseOpacity: { value: baseOpacity },
+      uStripeOpacity: { value: stripeOpacity },
     }),
-    []
+    [baseOpacity, color, stripeOpacity]
   );
   const prefersReducedMotion = useMemo(
     () =>
@@ -221,12 +234,12 @@ function TransactionControlPointLayer({
   });
 
   return (
-    <mesh geometry={geometry} scale={1.012} raycast={() => undefined}>
+    <mesh geometry={geometry} scale={scale} raycast={() => undefined}>
       <shaderMaterial
         ref={materialRef}
         uniforms={uniforms}
-        vertexShader={TRANSACTION_VERTEX_SHADER}
-        fragmentShader={TRANSACTION_FRAGMENT_SHADER}
+        vertexShader={STRIPE_VERTEX_SHADER}
+        fragmentShader={STRIPE_FRAGMENT_SHADER}
         transparent
         depthWrite={false}
         side={THREE.DoubleSide}
@@ -373,24 +386,6 @@ export function Planet({
     () => new Set(ownedControlPointIds),
     [ownedControlPointIds]
   );
-  const contestedControlPointIdSet = useMemo(
-    () => new Set(contestedControlPointIds),
-    [contestedControlPointIds]
-  );
-  const uncontestedOwnedControlPointIds = useMemo(
-    () =>
-      ownedControlPointIds.filter(
-        (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
-      ),
-    [contestedControlPointIdSet, ownedControlPointIds]
-  );
-  const uncontestedOpponentControlPointIds = useMemo(
-    () =>
-      opponentControlPointIds.filter(
-        (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
-      ),
-    [contestedControlPointIdSet, opponentControlPointIds]
-  );
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
 
   useEffect(() => {
@@ -516,7 +511,7 @@ export function Planet({
       {mode === 'control' ? (
         <>
           <ExtrudedControlPointLayer
-            controlPointIds={uncontestedOpponentControlPointIds}
+            controlPointIds={opponentControlPointIds}
             controlPointGroups={controlPointOwnerGroups}
             heights={controlPointHeights}
             topColor={CONTROL_POINT_COLORS.opponent}
@@ -526,7 +521,7 @@ export function Planet({
             onPointerOut={() => setHoveredControlPointId(null)}
           />
           <ExtrudedControlPointLayer
-            controlPointIds={uncontestedOwnedControlPointIds}
+            controlPointIds={ownedControlPointIds}
             controlPointGroups={controlPointOwnerGroups}
             heights={controlPointHeights}
             topColor={CONTROL_POINT_COLORS.owned}
@@ -535,32 +530,16 @@ export function Planet({
             onHoverControlPoint={handleControlPointHover}
             onPointerOut={() => setHoveredControlPointId(null)}
           />
-          <ExtrudedControlPointLayer
-            controlPointIds={contestedControlPointIds}
-            controlPointGroups={controlPointOwnerGroups}
-            heights={controlPointHeights}
-            topColor={CONTROL_POINT_COLORS.contested}
-            sideColor={CONTROL_POINT_COLORS.contestedSide}
-            onClickControlPoint={handleControlPointClick}
-            onHoverControlPoint={handleControlPointHover}
-            onPointerOut={() => setHoveredControlPointId(null)}
-          />
           <ControlPointGridLayer
-            controlPointIds={uncontestedOpponentControlPointIds}
+            controlPointIds={opponentControlPointIds}
             color={CONTROL_POINT_COLORS.opponentGrid}
             heights={controlPointHeights}
           />
           <ControlPointGridLayer
-            controlPointIds={uncontestedOwnedControlPointIds}
+            controlPointIds={ownedControlPointIds}
             color={CONTROL_POINT_COLORS.ownedGrid}
             heights={controlPointHeights}
             opacity={0.42}
-          />
-          <ControlPointGridLayer
-            controlPointIds={contestedControlPointIds}
-            color={CONTROL_POINT_COLORS.contestedGrid}
-            heights={controlPointHeights}
-            opacity={0.68}
           />
         </>
       ) : (
@@ -598,10 +577,25 @@ export function Planet({
         heights={mode === 'control' ? controlPointHeights : undefined}
       />
 
+      {mode === 'control' && contestedControlPointIds.length > 0 ? (
+        <AnimatedStripeControlPointLayer
+          controlPointIds={contestedControlPointIds}
+          heights={controlPointHeights}
+          color={CONTROL_POINT_COLORS.contested}
+          baseOpacity={0}
+          stripeOpacity={0.9}
+          scale={1.012}
+        />
+      ) : null}
+
       {isControlPointInteractionLocked && selectedControlPointIds.length > 0 ? (
-        <TransactionControlPointLayer
+        <AnimatedStripeControlPointLayer
           controlPointIds={selectedControlPointIds}
           heights={controlPointHeights}
+          color={CONTROL_POINT_COLORS.transaction}
+          baseOpacity={0.08}
+          stripeOpacity={0.88}
+          scale={1.016}
         />
       ) : null}
 

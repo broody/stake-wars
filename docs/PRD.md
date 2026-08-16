@@ -13,7 +13,7 @@
 
 Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Operators explicitly allocate portions of that real delegation to Control Points and challenges without creating a separate power currency. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point starts an open ascending contest: every bid is public, must exceed the current lead, and restarts a configurable response window initially set to 3 hours. Each Operator maintains one cumulative bid and locks only the increment when raising it. Outbidding changes leadership without spending either position; when the contest expires, the winner's bid becomes the new garrison and every losing Operator's highest bid becomes Spent Power. Any eligible Operator may participate, there is no absolute contest-duration cap, and settlement is permissionless once a full response window passes without a higher bid. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point starts an open ascending contest: every bid is public, must raise the current lead by at least 10%, and restarts a configurable response window initially set to 3 hours. Each Operator maintains one cumulative bid and locks only the increment when raising it. Outbidding changes leadership without spending either position; when the contest expires, the winner's bid becomes the new garrison and every losing Operator's highest bid becomes Spent Power. Any eligible Operator may participate, there is no absolute contest-duration cap, and settlement is permissionless once a full response window passes without a higher bid. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -52,18 +52,18 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the configured minimum stake and no more than Ready STRK. The initial minimum is 100 STRK.
+*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the network-configured minimum stake and no more than Ready STRK. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
 *   **Reinforcement:** A Controller may allocate a selected positive amount of Ready STRK to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
 *   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Power returns to Ready STRK.
 *   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Control Points while sufficient Ready STRK remains.
 
 #### 3.1.3. Open Ascending Challenges
-*   **Starting a Challenge:** Any eligible non-Controller may bid strictly more than an occupied, uncontested point's Capture Power. The bid amount and bidder are public.
+*   **Starting a Challenge:** Any eligible non-Controller may bid at least 10% more than an occupied, uncontested point's Capture Power. The minimum raise is rounded up to the next STRK base unit. The bid amount and bidder are public.
 *   **Opening Risk:** The opening bid places the incumbent's existing garrison and challenger's bid at risk. Neither becomes Spent Power before settlement.
-*   **Open Participation:** Any eligible Operator other than the current leader may submit a strictly higher public total. Each Operator has one cumulative position per Challenge.
+*   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the next STRK base unit. Each Operator has one cumulative position per Challenge.
 *   **Incremental Raises:** A returning Operator locks only `New Total Bid - Own Previous Bid`. Example: after bidding 500 STRK, raising to 700 STRK requires only 200 additional Ready STRK. Being outbid changes the visible leader but does not spend or unlock the prior position.
 *   **Anti-Sniping Window:** Every valid higher bid resets the full admin-configured response window, initially 3 hours. The current leader cannot bid against itself to extend the clock. There is no absolute duration cap; a contest continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent bid calculates its new response window.
-*   **No Ties:** A bid equal to the current lead is rejected. The first accepted strictly higher bid becomes leader.
+*   **Minimum Raise:** Bids below the 10% minimum—including ties and one-base-unit raises—are rejected. The first accepted qualifying bid becomes leader.
 *   **Example:** A has a 500 STRK position and B leads at 600. A may bid 700 by locking 200 additional STRK. B may then bid 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Power.
 
 #### 3.1.4. Control Point Sacrifice

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addressesMatch,
+  formatCountdown,
   formatStrk,
   formatStrkFixed,
   isZeroAddress,
@@ -45,6 +46,12 @@ describe('Control Point formatting', () => {
 
   it('preserves all 18 supported decimals', () => {
     expect(parseStrk('0.000000000000000001')).toBe(1n);
+  });
+
+  it('formats countdowns and clamps expired durations to zero', () => {
+    expect(formatCountdown(10_800)).toBe('03:00:00');
+    expect(formatCountdown(3_661)).toBe('01:01:01');
+    expect(formatCountdown(-1)).toBe('00:00:00');
   });
 
   it('rejects malformed or over-precise values', () => {
