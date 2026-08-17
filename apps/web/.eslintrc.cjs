@@ -17,6 +17,7 @@ module.exports = {
         allowConstantExport: true,
         allowExportNames: [
           'useControlPoints',
+          'useControlPointImages',
           'useTransactionToast',
           'useWallet',
         ],

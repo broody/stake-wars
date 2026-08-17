@@ -21,6 +21,7 @@ const (
 )
 
 var hexFeltPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)
+var decimalFeltPattern = regexp.MustCompile(`^[0-9]+$`)
 
 // Verifier builds SNIP-12 challenges and verifies their signatures through the
 // wallet account contract's is_valid_signature entrypoint.
@@ -287,8 +288,23 @@ func normalizeAddress(value string) (string, error) {
 }
 
 func normalizeFelt(value string) (string, error) {
-	normalized, _, err := parseHexFelt(value)
-	return normalized, err
+	value = strings.TrimSpace(value)
+	if hexFeltPattern.MatchString(value) {
+		normalized, _, err := parseHexFelt(value)
+		return normalized, err
+	}
+	if !decimalFeltPattern.MatchString(value) {
+		return "", fmt.Errorf("expected a hexadecimal or decimal felt")
+	}
+	number, ok := new(big.Int).SetString(value, 10)
+	if !ok {
+		return "", fmt.Errorf("invalid decimal felt")
+	}
+	parsed, err := new(felt.Felt).SetString(number.String())
+	if err != nil {
+		return "", err
+	}
+	return parsed.String(), nil
 }
 
 func parseHexFelt(value string) (string, *big.Int, error) {

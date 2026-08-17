@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -7,6 +7,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useControlPoints } from '../../contexts/ControlPointContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useControlPointImages } from '../../contexts/ControlPointImageContext';
 import {
   CORE_RADIUS,
   createControlPointBoundaryGeometry,
@@ -21,12 +22,20 @@ import {
   controlPointTenureHeights,
   DEFAULT_TENURE_EXTRUSION_ENABLED,
 } from '../../utils/controlPointTenure';
+import {
+  ControlPointDetailImageLayer,
+  ControlPointImageLayer,
+  PlacementPreviewLayer,
+} from './ControlPointImageLayer';
+import { artworkForControlPoint } from '../../utils/controlPointArtworkProjection';
 
 const DRAG_SELECTION_THRESHOLD_PX = 5;
 const TENURE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
 const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 const CONTROL_POINT_GRID_FULL_DISTANCE = 10;
 const CONTROL_POINT_GRID_FADE_DISTANCE = 22;
+const DETAIL_IMAGE_CAMERA_DISTANCE = 10.5;
+const FLAT_CONTROL_POINT_HEIGHTS = new Map<number, number>();
 
 const STRIPE_VERTEX_SHADER = `
   void main() {
@@ -565,11 +574,15 @@ interface PlanetProps {
 export function Planet({
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
+  const { camera } = useThree();
   const { isConnected } = useWallet();
+  const { artworks, placementDraft, featuredArtworkId } =
+    useControlPointImages();
   const {
     mode,
     isControlPointInteractionLocked,
     selectedControlPointIds,
+    selectedControlPointId,
     ownedControlPointIds,
     opponentControlPointIds,
     contestedControlPointIds,
@@ -625,6 +638,52 @@ export function Planet({
       tenureExtrusionEnabled,
     ]
   );
+  const detailArtwork = useMemo(() => {
+    if (mode === 'projection' && featuredArtworkId) {
+      const featured = artworks.find(
+        (artwork) => artwork.id === featuredArtworkId
+      );
+      if (featured) return featured;
+    }
+    const selectedArtwork =
+      mode === 'control' && selectedControlPointId !== null
+        ? artworkForControlPoint(artworks, selectedControlPointId)
+        : null;
+    if (selectedArtwork) return selectedArtwork;
+    if (
+      hoveredControlPointId !== null &&
+      camera.position.length() <= DETAIL_IMAGE_CAMERA_DISTANCE
+    ) {
+      return artworkForControlPoint(artworks, hoveredControlPointId);
+    }
+    return null;
+  }, [
+    camera,
+    hoveredControlPointId,
+    artworks,
+    featuredArtworkId,
+    mode,
+    selectedControlPointId,
+  ]);
+  const imageHeights =
+    mode === 'control' ? controlPointHeights : FLAT_CONTROL_POINT_HEIGHTS;
+  const placementArtwork = useMemo(() => {
+    if (!placementDraft?.placement) return null;
+    return {
+      id: 'placement-preview',
+      network: 'preview',
+      ownerAddress: '',
+      targets: projectionControlPointIds.map((controlPointId) => ({
+        controlPointId,
+        ownershipGeneration: 1,
+      })),
+      placement: placementDraft.placement,
+      imageUrl: placementDraft.previewUrl,
+      thumbnailUrl: placementDraft.previewUrl,
+      contentHash: '',
+      updatedAt: '',
+    };
+  }, [placementDraft, projectionControlPointIds]);
 
   const getEventControlPointId = (
     event: ThreeEvent<PointerEvent | MouseEvent>
@@ -637,6 +696,7 @@ export function Planet({
     event.stopPropagation();
     if (
       isControlPointInteractionLocked ||
+      placementDraft !== null ||
       event.delta > DRAG_SELECTION_THRESHOLD_PX
     ) {
       return;
@@ -662,6 +722,10 @@ export function Planet({
     event: ThreeEvent<PointerEvent>
   ) => {
     event.stopPropagation();
+    if (placementDraft !== null) {
+      setHoveredControlPointId(null);
+      return;
+    }
     setHoveredControlPointId(
       mode === 'projection' &&
         (controlPointId === null || !ownedControlPointIdSet.has(controlPointId))
@@ -786,6 +850,26 @@ export function Planet({
           scale={1.004}
         />
       )}
+
+      {mode === 'projection' ? (
+        <>
+          <ControlPointImageLayer artworks={artworks} heights={imageHeights} />
+
+          {detailArtwork ? (
+            <ControlPointDetailImageLayer
+              artwork={detailArtwork}
+              heights={imageHeights}
+            />
+          ) : null}
+
+          {placementArtwork ? (
+            <PlacementPreviewLayer
+              artwork={placementArtwork}
+              heights={imageHeights}
+            />
+          ) : null}
+        </>
+      ) : null}
 
       {hoveredControlPointId !== null && !isHoveredPointActive && (
         <ControlPointLayer

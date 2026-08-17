@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
+import { ControlPointImageProvider } from './contexts/ControlPointImageContext';
 
 const CoreLab = lazy(() =>
   import('./pages/OwnershipLab').then((module) => ({
@@ -25,23 +26,25 @@ function GameApp() {
           <WalletProvider>
             <TransactionToastProvider>
               <ControlPointProvider>
-                <YieldProvider>
-                  <Layout>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/gallery" element={<Gallery />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route
-                        path="/core-lab"
-                        element={
-                          <Suspense fallback={null}>
-                            <CoreLab />
-                          </Suspense>
-                        }
-                      />
-                    </Routes>
-                  </Layout>
-                </YieldProvider>
+                <ControlPointImageProvider>
+                  <YieldProvider>
+                    <Layout>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/gallery" element={<Gallery />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route
+                          path="/core-lab"
+                          element={
+                            <Suspense fallback={null}>
+                              <CoreLab />
+                            </Suspense>
+                          }
+                        />
+                      </Routes>
+                    </Layout>
+                  </YieldProvider>
+                </ControlPointImageProvider>
               </ControlPointProvider>
             </TransactionToastProvider>
           </WalletProvider>

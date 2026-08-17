@@ -43,6 +43,13 @@ launcher enables debug output and mirrors timestamped logs under
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
+| `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification. |
+| `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Control Point image objects. |
+| `IMAGE_PUBLIC_URL` | unset | Public CDN origin for image delivery, such as `https://assets.stakewars.gg`. |
+| `S3_ENDPOINT` | unset | S3-compatible API endpoint, such as `https://fly.storage.tigris.dev`. |
+| `AWS_REGION` | `auto` | S3 signing region used by the object store. |
+| `AWS_ACCESS_KEY_ID` | unset | Object-store write credential; configure as a secret. |
+| `AWS_SECRET_ACCESS_KEY` | unset | Object-store write credential; configure as a secret. |
 
 `STARKNET_RPC_URL` should be supplied as a Fly secret rather than committed to
 the repository.
@@ -57,7 +64,24 @@ GET  /torii/health
 POST /torii/graphql
 POST /v1/auth/challenges
 POST /v1/auth/sessions
+GET  /v1/control-point-artworks
+POST /v1/control-point-artworks/uploads
+POST /v1/control-point-artworks/uploads/{uploadId}/complete
 ```
+
+Image uploads are enabled only when all object-storage settings are present.
+The browser creates one 256 px atlas image and one 512 px detail image for
+each camera-projected artwork, obtains
+object-specific five-minute PUT URLs, uploads both objects directly to storage,
+and calls the completion endpoint. Completion downloads only those bounded
+objects for signature, MIME, dimensions, and size validation, rechecks current
+on-chain ownership for every target, and publishes generation-bound target
+metadata with the captured camera and placement transform.
+
+The image bucket must allow public `GET` requests and browser `PUT` CORS from
+the configured StakeWars origins, including the `Content-Type` request header.
+Keep object-store write credentials in Fly secrets; they never belong in the
+frontend environment or repository.
 
 Production runs the API and pinned Torii 1.8.0 binary under one supervised
 container on the existing Fly Machine. They use separate SQLite databases on

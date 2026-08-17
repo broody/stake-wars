@@ -33,6 +33,37 @@ export interface IndexedControlPoint {
   activeChallengeId: bigint;
 }
 
+export interface ControlPointOwnership {
+  controller: string;
+  ownershipGeneration: bigint;
+}
+
+export interface ControlPointArtworkTarget {
+  controlPointId: number;
+  ownershipGeneration: number;
+}
+
+export interface ArtworkPlacement {
+  projectorMatrix: number[];
+  centerX: number;
+  centerY: number;
+  scale: number;
+  rotation: number;
+  viewportAspect: number;
+}
+
+export interface ControlPointArtwork {
+  id: string;
+  network: string;
+  ownerAddress: string;
+  targets: ControlPointArtworkTarget[];
+  placement: ArtworkPlacement;
+  imageUrl: string;
+  thumbnailUrl: string;
+  contentHash: string;
+  updatedAt: string;
+}
+
 export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;

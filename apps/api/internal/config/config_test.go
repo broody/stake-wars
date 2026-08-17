@@ -56,3 +56,22 @@ func TestLoadValidatesToriiURL(t *testing.T) {
 		t.Fatal("expected non-HTTP Torii URL to fail")
 	}
 }
+
+func TestLoadRequiresCompleteImageStorageConfiguration(t *testing.T) {
+	t.Setenv("IMAGE_BUCKET", "stakewars-art")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected partial image storage configuration to fail")
+	}
+
+	t.Setenv("IMAGE_PUBLIC_URL", "https://assets.stakewars.gg")
+	t.Setenv("S3_ENDPOINT", "https://fly.storage.tigris.dev")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configuration.ImageStorageEnabled() {
+		t.Fatal("expected image storage to be enabled")
+	}
+}

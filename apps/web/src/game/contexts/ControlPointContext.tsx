@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { PropsWithChildren } from 'react';
 import type {
+  ControlPointOwnership,
   ControlPointStatus,
   CoreMode,
   IndexedControlPoint,
@@ -41,6 +42,7 @@ interface ControlPointContextValue {
   contestedControlPointIds: number[];
   controlPointOwnerGroups: number[][];
   controlPointControlledSince: ReadonlyMap<number, number>;
+  controlPointOwnershipById: ReadonlyMap<number, ControlPointOwnership>;
   projectionControlPointIds: number[];
   projectionLoadingId: number | null;
   isControlPointLoading: boolean;
@@ -549,6 +551,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       number,
       {
         controller: string;
+        ownershipGeneration: bigint;
         controlledSince: number | null;
         activeChallengeId: bigint;
       }
@@ -558,6 +561,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       if (!isZeroAddress(controlPoint.controller)) {
         points.set(controlPoint.id, {
           controller: controlPoint.controller,
+          ownershipGeneration: controlPoint.ownershipGeneration,
           controlledSince: controlPoint.controlledSince,
           activeChallengeId: controlPoint.activeChallengeId,
         });
@@ -575,6 +579,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
         const indexed = points.get(status.id);
         points.set(status.id, {
           controller: status.controller,
+          ownershipGeneration: status.ownershipGeneration,
           controlledSince:
             status.controlledSince ??
             (indexed && addressesMatch(indexed.controller, status.controller)
@@ -595,6 +600,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     contestedControlPointIds,
     controlPointOwnerGroups,
     controlPointControlledSince,
+    controlPointOwnershipById,
   } = useMemo(() => {
     const occupied: number[] = [];
     const owned: number[] = [];
@@ -602,6 +608,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     const contested: number[] = [];
     const ownerGroups = new Map<string, number[]>();
     const controlledSince = new Map<number, number>();
+    const ownershipById = new Map<number, ControlPointOwnership>();
 
     activeControlPoints.forEach((point, id) => {
       const { controller } = point;
@@ -610,6 +617,10 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       const ownerControlPointIds = ownerGroups.get(ownerKey) ?? [];
       ownerControlPointIds.push(id);
       ownerGroups.set(ownerKey, ownerControlPointIds);
+      ownershipById.set(id, {
+        controller,
+        ownershipGeneration: point.ownershipGeneration,
+      });
 
       if (address && addressesMatch(controller, address)) {
         owned.push(id);
@@ -639,6 +650,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
         ids.sort(ascending)
       ),
       controlPointControlledSince: controlledSince,
+      controlPointOwnershipById: ownershipById,
     };
   }, [activeControlPoints, address]);
 
@@ -657,6 +669,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       contestedControlPointIds,
       controlPointOwnerGroups,
       controlPointControlledSince,
+      controlPointOwnershipById,
       projectionControlPointIds,
       projectionLoadingId,
       isControlPointLoading,
@@ -693,6 +706,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
       contestedControlPointIds,
       controlPointOwnerGroups,
       controlPointControlledSince,
+      controlPointOwnershipById,
       projectionControlPointIds,
       projectionLoadingId,
       isControlPointLoading,

@@ -131,6 +131,32 @@ func TestCORSAllowsConfiguredOriginOnly(t *testing.T) {
 	}
 }
 
+func TestControlPointImagesArePublicAndUploadsRequireAuthentication(t *testing.T) {
+	handler := NewHandler(testDependencies(t))
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/v1/control-point-artworks", nil)
+	listResponse := httptest.NewRecorder()
+	handler.ServeHTTP(listResponse, listRequest)
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("expected public image list, got %d: %s", listResponse.Code, listResponse.Body.String())
+	}
+	if got, want := listResponse.Body.String(), "{\"artworks\":[]}\n"; got != want {
+		t.Fatalf("expected body %q, got %q", want, got)
+	}
+
+	uploadRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/control-point-artworks/uploads",
+		strings.NewReader(`{"controlPointId":42}`),
+	)
+	uploadRequest.Header.Set("Content-Type", "application/json")
+	uploadResponse := httptest.NewRecorder()
+	handler.ServeHTTP(uploadResponse, uploadRequest)
+	if uploadResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected upload authentication requirement, got %d", uploadResponse.Code)
+	}
+}
+
 func testDependencies(t *testing.T) Dependencies {
 	t.Helper()
 	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "api.db"))

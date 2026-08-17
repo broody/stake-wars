@@ -9,18 +9,21 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"stakewars.com/api/internal/auth"
+	"stakewars.com/api/internal/images"
 )
 
 const maxJSONBodyBytes = 64 * 1024
 
 type PublicConfig struct {
-	Network       string
-	MaxImageBytes int64
-	AuthEnabled   bool
-	ToriiURL      string
+	Network             string
+	MaxImageBytes       int64
+	AuthEnabled         bool
+	ToriiURL            string
+	ImageUploadsEnabled bool
 }
 
 type Dependencies struct {
@@ -29,6 +32,7 @@ type Dependencies struct {
 	Config         PublicConfig
 	AllowedOrigins []string
 	Torii          *ToriiGateway
+	Images         *images.Service
 }
 
 // NewHandler returns the API's HTTP routes.
@@ -40,6 +44,9 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
+	mux.HandleFunc("GET /v1/control-point-artworks", server.listControlPointImages)
+	mux.HandleFunc("POST /v1/control-point-artworks/uploads", server.authorizeControlPointImage)
+	mux.HandleFunc("POST /v1/control-point-artworks/uploads/{uploadID}/complete", server.completeControlPointImage)
 	if dependencies.Torii != nil {
 		mux.Handle("/torii/graphql", dependencies.Torii)
 		mux.Handle("/torii/health", dependencies.Torii)
@@ -84,8 +91,123 @@ func (s *server) publicConfig(w http.ResponseWriter, _ *http.Request) {
 		"maxImageBytes":       s.dependencies.Config.MaxImageBytes,
 		"authEnabled":         s.dependencies.Config.AuthEnabled,
 		"toriiUrl":            s.dependencies.Config.ToriiURL,
+		"imageUploadsEnabled": s.dependencies.Config.ImageUploadsEnabled,
 		"supportedImageTypes": []string{"image/webp", "image/jpeg", "image/png"},
 	})
+}
+
+func (s *server) listControlPointImages(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Images == nil {
+		w.Header().Set("Cache-Control", "public, max-age=30")
+		writeJSON(w, http.StatusOK, map[string]any{"artworks": []images.Artwork{}})
+		return
+	}
+	approved, err := s.dependencies.Images.Approved(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "list control point images", "error", err)
+		writeProblem(w, http.StatusInternalServerError, "internal error", "could not list Control Point images")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=30")
+	writeJSON(w, http.StatusOK, map[string]any{"artworks": approved})
+}
+
+func (s *server) authorizeControlPointImage(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if s.dependencies.Images == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
+		return
+	}
+	var input struct {
+		Targets       []images.Target  `json:"targets"`
+		Placement     images.Placement `json:"placement"`
+		ContentType   string           `json:"contentType"`
+		DetailSize    int64            `json:"detailSize"`
+		ThumbnailSize int64            `json:"thumbnailSize"`
+	}
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	authorization, err := s.dependencies.Images.Authorize(
+		r.Context(), session.WalletAddress, images.AuthorizeInput{
+			Targets: input.Targets, Placement: input.Placement,
+			ContentType: input.ContentType, DetailSize: input.DetailSize,
+			ThumbnailSize: input.ThumbnailSize,
+		},
+	)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, authorization)
+	case errors.Is(err, images.ErrInvalidImage):
+		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrForbidden):
+		writeProblem(w, http.StatusForbidden, "ownership required", "the authenticated wallet cannot manage this Control Point image")
+	case errors.Is(err, images.ErrUploadUnavailable):
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
+	default:
+		slog.ErrorContext(r.Context(), "authorize control point image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload authorization failed", "could not authorize the image upload")
+	}
+}
+
+func (s *server) completeControlPointImage(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if s.dependencies.Images == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
+		return
+	}
+	uploadID := r.PathValue("uploadID")
+	if uploadID == "" {
+		writeProblem(w, http.StatusBadRequest, "invalid request", "upload ID is required")
+		return
+	}
+	image, err := s.dependencies.Images.Complete(r.Context(), uploadID, session.WalletAddress)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, image)
+	case errors.Is(err, images.ErrInvalidImage):
+		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrForbidden), errors.Is(err, images.ErrUploadNotFound):
+		writeProblem(w, http.StatusForbidden, "upload unavailable", "the upload is expired, completed, or no longer owned by this wallet")
+	case errors.Is(err, images.ErrUploadUnavailable):
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
+	default:
+		slog.ErrorContext(r.Context(), "complete control point image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the uploaded image")
+	}
+}
+
+func (s *server) authenticate(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {
+	if s.dependencies.Auth == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "authentication unavailable", "authentication is not configured")
+		return auth.Session{}, false
+	}
+	const prefix = "Bearer "
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, prefix) || strings.TrimSpace(strings.TrimPrefix(header, prefix)) == "" {
+		writeProblem(w, http.StatusUnauthorized, "authentication required", "a valid bearer session is required")
+		return auth.Session{}, false
+	}
+	session, err := s.dependencies.Auth.Authenticate(r.Context(), strings.TrimSpace(strings.TrimPrefix(header, prefix)))
+	if errors.Is(err, auth.ErrSessionNotFound) {
+		writeProblem(w, http.StatusUnauthorized, "authentication required", "the bearer session is invalid or expired")
+		return auth.Session{}, false
+	}
+	if err != nil {
+		slog.ErrorContext(r.Context(), "authenticate API session", "error", err)
+		writeProblem(w, http.StatusInternalServerError, "internal error", "could not authenticate the session")
+		return auth.Session{}, false
+	}
+	return session, true
 }
 
 func (s *server) createChallenge(w http.ResponseWriter, r *http.Request) {

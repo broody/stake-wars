@@ -90,9 +90,10 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 ### 3.2. Controller Image Loop
 Control of a face is the visible reward for taking the High Ground.
 
-*   **Assign:** The current Controller may assign or replace the image shown on their Control Point after wallet and ownership verification.
-*   **Ownership Binding:** An approved image is associated with the specific Control Point ownership generation under which it was uploaded.
-*   **Displacement:** When control changes, the previous image is hidden immediately. It is not inherited by the new Controller and does not reappear if a previous Controller later recaptures the point.
+*   **Assign:** The current Controller may project one artwork continuously across one or more selected Control Points they own after wallet and ownership verification. A multi-point artwork is one projection, not a copy of the image on every face.
+*   **Placement:** Before publication, the Core enters a live placement step. The Controller may continue orbiting, panning, and zooming the Core while positioning, scaling, and rotating the image. The preview continuously reprojects from the latest camera view onto only the selected surface, and publication captures that final camera and placement transform.
+*   **Ownership Binding:** Each targeted face of an approved artwork is associated with the specific Control Point ownership generation under which it was uploaded. The artwork, captured projector, placement transform, and target-face list are stored as one logical record.
+*   **Displacement:** When control of one targeted face changes, that portion of the previous artwork is hidden immediately while portions on still-valid targets remain visible. It is not inherited by the new Controller and does not reappear if a previous Controller later recaptures the point.
 *   **Storage Boundary:** Image bytes and moderation metadata remain off-chain. The Dojo World remains authoritative for who may display an image.
 
 ### 3.3. Initial Product Scope
@@ -124,11 +125,13 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Control Point Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Power, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
 
 ### 4.4. Operator Image Uploads
-*   **Control Requirement:** Only the wallet currently controlling a Control Point may assign or replace its image. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
+*   **Control Requirement:** Only the wallet currently controlling every selected Control Point may publish an artwork across them. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation for every target both before upload and before publication; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
+*   **Projection Model:** One uploaded image, one captured camera projector, and one placement transform span all selected target triangles. Projection UVs derive from the captured view rather than restarting on each Control Point, so adjacent targets form one contiguous canvas.
 *   **Delivery:** Images are uploaded directly from the browser to object storage using a short-lived, object-specific upload authorization issued by the game API. Image bytes must not pass through or be stored on the validator server.
 *   **Supported Formats:** WebP, JPEG, and PNG raster images only. SVG and other active or executable formats are prohibited.
 *   **Limits:** The initial maximum encoded file size is 2 MB. The frontend should resize and encode images before upload, while the backend must still validate the file signature, MIME type, dimensions, and object size.
-*   **Object Naming:** Images use randomized, versioned object keys such as `art/<network>/<control-point-id>/<random-id>.webp`. Replacements receive a new URL to avoid stale CDN caches.
+*   **Render Tiers:** The browser prepares one 512×512 detail image and one 256×256 display image per artwork from the same centered square crop. Projection mode packs display images into dynamically sized, paged atlases capped at 4096×4096 so artwork is sharp by default without exceeding common GPU texture limits. It loads at most one 512×512 detail texture for the selected or close-hovered artwork. Control mode does not load or render artwork textures.
+*   **Object Naming:** Images use randomized, versioned object keys such as `art/<network>/<random-artwork-id>/detail.webp`. Replacements receive a new URL to avoid stale CDN caches.
 *   **Moderation:** Every image record has a moderation status. The system must support reporting, administrative removal, rate limiting, and deletion of replaced or prohibited content.
 
 ---
@@ -177,7 +180,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 *   **Initial Database:** SQLite stores off-chain game, media, and moderation metadata on a persistent Fly Volume at `/data/stakewars.db`. The initial volume size is 1 GB and can be expanded as required.
 *   **Database Configuration:** Enable WAL mode, foreign-key enforcement, and a 5-second busy timeout. Keep transactions short and serialize or retry writes where appropriate.
 *   **Backup and Recovery:** Litestream continuously replicates SQLite to the private `stakewars-db-backups` Tigris bucket. Fly Volume snapshots are retained as an additional recovery layer, not as the sole database backup. Recovery from the Litestream replica must be documented and tested before production launch.
-*   **Minimum Image Record:** `controlPointId`, `network`, `ownerAddress`, `ownershipGeneration`, `imageUrl`, `objectKey`, `contentHash`, `moderationStatus`, `createdAt`, and `updatedAt`.
+*   **Minimum Artwork Record:** `network`, `ownerAddress`, target Control Point IDs and ownership generations, captured projector matrix, placement transform, `imageUrl`, `objectKey`, `thumbnailUrl`, `thumbnailObjectKey`, `contentHash`, `moderationStatus`, `createdAt`, and `updatedAt`.
 *   **Authority:** On-chain contracts remain authoritative for Control Point ownership. The database is an indexed application view and must be reconciled when ownership changes.
 *   **Portability:** Database access is isolated behind a repository/data-access layer. Migrations, identifiers, timestamps, and query patterns should remain compatible with a later PostgreSQL migration where practical.
 *   **Scaling Path:** SQLite permits vertical scaling of the single Fly Machine but not multiple active writers. Migrate to managed PostgreSQL before operating multiple active API Machines, multi-region writes, zero-downtime failover requiring concurrent writers, write-heavy background workers, or when measured lock contention affects requests.
@@ -220,7 +223,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 1.  **As an Operator:** I want every action expressed in STRK while the game tracks allocation, current leads, and spent capacity under the hood.
 2.  **As a Challenger:** I want to see the current lead and response window before deciding whether a higher public commitment is worth permanently risking.
-3.  **As a Controller:** I want to upload an image to the face I control so my victory is visible on the Core.
+3.  **As a Controller:** I want to position one camera-projected artwork across the contiguous surface I control so it reads as a whole rather than repeated tiles.
 4.  **As a Challenge Participant:** I want every lead change to reset the response window so last-block sniping cannot bypass my chance to respond.
 5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Control Point.
 6.  **As a Strategist:** I want to sacrifice another Control Point to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
