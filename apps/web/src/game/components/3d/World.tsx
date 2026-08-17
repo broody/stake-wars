@@ -17,6 +17,7 @@ import {
 } from '../../utils/controlPointMarquee';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { MAX_CONTROL_POINT_SELECTION } from '../../services/controlPointLimits';
+import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 
@@ -203,12 +204,15 @@ export function World() {
       {activeMarquee ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute border border-amber-300 bg-amber-300/10 shadow-[0_0_12px_rgba(253,224,71,0.2)]"
+          className="pointer-events-none absolute border"
           style={{
             left: activeMarquee.left,
             top: activeMarquee.top,
             width: activeMarquee.right - activeMarquee.left,
             height: activeMarquee.bottom - activeMarquee.top,
+            borderColor: CONTROL_POINT_COLORS.selected,
+            backgroundColor: `${CONTROL_POINT_COLORS.selected}1a`,
+            boxShadow: `0 0 12px ${CONTROL_POINT_COLORS.selected}33`,
           }}
         />
       ) : null}
