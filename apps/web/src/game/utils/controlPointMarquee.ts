@@ -131,7 +131,8 @@ function triangleIntersectsBounds(
 export function getControlPointIdsInScreenBounds(
   camera: THREE.Camera,
   viewport: { width: number; height: number },
-  bounds: ScreenBounds
+  bounds: ScreenBounds,
+  excludedControlPointIds?: ReadonlySet<number>
 ): number[] {
   camera.updateMatrixWorld(true);
   const selectedControlPointIds: number[] = [];
@@ -144,6 +145,8 @@ export function getControlPointIdsInScreenBounds(
     controlPointId < CONTROL_POINT_COUNT;
     controlPointId += 1
   ) {
+    if (excludedControlPointIds?.has(controlPointId)) continue;
+
     const offset = controlPointId * VALUES_PER_CONTROL_POINT;
     centroid.set(0, 0, 0);
     const triangle: ScreenPoint[] = [];

@@ -3,6 +3,7 @@ import {
   forwardRef,
   useCallback,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -30,17 +31,26 @@ interface MarqueeSelectorHandle {
   select: (bounds: ScreenBounds) => number[];
 }
 
-const MarqueeSelector = forwardRef<MarqueeSelectorHandle>(
-  function MarqueeSelector(_props, ref) {
+interface MarqueeSelectorProps {
+  excludedControlPointIds: ReadonlySet<number>;
+}
+
+const MarqueeSelector = forwardRef<MarqueeSelectorHandle, MarqueeSelectorProps>(
+  function MarqueeSelector({ excludedControlPointIds }, ref) {
     const { camera, size } = useThree();
 
     useImperativeHandle(
       ref,
       () => ({
         select: (bounds) =>
-          getControlPointIdsInScreenBounds(camera, size, bounds),
+          getControlPointIdsInScreenBounds(
+            camera,
+            size,
+            bounds,
+            excludedControlPointIds
+          ),
       }),
-      [camera, size]
+      [camera, excludedControlPointIds, size]
     );
 
     return null;
@@ -63,6 +73,7 @@ export function World() {
   const {
     selectedControlPointIds,
     projectionControlPointIds,
+    opponentControlPointIds,
     isControlPointInteractionLocked,
     mode,
     selectControlPoints,
@@ -75,6 +86,10 @@ export function World() {
   );
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
+  );
+  const opponentControlPointIdSet = useMemo(
+    () => new Set(opponentControlPointIds),
+    [opponentControlPointIds]
   );
   const disableIdleRotation =
     selectedControlPointIds.length > 0 ||
@@ -187,7 +202,10 @@ export function World() {
           <Scene />
         </Suspense>
 
-        <MarqueeSelector ref={selectorRef} />
+        <MarqueeSelector
+          ref={selectorRef}
+          excludedControlPointIds={opponentControlPointIdSet}
+        />
 
         {/* ArcballControls provides free rotation including roll by default */}
         <ArcballControls

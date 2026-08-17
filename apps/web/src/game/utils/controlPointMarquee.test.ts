@@ -41,4 +41,26 @@ describe('Control Point marquee selection', () => {
 
     expect(selected).toEqual([]);
   });
+
+  it('excludes Control Points that are not eligible for marquee selection', () => {
+    const viewport = { width: 1_000, height: 1_000 };
+    const bounds = { left: 450, top: 450, right: 550, bottom: 550 };
+    const allVisible = getControlPointIdsInScreenBounds(
+      createCamera(),
+      viewport,
+      bounds
+    );
+    const excluded = new Set(allVisible.slice(0, 3));
+
+    const selected = getControlPointIdsInScreenBounds(
+      createCamera(),
+      viewport,
+      bounds,
+      excluded
+    );
+
+    expect(selected).toEqual(
+      allVisible.filter((controlPointId) => !excluded.has(controlPointId))
+    );
+  });
 });
