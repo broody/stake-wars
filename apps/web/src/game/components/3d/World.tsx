@@ -22,6 +22,7 @@ import { MAX_CONTROL_POINT_SELECTION } from '../../services/controlPointLimits';
 import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
 import { useControlPointImages } from '../../contexts/ControlPointImageContext';
 import { suggestedPlacement } from '../../utils/controlPointArtworkProjection';
+import { ArbiterModal } from '../ui/ArbiterModal';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 const PLACEMENT_CORNERS = [
@@ -328,6 +329,9 @@ export function World() {
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
   );
+  const [isArbiterOpen, setIsArbiterOpen] = useState(false);
+  const openArbiterBriefing = useCallback(() => setIsArbiterOpen(true), []);
+  const closeArbiterBriefing = useCallback(() => setIsArbiterOpen(false), []);
   const opponentControlPointIdSet = useMemo(
     () => new Set(opponentControlPointIds),
     [opponentControlPointIds]
@@ -336,6 +340,7 @@ export function World() {
     selectedControlPointIds.length > 0 ||
     projectionControlPointIds.length > 0 ||
     isControlPointInteractionLocked ||
+    isArbiterOpen ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -440,7 +445,7 @@ export function World() {
         style={{ width: '100%', height: '100%', background: '#000000' }}
       >
         <Suspense fallback={null}>
-          <Scene />
+          <Scene onInspectArbiter={openArbiterBriefing} />
         </Suspense>
 
         <MarqueeSelector
@@ -454,7 +459,7 @@ export function World() {
           minDistance={8}
           maxDistance={30}
           enablePan={mode === 'projection'}
-          enabled={marqueeStart === null}
+          enabled={marqueeStart === null && !isArbiterOpen}
         />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
@@ -462,6 +467,8 @@ export function World() {
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />
+
+      <ArbiterModal isOpen={isArbiterOpen} onClose={closeArbiterBriefing} />
 
       {activeMarquee ? (
         <div

@@ -73,10 +73,22 @@ const policies: SessionPolicies = {
                 'Allocate selected delegated force to a neutral Control Point.',
             },
             {
+              name: 'Capture Control Points',
+              entrypoint: 'capture_many',
+              description:
+                'Allocate delegated force to multiple neutral Control Points.',
+            },
+            {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
               description:
                 'Add selected delegated force to an owned Control Point.',
+            },
+            {
+              name: 'Reinforce Control Points',
+              entrypoint: 'reinforce_many',
+              description:
+                'Add delegated force to multiple owned Control Points.',
             },
             {
               name: 'Challenge Control Point',

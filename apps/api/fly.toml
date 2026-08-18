@@ -11,15 +11,15 @@ primary_region = "sjc"
   PORT = "8080"
   STARKNET_CHAIN_ID = "SN_SEPOLIA"
   STARKNET_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
-  CONTROL_SYSTEM_ADDRESS = "0x031771704b62d61fd8703ccdee76460fe4e07b1c67d9f71f28dd12fffcb01b61"
+  CONTROL_SYSTEM_ADDRESS = "0x03b9a14a5048977277ebade4bc928505f7ead7b63d79929aeccfb1966edf3930"
   TORII_DB_DIR = "/data/torii"
   TORII_CORS_ORIGINS = "https://stakewars.gg,https://play.stakewars.gg"
   TORII_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
   TORII_STAKING_POOL_ADDRESS = "0x0755e4fbfd6ca9a17e532a0eb3027dd3202957d5bcc2912cbc5a7fb199cc78c6"
   TORII_STAKING_POOL_BLOCK = "13316365"
   TORII_URL = "http://127.0.0.1:8081"
-  TORII_WORLD_ADDRESS = "0x06a989959c5e358ba2c42a455e60e3adaccbb4a8e25bfc96124630fbb407fd4e"
-  TORII_WORLD_BLOCK = "13572347"
+  TORII_WORLD_ADDRESS = "0x0292ee881510e7712dbf9ec7e2b8947aeb497b343aff85119ab8a32089fad7cc"
+  TORII_WORLD_BLOCK = "13629002"
 
 [http_service]
   internal_port = 8080

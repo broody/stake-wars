@@ -52,6 +52,35 @@ debug logging, mirrors all Torii output to the terminal, and keeps a timestamped
 log under `contracts/.torii/logs/` for later triage. That directory is ignored
 by Git with the rest of `contracts/.torii`.
 
+## Local API and image uploads
+
+Local API development must keep image uploads functional. Before starting or
+restarting the API, make sure Docker is running and the `stakewars-minio`
+container is healthy. Start the existing container when it is stopped. If it
+does not exist, provision only the equivalent local MinIO service: expose the
+S3 API on port 9000 and console on port 9001, use persistent Docker storage,
+create the `stakewars-art` bucket, allow anonymous downloads, and allow browser
+GET/PUT CORS from `http://localhost:3000` with the `Content-Type` header.
+
+Always start the local API from the repository root with:
+
+```bash
+pnpm dev:api
+```
+
+Do not bypass this launcher with `pnpm --filter @stakewars/api dev`. The
+launcher reads the current Sepolia RPC and Control System from
+`apps/web/.env.sepolia`, verifies the MinIO bucket, and passes the container's
+credentials only to the API process. Never print those credentials or write
+them into tracked files. After startup, require all of the following:
+
+- `GET http://127.0.0.1:8080/healthz` returns `{"status":"ok"}`.
+- `GET http://127.0.0.1:8080/readyz` returns `{"status":"ready"}`.
+- `GET http://127.0.0.1:8080/v1/config` reports `imageUploadsEnabled: true`
+  and the expected Sepolia network.
+- MinIO accepts the browser CORS preflight and the `stakewars-art` bucket is
+  publicly readable.
+
 ## Sepolia Dojo migration
 
 `sozo migrate --profile sepolia` updates the shared Sepolia World and is an
@@ -99,6 +128,38 @@ World and changed systems on Sepolia. Restart local Torii with
 indexed head and logs before testing the web application. Only update
 `apps/web/.env.sepolia` or `contracts/torii_sepolia.toml` if the migration
 output proves that a configured address changed; do not infer new addresses.
+
+### New World artwork cutover
+
+A deployment is a **new World** only when it creates a different World address;
+an in-place system or resource upgrade does not trigger this cutover. Perform
+the cutover only after the new World deployment succeeds and its address is
+verified:
+
+- Stop the API before resetting World-coupled artwork metadata.
+- Preserve existing MinIO or Tigris buckets and image objects. Object keys
+  include random upload IDs, so a new World can safely reuse the same storage
+  without collisions. Do not delete objects as part of a World cutover; old
+  objects may remain unreferenced and can be cleaned up only by a separate,
+  explicit request. Never touch a database-backup bucket.
+- Clear the matching rows from `image_reports`,
+  `control_point_artwork_targets`, `control_point_artworks`,
+  `image_upload_targets`, and `image_uploads` in one short transaction. Do not
+  delete the API SQLite database, authentication/session data, Fly Volume, or
+  unrelated application records.
+- For local Sepolia, keep the `stakewars-art` objects in `stakewars-minio`.
+  Stop Torii, delete `contracts/.torii/sepolia`, and rebuild that index from the
+  new World block; no backwards-compatible local index is required.
+- For a production World replacement, preserve the configured Tigris artwork
+  bucket and objects while resetting only the matching production image
+  metadata. A new World request does not authorize deleting any Tigris object,
+  bucket, or unrelated production data.
+- Update address-bearing configs from deployment output, restart Torii and the
+  API, and verify the fresh index and upload flow before declaring the cutover
+  healthy.
+
+Report the reset metadata row counts and the exact environment after completing
+the cutover.
 
 ## Fly.io production backend
 

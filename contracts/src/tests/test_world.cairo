@@ -13,7 +13,9 @@ mod tests {
         m_ControlPoint, m_GameConfig, m_OperatorState,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
-    use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
+    use stakewars::systems::control::{
+        CaptureRequest, IControlDispatcher, IControlDispatcherTrait, ReinforcementRequest, control,
+    };
     use stakewars::tests::mock_staking_pool::{
         IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
     };
@@ -195,6 +197,78 @@ mod tests {
         assert_eq!(operator.point_force, 700);
         assert_eq!(operator.available_force, 300);
         assert_eq!(operator.controlled_point_count, 2);
+    }
+
+    #[test]
+    #[available_gas(700000000)]
+    fn captures_and_reinforces_multiple_points_atomically() {
+        let (_, control, pool) = setup();
+        let player = player_one();
+        pool.set_amount(player, 1_000);
+        testing::set_contract_address(player);
+        testing::set_block_timestamp(2_000);
+
+        control
+            .capture_many(
+                [
+                    CaptureRequest { control_point_id: 10, allocation: 200 },
+                    CaptureRequest { control_point_id: 11, allocation: 300 },
+                ]
+                    .span(),
+            );
+
+        let first = control.get_control_point_status(10);
+        let second = control.get_control_point_status(11);
+        let captured_operator = control.get_operator_status(player);
+        assert_eq!(first.controller, player);
+        assert_eq!(first.capture_force, 200);
+        assert_eq!(first.controlled_since, 2_000);
+        assert_eq!(second.controller, player);
+        assert_eq!(second.capture_force, 300);
+        assert_eq!(second.controlled_since, 2_000);
+        assert_eq!(captured_operator.point_force, 500);
+        assert_eq!(captured_operator.controlled_point_count, 2);
+        assert_eq!(captured_operator.available_force, 500);
+
+        control
+            .reinforce_many(
+                [
+                    ReinforcementRequest { control_point_id: 10, additional_allocation: 100 },
+                    ReinforcementRequest { control_point_id: 11, additional_allocation: 150 },
+                ]
+                    .span(),
+            );
+
+        let reinforced_first = control.get_control_point_status(10);
+        let reinforced_second = control.get_control_point_status(11);
+        let reinforced_operator = control.get_operator_status(player);
+        assert_eq!(reinforced_first.capture_force, 300);
+        assert_eq!(reinforced_second.capture_force, 450);
+        assert_eq!(reinforced_operator.point_force, 750);
+        assert_eq!(reinforced_operator.controlled_point_count, 2);
+        assert_eq!(reinforced_operator.available_force, 250);
+    }
+
+    #[test]
+    #[available_gas(200000000)]
+    #[should_panic(expected: ('empty capture batch', 'ENTRYPOINT_FAILED'))]
+    fn rejects_empty_capture_batch() {
+        let (_, control, _) = setup();
+        control.capture_many([].span());
+    }
+
+    #[test]
+    #[available_gas(300000000)]
+    #[should_panic(expected: ('capture batch too large', 'ENTRYPOINT_FAILED'))]
+    fn rejects_oversized_capture_batch() {
+        let (_, control, _) = setup();
+        let mut captures = array![];
+        let mut id: u32 = 0;
+        while id < 201 {
+            captures.append(CaptureRequest { control_point_id: id, allocation: MINIMUM_STAKE });
+            id += 1;
+        }
+        control.capture_many(captures.span());
     }
 
     #[test]

@@ -2,8 +2,21 @@ use starknet::ContractAddress;
 
 pub const MAX_SYNC_BATCH: usize = 50;
 pub const MAX_STATUS_BATCH: usize = 200;
+pub const MAX_CONTROL_ACTION_BATCH: usize = 200;
 const MAX_U128: u128 = 340282366920938463463374607431768211455;
 const MINIMUM_CHALLENGE_RAISE_DIVISOR: u128 = 10;
+
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct CaptureRequest {
+    pub control_point_id: u32,
+    pub allocation: u128,
+}
+
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct ReinforcementRequest {
+    pub control_point_id: u32,
+    pub additional_allocation: u128,
+}
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ControlPointStatus {
@@ -69,7 +82,9 @@ pub struct ChallengeParticipantStatus {
 #[starknet::interface]
 pub trait IControl<TContractState> {
     fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
+    fn capture_many(ref self: TContractState, captures: Span<CaptureRequest>);
     fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
+    fn reinforce_many(ref self: TContractState, reinforcements: Span<ReinforcementRequest>);
     fn release(ref self: TContractState, control_point_id: u32);
     fn challenge(ref self: TContractState, control_point_id: u32, committed_force: u128);
     fn challenge_with_sacrifice(
@@ -115,8 +130,9 @@ pub mod control {
     use stakewars::staking::{DelegationState, delegation_state};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{
-        ChallengeParticipantStatus, ChallengeStatus, ControlPointStatus, IControl, MAX_STATUS_BATCH,
-        MAX_SYNC_BATCH, OperatorStatus,
+        CaptureRequest, ChallengeParticipantStatus, ChallengeStatus, ControlPointStatus, IControl,
+        MAX_CONTROL_ACTION_BATCH, MAX_STATUS_BATCH, MAX_SYNC_BATCH, OperatorStatus,
+        ReinforcementRequest,
     };
 
     #[derive(Copy, Drop, Serde)]
@@ -253,41 +269,43 @@ pub mod control {
             let caller = get_caller_address();
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
-            let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            if !point.controller.is_zero() {
-                let (controller, _, _) = self
-                    .refresh_operator(point.controller, config.staking_pool);
-                let current = !controller.retired
-                    && controller.generation > 0
-                    && point.controller_generation == controller.generation;
-                assert(!current, 'point occupied');
-            }
-
-            assert(allocation >= config.minimum_stake, 'below minimum stake');
-            assert(
-                allocation <= available_force(delegation.amount, operator),
-                'insufficient available force',
-            );
-            operator.point_force += allocation;
-            operator.controlled_point_count += 1;
-            point.controller = caller;
-            point.controller_generation = operator.generation;
-            point.capture_force = allocation;
-            point.ownership_generation += 1;
-            point.controlled_since = get_block_timestamp();
-            point.active_challenge_id = 0;
-            world.write_model(@operator);
-            world.write_model(@point);
-            world
-                .emit_event(
-                    @ControlPointCaptured {
-                        control_point_id,
-                        controller: caller,
-                        capture_force: allocation,
-                        ownership_generation: point.ownership_generation,
-                    },
+            self
+                .capture_with_synced(
+                    config,
+                    caller,
+                    ref operator,
+                    delegation.amount,
+                    control_point_id,
+                    allocation,
+                    get_block_timestamp(),
                 );
+            let mut world = self.world_default();
+            world.write_model(@operator);
+        }
+
+        fn capture_many(ref self: ContractState, captures: Span<CaptureRequest>) {
+            assert(captures.len() > 0, 'empty capture batch');
+            assert(captures.len() <= MAX_CONTROL_ACTION_BATCH, 'capture batch too large');
+            let config = self.active_config();
+            let caller = get_caller_address();
+            let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
+            self.assert_playable(ref operator);
+            let controlled_since = get_block_timestamp();
+            for capture in captures {
+                self.assert_control_point_id(config, *capture.control_point_id);
+                self
+                    .capture_with_synced(
+                        config,
+                        caller,
+                        ref operator,
+                        delegation.amount,
+                        *capture.control_point_id,
+                        *capture.allocation,
+                        controlled_since,
+                    );
+            }
+            let mut world = self.world_default();
+            world.write_model(@operator);
         }
 
         fn reinforce(ref self: ContractState, control_point_id: u32, additional_allocation: u128) {
@@ -296,29 +314,38 @@ pub mod control {
             let caller = get_caller_address();
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
-            let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            self.assert_controller(point, caller, operator);
-            assert(point.active_challenge_id == 0, 'point challenged');
-            assert(additional_allocation > 0, 'zero allocation');
-            assert(
-                additional_allocation <= available_force(delegation.amount, operator),
-                'insufficient available force',
-            );
-            operator.point_force += additional_allocation;
-            point.capture_force += additional_allocation;
-            world.write_model(@operator);
-            world.write_model(@point);
-            world
-                .emit_event(
-                    @ControlPointReinforced {
-                        control_point_id,
-                        controller: caller,
-                        added_force: additional_allocation,
-                        capture_force: point.capture_force,
-                        ownership_generation: point.ownership_generation,
-                    },
+            self
+                .reinforce_with_synced(
+                    caller,
+                    ref operator,
+                    delegation.amount,
+                    control_point_id,
+                    additional_allocation,
                 );
+            let mut world = self.world_default();
+            world.write_model(@operator);
+        }
+
+        fn reinforce_many(ref self: ContractState, reinforcements: Span<ReinforcementRequest>) {
+            assert(reinforcements.len() > 0, 'empty reinforce batch');
+            assert(reinforcements.len() <= MAX_CONTROL_ACTION_BATCH, 'reinforce batch too large');
+            let config = self.active_config();
+            let caller = get_caller_address();
+            let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
+            self.assert_playable(ref operator);
+            for reinforcement in reinforcements {
+                self.assert_control_point_id(config, *reinforcement.control_point_id);
+                self
+                    .reinforce_with_synced(
+                        caller,
+                        ref operator,
+                        delegation.amount,
+                        *reinforcement.control_point_id,
+                        *reinforcement.additional_allocation,
+                    );
+            }
+            let mut world = self.world_default();
+            world.write_model(@operator);
         }
 
         fn release(ref self: ContractState, control_point_id: u32) {
@@ -747,6 +774,89 @@ pub mod control {
                 world.write_model(@operator);
             }
             (operator, delegation, changed)
+        }
+
+        fn capture_with_synced(
+            ref self: ContractState,
+            config: GameConfig,
+            caller: ContractAddress,
+            ref operator: OperatorState,
+            live_amount: u128,
+            control_point_id: u32,
+            allocation: u128,
+            controlled_since: u64,
+        ) {
+            let mut world = self.world_default();
+            let mut point: ControlPoint = world.read_model(control_point_id);
+            if !point.controller.is_zero() {
+                let controller = if point.controller == caller {
+                    operator
+                } else {
+                    let (refreshed, _, _) = self
+                        .refresh_operator(point.controller, config.staking_pool);
+                    refreshed
+                };
+                let current = !controller.retired
+                    && controller.generation > 0
+                    && point.controller_generation == controller.generation;
+                assert(!current, 'point occupied');
+            }
+
+            assert(allocation >= config.minimum_stake, 'below minimum stake');
+            assert(
+                allocation <= available_force(live_amount, operator),
+                'insufficient available force',
+            );
+            operator.point_force += allocation;
+            operator.controlled_point_count += 1;
+            point.controller = caller;
+            point.controller_generation = operator.generation;
+            point.capture_force = allocation;
+            point.ownership_generation += 1;
+            point.controlled_since = controlled_since;
+            point.active_challenge_id = 0;
+            world.write_model(@point);
+            world
+                .emit_event(
+                    @ControlPointCaptured {
+                        control_point_id,
+                        controller: caller,
+                        capture_force: allocation,
+                        ownership_generation: point.ownership_generation,
+                    },
+                );
+        }
+
+        fn reinforce_with_synced(
+            self: @ContractState,
+            caller: ContractAddress,
+            ref operator: OperatorState,
+            live_amount: u128,
+            control_point_id: u32,
+            additional_allocation: u128,
+        ) {
+            let mut world = self.world_default();
+            let mut point: ControlPoint = world.read_model(control_point_id);
+            self.assert_controller(point, caller, operator);
+            assert(point.active_challenge_id == 0, 'point challenged');
+            assert(additional_allocation > 0, 'zero allocation');
+            assert(
+                additional_allocation <= available_force(live_amount, operator),
+                'insufficient available force',
+            );
+            operator.point_force += additional_allocation;
+            point.capture_force += additional_allocation;
+            world.write_model(@point);
+            world
+                .emit_event(
+                    @ControlPointReinforced {
+                        control_point_id,
+                        controller: caller,
+                        added_force: additional_allocation,
+                        capture_force: point.capture_force,
+                        ownership_generation: point.ownership_generation,
+                    },
+                );
         }
 
         fn commit_challenge_force(

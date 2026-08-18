@@ -10,13 +10,16 @@ uploaded directly to Tigris rather than passing through this service.
 From the repository root:
 
 ```bash
-pnpm --filter @stakewars/api dev
+pnpm dev:api
 ```
 
 The service defaults to `http://localhost:8080` and stores local data in
-`./stakewars.db` relative to `apps/api`. Without `STARKNET_RPC_URL`, health,
-readiness, and public configuration remain available, but wallet session
-creation returns `503` because signatures cannot be verified.
+`./stakewars.db` relative to `apps/api`. The repository launcher reads the
+shared Sepolia RPC and Control System from `apps/web/.env.sepolia` and connects
+to the running `stakewars-minio` Docker container. That container must expose
+its S3 API on port 9000 and contain the public `stakewars-art` bucket. MinIO
+credentials are read directly from the container environment and are never
+written to the repository or printed.
 
 Run the Sepolia Torii indexer separately from the repository root:
 

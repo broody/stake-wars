@@ -36,8 +36,10 @@ clients confirm effective control onchain. Permissionless reconciliation may
 call `sync_operator` or batch up to 50 addresses with `sync_operators`.
 
 Every `capture`, `reinforce`, and `challenge` call includes a visible STRK
-amount. An Operator may manage multiple Control Points and lead multiple
-challenges when their aggregate commitments fit within live delegation.
+amount. `capture_many` and `reinforce_many` apply up to 200 per-point requests
+atomically while reading shared Operator and delegation state once. An Operator
+may manage multiple Control Points and lead multiple challenges when their
+aggregate commitments fit within live delegation.
 
 The network deployment presets use 18-decimal STRK base units:
 

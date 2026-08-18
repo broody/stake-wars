@@ -106,7 +106,7 @@ describe('allocation action calls', () => {
     ]);
   });
 
-  it('stakes one aggregate deficit before repeated control calls', () => {
+  it('stakes one aggregate deficit before one contract-level capture batch', () => {
     expect(
       buildSmartBatchGameActionCalls({
         ...shared,
@@ -131,20 +131,61 @@ describe('allocation action calls', () => {
       },
       {
         contractAddress: '0xcontrol',
+        entrypoint: 'capture_many',
+        calldata: ['3', '7', '100', '8', '100', '9', '100'],
+      },
+    ]);
+  });
+
+  it('builds one contract-level reinforcement batch', () => {
+    expect(
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: [
+          { entrypoint: 'reinforce', calldata: ['7', '25'] },
+          { entrypoint: 'reinforce', calldata: ['8', '50'] },
+        ],
+        allocation: 75n,
+        availableForce: 100n,
+      })
+    ).toEqual([
+      {
+        contractAddress: '0xcontrol',
+        entrypoint: 'reinforce_many',
+        calldata: ['2', '7', '25', '8', '50'],
+      },
+    ]);
+  });
+
+  it('keeps a one-point batch on the single-point entrypoint', () => {
+    expect(
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: [{ entrypoint: 'capture', calldata: ['7', '100'] }],
+        allocation: 100n,
+        availableForce: 100n,
+      })
+    ).toEqual([
+      {
+        contractAddress: '0xcontrol',
         entrypoint: 'capture',
         calldata: ['7', '100'],
       },
-      {
-        contractAddress: '0xcontrol',
-        entrypoint: 'capture',
-        calldata: ['8', '100'],
-      },
-      {
-        contractAddress: '0xcontrol',
-        entrypoint: 'capture',
-        calldata: ['9', '100'],
-      },
     ]);
+  });
+
+  it('rejects mixed action types in one contract batch', () => {
+    expect(() =>
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: [
+          { entrypoint: 'capture', calldata: ['7', '100'] },
+          { entrypoint: 'reinforce', calldata: ['8', '100'] },
+        ],
+        allocation: 200n,
+        availableForce: 200n,
+      })
+    ).toThrow('Batch Control Point actions must have the same type');
   });
 
   it('rejects an empty batch', () => {
@@ -156,6 +197,20 @@ describe('allocation action calls', () => {
         availableForce: 0n,
       })
     ).toThrow('At least one Control Point action is required');
+  });
+
+  it('rejects a batch larger than the contract limit', () => {
+    expect(() =>
+      buildSmartBatchGameActionCalls({
+        ...shared,
+        actions: Array.from({ length: 201 }, (_, id) => ({
+          entrypoint: 'capture' as const,
+          calldata: [id.toString(), '100'],
+        })),
+        allocation: 20_100n,
+        availableForce: 20_100n,
+      })
+    ).toThrow('At most 200 Control Point actions are allowed');
   });
 });
 
