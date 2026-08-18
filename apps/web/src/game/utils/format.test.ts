@@ -9,7 +9,7 @@ import {
   shortAddress,
 } from './format';
 
-describe('Control Point formatting', () => {
+describe('Sector formatting', () => {
   it('formats STRK values without floating-point precision loss', () => {
     expect(formatStrk(10_000_000_000_000_000n)).toBe('0.01');
     expect(formatStrk(11_000_000_000_000_000n)).toBe('0.011');

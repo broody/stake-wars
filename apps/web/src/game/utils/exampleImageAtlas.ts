@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import {
-  CONTROL_POINT_COUNT,
+  SECTOR_COUNT,
   CORE_RADIUS,
-  extractControlPointPositions,
-  isControlPointId,
-} from './controlPointGeometry';
+  extractSectorPositions,
+  isSectorId,
+} from './sectorGeometry';
 
 export const EXAMPLE_IMAGE_ATLAS_CELL_SIZE = 64;
 export const EXAMPLE_IMAGE_ATLAS_COLUMNS = 64;
 export const EXAMPLE_IMAGE_ATLAS_ROWS = Math.ceil(
-  CONTROL_POINT_COUNT / EXAMPLE_IMAGE_ATLAS_COLUMNS
+  SECTOR_COUNT / EXAMPLE_IMAGE_ATLAS_COLUMNS
 );
 export const EXAMPLE_IMAGE_ATLAS_WIDTH =
   EXAMPLE_IMAGE_ATLAS_CELL_SIZE * EXAMPLE_IMAGE_ATLAS_COLUMNS;
@@ -25,7 +25,7 @@ const ATLAS_CELL_PADDING = 3;
 const IMAGE_TRIANGLE_INSET = 0.08;
 const IMAGE_SURFACE_RADIUS = CORE_RADIUS * 1.008;
 const VALUES_PER_VERTEX = 3;
-const VERTICES_PER_CONTROL_POINT = 3;
+const VERTICES_PER_SECTOR = 3;
 
 const ART_PALETTES = [
   ['#111827', '#f8fafc', '#ef4444'],
@@ -45,8 +45,8 @@ function mixedHash(value: number): number {
   return (hash ^ (hash >>> 16)) >>> 0;
 }
 
-export function selectExampleImageControlPointIds(
-  ownerByControlPoint: readonly number[],
+export function selectExampleImageSectorIds(
+  ownerBySector: readonly number[],
   requestedCount: number,
   seed: number
 ): number[] {
@@ -54,8 +54,8 @@ export function selectExampleImageControlPointIds(
     ? Math.max(0, Math.floor(requestedCount))
     : 0;
 
-  return ownerByControlPoint
-    .flatMap((owner, controlPointId) => (owner >= 0 ? [controlPointId] : []))
+  return ownerBySector
+    .flatMap((owner, sectorId) => (owner >= 0 ? [sectorId] : []))
     .sort(
       (left, right) =>
         mixedHash(left ^ seed) - mixedHash(right ^ seed) || left - right
@@ -64,16 +64,16 @@ export function selectExampleImageControlPointIds(
 }
 
 function atlasUv(
-  controlPointId: number,
+  sectorId: number,
   horizontal: number,
   vertical: number
 ): [number, number] {
-  if (!isControlPointId(controlPointId)) {
-    throw new RangeError(`Invalid Control Point ID: ${controlPointId}`);
+  if (!isSectorId(sectorId)) {
+    throw new RangeError(`Invalid Sector ID: ${sectorId}`);
   }
 
-  const column = controlPointId % EXAMPLE_IMAGE_ATLAS_COLUMNS;
-  const row = Math.floor(controlPointId / EXAMPLE_IMAGE_ATLAS_COLUMNS);
+  const column = sectorId % EXAMPLE_IMAGE_ATLAS_COLUMNS;
+  const row = Math.floor(sectorId / EXAMPLE_IMAGE_ATLAS_COLUMNS);
   const usableSize = EXAMPLE_IMAGE_ATLAS_CELL_SIZE - ATLAS_CELL_PADDING * 2;
 
   return [
@@ -89,31 +89,31 @@ function atlasUv(
 }
 
 export function createExampleImageGeometry(
-  controlPointIds: readonly number[],
+  sectorIds: readonly number[],
   heights: ReadonlyMap<number, number>
 ): THREE.BufferGeometry {
   const positions: number[] = [];
   const uvs: number[] = [];
 
-  controlPointIds.forEach((controlPointId) => {
+  sectorIds.forEach((sectorId) => {
     const triangle = Array.from(
-      extractControlPointPositions([controlPointId], IMAGE_SURFACE_RADIUS)
+      extractSectorPositions([sectorId], IMAGE_SURFACE_RADIUS)
     );
-    const height = heights.get(controlPointId) ?? 0;
+    const height = heights.get(sectorId) ?? 0;
     if (!Number.isFinite(height) || height < 0) {
-      throw new RangeError(`Invalid Control Point height: ${height}`);
+      throw new RangeError(`Invalid Sector height: ${height}`);
     }
 
     const radialScale = (IMAGE_SURFACE_RADIUS + height) / IMAGE_SURFACE_RADIUS;
     const raisedTriangle = triangle.map((value) => value * radialScale);
     const centroid = Array.from({ length: VALUES_PER_VERTEX }, (_, axis) =>
       Array.from(
-        { length: VERTICES_PER_CONTROL_POINT },
+        { length: VERTICES_PER_SECTOR },
         (_, vertex) => raisedTriangle[vertex * VALUES_PER_VERTEX + axis]
-      ).reduce((total, value) => total + value / VERTICES_PER_CONTROL_POINT, 0)
+      ).reduce((total, value) => total + value / VERTICES_PER_SECTOR, 0)
     );
 
-    for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
+    for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
       for (let axis = 0; axis < VALUES_PER_VERTEX; axis += 1) {
         const value = raisedTriangle[vertex * VALUES_PER_VERTEX + axis];
         positions.push(
@@ -128,7 +128,7 @@ export function createExampleImageGeometry(
       [1, 0],
     ];
     localUvs.forEach(([horizontal, vertical]) => {
-      uvs.push(...atlasUv(controlPointId, horizontal, vertical));
+      uvs.push(...atlasUv(sectorId, horizontal, vertical));
     });
   });
 
@@ -144,10 +144,10 @@ export function createExampleImageGeometry(
 }
 
 export function createExampleDetailImageGeometry(
-  controlPointId: number,
+  sectorId: number,
   heights: ReadonlyMap<number, number>
 ): THREE.BufferGeometry {
-  const geometry = createExampleImageGeometry([controlPointId], heights);
+  const geometry = createExampleImageGeometry([sectorId], heights);
   geometry.setAttribute(
     'uv',
     new THREE.Float32BufferAttribute([0.5, 1, 0, 0, 1, 0], 2)
@@ -157,14 +157,14 @@ export function createExampleDetailImageGeometry(
 
 function drawExampleArtwork(
   context: CanvasRenderingContext2D,
-  controlPointId: number,
+  sectorId: number,
   left: number,
   top: number,
   size: number
 ) {
   const [background, foreground, accent] =
-    ART_PALETTES[mixedHash(controlPointId) % ART_PALETTES.length];
-  const variant = mixedHash(controlPointId + 97) % 4;
+    ART_PALETTES[mixedHash(sectorId) % ART_PALETTES.length];
+  const variant = mixedHash(sectorId + 97) % 4;
 
   context.save();
   context.beginPath();
@@ -178,7 +178,7 @@ function drawExampleArtwork(
     size / EXAMPLE_IMAGE_ATLAS_CELL_SIZE,
     size / EXAMPLE_IMAGE_ATLAS_CELL_SIZE
   );
-  context.rotate(((mixedHash(controlPointId + 31) % 12) * Math.PI) / 24);
+  context.rotate(((mixedHash(sectorId + 31) % 12) * Math.PI) / 24);
   context.lineWidth = 6;
   context.strokeStyle = foreground;
   context.fillStyle = accent;
@@ -237,16 +237,12 @@ export function getExampleImageAtlasTexture(): THREE.CanvasTexture {
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) throw new Error('Unable to create the image atlas canvas');
 
-  for (
-    let controlPointId = 0;
-    controlPointId < CONTROL_POINT_COUNT;
-    controlPointId += 1
-  ) {
-    const column = controlPointId % EXAMPLE_IMAGE_ATLAS_COLUMNS;
-    const row = Math.floor(controlPointId / EXAMPLE_IMAGE_ATLAS_COLUMNS);
+  for (let sectorId = 0; sectorId < SECTOR_COUNT; sectorId += 1) {
+    const column = sectorId % EXAMPLE_IMAGE_ATLAS_COLUMNS;
+    const row = Math.floor(sectorId / EXAMPLE_IMAGE_ATLAS_COLUMNS);
     drawExampleArtwork(
       context,
-      controlPointId,
+      sectorId,
       column * EXAMPLE_IMAGE_ATLAS_CELL_SIZE,
       row * EXAMPLE_IMAGE_ATLAS_CELL_SIZE,
       EXAMPLE_IMAGE_ATLAS_CELL_SIZE
@@ -263,10 +259,10 @@ export function getExampleImageAtlasTexture(): THREE.CanvasTexture {
 }
 
 export function createExampleDetailTexture(
-  controlPointId: number
+  sectorId: number
 ): THREE.CanvasTexture {
-  if (!isControlPointId(controlPointId)) {
-    throw new RangeError(`Invalid Control Point ID: ${controlPointId}`);
+  if (!isSectorId(sectorId)) {
+    throw new RangeError(`Invalid Sector ID: ${sectorId}`);
   }
   if (typeof document === 'undefined') {
     throw new Error('The example detail texture requires a browser document');
@@ -278,10 +274,10 @@ export function createExampleDetailTexture(
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) throw new Error('Unable to create the detail texture canvas');
 
-  drawExampleArtwork(context, controlPointId, 0, 0, EXAMPLE_IMAGE_DETAIL_SIZE);
+  drawExampleArtwork(context, sectorId, 0, 0, EXAMPLE_IMAGE_DETAIL_SIZE);
   const texture = configureCanvasTexture(
     new THREE.CanvasTexture(canvas),
-    `StakeWars example detail CP-${controlPointId}`
+    `StakeWars example detail SECTOR-${sectorId}`
   );
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;

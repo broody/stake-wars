@@ -157,7 +157,7 @@ describe('allocation action calls', () => {
     ]);
   });
 
-  it('keeps a one-point batch on the single-point entrypoint', () => {
+  it('keeps a one-sector batch on the single-sector entrypoint', () => {
     expect(
       buildSmartBatchGameActionCalls({
         ...shared,
@@ -185,7 +185,7 @@ describe('allocation action calls', () => {
         allocation: 200n,
         availableForce: 200n,
       })
-    ).toThrow('Batch Control Point actions must have the same type');
+    ).toThrow('Batch Sector actions must have the same type');
   });
 
   it('rejects an empty batch', () => {
@@ -196,7 +196,7 @@ describe('allocation action calls', () => {
         allocation: 0n,
         availableForce: 0n,
       })
-    ).toThrow('At least one Control Point action is required');
+    ).toThrow('At least one Sector action is required');
   });
 
   it('rejects a batch larger than the contract limit', () => {
@@ -210,7 +210,7 @@ describe('allocation action calls', () => {
         allocation: 20_100n,
         availableForce: 20_100n,
       })
-    ).toThrow('At most 200 Control Point actions are allowed');
+    ).toThrow('At most 200 Sector actions are allowed');
   });
 });
 

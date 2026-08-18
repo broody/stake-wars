@@ -34,20 +34,20 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	point, err := reader.ControlPointStatus(context.Background(), 12)
+	sector, err := reader.SectorStatus(context.Background(), 12)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if point.ID != 12 || point.Controller != "0x123" || point.CaptureForce != "100" ||
-		point.ControlledSince != 1000 || point.RequiredStake != "110" || !point.NeedsSync {
-		t.Fatalf("unexpected point status: %+v", point)
+	if sector.ID != 12 || sector.Controller != "0x123" || sector.CaptureForce != "100" ||
+		sector.ControlledSince != 1000 || sector.RequiredStake != "110" || !sector.NeedsSync {
+		t.Fatalf("unexpected sector status: %+v", sector)
 	}
 
 	operator, err := reader.OperatorStatus(context.Background(), "0x123")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if operator.LiveDelegatedAmount != "1000" || operator.PointForce != "100" ||
+	if operator.LiveDelegatedAmount != "1000" || operator.SectorForce != "100" ||
 		operator.ChallengeForce != "200" || operator.SpentForce != "300" ||
 		operator.AvailableForce != "400" ||
 		operator.ActiveChallengeCount != 2 ||

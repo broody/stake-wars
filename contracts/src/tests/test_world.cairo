@@ -10,7 +10,7 @@ mod tests {
         CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_CHALLENGE_PERIOD_SECONDS,
         MAINNET_MINIMUM_STAKE, OperatorState, SEPOLIA_CHALLENGE_PERIOD_SECONDS,
         SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter, m_ChallengeParticipant,
-        m_ControlPoint, m_GameConfig, m_OperatorState,
+        m_GameConfig, m_OperatorState, m_Sector,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{
@@ -24,7 +24,7 @@ mod tests {
 
     const MINIMUM_STAKE: u128 = 100;
     const CHALLENGE_PERIOD: u64 = 10_800;
-    const POINT_LIMIT: u32 = 2_000;
+    const SECTOR_LIMIT: u32 = 2_000;
 
     fn player_one() -> ContractAddress {
         0x111.try_into().unwrap()
@@ -48,7 +48,7 @@ mod tests {
             resources: [
                 TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
                 TestResource::Model(m_OperatorState::TEST_CLASS_HASH),
-                TestResource::Model(m_ControlPoint::TEST_CLASS_HASH),
+                TestResource::Model(m_Sector::TEST_CLASS_HASH),
                 TestResource::Model(m_ChallengeCounter::TEST_CLASS_HASH),
                 TestResource::Model(m_Challenge::TEST_CLASS_HASH),
                 TestResource::Model(m_ChallengeParticipant::TEST_CLASS_HASH),
@@ -57,12 +57,12 @@ mod tests {
                 TestResource::Event(admin::e_RulesChanged::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_StakingPoolChanged::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_AdminTransferred::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ControlPointCaptured::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ControlPointReinforced::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ControlPointReleased::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SectorCaptured::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SectorReinforced::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SectorReleased::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengeInitiated::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengeEscalated::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ControlPointSacrificed::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SectorSacrificed::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengeSettled::TEST_CLASS_HASH),
                 TestResource::Event(control::e_ChallengePositionResolved::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
@@ -94,13 +94,13 @@ mod tests {
 
     fn control_writer_selectors() -> Span<felt252> {
         [
-            resource_selector(@"OperatorState"), resource_selector(@"ControlPoint"),
+            resource_selector(@"OperatorState"), resource_selector(@"Sector"),
             resource_selector(@"ChallengeCounter"), resource_selector(@"Challenge"),
-            resource_selector(@"ChallengeParticipant"), resource_selector(@"ControlPointCaptured"),
-            resource_selector(@"ControlPointReinforced"),
-            resource_selector(@"ControlPointReleased"), resource_selector(@"ChallengeInitiated"),
-            resource_selector(@"ChallengeEscalated"), resource_selector(@"ControlPointSacrificed"),
-            resource_selector(@"ChallengeSettled"), resource_selector(@"ChallengePositionResolved"),
+            resource_selector(@"ChallengeParticipant"), resource_selector(@"SectorCaptured"),
+            resource_selector(@"SectorReinforced"), resource_selector(@"SectorReleased"),
+            resource_selector(@"ChallengeInitiated"), resource_selector(@"ChallengeEscalated"),
+            resource_selector(@"SectorSacrificed"), resource_selector(@"ChallengeSettled"),
+            resource_selector(@"ChallengePositionResolved"),
             resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRetired"),
         ]
             .span()
@@ -127,7 +127,7 @@ mod tests {
                     staking_pool: pool_address,
                     minimum_stake: MINIMUM_STAKE,
                     challenge_period_seconds: CHALLENGE_PERIOD,
-                    control_point_limit: POINT_LIMIT,
+                    sector_limit: SECTOR_LIMIT,
                     paused: false,
                 },
             );
@@ -154,7 +154,7 @@ mod tests {
         let owner = player_one();
         world.dispatcher.grant_owner(dojo::utils::bytearray_hash(@"stakewars"), owner);
         testing::set_contract_address(owner);
-        admin.initialize(pool.contract_address, MINIMUM_STAKE, CHALLENGE_PERIOD, POINT_LIMIT);
+        admin.initialize(pool.contract_address, MINIMUM_STAKE, CHALLENGE_PERIOD, SECTOR_LIMIT);
         let config: GameConfig = world.read_model(CONFIG_ID);
         assert_eq!(config.challenge_period_seconds, CHALLENGE_PERIOD);
         assert_eq!(config.minimum_stake, MINIMUM_STAKE);
@@ -177,16 +177,16 @@ mod tests {
         testing::set_contract_address(player);
         control.capture(42, 400);
         control.reinforce(42, 150);
-        let point = control.get_control_point_status(42);
+        let sector = control.get_sector_status(42);
         let operator = control.get_operator_status(player);
-        assert_eq!(point.capture_force, 550);
-        assert_eq!(operator.point_force, 550);
+        assert_eq!(sector.capture_force, 550);
+        assert_eq!(operator.sector_force, 550);
         assert_eq!(operator.available_force, 450);
     }
 
     #[test]
     #[available_gas(500000000)]
-    fn allocations_can_back_multiple_points_without_duplication() {
+    fn allocations_can_back_multiple_sectors_without_duplication() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
@@ -194,14 +194,14 @@ mod tests {
         control.capture(1, 300);
         control.capture(2, 400);
         let operator = control.get_operator_status(player);
-        assert_eq!(operator.point_force, 700);
+        assert_eq!(operator.sector_force, 700);
         assert_eq!(operator.available_force, 300);
-        assert_eq!(operator.controlled_point_count, 2);
+        assert_eq!(operator.controlled_sector_count, 2);
     }
 
     #[test]
     #[available_gas(700000000)]
-    fn captures_and_reinforces_multiple_points_atomically() {
+    fn captures_and_reinforces_multiple_sectors_atomically() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
@@ -211,14 +211,14 @@ mod tests {
         control
             .capture_many(
                 [
-                    CaptureRequest { control_point_id: 10, allocation: 200 },
-                    CaptureRequest { control_point_id: 11, allocation: 300 },
+                    CaptureRequest { sector_id: 10, allocation: 200 },
+                    CaptureRequest { sector_id: 11, allocation: 300 },
                 ]
                     .span(),
             );
 
-        let first = control.get_control_point_status(10);
-        let second = control.get_control_point_status(11);
+        let first = control.get_sector_status(10);
+        let second = control.get_sector_status(11);
         let captured_operator = control.get_operator_status(player);
         assert_eq!(first.controller, player);
         assert_eq!(first.capture_force, 200);
@@ -226,26 +226,26 @@ mod tests {
         assert_eq!(second.controller, player);
         assert_eq!(second.capture_force, 300);
         assert_eq!(second.controlled_since, 2_000);
-        assert_eq!(captured_operator.point_force, 500);
-        assert_eq!(captured_operator.controlled_point_count, 2);
+        assert_eq!(captured_operator.sector_force, 500);
+        assert_eq!(captured_operator.controlled_sector_count, 2);
         assert_eq!(captured_operator.available_force, 500);
 
         control
             .reinforce_many(
                 [
-                    ReinforcementRequest { control_point_id: 10, additional_allocation: 100 },
-                    ReinforcementRequest { control_point_id: 11, additional_allocation: 150 },
+                    ReinforcementRequest { sector_id: 10, additional_allocation: 100 },
+                    ReinforcementRequest { sector_id: 11, additional_allocation: 150 },
                 ]
                     .span(),
             );
 
-        let reinforced_first = control.get_control_point_status(10);
-        let reinforced_second = control.get_control_point_status(11);
+        let reinforced_first = control.get_sector_status(10);
+        let reinforced_second = control.get_sector_status(11);
         let reinforced_operator = control.get_operator_status(player);
         assert_eq!(reinforced_first.capture_force, 300);
         assert_eq!(reinforced_second.capture_force, 450);
-        assert_eq!(reinforced_operator.point_force, 750);
-        assert_eq!(reinforced_operator.controlled_point_count, 2);
+        assert_eq!(reinforced_operator.sector_force, 750);
+        assert_eq!(reinforced_operator.controlled_sector_count, 2);
         assert_eq!(reinforced_operator.available_force, 250);
     }
 
@@ -265,7 +265,7 @@ mod tests {
         let mut captures = array![];
         let mut id: u32 = 0;
         while id < 201 {
-            captures.append(CaptureRequest { control_point_id: id, allocation: MINIMUM_STAKE });
+            captures.append(CaptureRequest { sector_id: id, allocation: MINIMUM_STAKE });
             id += 1;
         }
         control.capture_many(captures.span());
@@ -305,13 +305,13 @@ mod tests {
         assert_eq!(challenge.last_loser, incumbent);
         assert_eq!(challenge.last_losing_force, 400);
         assert_eq!(challenge.deadline, 2_000 + CHALLENGE_PERIOD);
-        assert_eq!(defender.point_force, 400);
+        assert_eq!(defender.sector_force, 400);
         assert_eq!(defender.spent_force, 0);
         assert_eq!(defender.active_challenge_count, 1);
         assert_eq!(defender.available_force, 600);
         assert_eq!(attacker.challenge_force, 500);
         assert_eq!(attacker.available_force, 500);
-        assert_eq!(control.get_control_point_status(7).required_stake, 550);
+        assert_eq!(control.get_sector_status(7).required_stake, 550);
     }
 
     #[test]
@@ -324,8 +324,8 @@ mod tests {
         control.capture(1, 100);
         control.capture(2, 101);
 
-        assert_eq!(control.get_control_point_status(1).required_stake, 110);
-        assert_eq!(control.get_control_point_status(2).required_stake, 112);
+        assert_eq!(control.get_sector_status(1).required_stake, 110);
+        assert_eq!(control.get_sector_status(2).required_stake, 112);
     }
 
     #[test]
@@ -463,12 +463,12 @@ mod tests {
         testing::set_block_timestamp(100 + CHALLENGE_PERIOD);
         control.settle_challenge(7);
 
-        let point = control.get_control_point_status(7);
+        let sector = control.get_sector_status(7);
         let winner = control.get_operator_status(challenger);
         let loser = control.get_operator_status(incumbent);
-        assert_eq!(point.controller, challenger);
-        assert_eq!(point.capture_force, 500);
-        assert_eq!(winner.point_force, 500);
+        assert_eq!(sector.controller, challenger);
+        assert_eq!(sector.capture_force, 500);
+        assert_eq!(winner.sector_force, 500);
         assert_eq!(winner.challenge_force, 0);
         assert_eq!(winner.active_challenge_count, 0);
         assert_eq!(loser.spent_force, 400);
@@ -490,7 +490,7 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.challenge(7, 700);
         let incumbent_mid = control.get_operator_status(incumbent);
-        assert_eq!(incumbent_mid.point_force, 400);
+        assert_eq!(incumbent_mid.sector_force, 400);
         assert_eq!(incumbent_mid.challenge_force, 300);
         assert_eq!(incumbent_mid.spent_force, 0);
         testing::set_contract_address(challenger);
@@ -501,14 +501,14 @@ mod tests {
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(7);
-        let point = control.get_control_point_status(7);
+        let sector = control.get_sector_status(7);
         let winner = control.get_operator_status(challenger);
         let loser = control.get_operator_status(incumbent);
-        assert_eq!(point.controller, challenger);
-        assert_eq!(point.capture_force, 800);
-        assert_eq!(winner.point_force, 800);
+        assert_eq!(sector.controller, challenger);
+        assert_eq!(sector.capture_force, 800);
+        assert_eq!(winner.sector_force, 800);
         assert_eq!(winner.challenge_force, 0);
-        assert_eq!(loser.point_force, 0);
+        assert_eq!(loser.sector_force, 0);
         assert_eq!(loser.challenge_force, 0);
         assert_eq!(loser.spent_force, 700);
     }
@@ -588,7 +588,7 @@ mod tests {
 
     #[test]
     #[available_gas(1200000000)]
-    fn defender_can_sacrifice_another_point_to_retake_the_lead() {
+    fn defender_can_sacrifice_another_sector_to_retake_the_lead() {
         let (_, control, pool) = setup();
         let defender = player_one();
         let attacker = player_two();
@@ -602,10 +602,10 @@ mod tests {
         testing::set_contract_address(defender);
         control.challenge_with_sacrifice(10, 11, 1_000);
 
-        let source = control.get_control_point_status(11);
+        let source = control.get_sector_status(11);
         let status = control.get_operator_status(defender);
         assert_eq!(source.capture_force, 0);
-        assert_eq!(status.point_force, 400);
+        assert_eq!(status.sector_force, 400);
         assert_eq!(status.challenge_force, 600);
         assert_eq!(status.spent_force, 0);
         assert_eq!(status.available_force, 0);
@@ -613,7 +613,7 @@ mod tests {
 
     #[test]
     #[available_gas(1800000000)]
-    fn operator_can_lead_multiple_contests_and_manage_other_points() {
+    fn operator_can_lead_multiple_contests_and_manage_other_sectors() {
         let (_, control, pool) = setup();
         let first_incumbent = player_one();
         let operator = player_two();
@@ -634,7 +634,7 @@ mod tests {
         let active = control.get_operator_status(operator);
         assert_eq!(active.active_challenge_count, 2);
         assert_eq!(active.challenge_force, 220);
-        assert_eq!(active.point_force, 200);
+        assert_eq!(active.sector_force, 200);
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(1);
@@ -642,8 +642,8 @@ mod tests {
         let settled = control.get_operator_status(operator);
         assert_eq!(settled.active_challenge_count, 0);
         assert_eq!(settled.challenge_force, 0);
-        assert_eq!(settled.point_force, 420);
-        assert_eq!(settled.controlled_point_count, 3);
+        assert_eq!(settled.sector_force, 420);
+        assert_eq!(settled.controlled_sector_count, 3);
     }
 
     #[test]
@@ -656,12 +656,12 @@ mod tests {
         control.capture(4, 400);
         control.release(4);
         assert_eq!(control.get_operator_status(player).available_force, 1_000);
-        assert_eq!(control.get_control_point_status(4).capture_force, 0);
+        assert_eq!(control.get_sector_status(4).capture_force, 0);
     }
 
     #[test]
     #[available_gas(600000000)]
-    fn force_reduction_retires_operator_and_invalidates_points() {
+    fn force_reduction_retires_operator_and_invalidates_sectors() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
@@ -672,7 +672,7 @@ mod tests {
         let status = control.get_operator_status(player);
         assert(status.retired, 'operator not retired');
         assert_eq!(status.available_force, 0);
-        assert_eq!(control.get_control_point_status(1).capture_force, 0);
+        assert_eq!(control.get_sector_status(1).capture_force, 0);
     }
 
     #[test]
@@ -716,7 +716,7 @@ mod tests {
         control.retire();
         let state: OperatorState = world.read_model(player);
         assert(state.retired, 'operator not retired');
-        assert_eq!(state.point_force, 0);
+        assert_eq!(state.sector_force, 0);
         assert_eq!(state.spent_force, 0);
     }
 

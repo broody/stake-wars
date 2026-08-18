@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import type { ControlPointArtwork } from '../../types';
+import type { SectorArtwork } from '../../types';
 import {
   createProjectedArtworkGeometry,
   type ArtworkAtlasSlot,
-} from '../../utils/controlPointArtworkProjection';
+} from '../../utils/sectorArtworkProjection';
 
 const ATLAS_CELL_SIZE = 256;
 const ATLAS_MAX_COLUMNS = 16;
@@ -182,7 +182,7 @@ function ArtworkAtlasPage({
   artworks,
   heights,
 }: {
-  artworks: readonly ControlPointArtwork[];
+  artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
 }) {
   const columns = Math.min(
@@ -212,15 +212,15 @@ function ArtworkAtlasPage({
   );
 }
 
-export function ControlPointImageLayer({
+export function SectorImageLayer({
   artworks,
   heights,
 }: {
-  artworks: readonly ControlPointArtwork[];
+  artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
 }) {
   const pages = useMemo(() => {
-    const result: ControlPointArtwork[][] = [];
+    const result: SectorArtwork[][] = [];
     for (
       let offset = 0;
       offset < artworks.length;
@@ -236,11 +236,11 @@ export function ControlPointImageLayer({
   ));
 }
 
-export function ControlPointDetailImageLayer({
+export function SectorDetailImageLayer({
   artwork,
   heights,
 }: {
-  artwork: ControlPointArtwork;
+  artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
@@ -278,7 +278,7 @@ export function PlacementPreviewLayer({
   artwork,
   heights,
 }: {
-  artwork: ControlPointArtwork;
+  artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);

@@ -11,7 +11,7 @@ game rules. Bids should remain hidden during the bidding phase, while the
 result, active rules, activation time, and expiry remain public.
 
 The feature is intended as an optional strategic layer over the existing
-delegation-backed Control Point game. It must not replace native staking as the
+delegation-backed Sector game. It must not replace native staking as the
 source of territorial force or give an auction winner unrestricted
 administrative authority.
 
@@ -51,11 +51,11 @@ All values must be bounded by the contract and expire automatically.
 | Martial Law | Select a bounded minimum Challenge raise, such as 5%, 10%, or 20%. |
 | Open Season | Select a region where neutral captures and Challenges have lower requirements for every Operator. |
 | Armistice | Temporarily prevent new Challenges while allowing existing responses, settlements, retirement, and synchronization. |
-| Sanctuary | Freeze one Control Point symmetrically: no attack, reinforcement, release, sacrifice, or image changes. |
-| Blockade | Prevent one point from being reinforced, released, or sacrificed while preserving its Controller's right to answer an active Challenge. |
-| Sacrifice Embargo | Prevent points in a selected region from being sacrificed to fund Challenges. |
-| Supply Lines | Require a reinforced point to be contiguous with another point controlled by the same Operator. |
-| Bounty Beacon | Attach part of the round's auction proceeds to a selected Control Point for capture or end-of-round control. |
+| Sanctuary | Freeze one Sector symmetrically: no attack, reinforcement, release, sacrifice, or image changes. |
+| Blockade | Prevent one sector from being reinforced, released, or sacrificed while preserving its Controller's right to answer an active Challenge. |
+| Sacrifice Embargo | Prevent sectors in a selected region from being sacrificed to fund Challenges. |
+| Supply Lines | Require a reinforced sector to be contiguous with another sector controlled by the same Operator. |
+| Bounty Beacon | Attach part of the round's auction proceeds to a selected Sector for capture or end-of-round control. |
 | Orbital Broadcast | Grant a moderated global message, Core overlay, visual theme, or artwork projected from the orbiting Arbiter. |
 
 ## Safety and Fairness Constraints
@@ -72,7 +72,7 @@ All values must be bounded by the contract and expire automatically.
 - Settlement, position resolution, Operator synchronization, retirement, and
   emergency administration must remain available during gameplay restrictions.
 - Targeted effects should have an activation delay, a short duration, and a
-  cooldown preventing repeated targeting of the same Control Point.
+  cooldown preventing repeated targeting of the same Sector.
 - The contract should expose an explicit allowlist of edicts and bounded
   parameters rather than accepting arbitrary calls or configuration values.
 - A round should limit how many military, economic, and visual effects may be
@@ -93,7 +93,7 @@ include:
 - First-price versus second-price/Vickrey settlement.
 - Bid asset and minimum bid.
 - Treatment of winning proceeds and losing bids.
-- Eligibility: all stakers, active Operators, or current Control Point owners.
+- Eligibility: all stakers, active Operators, or current Sector owners.
 - Tie breaking, non-reveal forfeiture, cancellation, and emergency recovery.
 - Whether the winner, top bidders, or all eligible Operators receive authority.
 - Exact information revealed after settlement.
@@ -111,7 +111,7 @@ This is a discussion aid, not an approved schema.
 - `RoundRules`: bounded active modifiers and their activation/expiry times.
 - `ArbiterAuthority`: temporary seats, charges, voting weight, or selected
   agenda, depending on the participation model.
-- `TargetCooldown`: prevents repeated targeting of the same Control Point.
+- `TargetCooldown`: prevents repeated targeting of the same Sector.
 - A dedicated Arbiter system validates and activates allowed edicts.
 - Existing Control System entrypoints read applicable `RoundRules` without
   transferring custody of delegated STRK.
@@ -135,11 +135,11 @@ maintenance.
 5. How long should bidding, reveal, authority, and cooldown periods last?
 6. Which edicts create counterplay, and which merely suppress another
    Operator's ability to act?
-7. Can an Arbiter holder target its own Control Points, and should self-targeted
+7. Can an Arbiter holder target its own Sectors, and should self-targeted
    Sanctuary or Blockade have additional restrictions?
 8. Should active Challenges always be grandfathered under their original
    rules?
-9. How does authority behave if its holder retires or loses all Control Points?
+9. How does authority behave if its holder retires or loses all Sectors?
 10. Should the Arbiter be a seasonal event, a continuous recurring system, or
     activated only after minimum participation is reached?
 
@@ -148,7 +148,7 @@ maintenance.
 - Replacing delegation-backed Capture Force with an auction token.
 - Giving a player access to administrative pause, upgrades, configuration, or
   treasury controls.
-- Making deployed stake, public Control Point actions, or active edicts appear
+- Making deployed stake, public Sector actions, or active edicts appear
   private.
 - Selecting an implementation before the shared-authority model is resolved.
 

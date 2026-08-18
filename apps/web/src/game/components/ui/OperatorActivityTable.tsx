@@ -95,8 +95,8 @@ const activityFilterOptions: Array<{
   { value: 'relinquishment', label: 'RELINQUISHED ALL' },
 ];
 
-function pointLabel(id: number | undefined): string {
-  return id === undefined ? '—' : `CP-${id.toString().padStart(4, '0')}`;
+function sectorLabel(id: number | undefined): string {
+  return id === undefined ? '—' : `SECTOR-${id.toString().padStart(4, '0')}`;
 }
 
 function eventDetail(activity: OperatorActivity): string {
@@ -120,9 +120,9 @@ function eventDetail(activity: OperatorActivity): string {
     case 'retirement':
       return 'ADDRESS PERMANENTLY RETIRED';
     case 'disqualification':
-      return `ADDRESS RETIRED · ${activity.affectedPointCount ?? 0} POINTS INVALIDATED`;
+      return `ADDRESS RETIRED · ${activity.affectedSectorCount ?? 0} SECTORS INVALIDATED`;
     case 'relinquishment':
-      return `${activity.affectedPointCount ?? 0} POINTS RELINQUISHED`;
+      return `${activity.affectedSectorCount ?? 0} SECTORS RELINQUISHED`;
     case 'yield_claim':
       return 'VALIDATOR REWARD TRANSFERRED';
   }
@@ -454,7 +454,7 @@ export function OperatorActivityTable({
                         </div>
                       </td>
                       <td className="border-b border-r border-grid px-4 py-4 tracking-wider text-neutral-300">
-                        {pointLabel(item.controlPointId)}
+                        {sectorLabel(item.sectorId)}
                       </td>
                       <td className="border-b border-r border-grid px-4 py-4 text-neutral-300">
                         {stakeDetail(item)}

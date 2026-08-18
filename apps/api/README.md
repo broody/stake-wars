@@ -47,7 +47,7 @@ launcher enables debug output and mirrors timestamped logs under
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
 | `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification. |
-| `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Control Point image objects. |
+| `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Sector image objects. |
 | `IMAGE_PUBLIC_URL` | unset | Public CDN origin for image delivery, such as `https://assets.stakewars.gg`. |
 | `S3_ENDPOINT` | unset | S3-compatible API endpoint, such as `https://fly.storage.tigris.dev`. |
 | `AWS_REGION` | `auto` | S3 signing region used by the object store. |
@@ -67,9 +67,9 @@ GET  /torii/health
 POST /torii/graphql
 POST /v1/auth/challenges
 POST /v1/auth/sessions
-GET  /v1/control-point-artworks
-POST /v1/control-point-artworks/uploads
-POST /v1/control-point-artworks/uploads/{uploadId}/complete
+GET  /v1/sector-artworks
+POST /v1/sector-artworks/uploads
+POST /v1/sector-artworks/uploads/{uploadId}/complete
 ```
 
 Image uploads are enabled only when all object-storage settings are present.

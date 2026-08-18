@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ControlPointProvider } from './contexts/ControlPointContext';
+import { SectorProvider } from './contexts/SectorContext';
 import { WalletProvider } from './contexts/WalletContext';
 import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -10,7 +10,7 @@ import { Profile } from './pages/Profile';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
-import { ControlPointImageProvider } from './contexts/ControlPointImageContext';
+import { SectorImageProvider } from './contexts/SectorImageContext';
 
 const CoreLab = lazy(() =>
   import('./pages/OwnershipLab').then((module) => ({
@@ -25,8 +25,8 @@ function GameApp() {
         <Router>
           <WalletProvider>
             <TransactionToastProvider>
-              <ControlPointProvider>
-                <ControlPointImageProvider>
+              <SectorProvider>
+                <SectorImageProvider>
                   <YieldProvider>
                     <Layout>
                       <Routes>
@@ -44,8 +44,8 @@ function GameApp() {
                       </Routes>
                     </Layout>
                   </YieldProvider>
-                </ControlPointImageProvider>
-              </ControlPointProvider>
+                </SectorImageProvider>
+              </SectorProvider>
             </TransactionToastProvider>
           </WalletProvider>
         </Router>

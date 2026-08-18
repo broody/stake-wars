@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   NEW_POOL_MEMBER_SELECTOR,
   POOL_MEMBER_REWARD_CLAIMED_SELECTOR,
-  filterControlPointsByOperatorGeneration,
-  parseIndexedControlPoints,
+  filterSectorsByOperatorGeneration,
+  parseIndexedSectors,
   parseOperatorActivity,
   parsePoolMemberStartPage,
   parseYieldClaimPage,
@@ -18,12 +18,12 @@ function activityCursor(
   return btoa(`cursor/${eventId}/${eventId}`);
 }
 
-describe('Torii Control Point parsing', () => {
-  it('parses and sorts indexed Control Points', () => {
+describe('Torii Sector parsing', () => {
+  it('parses and sorts indexed Sectors', () => {
     expect(
-      parseIndexedControlPoints({
+      parseIndexedSectors({
         data: {
-          stakewarsControlPointModels: {
+          stakewarsSectorModels: {
             edges: [
               {
                 node: {
@@ -74,15 +74,15 @@ describe('Torii Control Point parsing', () => {
 
   it('surfaces GraphQL errors', () => {
     expect(() =>
-      parseIndexedControlPoints({ errors: [{ message: 'model unavailable' }] })
+      parseIndexedSectors({ errors: [{ message: 'model unavailable' }] })
     ).toThrow('model unavailable');
   });
 
-  it('rejects out-of-range Control Point IDs', () => {
+  it('rejects out-of-range Sector IDs', () => {
     expect(() =>
-      parseIndexedControlPoints({
+      parseIndexedSectors({
         data: {
-          stakewarsControlPointModels: {
+          stakewarsSectorModels: {
             edges: [
               {
                 node: {
@@ -98,12 +98,12 @@ describe('Torii Control Point parsing', () => {
           },
         },
       })
-    ).toThrow('invalid Control Point ID');
+    ).toThrow('invalid Sector ID');
   });
 
   it('drops stale ownership generations after a global relinquishment', () => {
     expect(
-      filterControlPointsByOperatorGeneration(
+      filterSectorsByOperatorGeneration(
         [
           {
             id: 1,
@@ -161,7 +161,7 @@ describe('Torii Operator activity parsing', () => {
             {
               cursor: activityCursor(10, '0xcapture', 1),
               node: {
-                control_point_id: 42,
+                sector_id: 42,
                 controller: '0xabc',
                 capture_force: '0x2386f26fc10000',
               },
@@ -173,7 +173,7 @@ describe('Torii Operator activity parsing', () => {
             {
               cursor: activityCursor(12, '0xloss', 3),
               node: {
-                control_point_id: 42,
+                sector_id: 42,
                 challenge_id: 1,
                 operator: '0xabc',
                 lost_force: '0x27147114878000',
@@ -186,7 +186,7 @@ describe('Torii Operator activity parsing', () => {
             {
               cursor: activityCursor(11, '0xreinforce', 2),
               node: {
-                control_point_id: 42,
+                sector_id: 42,
                 added_force: '75',
                 capture_force: '175',
               },
@@ -204,7 +204,7 @@ describe('Torii Operator activity parsing', () => {
     expect(activity[0]).toMatchObject({
       blockNumber: 12,
       transactionHash: '0xloss',
-      controlPointId: 42,
+      sectorId: 42,
       amount: 11_000_000_000_000_000n,
     });
     expect(activity[1]).toMatchObject({
@@ -223,7 +223,7 @@ describe('Torii Operator activity parsing', () => {
               cursor: activityCursor(20, '0xinitiate', 1),
               node: {
                 challenge_id: 7,
-                control_point_id: 42,
+                sector_id: 42,
                 incumbent: '0xdef',
                 challenger: '0xabc',
                 defender_force_at_risk: '500',
@@ -239,7 +239,7 @@ describe('Torii Operator activity parsing', () => {
               cursor: activityCursor(21, '0xescalate', 2),
               node: {
                 challenge_id: 7,
-                control_point_id: 42,
+                sector_id: 42,
                 challenger: '0xabc',
                 committed_force: '700',
                 added_force: '150',
@@ -277,7 +277,7 @@ describe('Torii Operator activity parsing', () => {
               cursor: activityCursor(25, '0xexit', 4),
               node: {
                 invalidated_force: '700',
-                released_point_count: 2,
+                released_sector_count: 2,
               },
             },
           ],
@@ -289,7 +289,7 @@ describe('Torii Operator activity parsing', () => {
       expect.objectContaining({
         type: 'retirement',
         amount: 700n,
-        affectedPointCount: 2,
+        affectedSectorCount: 2,
         transactionHash: '0xexit',
       }),
     ]);
@@ -305,7 +305,7 @@ describe('Torii Operator activity parsing', () => {
               {
                 cursor: 'not-base64',
                 node: {
-                  control_point_id: 1,
+                  sector_id: 1,
                   controller: '0xabc',
                   capture_force: '1',
                 },

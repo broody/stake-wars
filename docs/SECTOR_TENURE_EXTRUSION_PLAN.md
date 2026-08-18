@@ -1,20 +1,20 @@
-# Control Point tenure extrusion plan
+# Sector tenure extrusion plan
 
 ## Recommendation
 
 Use a fixed absolute tenure scale with logarithmic compression and a visual cap.
 Do not normalize heights against the oldest currently visible or player-owned
-Control Point.
+Sector.
 
-Relative normalization makes the same Control Point change height when another
-point is captured, released, or simply enters the queried set. That weakens the
+Relative normalization makes the same Sector change height when another
+sector is captured, released, or simply enters the queried set. That weakens the
 map as a learned spatial language for frequent visitors. A fixed curve gives the
 same age the same height for every player and every session, while logarithmic
-compression preserves differences among young points without allowing old
-points to dominate the globe.
+compression preserves differences among young sectors without allowing old
+sectors to dominate the globe.
 
-Adjacent Control Points held by the same Operator form a contiguous plateau at
-the height of the longest-held point in that connected territory. Disconnected
+Adjacent Sectors held by the same Operator form a contiguous plateau at
+the height of the longest-held sector in that connected territory. Disconnected
 territories remain independent, even when they share an owner.
 
 `DEFAULT_TENURE_EXTRUSION_ENABLED` is the temporary feature switch. `Planet`
@@ -46,19 +46,19 @@ This produces stable reference heights of approximately:
 | 1 year or more | 0.75 |
 
 The one-year cap is a visual ceiling, not a claim that tenure stops. The exact
-duration remains visible in the selected Control Point panel. Keep the cap and
+duration remains visible in the selected Sector panel. Keep the cap and
 curve as named constants so they can be tuned after viewing real distributions.
 
 ## Meaning of tenure
 
-Tenure means time since the current controller captured the Control Point.
+Tenure means time since the current controller captured the Sector.
 
 - A capture or displacement starts tenure at the current block timestamp.
-- A new capture starts new tenure on the destination point.
+- A new capture starts new tenure on the destination sector.
 - Reinforcement does not reset tenure.
 - Release clears tenure.
 - A later recapture starts a new tenure, even for a previous controller.
-- Only active Control Points participate; stale/disqualified state follows the
+- Only active Sectors participate; stale/disqualified state follows the
   existing active-control classification.
 
 This is deliberately ownership tenure, not the age of the Operator's validator
@@ -69,27 +69,27 @@ stake or the time since the last stake reinforcement.
 Make tenure authoritative in current on-chain state rather than reconstructing
 unbounded event history on every page load.
 
-1. Add `controlled_since: u64` to the `ControlPoint` model. This is an additive
+1. Add `controlled_since: u64` to the `Sector` model. This is an additive
    Dojo model change; existing entities receive zero.
 2. Set it with Starknet's block timestamp inside `capture_with_synced`, which
    also covers displacement captures.
-3. Preserve it during reinforcement and set it to zero in `clear_point`.
-4. Add it to `ControlPointStatus`, the single and batched status readers, the
+3. Preserve it during reinforcement and set it to zero in `clear_sector`.
+4. Add it to `SectorStatus`, the single and batched status readers, the
    frontend types, and Starknet response parsing.
-5. Include it as `controlled_since` in the existing Torii Control Point query.
+5. Include it as `controlled_since` in the existing Torii Sector query.
 6. On optimistic capture confirmation, use the current client time only as a
    temporary display value; replace it on the next Torii/status refresh.
 
-### Existing Sepolia points
+### Existing Sepolia sectors
 
-An additive migration leaves `controlled_since == 0` for points captured before
+An additive migration leaves `controlled_since == 0` for sectors captured before
 the migration. Do not display these as newly captured.
 
-Use a bounded compatibility fallback for zero-valued occupied points:
+Use a bounded compatibility fallback for zero-valued occupied sectors:
 
-- Query historical `ControlPointCaptured` models with cursor, controller, and
+- Query historical `SectorCaptured` models with cursor, controller, and
   `ownership_generation`.
-- Match the event to the current `(control_point_id, controller,
+- Match the event to the current `(sector_id, controller,
   ownership_generation)` tuple.
 - Read the unique matching blocks' timestamps from the configured Starknet RPC.
 - Cache the derived values for the session.
@@ -97,7 +97,7 @@ Use a bounded compatibility fallback for zero-valued occupied points:
 
 The current Torii schema exposes the required capture fields and encodes block
 number in each event cursor. The fallback is only for ownership that predates
-the model change and naturally disappears as those points turn over. Paginate
+the model change and naturally disappears as those sectors turn over. Paginate
 the compatibility query; do not permanently make full event-history loading the
 primary path.
 
@@ -109,15 +109,15 @@ flat so image projection remains an undistorted surface.
 1. Add a pure `tenureExtrusionHeight(controlledSince, now)` utility containing
    clamping and the fixed curve.
 2. Add a geometry builder that creates an outward triangular prism for each
-   occupied Control Point:
+   occupied Sector:
    - the top triangle is each canonical vertex scaled to
      `CORE_RADIUS + height`;
    - three side quads connect the surface triangle to its raised top;
    - no bottom face is needed because it is hidden by the core;
    - top and side geometry can use separate subdued material values so the
      silhouette carries the information without adding another color scale.
-3. Build one combined non-indexed geometry for all occupied points rather than
-   one mesh per Control Point. At 2,000 points this remains modest geometry and
+3. Build one combined non-indexed geometry for all occupied sectors rather than
+   one mesh per Sector. At 2,000 sectors this remains modest geometry and
    avoids thousands of React/Three objects.
 4. Recompute height geometry on load and in a coarse time bucket (hourly is
    sufficient). Do not rebuild it every animation frame.
@@ -129,8 +129,8 @@ flat so image projection remains an undistorted surface.
    beneath the extrusion.
 7. Keep the canonical sphere as the interaction surface, and explicitly make
    decorative extrusion meshes non-raycastable. Verify side-on clicks near tall
-   walls select the intended underlying point; if that is unreliable, attach a
-   Control Point ID attribute/face map to the extrusion geometry and resolve
+   walls select the intended underlying sector; if that is unreliable, attach a
+   Sector ID attribute/face map to the extrusion geometry and resolve
    events from it.
 8. On capture, optionally animate the new prism from zero to its current height
    over roughly 300 ms. Respect `prefers-reduced-motion`. This is polish after
@@ -141,8 +141,8 @@ flat so image projection remains an undistorted surface.
 - Add `HELD FOR` to the single-selection panel, formatted as a useful duration
   (`3h`, `12d`, `8mo`, `1y 4mo`) and backed by the exact timestamp.
 - For multi-selection, show the selected tenure range rather than implying one
-  duration applies to every point.
-- Extend the Control Point legend with a compact vertical relief key at fixed
+  duration applies to every sector.
+- Extend the Sector legend with a compact vertical relief key at fixed
   anchors such as `1D`, `7D`, `30D`, `1Y+`.
 - If the index is loading or tenure is unavailable, keep the ownership surface
   visible at zero extrusion and show `---` for the duration. Missing data must
@@ -176,7 +176,7 @@ flat so image projection remains an undistorted surface.
 - Capture transition with reduced-motion behavior, if the static version reads
   well.
 - Tune `MAX_EXTRUSION` and material contrast using screenshots at mobile and
-  desktop sizes with synthetic 1-day, 7-day, 30-day, 90-day, and 1-year points.
+  desktop sizes with synthetic 1-day, 7-day, 30-day, 90-day, and 1-year sectors.
 
 ## Verification
 
@@ -197,20 +197,20 @@ inspect, account verification, migrate, re-inspect, and Torii restart workflow.
 ## Acceptance criteria
 
 - The same tenure always maps to the same height across users and sessions.
-- No Control Point exceeds the fixed maximum extrusion.
+- No Sector exceeds the fixed maximum extrusion.
 - Reinforcement leaves tenure unchanged; ownership changes reset it.
-- Current pre-migration Sepolia points do not appear newly captured merely
+- Current pre-migration Sepolia sectors do not appear newly captured merely
   because their new model field defaults to zero.
 - Ownership colors, seams, selection, hover, and transaction feedback remain
-  readable on raised points.
+  readable on raised sectors.
 - Projection mode geometry is unchanged.
 - Unknown tenure is represented as unknown, never as a fabricated duration.
-- The full 2,000-point case stays interactive on a representative mobile device.
+- The full 2,000-sector case stays interactive on a representative mobile device.
 
 ## Integration note
 
 The source checkout currently has uncommitted work touching `World.tsx`,
-`ControlPointContext.tsx`, `starknet.ts`, `control.cairo`, contract tests, and the
+`SectorContext.tsx`, `starknet.ts`, `control.cairo`, contract tests, and the
 PRD. This worktree was created from its committed `HEAD`, so implementation
 should begin after that work is committed and this branch is rebased (or its
 relevant changes are intentionally ported). Do not copy the dirty checkout over

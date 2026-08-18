@@ -1,4 +1,4 @@
-export const CONTROL_POINT_COLORS = {
+export const SECTOR_COLORS = {
   neutral: '#050505',
   neutralGrid: '#6b6b6b',
   owned: '#ffd166',

@@ -8,18 +8,18 @@ const MINIMUM_CHALLENGE_RAISE_DIVISOR: u128 = 10;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct CaptureRequest {
-    pub control_point_id: u32,
+    pub sector_id: u32,
     pub allocation: u128,
 }
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ReinforcementRequest {
-    pub control_point_id: u32,
+    pub sector_id: u32,
     pub additional_allocation: u128,
 }
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct ControlPointStatus {
+pub struct SectorStatus {
     pub id: u32,
     pub controller: ContractAddress,
     pub capture_force: u128,
@@ -37,12 +37,12 @@ pub struct ControlPointStatus {
 pub struct OperatorStatus {
     pub operator: ContractAddress,
     pub live_delegated_amount: u128,
-    pub point_force: u128,
+    pub sector_force: u128,
     pub challenge_force: u128,
     pub spent_force: u128,
     pub available_force: u128,
     pub generation: u64,
-    pub controlled_point_count: u32,
+    pub controlled_sector_count: u32,
     pub active_challenge_count: u32,
     pub retired: bool,
     pub exiting: bool,
@@ -52,7 +52,7 @@ pub struct OperatorStatus {
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ChallengeStatus {
     pub id: u64,
-    pub control_point_id: u32,
+    pub sector_id: u32,
     pub incumbent: ContractAddress,
     pub leader: ContractAddress,
     pub leading_force: u128,
@@ -72,7 +72,7 @@ pub struct ChallengeParticipantStatus {
     pub challenge_id: u64,
     pub operator: ContractAddress,
     pub committed_force: u128,
-    pub point_force_included: u128,
+    pub sector_force_included: u128,
     pub additional_force: u128,
     pub joined: bool,
     pub resolved: bool,
@@ -81,41 +81,33 @@ pub struct ChallengeParticipantStatus {
 
 #[starknet::interface]
 pub trait IControl<TContractState> {
-    fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
+    fn capture(ref self: TContractState, sector_id: u32, allocation: u128);
     fn capture_many(ref self: TContractState, captures: Span<CaptureRequest>);
-    fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
+    fn reinforce(ref self: TContractState, sector_id: u32, additional_allocation: u128);
     fn reinforce_many(ref self: TContractState, reinforcements: Span<ReinforcementRequest>);
-    fn release(ref self: TContractState, control_point_id: u32);
-    fn challenge(ref self: TContractState, control_point_id: u32, committed_force: u128);
+    fn release(ref self: TContractState, sector_id: u32);
+    fn challenge(ref self: TContractState, sector_id: u32, committed_force: u128);
     fn challenge_with_sacrifice(
-        ref self: TContractState,
-        control_point_id: u32,
-        sacrificed_control_point_id: u32,
-        committed_force: u128,
+        ref self: TContractState, sector_id: u32, sacrificed_sector_id: u32, committed_force: u128,
     );
-    fn settle_challenge(ref self: TContractState, control_point_id: u32);
+    fn settle_challenge(ref self: TContractState, sector_id: u32);
     fn resolve_challenge_position(
         ref self: TContractState, challenge_id: u64, operator: ContractAddress,
     );
     fn retire(ref self: TContractState);
     fn sync_operator(ref self: TContractState, operator: ContractAddress) -> u128;
     fn sync_operators(ref self: TContractState, operators: Span<ContractAddress>) -> u32;
-    fn get_control_point_status(self: @TContractState, control_point_id: u32) -> ControlPointStatus;
-    fn get_control_point_statuses(
-        self: @TContractState, control_point_ids: Span<u32>,
-    ) -> Array<ControlPointStatus>;
+    fn get_sector_status(self: @TContractState, sector_id: u32) -> SectorStatus;
+    fn get_sector_statuses(self: @TContractState, sector_ids: Span<u32>) -> Array<SectorStatus>;
     fn get_operator_status(self: @TContractState, operator: ContractAddress) -> OperatorStatus;
     fn get_challenge_status(self: @TContractState, challenge_id: u64) -> ChallengeStatus;
     fn get_challenge_participant_status(
         self: @TContractState, challenge_id: u64, operator: ContractAddress,
     ) -> ChallengeParticipantStatus;
     fn can_manage_image(
-        self: @TContractState,
-        control_point_id: u32,
-        operator: ContractAddress,
-        ownership_generation: u64,
+        self: @TContractState, sector_id: u32, operator: ContractAddress, ownership_generation: u64,
     ) -> bool;
-    fn required_stake(self: @TContractState, control_point_id: u32) -> u128;
+    fn required_stake(self: @TContractState, sector_id: u32) -> u128;
 }
 
 #[dojo::contract]
@@ -125,21 +117,21 @@ pub mod control {
     use dojo::model::ModelStorage;
     use stakewars::models::{
         CHALLENGE_COUNTER_ID, CONFIG_ID, Challenge, ChallengeCounter, ChallengeParticipant,
-        ControlPoint, GameConfig, OperatorState,
+        GameConfig, OperatorState, Sector,
     };
     use stakewars::staking::{DelegationState, delegation_state};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{
-        CaptureRequest, ChallengeParticipantStatus, ChallengeStatus, ControlPointStatus, IControl,
+        CaptureRequest, ChallengeParticipantStatus, ChallengeStatus, IControl,
         MAX_CONTROL_ACTION_BATCH, MAX_STATUS_BATCH, MAX_SYNC_BATCH, OperatorStatus,
-        ReinforcementRequest,
+        ReinforcementRequest, SectorStatus,
     };
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct ControlPointCaptured {
+    pub struct SectorCaptured {
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         #[key]
         pub controller: ContractAddress,
         pub capture_force: u128,
@@ -148,9 +140,9 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct ControlPointReinforced {
+    pub struct SectorReinforced {
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         #[key]
         pub controller: ContractAddress,
         pub added_force: u128,
@@ -160,9 +152,9 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct ControlPointReleased {
+    pub struct SectorReleased {
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         #[key]
         pub previous_controller: ContractAddress,
         pub released_force: u128,
@@ -175,7 +167,7 @@ pub mod control {
         #[key]
         pub challenge_id: u64,
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         #[key]
         pub challenger: ContractAddress,
         pub incumbent: ContractAddress,
@@ -190,7 +182,7 @@ pub mod control {
         #[key]
         pub challenge_id: u64,
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         #[key]
         pub challenger: ContractAddress,
         pub committed_force: u128,
@@ -202,13 +194,13 @@ pub mod control {
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
-    pub struct ControlPointSacrificed {
+    pub struct SectorSacrificed {
         #[key]
         pub challenge_id: u64,
         #[key]
         pub operator: ContractAddress,
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         pub force: u128,
     }
 
@@ -218,7 +210,7 @@ pub mod control {
         #[key]
         pub challenge_id: u64,
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         pub winner: ContractAddress,
         pub loser: ContractAddress,
         pub winning_force: u128,
@@ -234,7 +226,7 @@ pub mod control {
         #[key]
         pub operator: ContractAddress,
         #[key]
-        pub control_point_id: u32,
+        pub sector_id: u32,
         pub lost_force: u128,
     }
 
@@ -247,7 +239,7 @@ pub mod control {
         pub new_generation: u64,
         pub invalidated_force: u128,
         pub live_delegated_amount: u128,
-        pub invalidated_point_count: u32,
+        pub invalidated_sector_count: u32,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -258,14 +250,14 @@ pub mod control {
         pub previous_generation: u64,
         pub new_generation: u64,
         pub invalidated_force: u128,
-        pub released_point_count: u32,
+        pub released_sector_count: u32,
     }
 
     #[abi(embed_v0)]
     impl ControlImpl of IControl<ContractState> {
-        fn capture(ref self: ContractState, control_point_id: u32, allocation: u128) {
+        fn capture(ref self: ContractState, sector_id: u32, allocation: u128) {
             let config = self.active_config();
-            self.assert_control_point_id(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
             let caller = get_caller_address();
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
@@ -275,7 +267,7 @@ pub mod control {
                     caller,
                     ref operator,
                     delegation.amount,
-                    control_point_id,
+                    sector_id,
                     allocation,
                     get_block_timestamp(),
                 );
@@ -292,14 +284,14 @@ pub mod control {
             self.assert_playable(ref operator);
             let controlled_since = get_block_timestamp();
             for capture in captures {
-                self.assert_control_point_id(config, *capture.control_point_id);
+                self.assert_sector_id(config, *capture.sector_id);
                 self
                     .capture_with_synced(
                         config,
                         caller,
                         ref operator,
                         delegation.amount,
-                        *capture.control_point_id,
+                        *capture.sector_id,
                         *capture.allocation,
                         controlled_since,
                     );
@@ -308,19 +300,15 @@ pub mod control {
             world.write_model(@operator);
         }
 
-        fn reinforce(ref self: ContractState, control_point_id: u32, additional_allocation: u128) {
+        fn reinforce(ref self: ContractState, sector_id: u32, additional_allocation: u128) {
             let config = self.active_config();
-            self.assert_control_point_id(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
             let caller = get_caller_address();
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
             self
                 .reinforce_with_synced(
-                    caller,
-                    ref operator,
-                    delegation.amount,
-                    control_point_id,
-                    additional_allocation,
+                    caller, ref operator, delegation.amount, sector_id, additional_allocation,
                 );
             let mut world = self.world_default();
             world.write_model(@operator);
@@ -334,13 +322,13 @@ pub mod control {
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
             for reinforcement in reinforcements {
-                self.assert_control_point_id(config, *reinforcement.control_point_id);
+                self.assert_sector_id(config, *reinforcement.sector_id);
                 self
                     .reinforce_with_synced(
                         caller,
                         ref operator,
                         delegation.amount,
-                        *reinforcement.control_point_id,
+                        *reinforcement.sector_id,
                         *reinforcement.additional_allocation,
                     );
             }
@@ -348,54 +336,54 @@ pub mod control {
             world.write_model(@operator);
         }
 
-        fn release(ref self: ContractState, control_point_id: u32) {
+        fn release(ref self: ContractState, sector_id: u32) {
             let config = self.active_config();
-            self.assert_control_point_id(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
             let caller = get_caller_address();
             let (mut operator, _, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
             let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            self.assert_controller(point, caller, operator);
-            assert(point.active_challenge_id == 0, 'point challenged');
-            let released_force = point.capture_force;
-            self.release_point(ref operator, ref point);
+            let mut sector: Sector = world.read_model(sector_id);
+            self.assert_controller(sector, caller, operator);
+            assert(sector.active_challenge_id == 0, 'sector challenged');
+            let released_force = sector.capture_force;
+            self.release_sector(ref operator, ref sector);
             world.write_model(@operator);
-            world.write_model(@point);
+            world.write_model(@sector);
             world
                 .emit_event(
-                    @ControlPointReleased {
-                        control_point_id,
+                    @SectorReleased {
+                        sector_id,
                         previous_controller: caller,
                         released_force,
-                        ownership_generation: point.ownership_generation,
+                        ownership_generation: sector.ownership_generation,
                     },
                 );
         }
 
-        fn challenge(ref self: ContractState, control_point_id: u32, committed_force: u128) {
-            self.commit_challenge_force(control_point_id, committed_force, Option::None);
+        fn challenge(ref self: ContractState, sector_id: u32, committed_force: u128) {
+            self.commit_challenge_force(sector_id, committed_force, Option::None);
         }
 
         fn challenge_with_sacrifice(
             ref self: ContractState,
-            control_point_id: u32,
-            sacrificed_control_point_id: u32,
+            sector_id: u32,
+            sacrificed_sector_id: u32,
             committed_force: u128,
         ) {
             self
                 .commit_challenge_force(
-                    control_point_id, committed_force, Option::Some(sacrificed_control_point_id),
+                    sector_id, committed_force, Option::Some(sacrificed_sector_id),
                 );
         }
 
-        fn settle_challenge(ref self: ContractState, control_point_id: u32) {
+        fn settle_challenge(ref self: ContractState, sector_id: u32) {
             let config = self.initialized_config();
-            self.assert_control_point_id(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
             let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            assert(point.active_challenge_id > 0, 'no active challenge');
-            let mut challenge: Challenge = world.read_model(point.active_challenge_id);
+            let mut sector: Sector = world.read_model(sector_id);
+            assert(sector.active_challenge_id > 0, 'no active challenge');
+            let mut challenge: Challenge = world.read_model(sector.active_challenge_id);
             assert(!challenge.settled, 'challenge settled');
             assert(get_block_timestamp() >= challenge.deadline, 'challenge active');
 
@@ -412,13 +400,13 @@ pub mod control {
             if leader_valid {
                 winner = challenge.leader;
                 winning_force = challenge.leading_force;
-                let additional_force = winning_force - winner_position.point_force_included;
+                let additional_force = winning_force - winner_position.sector_force_included;
                 assert(leader.challenge_force >= additional_force, 'challenge force invariant');
                 assert(leader.active_challenge_count > 0, 'challenge count invariant');
                 leader.challenge_force -= additional_force;
-                leader.point_force += additional_force;
-                if winner_position.point_force_included == 0 {
-                    leader.controlled_point_count += 1;
+                leader.sector_force += additional_force;
+                if winner_position.sector_force_included == 0 {
+                    leader.controlled_sector_count += 1;
                 }
                 leader.active_challenge_count -= 1;
                 winner_position.resolved = true;
@@ -436,34 +424,34 @@ pub mod control {
             }
 
             if winner.is_zero() {
-                clear_point(ref point);
+                clear_sector(ref sector);
             } else {
-                if point.controller != winner {
-                    point.ownership_generation += 1;
-                    point.controlled_since = get_block_timestamp();
+                if sector.controller != winner {
+                    sector.ownership_generation += 1;
+                    sector.controlled_since = get_block_timestamp();
                 }
-                point.controller = winner;
-                point.controller_generation = leader.generation;
-                point.capture_force = winning_force;
-                point.active_challenge_id = 0;
+                sector.controller = winner;
+                sector.controller_generation = leader.generation;
+                sector.capture_force = winning_force;
+                sector.active_challenge_id = 0;
             }
 
             challenge.settled = true;
             challenge.winning_force = winning_force;
             challenge.losing_force = challenge.last_losing_force;
             challenge.settled_at = get_block_timestamp();
-            world.write_model(@point);
+            world.write_model(@sector);
             world.write_model(@challenge);
             world
                 .emit_event(
                     @ChallengeSettled {
                         challenge_id: challenge.id,
-                        control_point_id,
+                        sector_id,
                         winner,
                         loser: challenge.last_loser,
                         winning_force,
                         losing_force: challenge.last_losing_force,
-                        ownership_generation: point.ownership_generation,
+                        ownership_generation: sector.ownership_generation,
                     },
                 );
         }
@@ -510,24 +498,20 @@ pub mod control {
             synchronized
         }
 
-        fn get_control_point_status(
-            self: @ContractState, control_point_id: u32,
-        ) -> ControlPointStatus {
+        fn get_sector_status(self: @ContractState, sector_id: u32) -> SectorStatus {
             let config = self.initialized_config();
-            self.assert_control_point_id(config, control_point_id);
-            self.control_point_status(config, control_point_id)
+            self.assert_sector_id(config, sector_id);
+            self.sector_status(config, sector_id)
         }
 
-        fn get_control_point_statuses(
-            self: @ContractState, control_point_ids: Span<u32>,
-        ) -> Array<ControlPointStatus> {
-            assert(control_point_ids.len() > 0, 'empty status batch');
-            assert(control_point_ids.len() <= MAX_STATUS_BATCH, 'status batch too large');
+        fn get_sector_statuses(self: @ContractState, sector_ids: Span<u32>) -> Array<SectorStatus> {
+            assert(sector_ids.len() > 0, 'empty status batch');
+            assert(sector_ids.len() <= MAX_STATUS_BATCH, 'status batch too large');
             let config = self.initialized_config();
             let mut statuses = array![];
-            for control_point_id in control_point_ids {
-                self.assert_control_point_id(config, *control_point_id);
-                statuses.append(self.control_point_status(config, *control_point_id));
+            for sector_id in sector_ids {
+                self.assert_sector_id(config, *sector_id);
+                statuses.append(self.sector_status(config, *sector_id));
             }
             statuses
         }
@@ -545,7 +529,7 @@ pub mod control {
             assert(challenge.id == challenge_id, 'challenge not found');
             ChallengeStatus {
                 id: challenge.id,
-                control_point_id: challenge.control_point_id,
+                sector_id: challenge.sector_id,
                 incumbent: challenge.incumbent,
                 leader: challenge.leader,
                 leading_force: challenge.leading_force,
@@ -572,8 +556,8 @@ pub mod control {
             let participant: ChallengeParticipant = world.read_model((challenge_id, operator));
             let additional_force = if participant
                 .committed_force > participant
-                .point_force_included {
-                participant.committed_force - participant.point_force_included
+                .sector_force_included {
+                participant.committed_force - participant.sector_force_included
             } else {
                 0
             };
@@ -581,7 +565,7 @@ pub mod control {
                 challenge_id,
                 operator,
                 committed_force: participant.committed_force,
-                point_force_included: participant.point_force_included,
+                sector_force_included: participant.sector_force_included,
                 additional_force,
                 joined: participant.joined,
                 resolved: participant.resolved,
@@ -591,7 +575,7 @@ pub mod control {
 
         fn can_manage_image(
             self: @ContractState,
-            control_point_id: u32,
+            sector_id: u32,
             operator: ContractAddress,
             ownership_generation: u64,
         ) -> bool {
@@ -599,17 +583,17 @@ pub mod control {
                 return false;
             }
             let config = self.initialized_config();
-            self.assert_control_point_id(config, control_point_id);
-            let status = self.control_point_status(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
+            let status = self.sector_status(config, sector_id);
             status.controller == operator
                 && status.ownership_generation == ownership_generation
                 && !status.stale
         }
 
-        fn required_stake(self: @ContractState, control_point_id: u32) -> u128 {
+        fn required_stake(self: @ContractState, sector_id: u32) -> u128 {
             let config = self.initialized_config();
-            self.assert_control_point_id(config, control_point_id);
-            self.control_point_status(config, control_point_id).required_stake
+            self.assert_sector_id(config, sector_id);
+            self.sector_status(config, sector_id).required_stake
         }
     }
 
@@ -632,8 +616,8 @@ pub mod control {
             config
         }
 
-        fn assert_control_point_id(self: @ContractState, config: GameConfig, id: u32) {
-            assert(id < config.control_point_limit, 'invalid control point');
+        fn assert_sector_id(self: @ContractState, config: GameConfig, id: u32) {
+            assert(id < config.sector_limit, 'invalid sector');
         }
 
         fn assert_playable(self: @ContractState, ref operator: OperatorState) {
@@ -645,13 +629,13 @@ pub mod control {
 
         fn assert_controller(
             self: @ContractState,
-            point: ControlPoint,
+            sector: Sector,
             operator_address: ContractAddress,
             operator: OperatorState,
         ) {
             assert(
-                point.controller == operator_address
-                    && point.controller_generation == operator.generation,
+                sector.controller == operator_address
+                    && sector.controller_generation == operator.generation,
                 'not controller',
             );
         }
@@ -665,12 +649,12 @@ pub mod control {
             OperatorStatus {
                 operator: operator_address,
                 live_delegated_amount: delegation.amount,
-                point_force: operator.point_force,
+                sector_force: operator.sector_force,
                 challenge_force: operator.challenge_force,
                 spent_force: operator.spent_force,
                 available_force: available_force(delegation.amount, operator),
                 generation: operator.generation,
-                controlled_point_count: operator.controlled_point_count,
+                controlled_sector_count: operator.controlled_sector_count,
                 active_challenge_count: operator.active_challenge_count,
                 retired: operator.retired,
                 exiting: delegation.exiting,
@@ -679,25 +663,23 @@ pub mod control {
             }
         }
 
-        fn control_point_status(
-            self: @ContractState, config: GameConfig, control_point_id: u32,
-        ) -> ControlPointStatus {
+        fn sector_status(self: @ContractState, config: GameConfig, sector_id: u32) -> SectorStatus {
             let world = self.world_default();
-            let point: ControlPoint = world.read_model(control_point_id);
+            let sector: Sector = world.read_model(sector_id);
             let mut controller = zero_address();
             let mut capture_force = 0;
             let mut controlled_since = 0;
             let mut stale = false;
             let mut needs_sync = false;
-            if !point.controller.is_zero() {
-                let operator = self.operator_status(config, point.controller);
+            if !sector.controller.is_zero() {
+                let operator = self.operator_status(config, sector.controller);
                 let current = !operator.retired
-                    && point.controller_generation == operator.generation
+                    && sector.controller_generation == operator.generation
                     && !operator.needs_sync;
                 if current {
-                    controller = point.controller;
-                    capture_force = point.capture_force;
-                    controlled_since = point.controlled_since;
+                    controller = sector.controller;
+                    capture_force = sector.capture_force;
+                    controlled_since = sector.controlled_since;
                 } else {
                     stale = true;
                     needs_sync = operator.needs_sync;
@@ -711,8 +693,8 @@ pub mod control {
             } else {
                 minimum_challenge_force(capture_force)
             };
-            if point.active_challenge_id > 0 {
-                let challenge: Challenge = world.read_model(point.active_challenge_id);
+            if sector.active_challenge_id > 0 {
+                let challenge: Challenge = world.read_model(sector.active_challenge_id);
                 if !challenge.settled {
                     challenge_lead_change_count = challenge.lead_change_count;
                     challenge_deadline = challenge.deadline;
@@ -720,14 +702,14 @@ pub mod control {
                 }
             }
 
-            ControlPointStatus {
-                id: control_point_id,
+            SectorStatus {
+                id: sector_id,
                 controller,
                 capture_force,
-                ownership_generation: point.ownership_generation,
+                ownership_generation: sector.ownership_generation,
                 controlled_since,
                 required_stake,
-                active_challenge_id: point.active_challenge_id,
+                active_challenge_id: sector.active_challenge_id,
                 challenge_lead_change_count,
                 challenge_deadline,
                 stale,
@@ -755,7 +737,7 @@ pub mod control {
             } else if !operator.retired && delegation.amount < total_obligations(operator) {
                 let previous_generation = operator.generation;
                 let invalidated_force = total_obligations(operator);
-                let invalidated_point_count = operator.controlled_point_count;
+                let invalidated_sector_count = operator.controlled_sector_count;
                 self.retire_state(ref operator);
                 changed = true;
                 world
@@ -766,7 +748,7 @@ pub mod control {
                             new_generation: operator.generation,
                             invalidated_force,
                             live_delegated_amount: delegation.amount,
-                            invalidated_point_count,
+                            invalidated_sector_count,
                         },
                     );
             }
@@ -782,24 +764,24 @@ pub mod control {
             caller: ContractAddress,
             ref operator: OperatorState,
             live_amount: u128,
-            control_point_id: u32,
+            sector_id: u32,
             allocation: u128,
             controlled_since: u64,
         ) {
             let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            if !point.controller.is_zero() {
-                let controller = if point.controller == caller {
+            let mut sector: Sector = world.read_model(sector_id);
+            if !sector.controller.is_zero() {
+                let controller = if sector.controller == caller {
                     operator
                 } else {
                     let (refreshed, _, _) = self
-                        .refresh_operator(point.controller, config.staking_pool);
+                        .refresh_operator(sector.controller, config.staking_pool);
                     refreshed
                 };
                 let current = !controller.retired
                     && controller.generation > 0
-                    && point.controller_generation == controller.generation;
-                assert(!current, 'point occupied');
+                    && sector.controller_generation == controller.generation;
+                assert(!current, 'sector occupied');
             }
 
             assert(allocation >= config.minimum_stake, 'below minimum stake');
@@ -807,22 +789,22 @@ pub mod control {
                 allocation <= available_force(live_amount, operator),
                 'insufficient available force',
             );
-            operator.point_force += allocation;
-            operator.controlled_point_count += 1;
-            point.controller = caller;
-            point.controller_generation = operator.generation;
-            point.capture_force = allocation;
-            point.ownership_generation += 1;
-            point.controlled_since = controlled_since;
-            point.active_challenge_id = 0;
-            world.write_model(@point);
+            operator.sector_force += allocation;
+            operator.controlled_sector_count += 1;
+            sector.controller = caller;
+            sector.controller_generation = operator.generation;
+            sector.capture_force = allocation;
+            sector.ownership_generation += 1;
+            sector.controlled_since = controlled_since;
+            sector.active_challenge_id = 0;
+            world.write_model(@sector);
             world
                 .emit_event(
-                    @ControlPointCaptured {
-                        control_point_id,
+                    @SectorCaptured {
+                        sector_id,
                         controller: caller,
                         capture_force: allocation,
-                        ownership_generation: point.ownership_generation,
+                        ownership_generation: sector.ownership_generation,
                     },
                 );
         }
@@ -832,81 +814,81 @@ pub mod control {
             caller: ContractAddress,
             ref operator: OperatorState,
             live_amount: u128,
-            control_point_id: u32,
+            sector_id: u32,
             additional_allocation: u128,
         ) {
             let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            self.assert_controller(point, caller, operator);
-            assert(point.active_challenge_id == 0, 'point challenged');
+            let mut sector: Sector = world.read_model(sector_id);
+            self.assert_controller(sector, caller, operator);
+            assert(sector.active_challenge_id == 0, 'sector challenged');
             assert(additional_allocation > 0, 'zero allocation');
             assert(
                 additional_allocation <= available_force(live_amount, operator),
                 'insufficient available force',
             );
-            operator.point_force += additional_allocation;
-            point.capture_force += additional_allocation;
-            world.write_model(@point);
+            operator.sector_force += additional_allocation;
+            sector.capture_force += additional_allocation;
+            world.write_model(@sector);
             world
                 .emit_event(
-                    @ControlPointReinforced {
-                        control_point_id,
+                    @SectorReinforced {
+                        sector_id,
                         controller: caller,
                         added_force: additional_allocation,
-                        capture_force: point.capture_force,
-                        ownership_generation: point.ownership_generation,
+                        capture_force: sector.capture_force,
+                        ownership_generation: sector.ownership_generation,
                     },
                 );
         }
 
         fn commit_challenge_force(
             ref self: ContractState,
-            control_point_id: u32,
+            sector_id: u32,
             committed_force: u128,
-            sacrificed_control_point_id: Option<u32>,
+            sacrificed_sector_id: Option<u32>,
         ) {
             let config = self.active_config();
-            self.assert_control_point_id(config, control_point_id);
+            self.assert_sector_id(config, sector_id);
             let caller = get_caller_address();
             let (mut operator, delegation, _) = self.refresh_operator(caller, config.staking_pool);
             self.assert_playable(ref operator);
             let mut world = self.world_default();
-            let mut point: ControlPoint = world.read_model(control_point_id);
-            assert(!point.controller.is_zero(), 'point neutral');
+            let mut sector: Sector = world.read_model(sector_id);
+            assert(!sector.controller.is_zero(), 'sector neutral');
 
-            if point.active_challenge_id == 0 {
+            if sector.active_challenge_id == 0 {
                 let (mut incumbent, _, _) = self
-                    .refresh_operator(point.controller, config.staking_pool);
-                self.assert_controller(point, point.controller, incumbent);
-                assert(caller != point.controller, 'already controller');
-                assert(committed_force > point.capture_force, 'challenge too weak');
+                    .refresh_operator(sector.controller, config.staking_pool);
+                self.assert_controller(sector, sector.controller, incumbent);
+                assert(caller != sector.controller, 'already controller');
+                assert(committed_force > sector.capture_force, 'challenge too weak');
                 assert(
-                    committed_force >= minimum_challenge_force(point.capture_force),
+                    committed_force >= minimum_challenge_force(sector.capture_force),
                     'challenge too weak',
                 );
                 let challenge_id = self.next_challenge_id();
                 self
                     .sacrifice_if_requested(
-                        ref operator, challenge_id, control_point_id, sacrificed_control_point_id,
+                        ref operator, challenge_id, sector_id, sacrificed_sector_id,
                     );
                 assert(
                     committed_force <= available_force(delegation.amount, operator),
                     'insufficient available force',
                 );
                 let deadline = get_block_timestamp() + config.challenge_period_seconds;
-                let defender_force_at_risk = point.capture_force;
+                let defender_force_at_risk = sector.capture_force;
                 incumbent.active_challenge_count += 1;
                 operator.challenge_force += committed_force;
                 operator.active_challenge_count += 1;
-                point.active_challenge_id = challenge_id;
+                sector.active_challenge_id = challenge_id;
                 let challenge = Challenge {
                     id: challenge_id,
-                    control_point_id,
-                    incumbent: point.controller,
+                    sector_id,
+                    incumbent: sector.controller,
                     leader: caller,
                     leader_generation: operator.generation,
                     leading_force: committed_force,
-                    last_loser: point.controller,
+                    last_loser: sector.controller,
                     last_losing_force: defender_force_at_risk,
                     deadline,
                     lead_change_count: 1,
@@ -919,9 +901,9 @@ pub mod control {
                 };
                 let incumbent_position = ChallengeParticipant {
                     challenge_id,
-                    operator: point.controller,
+                    operator: sector.controller,
                     committed_force: defender_force_at_risk,
-                    point_force_included: defender_force_at_risk,
+                    sector_force_included: defender_force_at_risk,
                     operator_generation: incumbent.generation,
                     joined: true,
                     resolved: false,
@@ -931,7 +913,7 @@ pub mod control {
                     challenge_id,
                     operator: caller,
                     committed_force,
-                    point_force_included: 0,
+                    sector_force_included: 0,
                     operator_generation: operator.generation,
                     joined: true,
                     resolved: false,
@@ -939,7 +921,7 @@ pub mod control {
                 };
                 world.write_model(@operator);
                 world.write_model(@incumbent);
-                world.write_model(@point);
+                world.write_model(@sector);
                 world.write_model(@challenge);
                 world.write_model(@incumbent_position);
                 world.write_model(@challenger_position);
@@ -947,8 +929,8 @@ pub mod control {
                     .emit_event(
                         @ChallengeInitiated {
                             challenge_id,
-                            control_point_id,
-                            incumbent: point.controller,
+                            sector_id,
+                            incumbent: sector.controller,
                             challenger: caller,
                             defender_force_at_risk,
                             committed_force,
@@ -958,7 +940,7 @@ pub mod control {
                 return;
             }
 
-            let mut challenge: Challenge = world.read_model(point.active_challenge_id);
+            let mut challenge: Challenge = world.read_model(sector.active_challenge_id);
             assert(!challenge.settled, 'challenge settled');
             assert(get_block_timestamp() < challenge.deadline, 'challenge ended');
             assert(caller != challenge.leader, 'already leading');
@@ -981,7 +963,7 @@ pub mod control {
             let added_force = committed_force - previous_commitment;
             self
                 .sacrifice_if_requested(
-                    ref operator, challenge.id, control_point_id, sacrificed_control_point_id,
+                    ref operator, challenge.id, sector_id, sacrificed_sector_id,
                 );
             assert(
                 added_force <= available_force(delegation.amount, operator),
@@ -996,7 +978,7 @@ pub mod control {
                 challenge.participant_count += 1;
                 participant.challenge_id = challenge.id;
                 participant.operator = caller;
-                participant.point_force_included = 0;
+                participant.sector_force_included = 0;
                 participant.operator_generation = operator.generation;
                 participant.joined = true;
                 participant.resolved = false;
@@ -1017,7 +999,7 @@ pub mod control {
                 .emit_event(
                     @ChallengeEscalated {
                         challenge_id: challenge.id,
-                        control_point_id,
+                        sector_id,
                         challenger: caller,
                         committed_force,
                         added_force,
@@ -1032,27 +1014,27 @@ pub mod control {
             ref self: ContractState,
             ref operator: OperatorState,
             challenge_id: u64,
-            target_control_point_id: u32,
-            sacrificed_control_point_id: Option<u32>,
+            target_sector_id: u32,
+            sacrificed_sector_id: Option<u32>,
         ) {
-            match sacrificed_control_point_id {
+            match sacrificed_sector_id {
                 Option::Some(source_id) => {
                     let config = self.active_config();
-                    self.assert_control_point_id(config, source_id);
-                    assert(source_id != target_control_point_id, 'target as sacrifice');
+                    self.assert_sector_id(config, source_id);
+                    assert(source_id != target_sector_id, 'target as sacrifice');
                     let mut world = self.world_default();
-                    let mut source: ControlPoint = world.read_model(source_id);
+                    let mut source: Sector = world.read_model(source_id);
                     self.assert_controller(source, operator.operator, operator);
                     assert(source.active_challenge_id == 0, 'sacrifice challenged');
                     let force = source.capture_force;
-                    self.release_point(ref operator, ref source);
+                    self.release_sector(ref operator, ref source);
                     world.write_model(@source);
                     world
                         .emit_event(
-                            @ControlPointSacrificed {
+                            @SectorSacrificed {
                                 challenge_id,
                                 operator: operator.operator,
-                                control_point_id: source_id,
+                                sector_id: source_id,
                                 force,
                             },
                         );
@@ -1075,20 +1057,20 @@ pub mod control {
             }
 
             let lost_force = participant.committed_force;
-            let additional_force = lost_force - participant.point_force_included;
+            let additional_force = lost_force - participant.sector_force_included;
             let (mut operator, _, _) = self.refresh_operator(operator_address, config.staking_pool);
             if valid_challenge_operator(operator, participant.operator_generation) {
                 assert(operator.challenge_force >= additional_force, 'challenge force invariant');
                 assert(operator.active_challenge_count > 0, 'challenge count invariant');
                 operator.challenge_force -= additional_force;
-                if participant.point_force_included > 0 {
+                if participant.sector_force_included > 0 {
                     assert(
-                        operator.point_force >= participant.point_force_included,
-                        'point force invariant',
+                        operator.sector_force >= participant.sector_force_included,
+                        'sector force invariant',
                     );
-                    assert(operator.controlled_point_count > 0, 'point count invariant');
-                    operator.point_force -= participant.point_force_included;
-                    operator.controlled_point_count -= 1;
+                    assert(operator.controlled_sector_count > 0, 'sector count invariant');
+                    operator.sector_force -= participant.sector_force_included;
+                    operator.controlled_sector_count -= 1;
                 }
                 operator.spent_force += lost_force;
                 operator.active_challenge_count -= 1;
@@ -1102,22 +1084,20 @@ pub mod control {
                     @ChallengePositionResolved {
                         challenge_id: challenge.id,
                         operator: operator_address,
-                        control_point_id: challenge.control_point_id,
+                        sector_id: challenge.sector_id,
                         lost_force,
                     },
                 );
             lost_force
         }
 
-        fn release_point(
-            self: @ContractState, ref operator: OperatorState, ref point: ControlPoint,
-        ) {
-            let released_force = point.capture_force;
-            assert(operator.controlled_point_count > 0, 'point count invariant');
-            assert(operator.point_force >= released_force, 'point force invariant');
-            operator.point_force -= released_force;
-            operator.controlled_point_count -= 1;
-            clear_point(ref point);
+        fn release_sector(self: @ContractState, ref operator: OperatorState, ref sector: Sector) {
+            let released_force = sector.capture_force;
+            assert(operator.controlled_sector_count > 0, 'sector count invariant');
+            assert(operator.sector_force >= released_force, 'sector force invariant');
+            operator.sector_force -= released_force;
+            operator.controlled_sector_count -= 1;
+            clear_sector(ref sector);
         }
 
         fn next_challenge_id(ref self: ContractState) -> u64 {
@@ -1137,7 +1117,7 @@ pub mod control {
             }
             let previous_generation = operator.generation;
             let invalidated_force = total_obligations(operator);
-            let released_point_count = operator.controlled_point_count;
+            let released_sector_count = operator.controlled_sector_count;
             if operator.generation == 0 {
                 operator.generation = 1;
             }
@@ -1150,17 +1130,17 @@ pub mod control {
                         previous_generation,
                         new_generation: operator.generation,
                         invalidated_force,
-                        released_point_count,
+                        released_sector_count,
                     },
                 );
         }
 
         fn retire_state(self: @ContractState, ref operator: OperatorState) {
             operator.generation += 1;
-            operator.point_force = 0;
+            operator.sector_force = 0;
             operator.challenge_force = 0;
             operator.spent_force = 0;
-            operator.controlled_point_count = 0;
+            operator.controlled_sector_count = 0;
             operator.active_challenge_count = 0;
             operator.retired = true;
         }
@@ -1171,7 +1151,7 @@ pub mod control {
     }
 
     fn total_obligations(operator: OperatorState) -> u128 {
-        operator.point_force + operator.challenge_force + operator.spent_force
+        operator.sector_force + operator.challenge_force + operator.spent_force
     }
 
     fn available_force(live_amount: u128, operator: OperatorState) -> u128 {
@@ -1211,13 +1191,13 @@ pub mod control {
         }
     }
 
-    fn clear_point(ref point: ControlPoint) {
-        point.controller = zero_address();
-        point.controller_generation = 0;
-        point.capture_force = 0;
-        point.ownership_generation += 1;
-        point.controlled_since = 0;
-        point.active_challenge_id = 0;
+    fn clear_sector(ref sector: Sector) {
+        sector.controller = zero_address();
+        sector.controller_generation = 0;
+        sector.capture_force = 0;
+        sector.ownership_generation += 1;
+        sector.controlled_since = 0;
+        sector.active_challenge_id = 0;
     }
 
     fn zero_address() -> ContractAddress {

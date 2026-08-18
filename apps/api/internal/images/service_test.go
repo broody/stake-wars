@@ -15,13 +15,13 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
-func TestAuthorizeAndPublishControlPointImage(t *testing.T) {
+func TestAuthorizeAndPublishSectorImage(t *testing.T) {
 	service, objects, control := testService(t, true)
 	detail := encodedPNG(t, 512)
 	thumbnail := encodedPNG(t, 256)
 
 	authorization, err := service.Authorize(context.Background(), "0xabc", AuthorizeInput{
-		Targets:   []Target{{ControlPointID: 42, OwnershipGeneration: 7}, {ControlPointID: 43, OwnershipGeneration: 8}},
+		Targets:   []Target{{SectorID: 42, OwnershipGeneration: 7}, {SectorID: 43, OwnershipGeneration: 8}},
 		Placement: testPlacement(), ContentType: "image/png",
 		DetailSize: int64(len(detail)), ThumbnailSize: int64(len(thumbnail)),
 	})
@@ -38,7 +38,7 @@ func TestAuthorizeAndPublishControlPointImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(published.Targets) != 2 || published.Targets[0].ControlPointID != 42 ||
+	if len(published.Targets) != 2 || published.Targets[0].SectorID != 42 ||
 		published.ImageURL == "" || published.ThumbnailURL == "" {
 		t.Fatalf("unexpected published image: %+v", published)
 	}
@@ -57,7 +57,7 @@ func TestAuthorizeAndPublishControlPointImage(t *testing.T) {
 func TestAuthorizeRejectsNonOwner(t *testing.T) {
 	service, _, _ := testService(t, false)
 	_, err := service.Authorize(context.Background(), "0xdef", AuthorizeInput{
-		Targets: []Target{{ControlPointID: 4, OwnershipGeneration: 1}}, Placement: testPlacement(), ContentType: "image/webp",
+		Targets: []Target{{SectorID: 4, OwnershipGeneration: 1}}, Placement: testPlacement(), ContentType: "image/webp",
 		DetailSize: 100, ThumbnailSize: 50,
 	})
 	if err != ErrForbidden {
@@ -70,7 +70,7 @@ func TestCompleteRejectsMismatchedImageSignature(t *testing.T) {
 	detail := encodedPNG(t, 512)
 	thumbnail := encodedPNG(t, 256)
 	authorization, err := service.Authorize(context.Background(), "0xabc", AuthorizeInput{
-		Targets: []Target{{ControlPointID: 2, OwnershipGeneration: 1}}, Placement: testPlacement(), ContentType: "image/webp",
+		Targets: []Target{{SectorID: 2, OwnershipGeneration: 1}}, Placement: testPlacement(), ContentType: "image/webp",
 		DetailSize: int64(len(detail)), ThumbnailSize: int64(len(thumbnail)),
 	})
 	if err != nil {
@@ -133,8 +133,8 @@ type fakeControlReader struct {
 	checks  int
 }
 
-func (*fakeControlReader) ControlPointStatus(context.Context, uint32) (starknet.ControlPointStatus, error) {
-	return starknet.ControlPointStatus{}, nil
+func (*fakeControlReader) SectorStatus(context.Context, uint32) (starknet.SectorStatus, error) {
+	return starknet.SectorStatus{}, nil
 }
 
 func (*fakeControlReader) OperatorStatus(context.Context, string) (starknet.OperatorStatus, error) {

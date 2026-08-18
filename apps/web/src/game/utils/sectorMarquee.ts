@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import {
-  CONTROL_POINT_COUNT,
-  extractControlPointPositions,
-} from './controlPointGeometry';
+import { SECTOR_COUNT, extractSectorPositions } from './sectorGeometry';
 
 export interface ScreenBounds {
   left: number;
@@ -16,9 +13,9 @@ interface ScreenPoint {
   y: number;
 }
 
-const VALUES_PER_CONTROL_POINT = 9;
-const ALL_CONTROL_POINT_POSITIONS = extractControlPointPositions(
-  Array.from({ length: CONTROL_POINT_COUNT }, (_, id) => id)
+const VALUES_PER_SECTOR = 9;
+const ALL_SECTOR_POSITIONS = extractSectorPositions(
+  Array.from({ length: SECTOR_COUNT }, (_, id) => id)
 );
 
 function pointIsInBounds(point: ScreenPoint, bounds: ScreenBounds): boolean {
@@ -128,35 +125,31 @@ function triangleIntersectsBounds(
   });
 }
 
-export function getControlPointIdsInScreenBounds(
+export function getSectorIdsInScreenBounds(
   camera: THREE.Camera,
   viewport: { width: number; height: number },
   bounds: ScreenBounds,
-  excludedControlPointIds?: ReadonlySet<number>
+  excludedSectorIds?: ReadonlySet<number>
 ): number[] {
   camera.updateMatrixWorld(true);
-  const selectedControlPointIds: number[] = [];
+  const selectedSectorIds: number[] = [];
   const worldVertex = new THREE.Vector3();
   const centroid = new THREE.Vector3();
   const toCamera = new THREE.Vector3();
 
-  for (
-    let controlPointId = 0;
-    controlPointId < CONTROL_POINT_COUNT;
-    controlPointId += 1
-  ) {
-    if (excludedControlPointIds?.has(controlPointId)) continue;
+  for (let sectorId = 0; sectorId < SECTOR_COUNT; sectorId += 1) {
+    if (excludedSectorIds?.has(sectorId)) continue;
 
-    const offset = controlPointId * VALUES_PER_CONTROL_POINT;
+    const offset = sectorId * VALUES_PER_SECTOR;
     centroid.set(0, 0, 0);
     const triangle: ScreenPoint[] = [];
 
     for (let vertex = 0; vertex < 3; vertex += 1) {
       const vertexOffset = offset + vertex * 3;
       worldVertex.set(
-        ALL_CONTROL_POINT_POSITIONS[vertexOffset],
-        ALL_CONTROL_POINT_POSITIONS[vertexOffset + 1],
-        ALL_CONTROL_POINT_POSITIONS[vertexOffset + 2]
+        ALL_SECTOR_POSITIONS[vertexOffset],
+        ALL_SECTOR_POSITIONS[vertexOffset + 1],
+        ALL_SECTOR_POSITIONS[vertexOffset + 2]
       );
       centroid.add(worldVertex);
 
@@ -171,14 +164,14 @@ export function getControlPointIdsInScreenBounds(
     toCamera.copy(camera.position).sub(centroid);
 
     // The Core is convex, so a face is visible when its outward radial normal
-    // points toward the camera. This prevents selecting points on the far side.
+    // points toward the camera. This prevents selecting sectors on the far side.
     if (
       centroid.dot(toCamera) > 0 &&
       triangleIntersectsBounds(triangle, bounds)
     ) {
-      selectedControlPointIds.push(controlPointId);
+      selectedSectorIds.push(sectorId);
     }
   }
 
-  return selectedControlPointIds;
+  return selectedSectorIds;
 }

@@ -1,8 +1,8 @@
 [world]
-name = "StakeWars (Sepolia v3)"
-description = "StakeWars core territory-control world on Starknet Sepolia"
+name = "StakeWars (Sepolia Sectors v4)"
+description = "StakeWars core sector-control world on Starknet Sepolia"
 website = "https://stakewars.gg"
-seed = "stakewars-sepolia-force-v3"
+seed = "stakewars-sepolia-sectors-v4"
 # Initialize GameConfig.minimum_stake with 100000000000000000 (0.1 STRK).
 # Initialize GameConfig.challenge_period_seconds with 180 (3 minutes).
 
@@ -19,7 +19,7 @@ account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a
 [writers]
 "stakewars-GameConfig" = ["stakewars-admin"]
 "stakewars-OperatorState" = ["stakewars-control"]
-"stakewars-ControlPoint" = ["stakewars-control"]
+"stakewars-Sector" = ["stakewars-control"]
 "stakewars-ChallengeCounter" = ["stakewars-control"]
 "stakewars-Challenge" = ["stakewars-control"]
 "stakewars-ChallengeParticipant" = ["stakewars-control"]
@@ -28,12 +28,12 @@ account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a
 "stakewars-RulesChanged" = ["stakewars-admin"]
 "stakewars-StakingPoolChanged" = ["stakewars-admin"]
 "stakewars-AdminTransferred" = ["stakewars-admin"]
-"stakewars-ControlPointCaptured" = ["stakewars-control"]
-"stakewars-ControlPointReinforced" = ["stakewars-control"]
-"stakewars-ControlPointReleased" = ["stakewars-control"]
+"stakewars-SectorCaptured" = ["stakewars-control"]
+"stakewars-SectorReinforced" = ["stakewars-control"]
+"stakewars-SectorReleased" = ["stakewars-control"]
 "stakewars-ChallengeInitiated" = ["stakewars-control"]
 "stakewars-ChallengeEscalated" = ["stakewars-control"]
-"stakewars-ControlPointSacrificed" = ["stakewars-control"]
+"stakewars-SectorSacrificed" = ["stakewars-control"]
 "stakewars-ChallengeSettled" = ["stakewars-control"]
 "stakewars-ChallengePositionResolved" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]

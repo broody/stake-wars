@@ -4,8 +4,8 @@ import { config } from './config';
 import type {
   ArtData,
   ArtworkPlacement,
-  ControlPointArtwork,
-  ControlPointArtworkTarget,
+  SectorArtwork,
+  SectorArtworkTarget,
 } from '../types';
 
 export interface StakeWarsApiConfig {
@@ -16,7 +16,7 @@ export interface StakeWarsApiConfig {
   supportedImageTypes: string[];
 }
 
-export interface PreparedControlPointImage {
+export interface PreparedSectorImage {
   contentType: string;
   detail: Blob;
   thumbnail: Blob;
@@ -120,17 +120,15 @@ export const api = {
     return requestJSON('/v1/config', { signal });
   },
 
-  async getControlPointArtworks(
-    signal?: AbortSignal
-  ): Promise<ControlPointArtwork[]> {
-    const response = await requestJSON<{ artworks: ControlPointArtwork[] }>(
-      '/v1/control-point-artworks',
+  async getSectorArtworks(signal?: AbortSignal): Promise<SectorArtwork[]> {
+    const response = await requestJSON<{ artworks: SectorArtwork[] }>(
+      '/v1/sector-artworks',
       { signal }
     );
     return response.artworks;
   },
 
-  async uploadControlPointArtwork({
+  async uploadSectorArtwork({
     walletAddress,
     targets,
     placement,
@@ -138,26 +136,24 @@ export const api = {
     signTypedData,
   }: {
     walletAddress: string;
-    targets: Array<{ controlPointId: number; ownershipGeneration: bigint }>;
+    targets: Array<{ sectorId: number; ownershipGeneration: bigint }>;
     placement: ArtworkPlacement;
-    prepared: PreparedControlPointImage;
+    prepared: PreparedSectorImage;
     signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
-  }): Promise<ControlPointArtwork> {
-    const numericTargets: ControlPointArtworkTarget[] = targets.map(
-      (target) => {
-        const ownershipGeneration = Number(target.ownershipGeneration);
-        if (
-          !Number.isSafeInteger(ownershipGeneration) ||
-          ownershipGeneration < 1
-        ) {
-          throw new Error('Control Point ownership generation is invalid.');
-        }
-        return { controlPointId: target.controlPointId, ownershipGeneration };
+  }): Promise<SectorArtwork> {
+    const numericTargets: SectorArtworkTarget[] = targets.map((target) => {
+      const ownershipGeneration = Number(target.ownershipGeneration);
+      if (
+        !Number.isSafeInteger(ownershipGeneration) ||
+        ownershipGeneration < 1
+      ) {
+        throw new Error('Sector ownership generation is invalid.');
       }
-    );
+      return { sectorId: target.sectorId, ownershipGeneration };
+    });
     const session = await imageSession(walletAddress, signTypedData);
     const authorization = await requestJSON<ImageUploadAuthorization>(
-      '/v1/control-point-artworks/uploads',
+      '/v1/sector-artworks/uploads',
       jsonRequest(
         {
           targets: numericTargets,
@@ -173,8 +169,8 @@ export const api = {
       putObject(authorization.detail, prepared.detail),
       putObject(authorization.thumbnail, prepared.thumbnail),
     ]);
-    return requestJSON<ControlPointArtwork>(
-      `/v1/control-point-artworks/uploads/${encodeURIComponent(
+    return requestJSON<SectorArtwork>(
+      `/v1/sector-artworks/uploads/${encodeURIComponent(
         authorization.uploadId
       )}/complete`,
       jsonRequest({}, session.token)

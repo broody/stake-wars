@@ -1,5 +1,5 @@
 import type { Call } from 'starknet';
-import { MAX_CONTROL_ACTION_BATCH } from './controlPointLimits';
+import { MAX_CONTROL_ACTION_BATCH } from './sectorLimits';
 
 interface SmartGameActionCallsOptions {
   controlSystemAddress: string;
@@ -96,21 +96,19 @@ export function buildSmartBatchGameActionCalls({
   isPoolMember,
 }: SmartBatchGameActionCallsOptions): Call[] {
   if (actions.length === 0) {
-    throw new RangeError('At least one Control Point action is required');
+    throw new RangeError('At least one Sector action is required');
   }
   if (actions.length > MAX_CONTROL_ACTION_BATCH) {
     throw new RangeError(
-      `At most ${MAX_CONTROL_ACTION_BATCH} Control Point actions are allowed`
+      `At most ${MAX_CONTROL_ACTION_BATCH} Sector actions are allowed`
     );
   }
   const entrypoint = actions[0].entrypoint;
   if (actions.some((action) => action.entrypoint !== entrypoint)) {
-    throw new RangeError('Batch Control Point actions must have the same type');
+    throw new RangeError('Batch Sector actions must have the same type');
   }
   if (actions.some((action) => action.calldata.length !== 2)) {
-    throw new RangeError(
-      'Batch Control Point actions require two calldata values'
-    );
+    throw new RangeError('Batch Sector actions require two calldata values');
   }
 
   const actionCalls: Call[] = [

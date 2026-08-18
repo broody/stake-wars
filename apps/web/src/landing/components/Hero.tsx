@@ -5,9 +5,7 @@ export const Hero = () => {
         That's No Moon.
       </h1>
       <h2 className="font-mono text-[clamp(0.8rem,1.5vw,1.2rem)] mt-5 mb-10 text-[#aaa] tracking-wider text-left md:text-center">
-        <span className="block md:inline">
-          /// TARGET: 2,000 CONTROL POINTS
-        </span>
+        <span className="block md:inline">/// TARGET: 2,000 SECTORS</span>
         <span className="hidden md:inline"> &nbsp; </span>
         <span className="block md:inline">/// OBJECTIVE: HIGH GROUND</span>
         <span className="hidden md:inline"> &nbsp; </span>

@@ -1,4 +1,4 @@
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import type { CoreMode } from '../../types';
 
@@ -37,7 +37,7 @@ function ModeButton({
 
 export function CoreModeSwitch() {
   const { address } = useWallet();
-  const { mode, changeMode } = useControlPoints();
+  const { mode, changeMode } = useSectors();
 
   return (
     <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2 font-mono">

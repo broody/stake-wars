@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { getControlPointIdsInScreenBounds } from './controlPointMarquee';
+import { getSectorIdsInScreenBounds } from './sectorMarquee';
 
 function createCamera() {
   const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 100);
@@ -9,9 +9,9 @@ function createCamera() {
   return camera;
 }
 
-describe('Control Point marquee selection', () => {
-  it('selects visible Control Points that overlap the bounding box', () => {
-    const selected = getControlPointIdsInScreenBounds(
+describe('Sector marquee selection', () => {
+  it('selects visible Sectors that overlap the bounding box', () => {
+    const selected = getSectorIdsInScreenBounds(
       createCamera(),
       { width: 1_000, height: 1_000 },
       { left: 450, top: 450, right: 550, bottom: 550 }
@@ -21,8 +21,8 @@ describe('Control Point marquee selection', () => {
     expect(selected.length).toBeLessThan(100);
   });
 
-  it('does not select Control Points on the hidden side of the Core', () => {
-    const selected = getControlPointIdsInScreenBounds(
+  it('does not select Sectors on the hidden side of the Core', () => {
+    const selected = getSectorIdsInScreenBounds(
       createCamera(),
       { width: 1_000, height: 1_000 },
       { left: 0, top: 0, right: 1_000, bottom: 1_000 }
@@ -32,8 +32,8 @@ describe('Control Point marquee selection', () => {
     expect(selected.length).toBeLessThan(1_000);
   });
 
-  it('returns no points for a box outside the viewport', () => {
-    const selected = getControlPointIdsInScreenBounds(
+  it('returns no sectors for a box outside the viewport', () => {
+    const selected = getSectorIdsInScreenBounds(
       createCamera(),
       { width: 1_000, height: 1_000 },
       { left: -200, top: -200, right: -100, bottom: -100 }
@@ -42,17 +42,17 @@ describe('Control Point marquee selection', () => {
     expect(selected).toEqual([]);
   });
 
-  it('excludes Control Points that are not eligible for marquee selection', () => {
+  it('excludes Sectors that are not eligible for marquee selection', () => {
     const viewport = { width: 1_000, height: 1_000 };
     const bounds = { left: 450, top: 450, right: 550, bottom: 550 };
-    const allVisible = getControlPointIdsInScreenBounds(
+    const allVisible = getSectorIdsInScreenBounds(
       createCamera(),
       viewport,
       bounds
     );
     const excluded = new Set(allVisible.slice(0, 3));
 
-    const selected = getControlPointIdsInScreenBounds(
+    const selected = getSectorIdsInScreenBounds(
       createCamera(),
       viewport,
       bounds,
@@ -60,7 +60,7 @@ describe('Control Point marquee selection', () => {
     );
 
     expect(selected).toEqual(
-      allVisible.filter((controlPointId) => !excluded.has(controlPointId))
+      allVisible.filter((sectorId) => !excluded.has(sectorId))
     );
   });
 });

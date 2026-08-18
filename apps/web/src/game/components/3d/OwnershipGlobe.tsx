@@ -3,19 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
-import {
-  createControlPointGeometry,
-  isControlPointId,
-} from '../../utils/controlPointGeometry';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
+import { createSectorGeometry, isSectorId } from '../../utils/sectorGeometry';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import {
   stakeReliefHeight,
   type OwnershipScenario,
 } from '../../utils/ownershipScenarios';
-import {
-  ControlPointContestLayer,
-  ControlPointOwnershipLayers,
-} from './Planet';
+import { SectorContestLayer, SectorOwnershipLayers } from './Planet';
 import {
   ExampleDetailImageLayer,
   ExampleImageLayer,
@@ -64,102 +58,102 @@ function OwnershipSphere({
   markedOwner,
   reliefMode,
   logarithmicScale,
-  imageControlPointIds,
-  selectedDetailControlPointId,
-  onHoverControlPoint,
-  onSelectControlPoint,
+  imageSectorIds,
+  selectedDetailSectorId,
+  onHoverSector,
+  onSelectSector,
 }: {
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
-  imageControlPointIds: readonly number[];
-  selectedDetailControlPointId: number | null;
-  onHoverControlPoint: (controlPointId: number | null) => void;
-  onSelectControlPoint: (controlPointId: number, owner: number) => void;
+  imageSectorIds: readonly number[];
+  selectedDetailSectorId: number | null;
+  onHoverSector: (sectorId: number | null) => void;
+  onSelectSector: (sectorId: number, owner: number) => void;
 }) {
   const { camera } = useThree();
-  const [hoveredDetailControlPointId, setHoveredDetailControlPointId] =
-    useState<number | null>(null);
-  const geometry = useMemo(() => createControlPointGeometry(), []);
-  const imageControlPointIdSet = useMemo(
-    () => new Set(imageControlPointIds),
-    [imageControlPointIds]
+  const [hoveredDetailSectorId, setHoveredDetailSectorId] = useState<
+    number | null
+  >(null);
+  const geometry = useMemo(() => createSectorGeometry(), []);
+  const imageSectorIdSet = useMemo(
+    () => new Set(imageSectorIds),
+    [imageSectorIds]
   );
-  const controlPointOwnerGroups = useMemo(
-    () => scenario.controlPointIdsByOwner.map((ids) => [...ids]),
+  const sectorOwnerGroups = useMemo(
+    () => scenario.sectorIdsByOwner.map((ids) => [...ids]),
     [scenario]
   );
-  const ownedControlPointIds =
-    controlPointOwnerGroups[markedOwner] ?? controlPointOwnerGroups[0] ?? [];
-  const opponentControlPointIds = useMemo(
+  const ownedSectorIds =
+    sectorOwnerGroups[markedOwner] ?? sectorOwnerGroups[0] ?? [];
+  const opponentSectorIds = useMemo(
     () =>
-      controlPointOwnerGroups.flatMap((controlPointIds, owner) =>
-        owner === markedOwner ? [] : controlPointIds
+      sectorOwnerGroups.flatMap((sectorIds, owner) =>
+        owner === markedOwner ? [] : sectorIds
       ),
-    [controlPointOwnerGroups, markedOwner]
+    [sectorOwnerGroups, markedOwner]
   );
-  const controlPointHeights = useMemo(() => {
+  const sectorHeights = useMemo(() => {
     const heights = new Map<number, number>();
     if (reliefMode === 'flat') return heights;
 
-    controlPointOwnerGroups.forEach((controlPointIds, owner) => {
+    sectorOwnerGroups.forEach((sectorIds, owner) => {
       const height = stakeReliefHeight(
         scenario.stakedStrkByOwner[owner] ?? 0,
         logarithmicScale
       );
-      controlPointIds.forEach((controlPointId) => {
-        heights.set(controlPointId, height);
+      sectorIds.forEach((sectorId) => {
+        heights.set(sectorId, height);
       });
     });
     return heights;
-  }, [controlPointOwnerGroups, logarithmicScale, reliefMode, scenario]);
-  const contestedControlPointIds = useMemo(
-    () => [...scenario.contestedControlPointIds],
+  }, [sectorOwnerGroups, logarithmicScale, reliefMode, scenario]);
+  const contestedSectorIds = useMemo(
+    () => [...scenario.contestedSectorIds],
     [scenario]
   );
-  const detailControlPointId =
-    selectedDetailControlPointId !== null &&
-    imageControlPointIdSet.has(selectedDetailControlPointId)
-      ? selectedDetailControlPointId
-      : hoveredDetailControlPointId;
+  const detailSectorId =
+    selectedDetailSectorId !== null &&
+    imageSectorIdSet.has(selectedDetailSectorId)
+      ? selectedDetailSectorId
+      : hoveredDetailSectorId;
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  const controlPointIdFromEvent = (
+  const sectorIdFromEvent = (
     event: ThreeEvent<PointerEvent | MouseEvent>
   ): number | null => {
-    const controlPointId = event.faceIndex;
-    return typeof controlPointId === 'number' &&
-      isControlPointId(controlPointId)
-      ? controlPointId
+    const sectorId = event.faceIndex;
+    return typeof sectorId === 'number' && isSectorId(sectorId)
+      ? sectorId
       : null;
   };
 
-  const handleHoverControlPoint = (
-    controlPointId: number,
+  const handleHoverSector = (
+    sectorId: number,
     event: ThreeEvent<PointerEvent>
   ) => {
     event.stopPropagation();
-    onHoverControlPoint(controlPointId);
-    const nextDetailControlPointId =
-      imageControlPointIdSet.has(controlPointId) &&
+    onHoverSector(sectorId);
+    const nextDetailSectorId =
+      imageSectorIdSet.has(sectorId) &&
       camera.position.length() <= DETAIL_HOVER_CAMERA_DISTANCE
-        ? controlPointId
+        ? sectorId
         : null;
-    setHoveredDetailControlPointId((current) =>
-      current === nextDetailControlPointId ? current : nextDetailControlPointId
+    setHoveredDetailSectorId((current) =>
+      current === nextDetailSectorId ? current : nextDetailSectorId
     );
   };
 
-  const handleClickControlPoint = (
-    controlPointId: number,
+  const handleClickSector = (
+    sectorId: number,
     event: ThreeEvent<MouseEvent>
   ) => {
     event.stopPropagation();
     if (event.delta > DRAG_SELECTION_THRESHOLD_PX) return;
-    const owner = scenario.ownerByControlPoint[controlPointId];
-    onSelectControlPoint(controlPointId, owner);
+    const owner = scenario.ownerBySector[sectorId];
+    onSelectSector(sectorId, owner);
   };
 
   return (
@@ -167,31 +161,31 @@ function OwnershipSphere({
       <mesh
         geometry={geometry}
         onPointerMove={(event) => {
-          const controlPointId = controlPointIdFromEvent(event);
-          if (controlPointId !== null) {
-            handleHoverControlPoint(controlPointId, event);
+          const sectorId = sectorIdFromEvent(event);
+          if (sectorId !== null) {
+            handleHoverSector(sectorId, event);
           }
         }}
         onPointerOut={() => {
-          onHoverControlPoint(null);
-          setHoveredDetailControlPointId(null);
+          onHoverSector(null);
+          setHoveredDetailSectorId(null);
         }}
         onClick={(event) => {
-          const controlPointId = controlPointIdFromEvent(event);
-          if (controlPointId !== null) {
-            handleClickControlPoint(controlPointId, event);
+          const sectorId = sectorIdFromEvent(event);
+          if (sectorId !== null) {
+            handleClickSector(sectorId, event);
           }
         }}
       >
         <meshBasicMaterial
-          color={CONTROL_POINT_COLORS.neutral}
+          color={SECTOR_COLORS.neutral}
           side={THREE.DoubleSide}
         />
       </mesh>
 
       <mesh geometry={geometry} scale={1.002} raycast={() => undefined}>
         <meshBasicMaterial
-          color={CONTROL_POINT_COLORS.neutralGrid}
+          color={SECTOR_COLORS.neutralGrid}
           wireframe
           side={THREE.DoubleSide}
           transparent
@@ -199,35 +193,32 @@ function OwnershipSphere({
         />
       </mesh>
 
-      <ControlPointOwnershipLayers
-        ownedControlPointIds={ownedControlPointIds}
-        opponentControlPointIds={opponentControlPointIds}
-        controlPointOwnerGroups={controlPointOwnerGroups}
-        controlPointHeights={controlPointHeights}
-        onClickControlPoint={handleClickControlPoint}
-        onHoverControlPoint={handleHoverControlPoint}
+      <SectorOwnershipLayers
+        ownedSectorIds={ownedSectorIds}
+        opponentSectorIds={opponentSectorIds}
+        sectorOwnerGroups={sectorOwnerGroups}
+        sectorHeights={sectorHeights}
+        onClickSector={handleClickSector}
+        onHoverSector={handleHoverSector}
         onPointerOut={() => {
-          onHoverControlPoint(null);
-          setHoveredDetailControlPointId(null);
+          onHoverSector(null);
+          setHoveredDetailSectorId(null);
         }}
       />
 
-      <ExampleImageLayer
-        controlPointIds={imageControlPointIds}
-        heights={controlPointHeights}
-      />
+      <ExampleImageLayer sectorIds={imageSectorIds} heights={sectorHeights} />
 
-      {detailControlPointId === null ? null : (
+      {detailSectorId === null ? null : (
         <ExampleDetailImageLayer
-          controlPointId={detailControlPointId}
-          heights={controlPointHeights}
+          sectorId={detailSectorId}
+          heights={sectorHeights}
         />
       )}
 
-      <ControlPointContestLayer
-        controlPointIds={contestedControlPointIds}
-        heights={controlPointHeights}
-        color={CONTROL_POINT_COLORS.contested}
+      <SectorContestLayer
+        sectorIds={contestedSectorIds}
+        heights={sectorHeights}
+        color={SECTOR_COLORS.contested}
       />
     </group>
   );
@@ -238,21 +229,21 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
   markedOwner,
   reliefMode,
   logarithmicScale,
-  imageControlPointIds,
-  selectedDetailControlPointId,
+  imageSectorIds,
+  selectedDetailSectorId,
   onPerformanceSample,
-  onHoverControlPoint,
-  onSelectControlPoint,
+  onHoverSector,
+  onSelectSector,
 }: {
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
-  imageControlPointIds: readonly number[];
-  selectedDetailControlPointId: number | null;
+  imageSectorIds: readonly number[];
+  selectedDetailSectorId: number | null;
   onPerformanceSample: (metrics: GlobePerformanceMetrics) => void;
-  onHoverControlPoint: (controlPointId: number | null) => void;
-  onSelectControlPoint: (controlPointId: number, owner: number) => void;
+  onHoverSector: (sectorId: number | null) => void;
+  onSelectSector: (sectorId: number, owner: number) => void;
 }) {
   const validMarkedOwner =
     markedOwner >= 0 && markedOwner < scenario.ownerCount ? markedOwner : 0;
@@ -261,7 +252,7 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
     <div
       className="h-full min-h-[320px] w-full"
       role="img"
-      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedControlPointIds.length} unoccupied Control Points, ${scenario.contestedControlPointIds.length} contested, ${imageControlPointIds.length} example images, and ${reliefMode === 'stake' ? `stake-based ${logarithmicScale ? 'logarithmic' : 'linear'} relief` : 'flat relief'}`}
+      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedSectorIds.length} unoccupied Sectors, ${scenario.contestedSectorIds.length} contested, ${imageSectorIds.length} example images, and ${reliefMode === 'stake' ? `stake-based ${logarithmicScale ? 'logarithmic' : 'linear'} relief` : 'flat relief'}`}
     >
       <Canvas
         camera={{ position: [0, 0, 13], fov: 48 }}
@@ -274,10 +265,10 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
           logarithmicScale={logarithmicScale}
-          imageControlPointIds={imageControlPointIds}
-          selectedDetailControlPointId={selectedDetailControlPointId}
-          onHoverControlPoint={onHoverControlPoint}
-          onSelectControlPoint={onSelectControlPoint}
+          imageSectorIds={imageSectorIds}
+          selectedDetailSectorId={selectedDetailSectorId}
+          onHoverSector={onHoverSector}
+          onSelectSector={onSelectSector}
         />
         <PerformanceProbe onSample={onPerformanceSample} />
         <ArcballControls minDistance={8} maxDistance={18} enablePan={false} />

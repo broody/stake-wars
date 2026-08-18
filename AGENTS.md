@@ -143,7 +143,7 @@ verified:
   objects may remain unreferenced and can be cleaned up only by a separate,
   explicit request. Never touch a database-backup bucket.
 - Clear the matching rows from `image_reports`,
-  `control_point_artwork_targets`, `control_point_artworks`,
+  `sector_artwork_targets`, `sector_artworks`,
   `image_upload_targets`, and `image_uploads` in one short transaction. Do not
   delete the API SQLite database, authentication/session data, Fly Volume, or
   unrelated application records.

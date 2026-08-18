@@ -1,4 +1,4 @@
-import { adjacentControlPointIds } from './controlPointGeometry';
+import { adjacentSectorIds } from './sectorGeometry';
 
 export const MAX_TENURE_DAYS = 365;
 export const MAX_TENURE_EXTRUSION = 0.75;
@@ -9,7 +9,7 @@ const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;
 const DAYS_PER_MONTH = 30;
 const DAYS_PER_YEAR = 365;
 
-export function controlPointTenureSeconds(
+export function sectorTenureSeconds(
   controlledSince: number | null,
   nowSeconds = Date.now() / 1_000
 ): number | null {
@@ -28,7 +28,7 @@ export function tenureExtrusionHeight(
   controlledSince: number | null,
   nowSeconds = Date.now() / 1_000
 ): number {
-  const ageSeconds = controlPointTenureSeconds(controlledSince, nowSeconds);
+  const ageSeconds = sectorTenureSeconds(controlledSince, nowSeconds);
   if (ageSeconds === null) return 0;
 
   const ageDays = Math.min(ageSeconds / SECONDS_PER_DAY, MAX_TENURE_DAYS);
@@ -37,15 +37,15 @@ export function tenureExtrusionHeight(
   );
 }
 
-export function uniformAdjacentControlPointHeights(
-  controlPointGroups: readonly (readonly number[])[],
+export function uniformAdjacentSectorHeights(
+  sectorGroups: readonly (readonly number[])[],
   heights: ReadonlyMap<number, number>
 ): Map<number, number> {
   const uniformHeights = new Map(heights);
 
-  controlPointGroups.forEach((controlPointIds) => {
-    const group = new Set(controlPointIds);
-    const unvisited = new Set(controlPointIds);
+  sectorGroups.forEach((sectorIds) => {
+    const group = new Set(sectorIds);
+    const unvisited = new Set(sectorIds);
 
     while (unvisited.size > 0) {
       const first = unvisited.values().next().value;
@@ -56,11 +56,11 @@ export function uniformAdjacentControlPointHeights(
       unvisited.delete(first);
 
       while (pending.length > 0) {
-        const controlPointId = pending.pop();
-        if (controlPointId === undefined) continue;
-        component.push(controlPointId);
+        const sectorId = pending.pop();
+        if (sectorId === undefined) continue;
+        component.push(sectorId);
 
-        adjacentControlPointIds(controlPointId).forEach((neighborId) => {
+        adjacentSectorIds(sectorId).forEach((neighborId) => {
           if (group.has(neighborId) && unvisited.delete(neighborId)) {
             pending.push(neighborId);
           }
@@ -68,12 +68,11 @@ export function uniformAdjacentControlPointHeights(
       }
 
       const componentHeight = component.reduce(
-        (highest, controlPointId) =>
-          Math.max(highest, heights.get(controlPointId) ?? 0),
+        (highest, sectorId) => Math.max(highest, heights.get(sectorId) ?? 0),
         0
       );
-      component.forEach((controlPointId) => {
-        uniformHeights.set(controlPointId, componentHeight);
+      component.forEach((sectorId) => {
+        uniformHeights.set(sectorId, componentHeight);
       });
     }
   });
@@ -81,20 +80,20 @@ export function uniformAdjacentControlPointHeights(
   return uniformHeights;
 }
 
-export function controlPointTenureHeights(
+export function sectorTenureHeights(
   enabled: boolean,
-  controlPointIds: readonly number[],
-  controlPointGroups: readonly (readonly number[])[],
+  sectorIds: readonly number[],
+  sectorGroups: readonly (readonly number[])[],
   controlledSince: ReadonlyMap<number, number>,
   nowSeconds = Date.now() / 1_000
 ): Map<number, number> {
   const heights = new Map<number, number>();
-  controlPointIds.forEach((controlPointId) => {
+  sectorIds.forEach((sectorId) => {
     heights.set(
-      controlPointId,
+      sectorId,
       enabled
         ? tenureExtrusionHeight(
-            controlledSince.get(controlPointId) ?? null,
+            controlledSince.get(sectorId) ?? null,
             nowSeconds
           )
         : 0
@@ -102,15 +101,15 @@ export function controlPointTenureHeights(
   });
 
   return enabled
-    ? uniformAdjacentControlPointHeights(controlPointGroups, heights)
+    ? uniformAdjacentSectorHeights(sectorGroups, heights)
     : heights;
 }
 
-export function formatControlPointTenure(
+export function formatSectorTenure(
   controlledSince: number | null,
   nowSeconds = Date.now() / 1_000
 ): string {
-  const ageSeconds = controlPointTenureSeconds(controlledSince, nowSeconds);
+  const ageSeconds = sectorTenureSeconds(controlledSince, nowSeconds);
   if (ageSeconds === null) return '---';
   if (ageSeconds < SECONDS_PER_HOUR) return '<1h';
 

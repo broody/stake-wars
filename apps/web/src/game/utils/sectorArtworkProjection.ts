@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-import type { ArtworkPlacement, ControlPointArtwork } from '../types';
-import {
-  CORE_RADIUS,
-  extractControlPointPositions,
-} from './controlPointGeometry';
+import type { ArtworkPlacement, SectorArtwork } from '../types';
+import { CORE_RADIUS, extractSectorPositions } from './sectorGeometry';
 
 const IMAGE_SURFACE_RADIUS = CORE_RADIUS * 1.009;
 const VALUES_PER_VERTEX = 3;
 
 export interface ArtworkAtlasSlot {
-  artwork: ControlPointArtwork;
+  artwork: SectorArtwork;
   column: number;
   row: number;
 }
@@ -40,13 +37,10 @@ export function createProjectedArtworkGeometry(
     const width = cellWidth * (1 - paddingFraction * 2);
     const height = cellHeight * (1 - paddingFraction * 2);
 
-    artwork.targets.forEach(({ controlPointId }) => {
-      const raw = extractControlPointPositions(
-        [controlPointId],
-        IMAGE_SURFACE_RADIUS
-      );
+    artwork.targets.forEach(({ sectorId }) => {
+      const raw = extractSectorPositions([sectorId], IMAGE_SURFACE_RADIUS);
       const radialScale =
-        (IMAGE_SURFACE_RADIUS + (heights.get(controlPointId) ?? 0)) /
+        (IMAGE_SURFACE_RADIUS + (heights.get(sectorId) ?? 0)) /
         IMAGE_SURFACE_RADIUS;
       for (let offset = 0; offset < raw.length; offset += VALUES_PER_VERTEX) {
         position
@@ -92,13 +86,13 @@ export function createProjectedArtworkGeometry(
   return geometry;
 }
 
-export function artworkForControlPoint(
-  artworks: readonly ControlPointArtwork[],
-  controlPointId: number
-): ControlPointArtwork | null {
+export function artworkForSector(
+  artworks: readonly SectorArtwork[],
+  sectorId: number
+): SectorArtwork | null {
   return (
     artworks.find((artwork) =>
-      artwork.targets.some((target) => target.controlPointId === controlPointId)
+      artwork.targets.some((target) => target.sectorId === sectorId)
     ) ?? null
   );
 }
@@ -106,12 +100,12 @@ export function artworkForControlPoint(
 export function suggestedPlacement(
   projectorMatrix: readonly number[],
   viewportAspect: number,
-  controlPointIds: readonly number[]
+  sectorIds: readonly number[]
 ): ArtworkPlacement {
   const projector = new THREE.Matrix4().fromArray([...projectorMatrix]);
   const clip = new THREE.Vector4();
-  const positions = extractControlPointPositions(
-    [...controlPointIds],
+  const positions = extractSectorPositions(
+    [...sectorIds],
     IMAGE_SURFACE_RADIUS
   );
   let minX = Infinity;

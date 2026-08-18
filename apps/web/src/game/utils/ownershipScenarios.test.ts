@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CONTROL_POINT_COUNT,
-  adjacentControlPointIds,
-} from './controlPointGeometry';
+import { SECTOR_COUNT, adjacentSectorIds } from './sectorGeometry';
 import {
   MAX_STAKE_RELIEF_HEIGHT,
   OWNERSHIP_SCENARIO_DEFINITIONS,
@@ -16,40 +13,37 @@ describe('ownership scenarios', () => {
     'fills the Core for $title',
     (definition) => {
       const scenario = createOwnershipScenario(definition);
-      expect(scenario.ownerByControlPoint).toHaveLength(CONTROL_POINT_COUNT);
-      expect(scenario.controlPointIdsByOwner).toHaveLength(
-        definition.ownerCount
-      );
+      expect(scenario.ownerBySector).toHaveLength(SECTOR_COUNT);
+      expect(scenario.sectorIdsByOwner).toHaveLength(definition.ownerCount);
       expect(
         scenario.counts.reduce((total, count) => total + count, 0) +
-          scenario.unoccupiedControlPointIds.length
-      ).toBe(CONTROL_POINT_COUNT);
+          scenario.unoccupiedSectorIds.length
+      ).toBe(SECTOR_COUNT);
       expect(scenario.counts.every((count) => count > 0)).toBe(true);
       expect(scenario.stakedStrkByOwner).toHaveLength(definition.ownerCount);
       expect(scenario.stakedStrkByOwner.every((stake) => stake > 0)).toBe(true);
-      expect(scenario.unoccupiedControlPointIds.length).toBeGreaterThan(0);
-      expect(new Set(scenario.unoccupiedControlPointIds).size).toBe(
-        scenario.unoccupiedControlPointIds.length
+      expect(scenario.unoccupiedSectorIds.length).toBeGreaterThan(0);
+      expect(new Set(scenario.unoccupiedSectorIds).size).toBe(
+        scenario.unoccupiedSectorIds.length
       );
       expect(
-        scenario.unoccupiedControlPointIds.every(
-          (controlPointId) =>
-            scenario.ownerByControlPoint[controlPointId] === -1
+        scenario.unoccupiedSectorIds.every(
+          (sectorId) => scenario.ownerBySector[sectorId] === -1
         )
       ).toBe(true);
-      expect(scenario.contestedControlPointIds.length).toBeGreaterThan(0);
-      expect(new Set(scenario.contestedControlPointIds).size).toBe(
-        scenario.contestedControlPointIds.length
+      expect(scenario.contestedSectorIds.length).toBeGreaterThan(0);
+      expect(new Set(scenario.contestedSectorIds).size).toBe(
+        scenario.contestedSectorIds.length
       );
       expect(
-        scenario.contestedControlPointIds.every(
-          (controlPointId) =>
-            scenario.ownerByControlPoint[controlPointId] >= 0 &&
-            adjacentControlPointIds(controlPointId).some((neighborId) => {
-              const neighborOwner = scenario.ownerByControlPoint[neighborId];
+        scenario.contestedSectorIds.every(
+          (sectorId) =>
+            scenario.ownerBySector[sectorId] >= 0 &&
+            adjacentSectorIds(sectorId).some((neighborId) => {
+              const neighborOwner = scenario.ownerBySector[neighborId];
               return (
                 neighborOwner >= 0 &&
-                neighborOwner !== scenario.ownerByControlPoint[controlPointId]
+                neighborOwner !== scenario.ownerBySector[sectorId]
               );
             })
         )
@@ -60,19 +54,18 @@ describe('ownership scenarios', () => {
   it('keeps every territory connected in a contiguous scenario', () => {
     const scenario = createOwnershipScenario(OWNERSHIP_SCENARIO_DEFINITIONS[1]);
 
-    scenario.controlPointIdsByOwner.forEach((controlPointIds, owner) => {
-      const territory = new Set(controlPointIds);
+    scenario.sectorIdsByOwner.forEach((sectorIds, owner) => {
+      const territory = new Set(sectorIds);
       const visited = new Set<number>();
-      const queue = [controlPointIds[0]];
+      const queue = [sectorIds[0]];
 
       while (queue.length > 0) {
-        const controlPointId = queue.pop();
-        if (controlPointId === undefined || visited.has(controlPointId))
-          continue;
-        visited.add(controlPointId);
-        adjacentControlPointIds(controlPointId).forEach((neighbor) => {
+        const sectorId = queue.pop();
+        if (sectorId === undefined || visited.has(sectorId)) continue;
+        visited.add(sectorId);
+        adjacentSectorIds(sectorId).forEach((neighbor) => {
           if (
-            scenario.ownerByControlPoint[neighbor] === owner &&
+            scenario.ownerBySector[neighbor] === owner &&
             !visited.has(neighbor)
           ) {
             queue.push(neighbor);

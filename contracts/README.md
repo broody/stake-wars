@@ -3,7 +3,7 @@
 The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each Operator's live delegation and unpooling state from the official
 StakeWars delegation pool. Game capacity is derived as live delegation minus
-Control Point garrisons, active cumulative challenge commitments, and
+Sector garrisons, active cumulative challenge commitments, and
 permanently spent game force.
 
 ## Local commands
@@ -28,17 +28,17 @@ Scarb dependency because its Cairo toolchain is older than this Dojo package.
 ## Control System
 
 The Control System exposes authoritative `get_operator_status`,
-`get_control_point_status`, `get_control_point_statuses`,
+`get_sector_status`, `get_sector_statuses`,
 `get_challenge_status`, `get_challenge_participant_status`, and
-`can_manage_image` views. The batched point-status view reads up to 200 Control
-Points. Stale Torii models are safe for discovery while security-sensitive
+`can_manage_image` views. The batched sector-status view reads up to 200 Control
+Sectors. Stale Torii models are safe for discovery while security-sensitive
 clients confirm effective control onchain. Permissionless reconciliation may
 call `sync_operator` or batch up to 50 addresses with `sync_operators`.
 
 Every `capture`, `reinforce`, and `challenge` call includes a visible STRK
-amount. `capture_many` and `reinforce_many` apply up to 200 per-point requests
+amount. `capture_many` and `reinforce_many` apply up to 200 per-sector requests
 atomically while reading shared Operator and delegation state once. An Operator
-may manage multiple Control Points and lead multiple challenges when their
+may manage multiple Sectors and lead multiple challenges when their
 aggregate commitments fit within live delegation.
 
 The network deployment presets use 18-decimal STRK base units:
@@ -51,10 +51,10 @@ World initialization must pass the applicable preset into
 `GameConfig.minimum_stake`; the frontend reads the resulting onchain rule and
 must not substitute its own environment-specific minimum.
 
-An occupied point is contested through `challenge` or
+An occupied sector is contested through `challenge` or
 `challenge_with_sacrifice`:
 
-- The initiating commitment must exceed the point's garrison by at least 10%,
+- The initiating commitment must exceed the sector's garrison by at least 10%,
   rounded up to the next STRK base unit. The incumbent's garrison and the
   challenger's commitment remain locked and at risk until settlement.
 - Any eligible Operator except the current leader may publicly commit at least
@@ -78,7 +78,7 @@ effect as spent force—until any account calls
 Operator's Spent Force in O(1).
 
 `challenge_with_sacrifice(target, source, committed_force)` atomically
-neutralizes an owned, uncontested source point before validating the new
+neutralizes an owned, uncontested source sector before validating the new
 commitment. Its garrison returns to the Operator's Ready STRK; it is not
 duplicated or automatically spent.
 

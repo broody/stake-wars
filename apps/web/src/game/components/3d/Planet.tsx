@@ -5,37 +5,37 @@ import * as THREE from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useControlPointImages } from '../../contexts/ControlPointImageContext';
+import { useSectorImages } from '../../contexts/SectorImageContext';
 import {
   CORE_RADIUS,
-  createControlPointBoundaryGeometry,
-  createControlPointGeometry,
-  createControlPointGroupGridGeometries,
-  createControlPointSetGeometry,
-  createExtrudedControlPointGeometries,
-  createRaisedControlPointSetGeometry,
-} from '../../utils/controlPointGeometry';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
+  createSectorBoundaryGeometry,
+  createSectorGeometry,
+  createSectorGroupGridGeometries,
+  createSectorSetGeometry,
+  createExtrudedSectorGeometries,
+  createRaisedSectorSetGeometry,
+} from '../../utils/sectorGeometry';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import {
-  controlPointTenureHeights,
+  sectorTenureHeights,
   DEFAULT_TENURE_EXTRUSION_ENABLED,
-} from '../../utils/controlPointTenure';
+} from '../../utils/sectorTenure';
 import {
-  ControlPointDetailImageLayer,
-  ControlPointImageLayer,
+  SectorDetailImageLayer,
+  SectorImageLayer,
   PlacementPreviewLayer,
-} from './ControlPointImageLayer';
-import { artworkForControlPoint } from '../../utils/controlPointArtworkProjection';
+} from './SectorImageLayer';
+import { artworkForSector } from '../../utils/sectorArtworkProjection';
 
 const DRAG_SELECTION_THRESHOLD_PX = 5;
 const TENURE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
 const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
-const CONTROL_POINT_GRID_FULL_DISTANCE = 10;
-const CONTROL_POINT_GRID_FADE_DISTANCE = 22;
+const SECTOR_GRID_FULL_DISTANCE = 10;
+const SECTOR_GRID_FADE_DISTANCE = 22;
 const DETAIL_IMAGE_CAMERA_DISTANCE = 10.5;
-const FLAT_CONTROL_POINT_HEIGHTS = new Map<number, number>();
+const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
 
 const STRIPE_VERTEX_SHADER = `
   void main() {
@@ -63,8 +63,8 @@ const STRIPE_FRAGMENT_SHADER = `
   }
 `;
 
-interface ControlPointLayerProps {
-  controlPointIds: number[];
+interface SectorLayerProps {
+  sectorIds: number[];
   color: THREE.ColorRepresentation;
   opacity: number;
   scale: number;
@@ -73,34 +73,29 @@ interface ControlPointLayerProps {
   heights?: ReadonlyMap<number, number>;
 }
 
-function ControlPointLayer({
-  controlPointIds,
-  ...props
-}: ControlPointLayerProps) {
-  if (controlPointIds.length === 0) {
+function SectorLayer({ sectorIds, ...props }: SectorLayerProps) {
+  if (sectorIds.length === 0) {
     return null;
   }
 
-  return (
-    <PopulatedControlPointLayer controlPointIds={controlPointIds} {...props} />
-  );
+  return <PopulatedSectorLayer sectorIds={sectorIds} {...props} />;
 }
 
-function PopulatedControlPointLayer({
-  controlPointIds,
+function PopulatedSectorLayer({
+  sectorIds,
   color,
   opacity,
   scale,
   edges = false,
   edgeOpacity = 0.9,
   heights,
-}: ControlPointLayerProps) {
+}: SectorLayerProps) {
   const geometry = useMemo(
     () =>
       heights
-        ? createRaisedControlPointSetGeometry(controlPointIds, heights)
-        : createControlPointSetGeometry(controlPointIds),
-    [controlPointIds, heights]
+        ? createRaisedSectorSetGeometry(sectorIds, heights)
+        : createSectorSetGeometry(sectorIds),
+    [sectorIds, heights]
   );
   const edgeGeometry = useMemo(
     () => (edges ? new THREE.EdgesGeometry(geometry) : null),
@@ -135,38 +130,33 @@ function PopulatedControlPointLayer({
   );
 }
 
-interface ThickControlPointBorderLayerProps {
-  controlPointIds: number[];
+interface ThickSectorBorderLayerProps {
+  sectorIds: number[];
   color: THREE.ColorRepresentation;
   scale: number;
   heights?: ReadonlyMap<number, number>;
 }
 
-function ThickControlPointBorderLayer({
-  controlPointIds,
+function ThickSectorBorderLayer({
+  sectorIds,
   ...props
-}: ThickControlPointBorderLayerProps) {
-  if (controlPointIds.length === 0) {
+}: ThickSectorBorderLayerProps) {
+  if (sectorIds.length === 0) {
     return null;
   }
 
-  return (
-    <PopulatedThickControlPointBorderLayer
-      controlPointIds={controlPointIds}
-      {...props}
-    />
-  );
+  return <PopulatedThickSectorBorderLayer sectorIds={sectorIds} {...props} />;
 }
 
-function PopulatedThickControlPointBorderLayer({
-  controlPointIds,
+function PopulatedThickSectorBorderLayer({
+  sectorIds,
   color,
   scale,
   heights,
-}: ThickControlPointBorderLayerProps) {
+}: ThickSectorBorderLayerProps) {
   const boundaryGeometry = useMemo(
-    () => createControlPointBoundaryGeometry(controlPointIds, heights),
-    [controlPointIds, heights]
+    () => createSectorBoundaryGeometry(sectorIds, heights),
+    [sectorIds, heights]
   );
   const lineGeometry = useMemo(
     () =>
@@ -203,31 +193,31 @@ function PopulatedThickControlPointBorderLayer({
   return <primitive object={border} scale={scale} raycast={() => undefined} />;
 }
 
-interface ControlPointGridLayerProps {
-  controlPointGroups: number[][];
+interface SectorGridLayerProps {
+  sectorGroups: number[][];
   color: THREE.ColorRepresentation;
   heights: ReadonlyMap<number, number>;
   opacity?: number;
   innerOpacity?: number;
 }
 
-function ControlPointGridLayer({
-  controlPointGroups,
+function SectorGridLayer({
+  sectorGroups,
   color,
   heights,
   opacity = 0.86,
   innerOpacity = 0.42,
-}: ControlPointGridLayerProps) {
+}: SectorGridLayerProps) {
   const boundaryMaterialRef = useRef<THREE.LineBasicMaterial>(null);
   const internalMaterialRef = useRef<THREE.LineBasicMaterial>(null);
   const geometries = useMemo(
     () =>
-      createControlPointGroupGridGeometries(
-        controlPointGroups,
+      createSectorGroupGridGeometries(
+        sectorGroups,
         heights,
         TENURE_SURFACE_RADIUS
       ),
-    [controlPointGroups, heights]
+    [sectorGroups, heights]
   );
 
   useEffect(
@@ -241,8 +231,8 @@ function ControlPointGridLayer({
   useFrame(({ camera }) => {
     const fadeProgress = THREE.MathUtils.smoothstep(
       camera.position.length(),
-      CONTROL_POINT_GRID_FULL_DISTANCE,
-      CONTROL_POINT_GRID_FADE_DISTANCE
+      SECTOR_GRID_FULL_DISTANCE,
+      SECTOR_GRID_FADE_DISTANCE
     );
     if (boundaryMaterialRef.current) {
       boundaryMaterialRef.current.opacity = opacity * (1 - fadeProgress);
@@ -252,7 +242,7 @@ function ControlPointGridLayer({
     }
   });
 
-  if (controlPointGroups.length === 0) {
+  if (sectorGroups.length === 0) {
     return null;
   }
 
@@ -280,8 +270,8 @@ function ControlPointGridLayer({
   );
 }
 
-function AnimatedStripeControlPointLayer({
-  controlPointIds,
+function AnimatedStripeSectorLayer({
+  sectorIds,
   heights,
   color,
   baseOpacity,
@@ -289,7 +279,7 @@ function AnimatedStripeControlPointLayer({
   stripeAngleDegrees,
   scale,
 }: {
-  controlPointIds: number[];
+  sectorIds: number[];
   heights?: ReadonlyMap<number, number>;
   color: THREE.ColorRepresentation;
   baseOpacity: number;
@@ -301,9 +291,9 @@ function AnimatedStripeControlPointLayer({
   const geometry = useMemo(
     () =>
       heights
-        ? createRaisedControlPointSetGeometry(controlPointIds, heights)
-        : createControlPointSetGeometry(controlPointIds),
-    [controlPointIds, heights]
+        ? createRaisedSectorSetGeometry(sectorIds, heights)
+        : createSectorSetGeometry(sectorIds),
+    [sectorIds, heights]
   );
   const stripeAngleRadians = THREE.MathUtils.degToRad(stripeAngleDegrees);
   const uniforms = useMemo(
@@ -350,20 +340,20 @@ function AnimatedStripeControlPointLayer({
   );
 }
 
-export function ControlPointContestLayer({
-  controlPointIds,
+export function SectorContestLayer({
+  sectorIds,
   heights,
   color,
 }: {
-  controlPointIds: number[];
+  sectorIds: number[];
   heights: ReadonlyMap<number, number>;
   color: THREE.ColorRepresentation;
 }) {
-  if (controlPointIds.length === 0) return null;
+  if (sectorIds.length === 0) return null;
 
   return (
-    <AnimatedStripeControlPointLayer
-      controlPointIds={controlPointIds}
+    <AnimatedStripeSectorLayer
+      sectorIds={sectorIds}
       heights={heights}
       color={color}
       baseOpacity={0}
@@ -374,42 +364,36 @@ export function ControlPointContestLayer({
   );
 }
 
-interface ExtrudedControlPointLayerProps {
-  controlPointIds: number[];
-  controlPointGroups: number[][];
+interface ExtrudedSectorLayerProps {
+  sectorIds: number[];
+  sectorGroups: number[][];
   heights: ReadonlyMap<number, number>;
   topColor: THREE.ColorRepresentation;
   sideColor: THREE.ColorRepresentation;
-  onClickControlPoint: (
-    controlPointId: number,
-    event: ThreeEvent<MouseEvent>
-  ) => void;
-  onHoverControlPoint: (
-    controlPointId: number,
-    event: ThreeEvent<PointerEvent>
-  ) => void;
+  onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
+  onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
 }
 
-function ExtrudedControlPointLayer({
-  controlPointIds,
-  controlPointGroups,
+function ExtrudedSectorLayer({
+  sectorIds,
+  sectorGroups,
   heights,
   topColor,
   sideColor,
-  onClickControlPoint,
-  onHoverControlPoint,
+  onClickSector,
+  onHoverSector,
   onPointerOut,
-}: ExtrudedControlPointLayerProps) {
+}: ExtrudedSectorLayerProps) {
   const geometries = useMemo(
     () =>
-      createExtrudedControlPointGeometries(
-        controlPointIds,
+      createExtrudedSectorGeometries(
+        sectorIds,
         heights,
         TENURE_SURFACE_RADIUS,
-        controlPointGroups
+        sectorGroups
       ),
-    [controlPointGroups, controlPointIds, heights]
+    [sectorGroups, sectorIds, heights]
   );
 
   useEffect(
@@ -420,20 +404,20 @@ function ExtrudedControlPointLayer({
     [geometries]
   );
 
-  if (controlPointIds.length === 0) {
+  if (sectorIds.length === 0) {
     return null;
   }
 
-  const controlPointHandler = <TEvent extends PointerEvent | MouseEvent>(
+  const sectorHandler = <TEvent extends PointerEvent | MouseEvent>(
     event: ThreeEvent<TEvent>,
-    faceControlPointIds: number[],
-    handle: (controlPointId: number, event: ThreeEvent<TEvent>) => void
+    faceSectorIds: number[],
+    handle: (sectorId: number, event: ThreeEvent<TEvent>) => void
   ) => {
-    const controlPointId =
+    const sectorId =
       event.faceIndex === undefined || event.faceIndex === null
         ? undefined
-        : faceControlPointIds[event.faceIndex];
-    if (controlPointId !== undefined) handle(controlPointId, event);
+        : faceSectorIds[event.faceIndex];
+    if (sectorId !== undefined) handle(sectorId, event);
   };
 
   return (
@@ -441,18 +425,10 @@ function ExtrudedControlPointLayer({
       <mesh
         geometry={geometries.sides}
         onClick={(event) =>
-          controlPointHandler(
-            event,
-            geometries.sideControlPointIds,
-            onClickControlPoint
-          )
+          sectorHandler(event, geometries.sideSectorIds, onClickSector)
         }
         onPointerMove={(event) =>
-          controlPointHandler(
-            event,
-            geometries.sideControlPointIds,
-            onHoverControlPoint
-          )
+          sectorHandler(event, geometries.sideSectorIds, onHoverSector)
         }
         onPointerOut={onPointerOut}
       >
@@ -461,18 +437,10 @@ function ExtrudedControlPointLayer({
       <mesh
         geometry={geometries.tops}
         onClick={(event) =>
-          controlPointHandler(
-            event,
-            geometries.topControlPointIds,
-            onClickControlPoint
-          )
+          sectorHandler(event, geometries.topSectorIds, onClickSector)
         }
         onPointerMove={(event) =>
-          controlPointHandler(
-            event,
-            geometries.topControlPointIds,
-            onHoverControlPoint
-          )
+          sectorHandler(event, geometries.topSectorIds, onHoverSector)
         }
         onPointerOut={onPointerOut}
       >
@@ -482,84 +450,77 @@ function ExtrudedControlPointLayer({
   );
 }
 
-interface ControlPointOwnershipLayersProps {
-  ownedControlPointIds: number[];
-  opponentControlPointIds: number[];
-  controlPointOwnerGroups: number[][];
-  controlPointHeights: ReadonlyMap<number, number>;
-  onClickControlPoint: (
-    controlPointId: number,
-    event: ThreeEvent<MouseEvent>
-  ) => void;
-  onHoverControlPoint: (
-    controlPointId: number,
-    event: ThreeEvent<PointerEvent>
-  ) => void;
+interface SectorOwnershipLayersProps {
+  ownedSectorIds: number[];
+  opponentSectorIds: number[];
+  sectorOwnerGroups: number[][];
+  sectorHeights: ReadonlyMap<number, number>;
+  onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
+  onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
 }
 
-export function ControlPointOwnershipLayers({
-  ownedControlPointIds,
-  opponentControlPointIds,
-  controlPointOwnerGroups,
-  controlPointHeights,
-  onClickControlPoint,
-  onHoverControlPoint,
+export function SectorOwnershipLayers({
+  ownedSectorIds,
+  opponentSectorIds,
+  sectorOwnerGroups,
+  sectorHeights,
+  onClickSector,
+  onHoverSector,
   onPointerOut,
-}: ControlPointOwnershipLayersProps) {
-  const { ownedControlPointGroups, opponentControlPointGroups } =
-    useMemo(() => {
-      const ownedControlPointIdSet = new Set(ownedControlPointIds);
-      const ownedGroups: number[][] = [];
-      const opponentGroups: number[][] = [];
+}: SectorOwnershipLayersProps) {
+  const { ownedSectorGroups, opponentSectorGroups } = useMemo(() => {
+    const ownedSectorIdSet = new Set(ownedSectorIds);
+    const ownedGroups: number[][] = [];
+    const opponentGroups: number[][] = [];
 
-      controlPointOwnerGroups.forEach((controlPointIds) => {
-        const firstControlPointId = controlPointIds[0];
-        if (firstControlPointId === undefined) return;
-        if (ownedControlPointIdSet.has(firstControlPointId)) {
-          ownedGroups.push(controlPointIds);
-        } else {
-          opponentGroups.push(controlPointIds);
-        }
-      });
+    sectorOwnerGroups.forEach((sectorIds) => {
+      const firstSectorId = sectorIds[0];
+      if (firstSectorId === undefined) return;
+      if (ownedSectorIdSet.has(firstSectorId)) {
+        ownedGroups.push(sectorIds);
+      } else {
+        opponentGroups.push(sectorIds);
+      }
+    });
 
-      return {
-        ownedControlPointGroups: ownedGroups,
-        opponentControlPointGroups: opponentGroups,
-      };
-    }, [controlPointOwnerGroups, ownedControlPointIds]);
+    return {
+      ownedSectorGroups: ownedGroups,
+      opponentSectorGroups: opponentGroups,
+    };
+  }, [sectorOwnerGroups, ownedSectorIds]);
 
   return (
     <>
-      <ExtrudedControlPointLayer
-        controlPointIds={opponentControlPointIds}
-        controlPointGroups={controlPointOwnerGroups}
-        heights={controlPointHeights}
-        topColor={CONTROL_POINT_COLORS.opponent}
-        sideColor={CONTROL_POINT_COLORS.opponentSide}
-        onClickControlPoint={onClickControlPoint}
-        onHoverControlPoint={onHoverControlPoint}
+      <ExtrudedSectorLayer
+        sectorIds={opponentSectorIds}
+        sectorGroups={sectorOwnerGroups}
+        heights={sectorHeights}
+        topColor={SECTOR_COLORS.opponent}
+        sideColor={SECTOR_COLORS.opponentSide}
+        onClickSector={onClickSector}
+        onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
-      <ExtrudedControlPointLayer
-        controlPointIds={ownedControlPointIds}
-        controlPointGroups={controlPointOwnerGroups}
-        heights={controlPointHeights}
-        topColor={CONTROL_POINT_COLORS.owned}
-        sideColor={CONTROL_POINT_COLORS.ownedSide}
-        onClickControlPoint={onClickControlPoint}
-        onHoverControlPoint={onHoverControlPoint}
+      <ExtrudedSectorLayer
+        sectorIds={ownedSectorIds}
+        sectorGroups={sectorOwnerGroups}
+        heights={sectorHeights}
+        topColor={SECTOR_COLORS.owned}
+        sideColor={SECTOR_COLORS.ownedSide}
+        onClickSector={onClickSector}
+        onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
-      <ControlPointGridLayer
-        controlPointGroups={opponentControlPointGroups}
-        color={CONTROL_POINT_COLORS.opponentGrid}
-        heights={controlPointHeights}
+      <SectorGridLayer
+        sectorGroups={opponentSectorGroups}
+        color={SECTOR_COLORS.opponentGrid}
+        heights={sectorHeights}
       />
-      <ControlPointGridLayer
-        controlPointGroups={ownedControlPointGroups}
-        color={CONTROL_POINT_COLORS.ownedGrid}
-        heights={controlPointHeights}
+      <SectorGridLayer
+        sectorGroups={ownedSectorGroups}
+        color={SECTOR_COLORS.ownedGrid}
+        heights={sectorHeights}
         opacity={0.42}
         innerOpacity={0.2}
       />
@@ -576,39 +537,36 @@ export function Planet({
 }: PlanetProps) {
   const { camera } = useThree();
   const { isConnected } = useWallet();
-  const { artworks, placementDraft, featuredArtworkId } =
-    useControlPointImages();
+  const { artworks, placementDraft, featuredArtworkId } = useSectorImages();
   const {
     mode,
-    isControlPointInteractionLocked,
-    selectedControlPointIds,
-    selectedControlPointId,
-    ownedControlPointIds,
-    opponentControlPointIds,
-    contestedControlPointIds,
-    occupiedControlPointIds,
-    controlPointOwnerGroups,
-    controlPointControlledSince,
-    projectionControlPointIds,
+    isSectorInteractionLocked,
+    selectedSectorIds,
+    selectedSectorId,
+    ownedSectorIds,
+    opponentSectorIds,
+    contestedSectorIds,
+    occupiedSectorIds,
+    sectorOwnerGroups,
+    sectorControlledSince,
+    projectionSectorIds,
     projectionLoadingId,
-    selectControlPoint,
-    toggleProjectionControlPoint,
-  } = useControlPoints();
-  const [hoveredControlPointId, setHoveredControlPointId] = useState<
-    number | null
-  >(null);
-  const geometry = useMemo(() => createControlPointGeometry(), []);
-  const ownedControlPointIdSet = useMemo(
-    () => new Set(ownedControlPointIds),
-    [ownedControlPointIds]
+    selectSector,
+    toggleProjectionSector,
+  } = useSectors();
+  const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
+  const geometry = useMemo(() => createSectorGeometry(), []);
+  const ownedSectorIdSet = useMemo(
+    () => new Set(ownedSectorIds),
+    [ownedSectorIds]
   );
-  const opponentControlPointIdSet = useMemo(
-    () => new Set(opponentControlPointIds),
-    [opponentControlPointIds]
+  const opponentSectorIdSet = useMemo(
+    () => new Set(opponentSectorIds),
+    [opponentSectorIds]
   );
-  const contestedControlPointIdSet = useMemo(
-    () => new Set(contestedControlPointIds),
-    [contestedControlPointIds]
+  const contestedSectorIdSet = useMemo(
+    () => new Set(contestedSectorIds),
+    [contestedSectorIds]
   );
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
 
@@ -621,19 +579,19 @@ export function Planet({
     return () => window.clearInterval(interval);
   }, [tenureExtrusionEnabled]);
 
-  const controlPointHeights = useMemo(
+  const sectorHeights = useMemo(
     () =>
-      controlPointTenureHeights(
+      sectorTenureHeights(
         tenureExtrusionEnabled,
-        occupiedControlPointIds,
-        controlPointOwnerGroups,
-        controlPointControlledSince,
+        occupiedSectorIds,
+        sectorOwnerGroups,
+        sectorControlledSince,
         tenureClock
       ),
     [
-      controlPointControlledSince,
-      controlPointOwnerGroups,
-      occupiedControlPointIds,
+      sectorControlledSince,
+      sectorOwnerGroups,
+      occupiedSectorIds,
       tenureClock,
       tenureExtrusionEnabled,
     ]
@@ -646,35 +604,34 @@ export function Planet({
       if (featured) return featured;
     }
     const selectedArtwork =
-      mode === 'control' && selectedControlPointId !== null
-        ? artworkForControlPoint(artworks, selectedControlPointId)
+      mode === 'control' && selectedSectorId !== null
+        ? artworkForSector(artworks, selectedSectorId)
         : null;
     if (selectedArtwork) return selectedArtwork;
     if (
-      hoveredControlPointId !== null &&
+      hoveredSectorId !== null &&
       camera.position.length() <= DETAIL_IMAGE_CAMERA_DISTANCE
     ) {
-      return artworkForControlPoint(artworks, hoveredControlPointId);
+      return artworkForSector(artworks, hoveredSectorId);
     }
     return null;
   }, [
     camera,
-    hoveredControlPointId,
+    hoveredSectorId,
     artworks,
     featuredArtworkId,
     mode,
-    selectedControlPointId,
+    selectedSectorId,
   ]);
-  const imageHeights =
-    mode === 'control' ? controlPointHeights : FLAT_CONTROL_POINT_HEIGHTS;
+  const imageHeights = mode === 'control' ? sectorHeights : FLAT_SECTOR_HEIGHTS;
   const placementArtwork = useMemo(() => {
     if (!placementDraft?.placement) return null;
     return {
       id: 'placement-preview',
       network: 'preview',
       ownerAddress: '',
-      targets: projectionControlPointIds.map((controlPointId) => ({
-        controlPointId,
+      targets: projectionSectorIds.map((sectorId) => ({
+        sectorId,
         ownershipGeneration: 1,
       })),
       placement: placementDraft.placement,
@@ -683,19 +640,18 @@ export function Planet({
       contentHash: '',
       updatedAt: '',
     };
-  }, [placementDraft, projectionControlPointIds]);
+  }, [placementDraft, projectionSectorIds]);
 
-  const getEventControlPointId = (
-    event: ThreeEvent<PointerEvent | MouseEvent>
-  ) => event.faceIndex ?? null;
+  const getEventSectorId = (event: ThreeEvent<PointerEvent | MouseEvent>) =>
+    event.faceIndex ?? null;
 
-  const handleControlPointClick = (
-    controlPointId: number,
+  const handleSectorClick = (
+    sectorId: number,
     event: ThreeEvent<MouseEvent>
   ) => {
     event.stopPropagation();
     if (
-      isControlPointInteractionLocked ||
+      isSectorInteractionLocked ||
       placementDraft !== null ||
       event.delta > DRAG_SELECTION_THRESHOLD_PX
     ) {
@@ -703,128 +659,111 @@ export function Planet({
     }
 
     if (mode === 'projection') {
-      if (!ownedControlPointIdSet.has(controlPointId)) return;
-      void toggleProjectionControlPoint(controlPointId);
+      if (!ownedSectorIdSet.has(sectorId)) return;
+      void toggleProjectionSector(sectorId);
       return;
     }
 
-    selectControlPoint(controlPointId, event.nativeEvent.shiftKey);
+    selectSector(sectorId, event.nativeEvent.shiftKey);
   };
 
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
-    const controlPointId = getEventControlPointId(event);
-    if (controlPointId === null) return;
-    handleControlPointClick(controlPointId, event);
+    const sectorId = getEventSectorId(event);
+    if (sectorId === null) return;
+    handleSectorClick(sectorId, event);
   };
 
-  const handleControlPointHover = (
-    controlPointId: number,
+  const handleSectorHover = (
+    sectorId: number,
     event: ThreeEvent<PointerEvent>
   ) => {
     event.stopPropagation();
     if (placementDraft !== null) {
-      setHoveredControlPointId(null);
+      setHoveredSectorId(null);
       return;
     }
-    setHoveredControlPointId(
+    setHoveredSectorId(
       mode === 'projection' &&
-        (controlPointId === null || !ownedControlPointIdSet.has(controlPointId))
+        (sectorId === null || !ownedSectorIdSet.has(sectorId))
         ? null
-        : controlPointId
+        : sectorId
     );
   };
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    const controlPointId = getEventControlPointId(event);
-    if (controlPointId === null) return;
-    handleControlPointHover(controlPointId, event);
+    const sectorId = getEventSectorId(event);
+    if (sectorId === null) return;
+    handleSectorHover(sectorId, event);
   };
 
-  const activeControlPointIds = useMemo(
-    () =>
-      mode === 'projection'
-        ? projectionControlPointIds
-        : selectedControlPointIds,
-    [mode, projectionControlPointIds, selectedControlPointIds]
+  const activeSectorIds = useMemo(
+    () => (mode === 'projection' ? projectionSectorIds : selectedSectorIds),
+    [mode, projectionSectorIds, selectedSectorIds]
   );
-  const selectedContestedControlPointIds = useMemo(
+  const selectedContestedSectorIds = useMemo(
     () =>
       mode === 'control'
-        ? selectedControlPointIds.filter((controlPointId) =>
-            contestedControlPointIdSet.has(controlPointId)
+        ? selectedSectorIds.filter((sectorId) =>
+            contestedSectorIdSet.has(sectorId)
           )
         : [],
-    [contestedControlPointIdSet, mode, selectedControlPointIds]
+    [contestedSectorIdSet, mode, selectedSectorIds]
   );
-  const standardActiveControlPointIds = useMemo(
+  const standardActiveSectorIds = useMemo(
     () =>
       mode === 'control'
-        ? selectedControlPointIds.filter(
-            (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+        ? selectedSectorIds.filter(
+            (sectorId) => !contestedSectorIdSet.has(sectorId)
           )
-        : projectionControlPointIds,
-    [
-      contestedControlPointIdSet,
-      mode,
-      projectionControlPointIds,
-      selectedControlPointIds,
-    ]
+        : projectionSectorIds,
+    [contestedSectorIdSet, mode, projectionSectorIds, selectedSectorIds]
   );
-  const pendingChallengeControlPointIds = useMemo(
+  const pendingChallengeSectorIds = useMemo(
     () =>
-      selectedControlPointIds.filter(
-        (controlPointId) =>
-          opponentControlPointIdSet.has(controlPointId) &&
-          !contestedControlPointIdSet.has(controlPointId)
+      selectedSectorIds.filter(
+        (sectorId) =>
+          opponentSectorIdSet.has(sectorId) &&
+          !contestedSectorIdSet.has(sectorId)
       ),
-    [
-      contestedControlPointIdSet,
-      opponentControlPointIdSet,
-      selectedControlPointIds,
-    ]
+    [contestedSectorIdSet, opponentSectorIdSet, selectedSectorIds]
   );
-  const pendingStandardControlPointIds = useMemo(
+  const pendingStandardSectorIds = useMemo(
     () =>
-      selectedControlPointIds.filter(
-        (controlPointId) =>
-          !opponentControlPointIdSet.has(controlPointId) &&
-          !contestedControlPointIdSet.has(controlPointId)
+      selectedSectorIds.filter(
+        (sectorId) =>
+          !opponentSectorIdSet.has(sectorId) &&
+          !contestedSectorIdSet.has(sectorId)
       ),
-    [
-      contestedControlPointIdSet,
-      opponentControlPointIdSet,
-      selectedControlPointIds,
-    ]
+    [contestedSectorIdSet, opponentSectorIdSet, selectedSectorIds]
   );
-  const hoveredControlPointIds = useMemo(
-    () => (hoveredControlPointId === null ? [] : [hoveredControlPointId]),
-    [hoveredControlPointId]
+  const hoveredSectorIds = useMemo(
+    () => (hoveredSectorId === null ? [] : [hoveredSectorId]),
+    [hoveredSectorId]
   );
-  const loadingControlPointIds = useMemo(
+  const loadingSectorIds = useMemo(
     () => (projectionLoadingId === null ? [] : [projectionLoadingId]),
     [projectionLoadingId]
   );
-  const isHoveredPointActive =
-    hoveredControlPointId !== null &&
-    activeControlPointIds.includes(hoveredControlPointId);
+  const isHoveredSectorActive =
+    hoveredSectorId !== null && activeSectorIds.includes(hoveredSectorId);
 
   return (
     <group>
       <mesh
         geometry={geometry}
-        onClick={isControlPointInteractionLocked ? undefined : handleClick}
+        onClick={isSectorInteractionLocked ? undefined : handleClick}
         onPointerMove={handlePointerMove}
-        onPointerOut={() => setHoveredControlPointId(null)}
+        onPointerOut={() => setHoveredSectorId(null)}
       >
         <meshBasicMaterial
-          color={CONTROL_POINT_COLORS.neutral}
+          color={SECTOR_COLORS.neutral}
           side={THREE.DoubleSide}
         />
       </mesh>
 
       <mesh geometry={geometry} scale={1.002}>
         <meshBasicMaterial
-          color={CONTROL_POINT_COLORS.neutralGrid}
+          color={SECTOR_COLORS.neutralGrid}
           wireframe
           side={THREE.DoubleSide}
           transparent
@@ -833,19 +772,19 @@ export function Planet({
       </mesh>
 
       {mode === 'control' ? (
-        <ControlPointOwnershipLayers
-          ownedControlPointIds={ownedControlPointIds}
-          opponentControlPointIds={opponentControlPointIds}
-          controlPointOwnerGroups={controlPointOwnerGroups}
-          controlPointHeights={controlPointHeights}
-          onClickControlPoint={handleControlPointClick}
-          onHoverControlPoint={handleControlPointHover}
-          onPointerOut={() => setHoveredControlPointId(null)}
+        <SectorOwnershipLayers
+          ownedSectorIds={ownedSectorIds}
+          opponentSectorIds={opponentSectorIds}
+          sectorOwnerGroups={sectorOwnerGroups}
+          sectorHeights={sectorHeights}
+          onClickSector={handleSectorClick}
+          onHoverSector={handleSectorHover}
+          onPointerOut={() => setHoveredSectorId(null)}
         />
       ) : (
-        <ControlPointLayer
-          controlPointIds={ownedControlPointIds}
-          color={CONTROL_POINT_COLORS.owned}
+        <SectorLayer
+          sectorIds={ownedSectorIds}
+          color={SECTOR_COLORS.owned}
           opacity={0.72}
           scale={1.004}
         />
@@ -853,10 +792,10 @@ export function Planet({
 
       {mode === 'projection' ? (
         <>
-          <ControlPointImageLayer artworks={artworks} heights={imageHeights} />
+          <SectorImageLayer artworks={artworks} heights={imageHeights} />
 
           {detailArtwork ? (
-            <ControlPointDetailImageLayer
+            <SectorDetailImageLayer
               artwork={detailArtwork}
               heights={imageHeights}
             />
@@ -871,66 +810,61 @@ export function Planet({
         </>
       ) : null}
 
-      {hoveredControlPointId !== null && !isHoveredPointActive && (
-        <ControlPointLayer
-          controlPointIds={hoveredControlPointIds}
-          color={CONTROL_POINT_COLORS.hover}
+      {hoveredSectorId !== null && !isHoveredSectorActive && (
+        <SectorLayer
+          sectorIds={hoveredSectorIds}
+          color={SECTOR_COLORS.hover}
           opacity={0.12}
           scale={1.007}
           edges
           edgeOpacity={0.62}
-          heights={mode === 'control' ? controlPointHeights : undefined}
+          heights={mode === 'control' ? sectorHeights : undefined}
         />
       )}
 
-      <ControlPointLayer
-        controlPointIds={standardActiveControlPointIds}
+      <SectorLayer
+        sectorIds={standardActiveSectorIds}
         color={
-          mode === 'control'
-            ? CONTROL_POINT_COLORS.selected
-            : CONTROL_POINT_COLORS.owned
+          mode === 'control' ? SECTOR_COLORS.selected : SECTOR_COLORS.owned
         }
         opacity={mode === 'projection' ? 0.62 : 0.2}
         scale={1.01}
-        heights={mode === 'control' ? controlPointHeights : undefined}
+        heights={mode === 'control' ? sectorHeights : undefined}
       />
 
       {mode === 'control' ? (
-        <ThickControlPointBorderLayer
-          controlPointIds={standardActiveControlPointIds}
-          color={CONTROL_POINT_COLORS.selected}
+        <ThickSectorBorderLayer
+          sectorIds={standardActiveSectorIds}
+          color={SECTOR_COLORS.selected}
           scale={1.014}
-          heights={controlPointHeights}
+          heights={sectorHeights}
         />
       ) : null}
 
-      {mode === 'control' && contestedControlPointIds.length > 0 ? (
-        <ControlPointContestLayer
-          controlPointIds={contestedControlPointIds}
-          heights={controlPointHeights}
+      {mode === 'control' && contestedSectorIds.length > 0 ? (
+        <SectorContestLayer
+          sectorIds={contestedSectorIds}
+          heights={sectorHeights}
           color={
-            isConnected
-              ? CONTROL_POINT_COLORS.contested
-              : CONTROL_POINT_COLORS.neutralGrid
+            isConnected ? SECTOR_COLORS.contested : SECTOR_COLORS.neutralGrid
           }
         />
       ) : null}
 
-      {selectedContestedControlPointIds.length > 0 ? (
-        <ThickControlPointBorderLayer
-          controlPointIds={selectedContestedControlPointIds}
-          color={CONTROL_POINT_COLORS.contested}
+      {selectedContestedSectorIds.length > 0 ? (
+        <ThickSectorBorderLayer
+          sectorIds={selectedContestedSectorIds}
+          color={SECTOR_COLORS.contested}
           scale={1.018}
-          heights={controlPointHeights}
+          heights={sectorHeights}
         />
       ) : null}
 
-      {isControlPointInteractionLocked &&
-      pendingStandardControlPointIds.length > 0 ? (
-        <AnimatedStripeControlPointLayer
-          controlPointIds={pendingStandardControlPointIds}
-          heights={controlPointHeights}
-          color={CONTROL_POINT_COLORS.transaction}
+      {isSectorInteractionLocked && pendingStandardSectorIds.length > 0 ? (
+        <AnimatedStripeSectorLayer
+          sectorIds={pendingStandardSectorIds}
+          heights={sectorHeights}
+          color={SECTOR_COLORS.transaction}
           baseOpacity={0.08}
           stripeOpacity={0.88}
           stripeAngleDegrees={315}
@@ -938,12 +872,11 @@ export function Planet({
         />
       ) : null}
 
-      {isControlPointInteractionLocked &&
-      pendingChallengeControlPointIds.length > 0 ? (
-        <AnimatedStripeControlPointLayer
-          controlPointIds={pendingChallengeControlPointIds}
-          heights={controlPointHeights}
-          color={CONTROL_POINT_COLORS.contested}
+      {isSectorInteractionLocked && pendingChallengeSectorIds.length > 0 ? (
+        <AnimatedStripeSectorLayer
+          sectorIds={pendingChallengeSectorIds}
+          heights={sectorHeights}
+          color={SECTOR_COLORS.contested}
           baseOpacity={0}
           stripeOpacity={0.5}
           stripeAngleDegrees={45}
@@ -952,9 +885,9 @@ export function Planet({
       ) : null}
 
       {projectionLoadingId !== null && (
-        <ControlPointLayer
-          controlPointIds={loadingControlPointIds}
-          color={CONTROL_POINT_COLORS.selected}
+        <SectorLayer
+          sectorIds={loadingSectorIds}
+          color={SECTOR_COLORS.selected}
           opacity={0.5}
           scale={1.009}
           edges

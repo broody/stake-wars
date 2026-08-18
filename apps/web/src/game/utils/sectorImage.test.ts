@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { centeredSquareCrop } from './controlPointImage';
+import { centeredSquareCrop } from './sectorImage';
 
-describe('Control Point image preparation', () => {
+describe('Sector image preparation', () => {
   it('centers a landscape source', () => {
     expect(centeredSquareCrop(1200, 800)).toEqual({
       sourceX: 200,

@@ -1,7 +1,7 @@
 export interface ArtData {
   _id: string;
   ownerId: string;
-  controlPointIds: number[];
+  sectorIds: number[];
   image: string;
   name?: string;
   cameraPos?: string;
@@ -9,7 +9,7 @@ export interface ArtData {
   cameraAspect?: number;
 }
 
-export interface ControlPointStatus {
+export interface SectorStatus {
   id: number;
   controller: string;
   captureForce: bigint;
@@ -23,7 +23,7 @@ export interface ControlPointStatus {
   needsSync: boolean;
 }
 
-export interface IndexedControlPoint {
+export interface IndexedSector {
   id: number;
   controller: string;
   controllerGeneration: bigint;
@@ -33,13 +33,13 @@ export interface IndexedControlPoint {
   activeChallengeId: bigint;
 }
 
-export interface ControlPointOwnership {
+export interface SectorOwnership {
   controller: string;
   ownershipGeneration: bigint;
 }
 
-export interface ControlPointArtworkTarget {
-  controlPointId: number;
+export interface SectorArtworkTarget {
+  sectorId: number;
   ownershipGeneration: number;
 }
 
@@ -52,11 +52,11 @@ export interface ArtworkPlacement {
   viewportAspect: number;
 }
 
-export interface ControlPointArtwork {
+export interface SectorArtwork {
   id: string;
   network: string;
   ownerAddress: string;
-  targets: ControlPointArtworkTarget[];
+  targets: SectorArtworkTarget[];
   placement: ArtworkPlacement;
   imageUrl: string;
   thumbnailUrl: string;
@@ -67,12 +67,12 @@ export interface ControlPointArtwork {
 export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;
-  pointForce: bigint;
+  sectorForce: bigint;
   challengeForce: bigint;
   spentForce: bigint;
   availableForce: bigint;
   generation: bigint;
-  controlledPointCount: number;
+  controlledSectorCount: number;
   activeChallengeCount: number;
   retired: boolean;
   exiting: boolean;
@@ -81,7 +81,7 @@ export interface OperatorStatus {
 
 export interface ChallengeStatus {
   id: bigint;
-  controlPointId: number;
+  sectorId: number;
   incumbent: string;
   leader: string;
   leadingForce: bigint;
@@ -100,7 +100,7 @@ export interface ChallengeParticipantStatus {
   challengeId: bigint;
   operator: string;
   committedForce: bigint;
-  pointForceIncluded: bigint;
+  sectorForceIncluded: bigint;
   additionalForce: bigint;
   joined: boolean;
   resolved: boolean;
@@ -126,11 +126,11 @@ export interface OperatorActivity {
   blockNumber: number;
   eventIndex: number;
   transactionHash: string;
-  controlPointId?: number;
+  sectorId?: number;
   amount: bigint;
   secondaryAmount?: bigint;
   counterparty?: string;
-  affectedPointCount?: number;
+  affectedSectorCount?: number;
 }
 
 export interface StakingPoolInfo {

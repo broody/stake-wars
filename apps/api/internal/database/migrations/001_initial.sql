@@ -22,7 +22,7 @@ CREATE TABLE auth_sessions (
 CREATE INDEX auth_sessions_wallet_expires_idx
     ON auth_sessions (wallet_address, expires_at);
 
-CREATE TABLE control_point_artworks (
+CREATE TABLE sector_artworks (
     id TEXT PRIMARY KEY,
     network TEXT NOT NULL,
     owner_address TEXT NOT NULL,
@@ -45,23 +45,23 @@ CREATE TABLE control_point_artworks (
     CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'removed', 'superseded'))
 );
 
-CREATE TABLE control_point_artwork_targets (
-    artwork_id TEXT NOT NULL REFERENCES control_point_artworks(id) ON DELETE CASCADE,
-    control_point_id INTEGER NOT NULL,
+CREATE TABLE sector_artwork_targets (
+    artwork_id TEXT NOT NULL REFERENCES sector_artworks(id) ON DELETE CASCADE,
+    sector_id INTEGER NOT NULL,
     ownership_generation INTEGER NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (artwork_id, control_point_id),
-    CHECK (control_point_id >= 0),
+    PRIMARY KEY (artwork_id, sector_id),
+    CHECK (sector_id >= 0),
     CHECK (ownership_generation >= 0),
     CHECK (active IN (0, 1))
 );
 
-CREATE INDEX control_point_artwork_targets_lookup_idx
-    ON control_point_artwork_targets (control_point_id, ownership_generation, active);
+CREATE INDEX sector_artwork_targets_lookup_idx
+    ON sector_artwork_targets (sector_id, ownership_generation, active);
 
 CREATE TABLE image_reports (
     id TEXT PRIMARY KEY,
-    artwork_id TEXT NOT NULL REFERENCES control_point_artworks(id) ON DELETE CASCADE,
+    artwork_id TEXT NOT NULL REFERENCES sector_artworks(id) ON DELETE CASCADE,
     reporter_address TEXT,
     reason TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',

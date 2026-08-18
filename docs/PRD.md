@@ -11,28 +11,28 @@
 
 **StakeWars.gg** is a persistent, gamified staking interface built on Starknet. It transforms the passive act of network validation into a competitive "King of the Hill" strategy game.
 
-Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Control Points and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
+Players, known as **Operators**, compete to capture territories (**Sectors**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Sectors and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Sector by choosing how much staked STRK to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
 ## 2. Glossary & Nomenclature
 
 *   **The Core:** The global game map; a 3D geodesic sphere consisting of 2,000 unique faces.
-*   **Control Point:** A single triangular face on the Core. In the initial release it is a Dojo-native game territory, not a freely transferable NFT.
+*   **Sector:** A single triangular face on the Core. In the initial release it is a Dojo-native game territory, not a freely transferable NFT.
 *   **Operator:** The user/player.
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
 *   **Control Force (FORCE):** The game representation of an Operator's Live Delegation. One unit of FORCE corresponds to one unit of delegated STRK; FORCE is accounting terminology, not an ERC-20 or a custodial game asset.
-*   **Committed Force:** Internal allocation accounting for the portion of Live Delegation bound to Control Point garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
-*   **Spent Force:** Staked STRK represented by a final losing Control Point defense or Challenge commitment and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
-*   **Available Force:** `max(0, Live Delegation - Point Commitments - Active Challenge Commitments - Spent Force)`. This is derived contract accounting, not a token or user-managed currency. The UI exposes it as the Operator's currently deployable FORCE.
-*   **Capture Force:** The Committed Force recorded on a Control Point.
-*   **Controller:** The Operator currently holding a Control Point.
-*   **Challenge:** An open, ascending contest for an occupied Control Point.
+*   **Committed Force:** Internal allocation accounting for the portion of Live Delegation bound to Sector garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
+*   **Spent Force:** Staked STRK represented by a final losing Sector defense or Challenge commitment and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
+*   **Available Force:** `max(0, Live Delegation - Sector Commitments - Active Challenge Commitments - Spent Force)`. This is derived contract accounting, not a token or user-managed currency. The UI exposes it as the Operator's currently deployable FORCE.
+*   **Capture Force:** The Committed Force recorded on a Sector.
+*   **Controller:** The Operator currently holding a Sector.
+*   **Challenge:** An open, ascending contest for an occupied Sector.
 *   **Leading Force:** The visible highest cumulative force commitment currently locked against a Challenge.
 *   **Response Window:** The configurable time allowed for another Operator to commit enough force to take the lead. Every valid new leader resets the full window; there is no overall deadline.
-*   **Control Point Sacrifice:** Voluntarily giving up another owned, uncontested Control Point while initiating or escalating a Challenge. The point becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the point.
+*   **Sector Sacrifice:** Voluntarily giving up another owned, uncontested Sector while initiating or escalating a Challenge. The sector becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the sector.
 *   **Arbiter:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Arbiter cannot select winners, alter commitments, or bypass contract validation.
 
 ---
@@ -40,26 +40,26 @@ An Operator captures a neutral Control Point by choosing how much staked STRK to
 ## 3. Core Gameplay Mechanics
 
 ### 3.1. Territory Control (Delegation-Backed Allocation Accounting)
-The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) represents that delegated STRK as Control Force and tracks Control Point ownership and recorded Capture Force.
+The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) represents that delegated STRK as Control Force and tracks Sector ownership and recorded Capture Force.
 
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
 *   **Action:** A transaction may first approve STRK and enter or add to the StakeWars validator's official delegation pool, then call a game action from the same Starknet account.
 *   **Authoritative Balance:** Before every force-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
-*   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Point Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Force. Available Force is derived from those obligations and Live Delegation.
-*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Control Point and retain 2,000 Available Force, but the same 1,000 cannot back another action.
+*   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Sector Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Force. Available Force is derived from those obligations and Live Delegation.
+*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Sector and retain 2,000 Available Force, but the same 1,000 cannot back another action.
 *   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible STRK amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
-*   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Control Points neutral without iterating over all 2,000 points.
+*   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Sectors neutral without iterating over all 2,000 sectors.
 *   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the StakeWars application. Every normal force-sensitive game action performs the same authoritative check independently.
 *   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
-*   **Reinforcement:** A Controller may allocate a selected positive amount of Available Force to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Force and the Operator's aggregate Point Commitments.
-*   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Force returns to Available Force.
-*   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Control Points while sufficient Available Force remains.
+*   **Neutral Capture:** A neutral Sector may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
+*   **Reinforcement:** A Controller may allocate a selected positive amount of Available Force to one owned, uncontested Sector. Reinforcement increases both that sector's Capture Force and the Operator's aggregate Sector Commitments.
+*   **Release:** A Controller may voluntarily release an uncontested Sector. The sector becomes neutral, its active image is hidden, and its Capture Force returns to Available Force.
+*   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Sectors while sufficient Available Force remains.
 
 #### 3.1.3. Open Ascending Challenges
-*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more force than an occupied, uncontested point's Capture Force. The minimum escalation is rounded up to the next STRK base unit. The commitment and challenger are public.
+*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more force than an occupied, uncontested sector's Capture Force. The minimum escalation is rounded up to the next STRK base unit. The commitment and challenger are public.
 *   **Opening Risk:** Initiating a Challenge places the incumbent's existing garrison and challenger's commitment at risk. Neither becomes Spent Force before settlement.
 *   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the next STRK base unit. Each Operator has one cumulative position per Challenge.
 *   **Incremental Escalation:** A returning Operator locks only `New Commitment - Own Previous Commitment`. Example: after committing 500 STRK, escalating to 700 STRK requires only 200 additional Available Force. Losing the lead changes the visible leader but does not spend or unlock the prior position.
@@ -67,14 +67,14 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Minimum Escalation:** Commitments below the 10% minimum—including ties and one-base-unit increases—are rejected. The first accepted qualifying commitment becomes leader.
 *   **Example:** A has a 500 STRK position and B leads at 600. A may commit 700 by locking 200 additional STRK. B may then commit 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Force.
 
-#### 3.1.4. Control Point Sacrifice
-*   Any participant may give up one other owned, uncontested Control Point within the same Challenge transaction.
-*   The source point becomes neutral immediately and its image is hidden. Its garrison returns to Available Force before the new commitment is checked, so backing moves rather than duplicates.
-*   Assets or future rewards attached to the source Control Point remain with that point and become available to future Controllers. A defender may therefore abandon one front to fund a response on another.
+#### 3.1.4. Sector Sacrifice
+*   Any participant may give up one other owned, uncontested Sector within the same Challenge transaction.
+*   The source sector becomes neutral immediately and its image is hidden. Its garrison returns to Available Force before the new commitment is checked, so backing moves rather than duplicates.
+*   Assets or future rewards attached to the source Sector remain with that sector and become available to future Controllers. A defender may therefore abandon one front to fund a response on another.
 
 #### 3.1.5. Settlement and Privacy Boundary
 *   After a full response window passes without a lead change, any account may call `settle_challenge`. The contract derives the result from its current leader; there is no settlement authority or off-chain ranking.
-*   A valid leader's exact commitment becomes the target Control Point's Capture Force. If the leader has invalidated its staking position before settlement, the point becomes neutral.
+*   A valid leader's exact commitment becomes the target Sector's Capture Force. If the leader has invalidated its staking position before settlement, the sector becomes neutral.
 *   Every non-winner loses its own highest cumulative commitment. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Available Force by the same amount.
 *   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
 *   StakeWars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
@@ -82,7 +82,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back StakeWars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
-*   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from StakeWars. Its ownership generation is invalidated, its Control Points become neutral, and it may never capture, reinforce, or challenge again.
+*   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from StakeWars. Its ownership generation is invalidated, its Sectors become neutral, and it may never capture, reinforce, or challenge again.
 *   **Direct Official-Contract Actions:** The periodic operator synchronization process and every game action inspect official unpooling state, so initiating an exit outside the StakeWars UI is still detected.
 *   **Explicit Game Exit:** `retire` is a permanent retirement action, not a temporary release-all shortcut.
 *   **Latency:** Funds remain subject to the official Starknet unbonding period. Retirement applies immediately when the unpool intent is detected; the UI may continue showing the official unlock timestamp.
@@ -91,14 +91,14 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 ### 3.2. Controller Image Loop
 Control of a face is the visible reward for taking the High Ground.
 
-*   **Assign:** The current Controller may project one artwork continuously across one or more selected Control Points they own after wallet and ownership verification. A multi-point artwork is one projection, not a copy of the image on every face.
+*   **Assign:** The current Controller may project one artwork continuously across one or more selected Sectors they own after wallet and ownership verification. A multi-sector artwork is one projection, not a copy of the image on every face.
 *   **Placement:** Before publication, the Core enters a live placement step. The Controller may continue orbiting, panning, and zooming the Core while positioning, scaling, and rotating the image. The preview continuously reprojects from the latest camera view onto only the selected surface, and publication captures that final camera and placement transform.
-*   **Ownership Binding:** Each targeted face of an approved artwork is associated with the specific Control Point ownership generation under which it was uploaded. The artwork, captured projector, placement transform, and target-face list are stored as one logical record.
-*   **Displacement:** When control of one targeted face changes, that portion of the previous artwork is hidden immediately while portions on still-valid targets remain visible. It is not inherited by the new Controller and does not reappear if a previous Controller later recaptures the point.
+*   **Ownership Binding:** Each targeted face of an approved artwork is associated with the specific Sector ownership generation under which it was uploaded. The artwork, captured projector, placement transform, and target-face list are stored as one logical record.
+*   **Displacement:** When control of one targeted face changes, that portion of the previous artwork is hidden immediately while portions on still-valid targets remain visible. It is not inherited by the new Controller and does not reappear if a previous Controller later recaptures the sector.
 *   **Storage Boundary:** Image bytes and moderation metadata remain off-chain. The Dojo World remains authoritative for who may display an image.
 
 ### 3.3. Initial Product Scope
-The first release intentionally excludes passive territory decay, recurring maintenance actions, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Control Point NFTs. These mechanics may be reconsidered only after observing whether allocation, capture, challenge, settlement, image, and reinforcement loops are understandable and fun on Mainnet.
+The first release intentionally excludes passive territory decay, recurring maintenance actions, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Sector NFTs. These mechanics may be reconsidered only after observing whether allocation, capture, challenge, settlement, image, and reinforcement loops are understandable and fun on Mainnet.
 
 ---
 
@@ -110,24 +110,24 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **VFX:**
     *   CRT Scanlines overlay.
     *   Chromatic aberration on hover states.
-    *   "Datamosh" glitch effects when a Control Point changes hands.
+    *   "Datamosh" glitch effects when a Sector changes hands.
 
 ### 4.2. The Core (3D View)
 *   **Interaction:** Rotate, Zoom, Pan.
 *   **States:**
-    *   **Empty Control Point:** Wireframe outline.
-    *   **Occupied Control Point:** Solid fill (White) or displays the Operator's custom image.
-    *   **Selected Control Point:** Highlights and displays the Controller, Capture Force, current leader, Leading Force, lead-change count, response-window deadline, and the connected Operator's contextually relevant Available Force.
-    *   **Control Tenure Relief:** In Control mode, every occupied Control Point is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Control Point panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
+    *   **Empty Sector:** Wireframe outline.
+    *   **Occupied Sector:** Solid fill (White) or displays the Operator's custom image.
+    *   **Selected Sector:** Highlights and displays the Controller, Capture Force, current leader, Leading Force, lead-change count, response-window deadline, and the connected Operator's contextually relevant Available Force.
+    *   **Control Tenure Relief:** In Control mode, every occupied Sector is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Sector panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
-*   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED CONTROL POINT 402 [10,000 STRK]`
-*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Control Point Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Force, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
+*   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED SECTOR 402 [10,000 STRK]`
+*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Sector Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Force, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
 
 ### 4.4. Operator Image Uploads
-*   **Control Requirement:** Only the wallet currently controlling every selected Control Point may publish an artwork across them. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation for every target both before upload and before publication; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
-*   **Projection Model:** One uploaded image, one captured camera projector, and one placement transform span all selected target triangles. Projection UVs derive from the captured view rather than restarting on each Control Point, so adjacent targets form one contiguous canvas.
+*   **Control Requirement:** Only the wallet currently controlling every selected Sector may publish an artwork across them. The backend must independently verify wallet signatures, current Sector ownership, and ownership generation for every target both before upload and before publication; client-supplied owner addresses and Sector IDs are never trusted by themselves.
+*   **Projection Model:** One uploaded image, one captured camera projector, and one placement transform span all selected target triangles. Projection UVs derive from the captured view rather than restarting on each Sector, so adjacent targets form one contiguous canvas.
 *   **Delivery:** Images are uploaded directly from the browser to object storage using a short-lived, object-specific upload authorization issued by the game API. Image bytes must not pass through or be stored on the validator server.
 *   **Supported Formats:** WebP, JPEG, and PNG raster images only. SVG and other active or executable formats are prohibited.
 *   **Limits:** The initial maximum encoded file size is 2 MB. The frontend should resize and encode images before upload, while the backend must still validate the file signature, MIME type, dimensions, and object size.
@@ -143,22 +143,22 @@ The first release intentionally excludes passive territory decay, recurring main
 StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store game state, systems enforce state transitions, and Torii indexes model and event updates for clients.
 
 *   **Models:**
-    *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (3 minutes on Sepolia; initially 3 hours on Mainnet), Control Point limit, and pause state.
-    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, aggregate active Challenge Commitments, aggregate Spent Force, controlled-point count, active-position count, and retirement state.
-    *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Force, ownership generation, ownership timestamp, and active challenge ID.
-    *   `Challenge`: Challenge ID, target Control Point, incumbent, current leader and generation, Leading Force, latest displaced Operator and amount, resettable deadline, lead-change and participant counts, winner, and settlement timestamp.
+    *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (3 minutes on Sepolia; initially 3 hours on Mainnet), Sector limit, and pause state.
+    *   `OperatorState`: Operator address, ownership generation, aggregate Sector Commitments, aggregate active Challenge Commitments, aggregate Spent Force, controlled-sector count, active-position count, and retirement state.
+    *   `Sector`: Sector ID, Controller address, Controller generation, Capture Force, ownership generation, ownership timestamp, and active challenge ID.
+    *   `Challenge`: Challenge ID, target Sector, incumbent, current leader and generation, Leading Force, latest displaced Operator and amount, resettable deadline, lead-change and participant counts, winner, and settlement timestamp.
     *   `ChallengeParticipant`: Per-Challenge Operator position, cumulative committed force, included incumbent garrison, Operator generation, and resolution result.
-*   **Control System:** Implements Capture, Reinforce, Release, incremental open ascending Challenges, deferred losing-commitment spending, Control Point Sacrifice, permissionless settlement and position resolution, permanent retirement, and Operator synchronization.
+*   **Control System:** Implements Capture, Reinforce, Release, incremental open ascending Challenges, deferred losing-commitment spending, Sector Sacrifice, permissionless settlement and position resolution, permanent retirement, and Operator synchronization.
 *   **Staking Adapter:** Uses the official delegation pool's read-only `get_pool_member_info_v1` interface and treats its `amount`, `unpool_amount`, and `unpool_time` fields as authoritative delegation and exit state.
 *   **Admin System:** Provides narrowly scoped pause and configuration operations protected by Dojo World ownership. Production ownership should be held by a multisig.
 *   **Permissions:** Systems receive writer permission only for the specific models they modify. Reads are permissionless.
-*   **Events:** Capture, Reinforcement, Release, Challenge Initiated, Challenge Escalated, Control Point Sacrificed, Challenge Settled, Challenge Position Resolved, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
+*   **Events:** Capture, Reinforcement, Release, Challenge Initiated, Challenge Escalated, Sector Sacrificed, Challenge Settled, Challenge Position Resolved, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
 *   **Custody Boundary:** The Dojo World never holds or transfers staking assets.
 
 ### 5.2. Backend API (Fly.io)
 *   **Runtime:** A Go API service deployed on Fly.io at `api.stakewars.gg`. The initial target is one shared-CPU Machine with 512 MB RAM in the `sjc` region. CPU and memory may be increased if observed load requires it.
 *   **Responsibilities:**
-    *   Verify wallet challenges and current on-chain Control Point ownership.
+    *   Verify wallet challenges and current on-chain Sector ownership.
     *   Run the unprivileged Arbiter loop that settles expired Challenges, resolves remaining losing positions, and synchronizes known active Operators against the official staking contract.
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
@@ -169,7 +169,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 ### 5.3. Image Storage (Tigris)
 *   **Service:** Tigris S3-compatible object storage, provisioned through Fly.io.
-*   **Public Bucket:** A dedicated production bucket (proposed name: `stakewars-art`) with public reads and authenticated writes stores approved Control Point images.
+*   **Public Bucket:** A dedicated production bucket (proposed name: `stakewars-art`) with public reads and authenticated writes stores approved Sector images.
 *   **Backup Bucket:** A separate private bucket (proposed name: `stakewars-db-backups`) stores encrypted-in-transit Litestream replicas of the SQLite database. It must not allow public reads or share public image-delivery credentials.
 *   **Domain:** Public images are served through `assets.stakewars.gg` using the bucket's custom-domain support.
 *   **Upload Pattern:** The frontend requests authorization from the Fly API and then uploads directly to Tigris. The Fly API never proxies the image body during normal operation.
@@ -181,8 +181,8 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 *   **Initial Database:** SQLite stores off-chain game, media, and moderation metadata on a persistent Fly Volume at `/data/stakewars.db`. The initial volume size is 1 GB and can be expanded as required.
 *   **Database Configuration:** Enable WAL mode, foreign-key enforcement, and a 5-second busy timeout. Keep transactions short and serialize or retry writes where appropriate.
 *   **Backup and Recovery:** Litestream continuously replicates SQLite to the private `stakewars-db-backups` Tigris bucket. Fly Volume snapshots are retained as an additional recovery layer, not as the sole database backup. Recovery from the Litestream replica must be documented and tested before production launch.
-*   **Minimum Artwork Record:** `network`, `ownerAddress`, target Control Point IDs and ownership generations, captured projector matrix, placement transform, `imageUrl`, `objectKey`, `thumbnailUrl`, `thumbnailObjectKey`, `contentHash`, `moderationStatus`, `createdAt`, and `updatedAt`.
-*   **Authority:** On-chain contracts remain authoritative for Control Point ownership. The database is an indexed application view and must be reconciled when ownership changes.
+*   **Minimum Artwork Record:** `network`, `ownerAddress`, target Sector IDs and ownership generations, captured projector matrix, placement transform, `imageUrl`, `objectKey`, `thumbnailUrl`, `thumbnailObjectKey`, `contentHash`, `moderationStatus`, `createdAt`, and `updatedAt`.
+*   **Authority:** On-chain contracts remain authoritative for Sector ownership. The database is an indexed application view and must be reconciled when ownership changes.
 *   **Portability:** Database access is isolated behind a repository/data-access layer. Migrations, identifiers, timestamps, and query patterns should remain compatible with a later PostgreSQL migration where practical.
 *   **Scaling Path:** SQLite permits vertical scaling of the single Fly Machine but not multiple active writers. Migrate to managed PostgreSQL before operating multiple active API Machines, multi-region writes, zero-downtime failover requiring concurrent writers, write-heavy background workers, or when measured lock contention affects requests.
 *   **PostgreSQL Phase:** Once migrated, the API remains stateless with respect to local disk and may scale horizontally across multiple Fly Machines. Tigris continues to store image objects independently of the relational database.
@@ -209,7 +209,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 | `stakewars.gg` | Vercel | Public landing page |
 | `play.stakewars.gg` | Vercel | Game interface |
 | `api.stakewars.gg` | Fly.io | Authentication, ownership verification, game metadata, and upload authorization |
-| `assets.stakewars.gg` | Tigris | Public delivery of approved Control Point images |
+| `assets.stakewars.gg` | Tigris | Public delivery of approved Sector images |
 | `validator.stakewars.gg` | Rebel Hosting | Pathfinder full node and validator attestation |
 
 ### 5.8. Provisioning Status
@@ -226,8 +226,8 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 2.  **As a Challenger:** I want to see the current lead and response window before deciding whether a higher public commitment is worth permanently risking.
 3.  **As a Controller:** I want to position one camera-projected artwork across the contiguous surface I control so it reads as a whole rather than repeated tiles.
 4.  **As a Challenge Participant:** I want every lead change to reset the response window so last-block sniping cannot bypass my chance to respond.
-5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Control Point.
-6.  **As a Strategist:** I want to sacrifice another Control Point to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
+5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Sector.
+6.  **As a Strategist:** I want to sacrifice another Sector to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
 
 ---
@@ -236,11 +236,11 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 *   **Phase 1: Delegation-Backed Allocation and Open Challenges**
     *   Basic 3D Sphere.
-    *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending Challenges, resettable network-configured response windows (3 minutes on Sepolia; initially 3 hours on Mainnet) with no absolute duration cap, settlement-time losing-commitment spending, Control Point sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
+    *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending Challenges, resettable network-configured response windows (3 minutes on Sepolia; initially 3 hours on Mainnet) with no absolute duration cap, settlement-time losing-commitment spending, Sector sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
     *   Mainnet integration with the StakeWars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
-    *   Absolute, bounded Control Point tenure relief in Control mode with exact held duration in the HUD.
+    *   Absolute, bounded Sector tenure relief in Control mode with exact held duration in the HUD.
     *   Fly.io API with wallet-verified, ownership-bound upload authorization.
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.

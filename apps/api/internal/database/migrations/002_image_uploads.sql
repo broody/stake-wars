@@ -25,10 +25,10 @@ CREATE TABLE image_uploads (
 
 CREATE TABLE image_upload_targets (
     upload_id TEXT NOT NULL REFERENCES image_uploads(id) ON DELETE CASCADE,
-    control_point_id INTEGER NOT NULL,
+    sector_id INTEGER NOT NULL,
     ownership_generation INTEGER NOT NULL,
-    PRIMARY KEY (upload_id, control_point_id),
-    CHECK (control_point_id >= 0),
+    PRIMARY KEY (upload_id, sector_id),
+    CHECK (sector_id >= 0),
     CHECK (ownership_generation > 0)
 );
 

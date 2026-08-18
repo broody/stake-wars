@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 
 const ORBIT_RADIUS = 17;
 const ORBIT_TILT = THREE.MathUtils.degToRad(56);
@@ -11,8 +11,8 @@ const ORBIT_PRECESSION_SPEED = 0.018;
 const START_ANGLE = THREE.MathUtils.degToRad(28);
 const ARBITER_RADIUS = 0.62;
 const ORBIT_HOVER_HOLD_MS = 3_000;
-const ORBIT_IDLE_COLOR = new THREE.Color(CONTROL_POINT_COLORS.neutralGrid);
-const ORBIT_HOVER_COLOR = new THREE.Color(CONTROL_POINT_COLORS.hover);
+const ORBIT_IDLE_COLOR = new THREE.Color(SECTOR_COLORS.neutralGrid);
+const ORBIT_HOVER_COLOR = new THREE.Color(SECTOR_COLORS.hover);
 
 function positionOnOrbit(angle: number, target: THREE.Vector3) {
   const flatX = Math.cos(angle) * ORBIT_RADIUS;
@@ -136,7 +136,7 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
       >
         <lineDashedMaterial
           ref={orbitMaterialRef}
-          color={CONTROL_POINT_COLORS.neutralGrid}
+          color={SECTOR_COLORS.neutralGrid}
           transparent
           opacity={0.11}
           depthWrite={false}
@@ -149,14 +149,14 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
         <group ref={bodyRef} rotation={[0.34, 0.18, -0.22]}>
           <mesh geometry={arbiterGeometry} raycast={() => undefined}>
             <meshBasicMaterial
-              color={CONTROL_POINT_COLORS.neutral}
+              color={SECTOR_COLORS.neutral}
               side={THREE.DoubleSide}
             />
           </mesh>
 
           <lineSegments geometry={arbiterEdges} raycast={() => undefined}>
             <lineBasicMaterial
-              color={CONTROL_POINT_COLORS.hover}
+              color={SECTOR_COLORS.hover}
               transparent
               opacity={0.94}
               toneMapped={false}

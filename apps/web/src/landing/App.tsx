@@ -16,7 +16,7 @@ function LandingApp() {
         <>
           Select a{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            Control Point
+            Sector
           </span>{' '}
           on the Core. Choose how much of your available delegated $STRK to
           allocate through the official Starknet staking system. One unit of
@@ -28,8 +28,8 @@ function LandingApp() {
       title: '02. HOLD',
       description: (
         <>
-          A custom image can be beamed onto the Control Point. As long as you
-          hold the high ground, your staked STRK is{' '}
+          A custom image can be beamed onto the Sector. As long as you hold the
+          high ground, your staked STRK is{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             generating real protocol yield
           </span>{' '}
@@ -41,7 +41,7 @@ function LandingApp() {
       title: '03. CHALLENGE',
       description: (
         <>
-          Challenge an occupied point with a visible STRK force commitment.
+          Challenge an occupied sector with a visible STRK force commitment.
           Every escalation restarts the response window, and any Operator can{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             take the lead

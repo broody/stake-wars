@@ -2,7 +2,7 @@ use starknet::ContractAddress;
 
 pub const CONFIG_ID: u8 = 0;
 pub const CHALLENGE_COUNTER_ID: u8 = 0;
-pub const MAX_CONTROL_POINTS: u32 = 2_000;
+pub const MAX_SECTORS: u32 = 2_000;
 pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
 pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
 pub const SEPOLIA_CHALLENGE_PERIOD_SECONDS: u64 = 180; // 3 minutes
@@ -18,7 +18,7 @@ pub struct GameConfig {
     pub staking_pool: ContractAddress,
     pub minimum_stake: u128,
     pub challenge_period_seconds: u64,
-    pub control_point_limit: u32,
+    pub sector_limit: u32,
     pub paused: bool,
 }
 
@@ -28,17 +28,17 @@ pub struct OperatorState {
     #[key]
     pub operator: ContractAddress,
     pub generation: u64,
-    pub point_force: u128,
+    pub sector_force: u128,
     pub challenge_force: u128,
     pub spent_force: u128,
-    pub controlled_point_count: u32,
+    pub controlled_sector_count: u32,
     pub active_challenge_count: u32,
     pub retired: bool,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct ControlPoint {
+pub struct Sector {
     #[key]
     pub id: u32,
     pub controller: ContractAddress,
@@ -62,7 +62,7 @@ pub struct ChallengeCounter {
 pub struct Challenge {
     #[key]
     pub id: u64,
-    pub control_point_id: u32,
+    pub sector_id: u32,
     pub incumbent: ContractAddress,
     pub leader: ContractAddress,
     pub leader_generation: u64,
@@ -87,7 +87,7 @@ pub struct ChallengeParticipant {
     #[key]
     pub operator: ContractAddress,
     pub committed_force: u128,
-    pub point_force_included: u128,
+    pub sector_force_included: u128,
     pub operator_generation: u64,
     pub joined: bool,
     pub resolved: bool,

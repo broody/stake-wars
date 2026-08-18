@@ -12,7 +12,7 @@ import (
 var ErrUploadNotFound = errors.New("image upload not found")
 
 type Target struct {
-	ControlPointID      uint32 `json:"controlPointId"`
+	SectorID            uint32 `json:"sectorId"`
 	OwnershipGeneration uint64 `json:"ownershipGeneration"`
 }
 
@@ -84,9 +84,9 @@ func (s *Store) CreateUpload(ctx context.Context, upload Upload) error {
 	}
 	for _, target := range upload.Targets {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO image_upload_targets(upload_id, control_point_id, ownership_generation)
+			INSERT INTO image_upload_targets(upload_id, sector_id, ownership_generation)
 			VALUES (?, ?, ?)
-		`, upload.ID, target.ControlPointID, target.OwnershipGeneration); err != nil {
+		`, upload.ID, target.SectorID, target.OwnershipGeneration); err != nil {
 			return fmt.Errorf("create image upload target: %w", err)
 		}
 	}
@@ -123,8 +123,8 @@ func (s *Store) Upload(ctx context.Context, id string) (Upload, error) {
 		return Upload{}, fmt.Errorf("decode projector matrix: %w", err)
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT control_point_id, ownership_generation
-		FROM image_upload_targets WHERE upload_id = ? ORDER BY control_point_id
+		SELECT sector_id, ownership_generation
+		FROM image_upload_targets WHERE upload_id = ? ORDER BY sector_id
 	`, id)
 	if err != nil {
 		return Upload{}, fmt.Errorf("read image upload targets: %w", err)
@@ -132,7 +132,7 @@ func (s *Store) Upload(ctx context.Context, id string) (Upload, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var target Target
-		if err := rows.Scan(&target.ControlPointID, &target.OwnershipGeneration); err != nil {
+		if err := rows.Scan(&target.SectorID, &target.OwnershipGeneration); err != nil {
 			return Upload{}, fmt.Errorf("scan image upload target: %w", err)
 		}
 		upload.Targets = append(upload.Targets, target)
@@ -164,7 +164,7 @@ func (s *Store) Publish(ctx context.Context, upload Upload, artwork Artwork, com
 	}
 	matrix, _ := json.Marshal(artwork.Placement.ProjectorMatrix)
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO control_point_artworks(
+		INSERT INTO sector_artworks(
 			id, network, owner_address, image_url, object_key, thumbnail_url,
 			thumbnail_object_key, content_hash, projector_matrix, placement_center_x,
 			placement_center_y, placement_scale, placement_rotation, viewport_aspect,
@@ -180,18 +180,18 @@ func (s *Store) Publish(ctx context.Context, upload Upload, artwork Artwork, com
 	}
 	for _, target := range artwork.Targets {
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE control_point_artwork_targets SET active = 0
-			WHERE control_point_id = ? AND active = 1 AND artwork_id IN (
-				SELECT id FROM control_point_artworks WHERE network = ?
+			UPDATE sector_artwork_targets SET active = 0
+			WHERE sector_id = ? AND active = 1 AND artwork_id IN (
+				SELECT id FROM sector_artworks WHERE network = ?
 			)
-		`, target.ControlPointID, artwork.Network); err != nil {
+		`, target.SectorID, artwork.Network); err != nil {
 			return fmt.Errorf("supersede artwork target: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO control_point_artwork_targets(
-				artwork_id, control_point_id, ownership_generation, active
+			INSERT INTO sector_artwork_targets(
+				artwork_id, sector_id, ownership_generation, active
 			) VALUES (?, ?, ?, 1)
-		`, artwork.ID, target.ControlPointID, target.OwnershipGeneration); err != nil {
+		`, artwork.ID, target.SectorID, target.OwnershipGeneration); err != nil {
 			return fmt.Errorf("publish artwork target: %w", err)
 		}
 	}
@@ -206,12 +206,12 @@ func (s *Store) Approved(ctx context.Context, network string) ([]Artwork, error)
 		SELECT a.id, a.network, a.owner_address, a.image_url, a.thumbnail_url,
 			a.content_hash, a.projector_matrix, a.placement_center_x,
 			a.placement_center_y, a.placement_scale, a.placement_rotation,
-			a.viewport_aspect, a.updated_at, t.control_point_id,
+			a.viewport_aspect, a.updated_at, t.sector_id,
 			t.ownership_generation
-		FROM control_point_artworks a
-		JOIN control_point_artwork_targets t ON t.artwork_id = a.id
+		FROM sector_artworks a
+		JOIN sector_artwork_targets t ON t.artwork_id = a.id
 		WHERE a.network = ? AND a.moderation_status = 'approved' AND t.active = 1
-		ORDER BY a.updated_at ASC, a.id ASC, t.control_point_id ASC
+		ORDER BY a.updated_at ASC, a.id ASC, t.sector_id ASC
 	`, network)
 	if err != nil {
 		return nil, fmt.Errorf("list artworks: %w", err)
@@ -228,7 +228,7 @@ func (s *Store) Approved(ctx context.Context, network string) ([]Artwork, error)
 			&artwork.ImageURL, &artwork.ThumbnailURL, &artwork.ContentHash, &matrix,
 			&artwork.Placement.CenterX, &artwork.Placement.CenterY,
 			&artwork.Placement.Scale, &artwork.Placement.Rotation,
-			&artwork.Placement.ViewportAspect, &updatedAt, &target.ControlPointID,
+			&artwork.Placement.ViewportAspect, &updatedAt, &target.SectorID,
 			&target.OwnershipGeneration); err != nil {
 			return nil, fmt.Errorf("scan artwork: %w", err)
 		}

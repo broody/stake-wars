@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeChallengeStatusResult,
-  decodeControlPointStatusesResult,
+  decodeSectorStatusesResult,
   decodeOperatorStatusResult,
   decodePoolMemberInfoResult,
   encodeRpcFelt,
@@ -18,9 +18,9 @@ describe('Starknet RPC calldata', () => {
     expect(() => encodeRpcFelt(-1)).toThrow('RPC felt cannot be negative');
   });
 
-  it('decodes Control Point status batches', () => {
+  it('decodes Sector status batches', () => {
     expect(
-      decodeControlPointStatusesResult(
+      decodeSectorStatusesResult(
         [
           '0x1',
           '0xa',
@@ -70,7 +70,7 @@ describe('Starknet RPC calldata', () => {
         '0xabc'
       )
     ).toMatchObject({
-      pointForce: 100n,
+      sectorForce: 100n,
       challengeForce: 200n,
       spentForce: 300n,
       availableForce: 400n,
@@ -96,7 +96,7 @@ describe('Starknet RPC calldata', () => {
         '0x0',
       ])
     ).toMatchObject({
-      controlPointId: 42,
+      sectorId: 42,
       leader: '0x222',
       leadingForce: 500n,
       lastLosingForce: 400n,

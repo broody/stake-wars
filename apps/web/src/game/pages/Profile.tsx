@@ -1,13 +1,13 @@
 import { WalletButton } from '../components/ui/WalletButton';
 import { OperatorActivityTable } from '../components/ui/OperatorActivityTable';
-import { useControlPoints } from '../contexts/ControlPointContext';
+import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { formatStrk, shortAddress } from '../utils/format';
 
 export function Profile() {
   const { isConnected, address, username, walletName } = useWallet();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
-    useControlPoints();
+    useSectors();
   const stakeMetrics = operatorStatus
     ? [{ label: 'CONTROL FORCE', value: operatorStatus.liveDelegatedAmount }]
     : [];
@@ -21,7 +21,7 @@ export function Profile() {
           </div>
           <h2 className="mb-4 mt-3 text-2xl text-white">CONNECT YOUR WALLET</h2>
           <p className="mb-6 max-w-sm text-sm leading-relaxed text-neutral-500">
-            Connect to read your Control Force and Control Points.
+            Connect to read your Control Force and Sectors.
           </p>
           <div className="inline-block">
             <WalletButton />
@@ -86,13 +86,13 @@ export function Profile() {
             </div>
 
             <div className="mt-8 flex items-center justify-between border-y border-grid py-4 text-sm">
-              <span className="text-dim">OWNED POINTS</span>
-              <span>{operatorStatus.controlledPointCount}</span>
+              <span className="text-dim">OWNED SECTORS</span>
+              <span>{operatorStatus.controlledSectorCount}</span>
             </div>
 
             {operatorStatus.needsSync && (
               <div className="mt-6 border border-amber-500/50 p-4 text-sm text-amber-400">
-                Your live stake is below the force backing your Control Points.
+                Your live stake is below the force backing your Sectors.
                 Operator sync will invalidate the current ownership generation.
               </div>
             )}

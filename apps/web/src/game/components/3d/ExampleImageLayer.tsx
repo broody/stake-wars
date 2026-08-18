@@ -8,36 +8,31 @@ import {
 } from '../../utils/exampleImageAtlas';
 
 export function ExampleImageLayer({
-  controlPointIds,
+  sectorIds,
   heights,
 }: {
-  controlPointIds: readonly number[];
+  sectorIds: readonly number[];
   heights: ReadonlyMap<number, number>;
 }) {
-  if (controlPointIds.length === 0) return null;
+  if (sectorIds.length === 0) return null;
 
-  return (
-    <PopulatedExampleImageLayer
-      controlPointIds={controlPointIds}
-      heights={heights}
-    />
-  );
+  return <PopulatedExampleImageLayer sectorIds={sectorIds} heights={heights} />;
 }
 
 export function ExampleDetailImageLayer({
-  controlPointId,
+  sectorId,
   heights,
 }: {
-  controlPointId: number;
+  sectorId: number;
   heights: ReadonlyMap<number, number>;
 }) {
   const geometry = useMemo(
-    () => createExampleDetailImageGeometry(controlPointId, heights),
-    [controlPointId, heights]
+    () => createExampleDetailImageGeometry(sectorId, heights),
+    [sectorId, heights]
   );
   const texture = useMemo(
-    () => createExampleDetailTexture(controlPointId),
-    [controlPointId]
+    () => createExampleDetailTexture(sectorId),
+    [sectorId]
   );
 
   useEffect(
@@ -65,15 +60,15 @@ export function ExampleDetailImageLayer({
 }
 
 function PopulatedExampleImageLayer({
-  controlPointIds,
+  sectorIds,
   heights,
 }: {
-  controlPointIds: readonly number[];
+  sectorIds: readonly number[];
   heights: ReadonlyMap<number, number>;
 }) {
   const geometry = useMemo(
-    () => createExampleImageGeometry(controlPointIds, heights),
-    [controlPointIds, heights]
+    () => createExampleImageGeometry(sectorIds, heights),
+    [sectorIds, heights]
   );
   const texture = useMemo(() => getExampleImageAtlasTexture(), []);
 

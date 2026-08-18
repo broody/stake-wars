@@ -54,8 +54,8 @@ export const Gallery: React.FC = () => {
                     {art.name || `Artwork #${art._id}`}
                   </h3>
                   <p className="text-gray-400 text-sm">
-                    {art.controlPointIds.length} Control Point
-                    {art.controlPointIds.length !== 1 ? 's' : ''}
+                    {art.sectorIds.length} Sector
+                    {art.sectorIds.length !== 1 ? 's' : ''}
                   </p>
                   <p className="text-gray-500 text-xs mt-1">
                     Operator: {art.ownerId.slice(0, 6)}...

@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 
-export const CONTROL_POINT_COUNT = 2_000;
-export const CONTROL_POINT_DETAIL = 9;
+export const SECTOR_COUNT = 2_000;
+export const SECTOR_DETAIL = 9;
 export const CORE_RADIUS = 5;
 
-const VERTICES_PER_CONTROL_POINT = 3;
+const VERTICES_PER_SECTOR = 3;
 const VALUES_PER_VERTEX = 3;
-const VALUES_PER_CONTROL_POINT = VERTICES_PER_CONTROL_POINT * VALUES_PER_VERTEX;
+const VALUES_PER_SECTOR = VERTICES_PER_SECTOR * VALUES_PER_VERTEX;
 const DISTINCT_OWNER_SEAM = 0.05;
 
 interface Triangle {
@@ -15,7 +15,7 @@ interface Triangle {
 }
 
 interface OwnershipEdge {
-  controlPointId: number;
+  sectorId: number;
   oppositeVertex: number;
   ownerGroupIndex: number;
 }
@@ -33,7 +33,7 @@ function coordinateKey(value: number): string {
 }
 
 function triangleKey(positions: number[]): string {
-  const vertices = Array.from({ length: VERTICES_PER_CONTROL_POINT }, (_, i) =>
+  const vertices = Array.from({ length: VERTICES_PER_SECTOR }, (_, i) =>
     positions
       .slice(i * VALUES_PER_VERTEX, (i + 1) * VALUES_PER_VERTEX)
       .map(coordinateKey)
@@ -55,7 +55,7 @@ function edgeKey(positions: number[]): string {
 }
 
 function createCanonicalUnitPositions(): Float32Array {
-  const source = new THREE.IcosahedronGeometry(1, CONTROL_POINT_DETAIL);
+  const source = new THREE.IcosahedronGeometry(1, SECTOR_DETAIL);
   const sourcePositions = source.getAttribute('position');
   const triangles: Triangle[] = [];
 
@@ -79,9 +79,9 @@ function createCanonicalUnitPositions(): Float32Array {
     return left.key < right.key ? -1 : 1;
   });
 
-  if (triangles.length !== CONTROL_POINT_COUNT) {
+  if (triangles.length !== SECTOR_COUNT) {
     throw new Error(
-      `Expected ${CONTROL_POINT_COUNT} Control Points, received ${triangles.length}`
+      `Expected ${SECTOR_COUNT} Sectors, received ${triangles.length}`
     );
   }
 
@@ -92,24 +92,20 @@ function createCanonicalUnitPositions(): Float32Array {
 // This makes IDs deterministic even if Three.js changes its triangle traversal order.
 const CANONICAL_UNIT_POSITIONS = createCanonicalUnitPositions();
 
-function createControlPointNeighborMap(): readonly (readonly number[])[] {
-  const edgeControlPoints = new Map<string, number[]>();
+function createSectorNeighborMap(): readonly (readonly number[])[] {
+  const edgeSectors = new Map<string, number[]>();
 
-  for (
-    let controlPointId = 0;
-    controlPointId < CONTROL_POINT_COUNT;
-    controlPointId += 1
-  ) {
-    const triangleOffset = controlPointId * VALUES_PER_CONTROL_POINT;
+  for (let sectorId = 0; sectorId < SECTOR_COUNT; sectorId += 1) {
+    const triangleOffset = sectorId * VALUES_PER_SECTOR;
     const triangle = Array.from(
       CANONICAL_UNIT_POSITIONS.slice(
         triangleOffset,
-        triangleOffset + VALUES_PER_CONTROL_POINT
+        triangleOffset + VALUES_PER_SECTOR
       )
     );
 
-    for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
-      const nextVertex = (vertex + 1) % VERTICES_PER_CONTROL_POINT;
+    for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
+      const nextVertex = (vertex + 1) % VERTICES_PER_SECTOR;
       const key = edgeKey([
         ...triangle.slice(
           vertex * VALUES_PER_VERTEX,
@@ -120,43 +116,41 @@ function createControlPointNeighborMap(): readonly (readonly number[])[] {
           (nextVertex + 1) * VALUES_PER_VERTEX
         ),
       ]);
-      const owners = edgeControlPoints.get(key) ?? [];
-      owners.push(controlPointId);
-      edgeControlPoints.set(key, owners);
+      const owners = edgeSectors.get(key) ?? [];
+      owners.push(sectorId);
+      edgeSectors.set(key, owners);
     }
   }
 
   const neighbors = Array.from(
-    { length: CONTROL_POINT_COUNT },
+    { length: SECTOR_COUNT },
     () => new Set<number>()
   );
-  edgeControlPoints.forEach((owners) => {
+  edgeSectors.forEach((owners) => {
     if (owners.length !== 2) return;
     neighbors[owners[0]].add(owners[1]);
     neighbors[owners[1]].add(owners[0]);
   });
 
-  return neighbors.map((controlPointIds) =>
-    Object.freeze([...controlPointIds].sort((left, right) => left - right))
+  return neighbors.map((sectorIds) =>
+    Object.freeze([...sectorIds].sort((left, right) => left - right))
   );
 }
 
-const CONTROL_POINT_NEIGHBORS = createControlPointNeighborMap();
+const SECTOR_NEIGHBORS = createSectorNeighborMap();
 
-export function isControlPointId(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value < CONTROL_POINT_COUNT;
+export function isSectorId(value: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value < SECTOR_COUNT;
 }
 
-export function adjacentControlPointIds(
-  controlPointId: number
-): readonly number[] {
-  if (!isControlPointId(controlPointId)) {
-    throw new RangeError(`Invalid Control Point ID: ${controlPointId}`);
+export function adjacentSectorIds(sectorId: number): readonly number[] {
+  if (!isSectorId(sectorId)) {
+    throw new RangeError(`Invalid Sector ID: ${sectorId}`);
   }
-  return CONTROL_POINT_NEIGHBORS[controlPointId];
+  return SECTOR_NEIGHBORS[sectorId];
 }
 
-export function createControlPointGeometry(
+export function createSectorGeometry(
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
   const positions = CANONICAL_UNIT_POSITIONS.map((value) => value * radius);
@@ -167,23 +161,21 @@ export function createControlPointGeometry(
   return geometry;
 }
 
-export function extractControlPointPositions(
-  controlPointIds: number[],
+export function extractSectorPositions(
+  sectorIds: number[],
   radius = CORE_RADIUS
 ): Float32Array {
-  const positions = new Float32Array(
-    controlPointIds.length * VALUES_PER_CONTROL_POINT
-  );
+  const positions = new Float32Array(sectorIds.length * VALUES_PER_SECTOR);
 
-  controlPointIds.forEach((controlPointId, resultIndex) => {
-    if (!isControlPointId(controlPointId)) {
-      throw new RangeError(`Invalid Control Point ID: ${controlPointId}`);
+  sectorIds.forEach((sectorId, resultIndex) => {
+    if (!isSectorId(sectorId)) {
+      throw new RangeError(`Invalid Sector ID: ${sectorId}`);
     }
 
-    const sourceOffset = controlPointId * VALUES_PER_CONTROL_POINT;
-    const resultOffset = resultIndex * VALUES_PER_CONTROL_POINT;
+    const sourceOffset = sectorId * VALUES_PER_SECTOR;
+    const resultOffset = resultIndex * VALUES_PER_SECTOR;
 
-    for (let value = 0; value < VALUES_PER_CONTROL_POINT; value += 1) {
+    for (let value = 0; value < VALUES_PER_SECTOR; value += 1) {
       positions[resultOffset + value] =
         CANONICAL_UNIT_POSITIONS[sourceOffset + value] * radius;
     }
@@ -192,51 +184,48 @@ export function extractControlPointPositions(
   return positions;
 }
 
-export function createSingleControlPointGeometry(
-  controlPointId: number,
+export function createSingleSectorGeometry(
+  sectorId: number,
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
-  return createControlPointSetGeometry([controlPointId], radius);
+  return createSectorSetGeometry([sectorId], radius);
 }
 
-export function createControlPointSetGeometry(
-  controlPointIds: number[],
+export function createSectorSetGeometry(
+  sectorIds: number[],
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute(
     'position',
-    new THREE.BufferAttribute(
-      extractControlPointPositions(controlPointIds, radius),
-      3
-    )
+    new THREE.BufferAttribute(extractSectorPositions(sectorIds, radius), 3)
   );
   geometry.computeVertexNormals();
   return geometry;
 }
 
-interface ControlPointEdgePositions {
+interface SectorEdgePositions {
   boundary: number[];
   internal: number[];
 }
 
-function controlPointEdgePositions(
-  controlPointIds: readonly number[],
+function sectorEdgePositions(
+  sectorIds: readonly number[],
   heights?: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
-): ControlPointEdgePositions {
+): SectorEdgePositions {
   const boundaryEdges = new Map<string, number[]>();
   const internalEdges = new Map<string, number[]>();
 
-  [...new Set(controlPointIds)].forEach((controlPointId) => {
+  [...new Set(sectorIds)].forEach((sectorId) => {
     const { base, top } = raisedTrianglePositions(
-      controlPointId,
-      heights?.get(controlPointId) ?? 0,
+      sectorId,
+      heights?.get(sectorId) ?? 0,
       radius
     );
 
-    for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
-      const nextVertex = (vertex + 1) % VERTICES_PER_CONTROL_POINT;
+    for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
+      const nextVertex = (vertex + 1) % VERTICES_PER_SECTOR;
       const baseEdge = [
         ...base.slice(
           vertex * VALUES_PER_VERTEX,
@@ -285,30 +274,26 @@ function createEdgeGeometry(positions: number[]): THREE.BufferGeometry {
   return geometry;
 }
 
-export function createControlPointBoundaryGeometry(
-  controlPointIds: number[],
+export function createSectorBoundaryGeometry(
+  sectorIds: number[],
   heights?: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
   return createEdgeGeometry(
-    controlPointEdgePositions(controlPointIds, heights, radius).boundary
+    sectorEdgePositions(sectorIds, heights, radius).boundary
   );
 }
 
-export function createControlPointGroupGridGeometries(
-  controlPointGroups: readonly (readonly number[])[],
+export function createSectorGroupGridGeometries(
+  sectorGroups: readonly (readonly number[])[],
   heights?: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
 ): { boundaries: THREE.BufferGeometry; interiors: THREE.BufferGeometry } {
   const boundaryPositions: number[] = [];
   const internalPositions: number[] = [];
 
-  controlPointGroups.forEach((controlPointIds) => {
-    const positions = controlPointEdgePositions(
-      controlPointIds,
-      heights,
-      radius
-    );
+  sectorGroups.forEach((sectorIds) => {
+    const positions = sectorEdgePositions(sectorIds, heights, radius);
     boundaryPositions.push(...positions.boundary);
     internalPositions.push(...positions.internal);
   });
@@ -320,33 +305,27 @@ export function createControlPointGroupGridGeometries(
 }
 
 function raisedTrianglePositions(
-  controlPointId: number,
+  sectorId: number,
   height: number,
   radius: number
 ): { base: number[]; top: number[] } {
   if (!Number.isFinite(height) || height < 0) {
-    throw new RangeError(`Invalid Control Point height: ${height}`);
+    throw new RangeError(`Invalid Sector height: ${height}`);
   }
-  const base = Array.from(
-    extractControlPointPositions([controlPointId], radius)
-  );
+  const base = Array.from(extractSectorPositions([sectorId], radius));
   const topRadius = radius + height;
   const top = base.map((value) => value * (topRadius / radius));
   return { base, top };
 }
 
-export function createRaisedControlPointSetGeometry(
-  controlPointIds: number[],
+export function createRaisedSectorSetGeometry(
+  sectorIds: number[],
   heights: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
-  const positions = controlPointIds.flatMap(
-    (controlPointId) =>
-      raisedTrianglePositions(
-        controlPointId,
-        heights.get(controlPointId) ?? 0,
-        radius
-      ).top
+  const positions = sectorIds.flatMap(
+    (sectorId) =>
+      raisedTrianglePositions(sectorId, heights.get(sectorId) ?? 0, radius).top
   );
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute(
@@ -358,51 +337,47 @@ export function createRaisedControlPointSetGeometry(
   return geometry;
 }
 
-export function createExtrudedControlPointGeometries(
-  controlPointIds: number[],
+export function createExtrudedSectorGeometries(
+  sectorIds: number[],
   heights: ReadonlyMap<number, number>,
   radius = CORE_RADIUS,
-  controlPointGroups?: number[][]
+  sectorGroups?: number[][]
 ): {
   tops: THREE.BufferGeometry;
   sides: THREE.BufferGeometry;
-  topControlPointIds: number[];
-  sideControlPointIds: number[];
+  topSectorIds: number[];
+  sideSectorIds: number[];
 } {
   const sidePositions: number[] = [];
-  const sideControlPointIds: number[] = [];
+  const sideSectorIds: number[] = [];
 
-  const topData = controlPointGroups
-    ? separatedControlPointData(
-        controlPointIds,
-        controlPointGroups,
+  const topData = sectorGroups
+    ? separatedSectorData(
+        sectorIds,
+        sectorGroups,
         DISTINCT_OWNER_SEAM / 2,
         radius,
         heights
       )
     : {
-        positions: controlPointIds.flatMap(
-          (controlPointId) =>
+        positions: sectorIds.flatMap(
+          (sectorId) =>
             raisedTrianglePositions(
-              controlPointId,
-              heights.get(controlPointId) ?? 0,
+              sectorId,
+              heights.get(sectorId) ?? 0,
               radius
             ).top
         ),
-        faceControlPointIds: [...controlPointIds],
+        faceSectorIds: [...sectorIds],
       };
 
-  controlPointIds.forEach((controlPointId) => {
-    const height = heights.get(controlPointId) ?? 0;
-    const { base, top } = raisedTrianglePositions(
-      controlPointId,
-      height,
-      radius
-    );
+  sectorIds.forEach((sectorId) => {
+    const height = heights.get(sectorId) ?? 0;
+    const { base, top } = raisedTrianglePositions(sectorId, height, radius);
     if (height === 0) return;
 
-    for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
-      const nextVertex = (vertex + 1) % VERTICES_PER_CONTROL_POINT;
+    for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
+      const nextVertex = (vertex + 1) % VERTICES_PER_SECTOR;
       const baseVertex = base.slice(
         vertex * VALUES_PER_VERTEX,
         (vertex + 1) * VALUES_PER_VERTEX
@@ -428,7 +403,7 @@ export function createExtrudedControlPointGeometries(
         ...topNext,
         ...topVertex
       );
-      sideControlPointIds.push(controlPointId, controlPointId);
+      sideSectorIds.push(sectorId, sectorId);
     }
   });
 
@@ -446,8 +421,8 @@ export function createExtrudedControlPointGeometries(
   return {
     tops: createGeometry(topData.positions),
     sides: createGeometry(sidePositions),
-    topControlPointIds: topData.faceControlPointIds,
-    sideControlPointIds,
+    topSectorIds: topData.faceSectorIds,
+    sideSectorIds,
   };
 }
 
@@ -496,41 +471,33 @@ function interpolateTriangle(
   );
 }
 
-function separatedControlPointData(
-  controlPointIds: number[],
-  controlPointGroups: number[][],
+function separatedSectorData(
+  sectorIds: number[],
+  sectorGroups: number[][],
   padding: number,
   radius: number,
   heights?: ReadonlyMap<number, number>
-): { positions: number[]; faceControlPointIds: number[] } {
+): { positions: number[]; faceSectorIds: number[] } {
   if (padding < 0 || padding >= 1 / 3) {
-    throw new RangeError(
-      'Control Point owner padding must be between 0 and 1/3'
-    );
+    throw new RangeError('Sector owner padding must be between 0 and 1/3');
   }
 
   const edges = new Map<string, Edge>();
 
-  controlPointGroups.forEach((groupControlPointIds, ownerGroupIndex) => {
-    const positions = extractControlPointPositions(
-      groupControlPointIds,
-      radius
-    );
+  sectorGroups.forEach((groupSectorIds, ownerGroupIndex) => {
+    const positions = extractSectorPositions(groupSectorIds, radius);
 
     for (
       let triangleOffset = 0;
       triangleOffset < positions.length;
-      triangleOffset += VALUES_PER_CONTROL_POINT
+      triangleOffset += VALUES_PER_SECTOR
     ) {
       const triangle = Array.from(
-        positions.slice(
-          triangleOffset,
-          triangleOffset + VALUES_PER_CONTROL_POINT
-        )
+        positions.slice(triangleOffset, triangleOffset + VALUES_PER_SECTOR)
       );
 
-      for (let vertex = 0; vertex < VERTICES_PER_CONTROL_POINT; vertex += 1) {
-        const nextVertex = (vertex + 1) % VERTICES_PER_CONTROL_POINT;
+      for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
+        const nextVertex = (vertex + 1) % VERTICES_PER_SECTOR;
         const edgePositions = [
           ...triangle.slice(
             vertex * VALUES_PER_VERTEX,
@@ -544,9 +511,8 @@ function separatedControlPointData(
         const key = edgeKey(edgePositions);
         const ownership = edges.get(key)?.ownership ?? [];
         ownership.push({
-          controlPointId:
-            groupControlPointIds[triangleOffset / VALUES_PER_CONTROL_POINT],
-          oppositeVertex: (vertex + 2) % VERTICES_PER_CONTROL_POINT,
+          sectorId: groupSectorIds[triangleOffset / VALUES_PER_SECTOR],
+          oppositeVertex: (vertex + 2) % VERTICES_PER_SECTOR,
           ownerGroupIndex,
         });
         edges.set(key, { ownership });
@@ -563,29 +529,26 @@ function separatedControlPointData(
       return;
     }
 
-    ownership.forEach(({ controlPointId, oppositeVertex }) => {
-      const vertices = paddedEdges.get(controlPointId) ?? new Set<number>();
+    ownership.forEach(({ sectorId, oppositeVertex }) => {
+      const vertices = paddedEdges.get(sectorId) ?? new Set<number>();
       vertices.add(oppositeVertex);
-      paddedEdges.set(controlPointId, vertices);
+      paddedEdges.set(sectorId, vertices);
     });
   });
 
   const positions: number[] = [];
-  const faceControlPointIds: number[] = [];
+  const faceSectorIds: number[] = [];
 
-  controlPointIds.forEach((controlPointId) => {
+  sectorIds.forEach((sectorId) => {
     const triangle = heights
-      ? raisedTrianglePositions(
-          controlPointId,
-          heights.get(controlPointId) ?? 0,
-          radius
-        ).top
-      : Array.from(extractControlPointPositions([controlPointId], radius));
-    const edgesToPad = paddedEdges.get(controlPointId);
+      ? raisedTrianglePositions(sectorId, heights.get(sectorId) ?? 0, radius)
+          .top
+      : Array.from(extractSectorPositions([sectorId], radius));
+    const edgesToPad = paddedEdges.get(sectorId);
 
     if (!edgesToPad || edgesToPad.size === 0) {
       positions.push(...triangle);
-      faceControlPointIds.push(controlPointId);
+      faceSectorIds.push(sectorId);
       return;
     }
 
@@ -604,22 +567,22 @@ function separatedControlPointData(
         ...interpolateTriangle(triangle, polygon[index]),
         ...interpolateTriangle(triangle, polygon[index + 1])
       );
-      faceControlPointIds.push(controlPointId);
+      faceSectorIds.push(sectorId);
     }
   });
 
-  return { positions, faceControlPointIds };
+  return { positions, faceSectorIds };
 }
 
-export function createSeparatedControlPointSetGeometry(
-  controlPointIds: number[],
-  controlPointGroups: number[][],
+export function createSeparatedSectorSetGeometry(
+  sectorIds: number[],
+  sectorGroups: number[][],
   padding = DISTINCT_OWNER_SEAM / 2,
   radius = CORE_RADIUS
 ): THREE.BufferGeometry {
-  const { positions } = separatedControlPointData(
-    controlPointIds,
-    controlPointGroups,
+  const { positions } = separatedSectorData(
+    sectorIds,
+    sectorGroups,
     padding,
     radius
   );

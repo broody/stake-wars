@@ -4,17 +4,17 @@ import { TransactionExecutionStatus } from 'starknet';
 import type {
   ChallengeParticipantStatus,
   ChallengeStatus,
-  ControlPointStatus,
+  SectorStatus,
   PoolMemberInfo,
 } from '../../types';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { config } from '../../services/config';
 import {
   getChallengeParticipantStatus,
   getChallengeStatus,
-  getControlPointStatus,
+  getSectorStatus,
   getOperatorStatus,
   getPoolMemberInfo,
   getStakingPoolInfo,
@@ -35,7 +35,7 @@ import {
 } from '../../utils/format';
 
 interface CaptureControlProps {
-  controlPoints: ControlPointStatus[];
+  sectors: SectorStatus[];
   intent?: 'capture' | 'fortify';
 }
 
@@ -48,16 +48,16 @@ interface StakingContext {
 
 const MAX_U128 = (1n << 128n) - 1n;
 
-export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
-  const point = controlPoints[0];
+export function CaptureControl({ sectors, intent }: CaptureControlProps) {
+  const sector = sectors[0];
   const { address, isConnected } = useWallet();
   const {
     operatorStatus,
-    refreshControlPoint,
+    refreshSector,
     refreshOperator,
-    refreshControlPointIndex,
-    setControlPointInteractionLocked,
-  } = useControlPoints();
+    refreshSectorIndex,
+    setSectorInteractionLocked,
+  } = useSectors();
   const { provider } = useProvider();
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
@@ -76,17 +76,17 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     Math.floor(Date.now() / 1_000)
   );
 
-  const pointId = point?.id;
-  const activeChallengeId = point?.activeChallengeId ?? 0n;
+  const sectorId = sector?.id;
+  const activeChallengeId = sector?.activeChallengeId ?? 0n;
   const challenged = activeChallengeId !== 0n;
   const owned = Boolean(
-    address && point && addressesMatch(point.controller, address)
+    address && sector && addressesMatch(sector.controller, address)
   );
-  const neutral = point?.captureForce === 0n;
+  const neutral = sector?.captureForce === 0n;
   const expired = Boolean(
     challenged &&
-      point.challengeDeadline &&
-      point.challengeDeadline <= clockSeconds
+      sector.challengeDeadline &&
+      sector.challengeDeadline <= clockSeconds
   );
   const action: Action = expired
     ? 'settle'
@@ -98,7 +98,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           ? 'reinforce'
           : 'challenge';
   const availableForce = operatorStatus?.availableForce ?? 0n;
-  const requiredForce = point?.requiredStake ?? 0n;
+  const requiredForce = sector?.requiredStake ?? 0n;
   const currentLeader = Boolean(
     address && challenge && addressesMatch(challenge.leader, address)
   );
@@ -106,13 +106,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     action === 'capture' || action === 'challenge' ? requiredForce : 0n;
 
   useEffect(() => {
-    if (!challenged || !point?.challengeDeadline) return;
+    if (!challenged || !sector?.challengeDeadline) return;
 
     const updateClock = () => setClockSeconds(Math.floor(Date.now() / 1_000));
     updateClock();
     const interval = window.setInterval(updateClock, 1_000);
     return () => window.clearInterval(interval);
-  }, [challenged, point?.challengeDeadline]);
+  }, [challenged, sector?.challengeDeadline]);
 
   useEffect(() => {
     setError(null);
@@ -120,11 +120,11 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     setAllocation(
       suggestedAllocation > 0n ? formatStrk(suggestedAllocation, 18) : ''
     );
-  }, [action, point?.id, suggestedAllocation]);
+  }, [action, sector?.id, suggestedAllocation]);
 
   useEffect(() => {
     const controller = new AbortController();
-    if (!challenged || pointId === undefined) {
+    if (!challenged || sectorId === undefined) {
       setChallenge(null);
       setParticipant(null);
       setChallengeLoading(false);
@@ -158,7 +158,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         if (!controller.signal.aborted) setChallengeLoading(false);
       });
     return () => controller.abort();
-  }, [activeChallengeId, address, challenged, pointId]);
+  }, [activeChallengeId, address, challenged, sectorId]);
 
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
@@ -186,7 +186,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       : requestedForce;
   const deficit = stakeDeficit(additionalCommittedForce, availableForce);
   const currentPosition =
-    action === 'reinforce' ? (point?.captureForce ?? 0n) : 0n;
+    action === 'reinforce' ? (sector?.captureForce ?? 0n) : 0n;
   const projectedCommitment = currentPosition + requestedForce;
 
   useEffect(() => {
@@ -235,7 +235,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   }, [action, address, deficit]);
 
   const commonDisabledReason = useMemo(() => {
-    if (controlPoints.length !== 1 || !point) return 'SELECT ONE CONTROL POINT';
+    if (sectors.length !== 1 || !sector) return 'SELECT ONE SECTOR';
     if (!isConnected || !address) return 'CONNECT OPERATOR';
     if (action === 'settle') return null;
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
@@ -254,13 +254,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     address,
     challenged,
     challengeLoading,
-    controlPoints.length,
+    sectors.length,
     currentLeader,
     deficit,
     isConnected,
     operatorStatus,
     parsedAllocation.error,
-    point,
+    sector,
     staking,
     walletBalance,
   ]);
@@ -287,7 +287,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
 
   const submit = async (withSacrifice = false) => {
     if (
-      !point ||
+      !sector ||
       !address ||
       !config.controlSystemAddress ||
       (withSacrifice ? collateralCommonDisabledReason : primaryDisabledReason)
@@ -297,18 +297,18 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
     const allocationAmount = selectedAllocation ?? 0n;
     setError(null);
     setPhase('submitting');
-    setControlPointInteractionLocked(true);
+    setSectorInteractionLocked(true);
     let hash: string | null = null;
     try {
-      const freshPoint = await getControlPointStatus(point.id);
+      const freshSector = await getSectorStatus(sector.id);
       let calls;
       let label: string;
 
       if (action === 'settle') {
         if (
-          freshPoint.activeChallengeId === 0n ||
-          !freshPoint.challengeDeadline ||
-          freshPoint.challengeDeadline > Date.now() / 1_000
+          freshSector.activeChallengeId === 0n ||
+          !freshSector.challengeDeadline ||
+          freshSector.challengeDeadline > Date.now() / 1_000
         ) {
           throw new Error(
             'The response window is still active or already settled.'
@@ -317,7 +317,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         calls = buildControlCall(
           config.controlSystemAddress,
           'settle_challenge',
-          [String(point.id)]
+          [String(sector.id)]
         );
         label = 'CONTEST SETTLEMENT';
       } else {
@@ -334,7 +334,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           calls = buildSmartGameActionCalls({
             controlSystemAddress: config.controlSystemAddress,
             entrypoint: 'reinforce',
-            calldata: [String(point.id), allocationAmount.toString()],
+            calldata: [String(sector.id), allocationAmount.toString()],
             allocation: allocationAmount,
             availableForce: freshOperator.availableForce,
             operatorAddress: address,
@@ -345,22 +345,22 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           label = 'FORTIFICATION';
         } else if (action === 'challenge') {
           if (
-            freshPoint.activeChallengeId !== 0n &&
-            freshPoint.challengeDeadline &&
-            freshPoint.challengeDeadline <= Date.now() / 1_000
+            freshSector.activeChallengeId !== 0n &&
+            freshSector.challengeDeadline &&
+            freshSector.challengeDeadline <= Date.now() / 1_000
           ) {
             throw new Error('The response window ended. Settle the contest.');
           }
           let previousPersonalCommitment = 0n;
-          if (freshPoint.activeChallengeId !== 0n) {
+          if (freshSector.activeChallengeId !== 0n) {
             const freshChallenge = await getChallengeStatus(
-              freshPoint.activeChallengeId
+              freshSector.activeChallengeId
             );
             if (addressesMatch(freshChallenge.leader, address)) {
               throw new Error('You are already the current leader.');
             }
             const freshParticipant = await getChallengeParticipantStatus(
-              freshPoint.activeChallengeId,
+              freshSector.activeChallengeId,
               address
             );
             if (freshParticipant.joined && !freshParticipant.resolved) {
@@ -375,27 +375,27 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             if (
               !Number.isInteger(source) ||
               source < 0 ||
-              source === point.id
+              source === sector.id
             ) {
               throw new Error(
-                'Enter a different owned Control Point ID to sacrifice.'
+                'Enter a different owned Sector ID to sacrifice.'
               );
             }
-            const sourcePoint = await getControlPointStatus(source);
+            const sourceSector = await getSectorStatus(source);
             if (
-              !addressesMatch(sourcePoint.controller, address) ||
-              sourcePoint.activeChallengeId !== 0n
+              !addressesMatch(sourceSector.controller, address) ||
+              sourceSector.activeChallengeId !== 0n
             ) {
               throw new Error(
-                'The sacrificed Control Point must be uncontested and owned by you.'
+                'The sacrificed Sector must be uncontested and owned by you.'
               );
             }
-            sacrificedForce = sourcePoint.captureForce;
+            sacrificedForce = sourceSector.captureForce;
           }
-          if (allocationAmount < freshPoint.requiredStake) {
+          if (allocationAmount < freshSector.requiredStake) {
             throw new Error(
               `Challenge force must reach at least ${formatStrk(
-                freshPoint.requiredStake,
+                freshSector.requiredStake,
                 18
               )} STRK.`
             );
@@ -421,8 +421,8 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               ? 'challenge_with_sacrifice'
               : 'challenge',
             calldata: withSacrifice
-              ? [String(point.id), String(source), allocationAmount.toString()]
-              : [String(point.id), allocationAmount.toString()],
+              ? [String(sector.id), String(source), allocationAmount.toString()]
+              : [String(sector.id), allocationAmount.toString()],
             allocation: allocationAfterSacrifice,
             availableForce: freshOperator.availableForce,
             operatorAddress: address,
@@ -438,10 +438,10 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               ? 'SACRIFICED + INITIATED CHALLENGE'
               : 'INITIATED CHALLENGE';
         } else {
-          if (allocationAmount < freshPoint.requiredStake) {
+          if (allocationAmount < freshSector.requiredStake) {
             throw new Error(
               `Capture requires ${formatStrk(
-                freshPoint.requiredStake,
+                freshSector.requiredStake,
                 18
               )} STRK.`
             );
@@ -453,7 +453,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           calls = buildSmartGameActionCalls({
             controlSystemAddress: config.controlSystemAddress,
             entrypoint: 'capture',
-            calldata: [String(point.id), allocationAmount.toString()],
+            calldata: [String(sector.id), allocationAmount.toString()],
             allocation: allocationAmount,
             availableForce: freshOperator.availableForce,
             operatorAddress: address,
@@ -469,16 +469,16 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       hash = result.transaction_hash;
       notifySubmitting(
         hash,
-        `CP-${String(point.id).padStart(4, '0')} ${label}`
+        `SECTOR-${String(sector.id).padStart(4, '0')} ${label}`
       );
       setPhase('confirming');
       await provider.waitForTransaction(hash, {
         errorStates: [TransactionExecutionStatus.REVERTED],
       });
       notifyConfirmed(hash);
-      refreshControlPoint();
+      refreshSector();
       refreshOperator();
-      refreshControlPointIndex();
+      refreshSectorIndex();
     } catch (reason) {
       const message =
         reason instanceof Error ? reason.message : 'Transaction failed.';
@@ -486,7 +486,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       if (hash) notifyFailed(hash, message);
     } finally {
       setPhase('idle');
-      setControlPointInteractionLocked(false);
+      setSectorInteractionLocked(false);
     }
   };
 
@@ -518,13 +518,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
         {challenged
           ? owned
-            ? 'DEFEND CONTROL POINT'
-            : 'CONTEST CONTROL POINT'
+            ? 'DEFEND SECTOR'
+            : 'CONTEST SECTOR'
           : neutral
-            ? 'CAPTURE CONTROL POINT'
+            ? 'CAPTURE SECTOR'
             : owned
-              ? 'FORTIFY CONTROL POINT'
-              : 'CHALLENGE CONTROL POINT'}
+              ? 'FORTIFY SECTOR'
+              : 'CHALLENGE SECTOR'}
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         {challenged && challenge && (
@@ -544,11 +544,11 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
                 {formatStrk(challenge.leadingForce, 18)} STRK
               </span>
             </div>
-            {point.challengeDeadline && (
+            {sector.challengeDeadline && (
               <div className="flex justify-between gap-4">
                 <span>TIME LEFT</span>
                 <span className="text-fg tabular-nums">
-                  {formatCountdown(point.challengeDeadline - clockSeconds)}
+                  {formatCountdown(sector.challengeDeadline - clockSeconds)}
                 </span>
               </div>
             )}
@@ -558,7 +558,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           <>
             <label
               className="block pt-1 text-dim"
-              htmlFor={`allocation-${point?.id ?? 'none'}`}
+              htmlFor={`allocation-${sector?.id ?? 'none'}`}
             >
               {action === 'reinforce'
                 ? 'ADDITIONAL STRK'
@@ -568,7 +568,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
               <input
-                id={`allocation-${point?.id ?? 'none'}`}
+                id={`allocation-${sector?.id ?? 'none'}`}
                 value={allocation}
                 onChange={(event) => setAllocation(event.target.value)}
                 inputMode="decimal"
@@ -629,13 +629,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
           <div className="border-t border-grid pt-3">
             <label
               className="block text-dim"
-              htmlFor={`collateral-${point.id}`}
+              htmlFor={`collateral-${sector.id}`}
             >
               SACRIFICE OWNED CP ID
             </label>
             <div className="mt-2 flex gap-2">
               <input
-                id={`collateral-${point.id}`}
+                id={`collateral-${sector.id}`}
                 value={collateralId}
                 onChange={(event) => setCollateralId(event.target.value)}
                 inputMode="numeric"
@@ -656,7 +656,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               </button>
             </div>
             <p className="mt-2 leading-relaxed text-dim">
-              The sacrificed point becomes neutral immediately and its garrison
+              The sacrificed sector becomes neutral immediately and its garrison
               becomes available for this challenge.
             </p>
           </div>

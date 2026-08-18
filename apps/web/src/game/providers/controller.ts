@@ -67,40 +67,38 @@ const policies: SessionPolicies = {
         [config.controlSystemAddress]: {
           methods: [
             {
-              name: 'Capture Control Point',
+              name: 'Capture Sector',
               entrypoint: 'capture',
               description:
-                'Allocate selected delegated force to a neutral Control Point.',
+                'Allocate selected delegated force to a neutral Sector.',
             },
             {
-              name: 'Capture Control Points',
+              name: 'Capture Sectors',
               entrypoint: 'capture_many',
               description:
-                'Allocate delegated force to multiple neutral Control Points.',
+                'Allocate delegated force to multiple neutral Sectors.',
             },
             {
-              name: 'Reinforce Control Point',
+              name: 'Reinforce Sector',
               entrypoint: 'reinforce',
-              description:
-                'Add selected delegated force to an owned Control Point.',
+              description: 'Add selected delegated force to an owned Sector.',
             },
             {
-              name: 'Reinforce Control Points',
+              name: 'Reinforce Sectors',
               entrypoint: 'reinforce_many',
-              description:
-                'Add delegated force to multiple owned Control Points.',
+              description: 'Add delegated force to multiple owned Sectors.',
             },
             {
-              name: 'Challenge Control Point',
+              name: 'Challenge Sector',
               entrypoint: 'challenge',
               description:
-                'Commit visible STRK-backed force to challenge a Control Point.',
+                'Commit visible STRK-backed force to challenge a Sector.',
             },
             {
               name: 'Sacrifice and Challenge',
               entrypoint: 'challenge_with_sacrifice',
               description:
-                'Release an owned Control Point and commit its freed garrison to a challenge.',
+                'Release an owned Sector and commit its freed garrison to a challenge.',
             },
             {
               name: 'Settle Open Contest',
@@ -115,9 +113,9 @@ const policies: SessionPolicies = {
                 'Finalize a losing force commitment after its challenge settles.',
             },
             {
-              name: 'Release Control Point',
+              name: 'Release Sector',
               entrypoint: 'release',
-              description: 'Release an owned point.',
+              description: 'Release an owned sector.',
             },
             {
               name: 'Retire Operator Address',

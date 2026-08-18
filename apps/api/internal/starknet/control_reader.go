@@ -9,17 +9,17 @@ import (
 // ControlReader is the authoritative contract-read boundary used for upload
 // authorization and reconciliation decisions.
 type ControlReader interface {
-	ControlPointStatus(ctx context.Context, controlPointID uint32) (ControlPointStatus, error)
+	SectorStatus(ctx context.Context, sectorID uint32) (SectorStatus, error)
 	OperatorStatus(ctx context.Context, operator string) (OperatorStatus, error)
 	CanManageImage(
 		ctx context.Context,
-		controlPointID uint32,
+		sectorID uint32,
 		operator string,
 		ownershipGeneration uint64,
 	) (bool, error)
 }
 
-type ControlPointStatus struct {
+type SectorStatus struct {
 	ID                       uint32
 	Controller               string
 	CaptureForce             string
@@ -34,18 +34,18 @@ type ControlPointStatus struct {
 }
 
 type OperatorStatus struct {
-	Operator             string
-	LiveDelegatedAmount  string
-	PointForce           string
-	ChallengeForce       string
-	SpentForce           string
-	AvailableForce       string
-	Generation           uint64
-	ControlledPointCount uint32
-	ActiveChallengeCount uint32
-	Retired              bool
-	Exiting              bool
-	NeedsSync            bool
+	Operator              string
+	LiveDelegatedAmount   string
+	SectorForce           string
+	ChallengeForce        string
+	SpentForce            string
+	AvailableForce        string
+	Generation            uint64
+	ControlledSectorCount uint32
+	ActiveChallengeCount  uint32
+	Retired               bool
+	Exiting               bool
+	NeedsSync             bool
 }
 
 type RPCControlReader struct {
@@ -61,69 +61,69 @@ func NewControlReader(rpcURL, controlSystem string) (*RPCControlReader, error) {
 	return &RPCControlReader{controlSystem: address, rpc: newRPCClient(rpcURL)}, nil
 }
 
-func (r *RPCControlReader) ControlPointStatus(
+func (r *RPCControlReader) SectorStatus(
 	ctx context.Context,
-	controlPointID uint32,
-) (ControlPointStatus, error) {
+	sectorID uint32,
+) (SectorStatus, error) {
 	result, err := r.rpc.call(
 		ctx,
 		r.controlSystem,
-		"get_control_point_status",
-		[]string{uintHex(uint64(controlPointID))},
+		"get_sector_status",
+		[]string{uintHex(uint64(sectorID))},
 	)
 	if err != nil {
-		return ControlPointStatus{}, err
+		return SectorStatus{}, err
 	}
 	if len(result) != 11 {
-		return ControlPointStatus{}, fmt.Errorf("unexpected control point status length %d", len(result))
+		return SectorStatus{}, fmt.Errorf("unexpected sector status length %d", len(result))
 	}
 
 	id, err := parseUint(result[0], 32)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("id", err)
+		return SectorStatus{}, fieldError("id", err)
 	}
 	controller, err := normalizeContractAddress(result[1])
 	if err != nil {
-		return ControlPointStatus{}, fieldError("controller", err)
+		return SectorStatus{}, fieldError("controller", err)
 	}
 	captureForce, err := parseUintString(result[2], 128)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("capture_force", err)
+		return SectorStatus{}, fieldError("capture_force", err)
 	}
 	generation, err := parseUint(result[3], 64)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("ownership_generation", err)
+		return SectorStatus{}, fieldError("ownership_generation", err)
 	}
 	controlledSince, err := parseUint(result[4], 64)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("controlled_since", err)
+		return SectorStatus{}, fieldError("controlled_since", err)
 	}
 	requiredStake, err := parseUintString(result[5], 128)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("required_stake", err)
+		return SectorStatus{}, fieldError("required_stake", err)
 	}
 	activeChallengeID, err := parseUint(result[6], 64)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("active_challenge_id", err)
+		return SectorStatus{}, fieldError("active_challenge_id", err)
 	}
 	challengeLeadChangeCount, err := parseUint(result[7], 32)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("challenge_lead_change_count", err)
+		return SectorStatus{}, fieldError("challenge_lead_change_count", err)
 	}
 	challengeDeadline, err := parseUint(result[8], 64)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("challenge_deadline", err)
+		return SectorStatus{}, fieldError("challenge_deadline", err)
 	}
 	stale, err := parseBool(result[9])
 	if err != nil {
-		return ControlPointStatus{}, fieldError("stale", err)
+		return SectorStatus{}, fieldError("stale", err)
 	}
 	needsSync, err := parseBool(result[10])
 	if err != nil {
-		return ControlPointStatus{}, fieldError("needs_sync", err)
+		return SectorStatus{}, fieldError("needs_sync", err)
 	}
 
-	return ControlPointStatus{
+	return SectorStatus{
 		ID:                       uint32(id),
 		Controller:               controller,
 		CaptureForce:             captureForce,
@@ -162,9 +162,9 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("live_delegated_amount", err)
 	}
-	pointForce, err := parseUintString(result[2], 128)
+	sectorForce, err := parseUintString(result[2], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("point_force", err)
+		return OperatorStatus{}, fieldError("sector_force", err)
 	}
 	challengeForce, err := parseUintString(result[3], 128)
 	if err != nil {
@@ -182,9 +182,9 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	pointCount, err := parseUint(result[7], 32)
+	sectorCount, err := parseUint(result[7], 32)
 	if err != nil {
-		return OperatorStatus{}, fieldError("controlled_point_count", err)
+		return OperatorStatus{}, fieldError("controlled_sector_count", err)
 	}
 	activeChallengeCount, err := parseUint(result[8], 32)
 	if err != nil {
@@ -204,24 +204,24 @@ func (r *RPCControlReader) OperatorStatus(
 	}
 
 	return OperatorStatus{
-		Operator:             returnedOperator,
-		LiveDelegatedAmount:  live,
-		PointForce:           pointForce,
-		ChallengeForce:       challengeForce,
-		SpentForce:           spentForce,
-		AvailableForce:       availableForce,
-		Generation:           generation,
-		ControlledPointCount: uint32(pointCount),
-		ActiveChallengeCount: uint32(activeChallengeCount),
-		Retired:              retired,
-		Exiting:              exiting,
-		NeedsSync:            needsSync,
+		Operator:              returnedOperator,
+		LiveDelegatedAmount:   live,
+		SectorForce:           sectorForce,
+		ChallengeForce:        challengeForce,
+		SpentForce:            spentForce,
+		AvailableForce:        availableForce,
+		Generation:            generation,
+		ControlledSectorCount: uint32(sectorCount),
+		ActiveChallengeCount:  uint32(activeChallengeCount),
+		Retired:               retired,
+		Exiting:               exiting,
+		NeedsSync:             needsSync,
 	}, nil
 }
 
 func (r *RPCControlReader) CanManageImage(
 	ctx context.Context,
-	controlPointID uint32,
+	sectorID uint32,
 	operator string,
 	ownershipGeneration uint64,
 ) (bool, error) {
@@ -234,7 +234,7 @@ func (r *RPCControlReader) CanManageImage(
 		r.controlSystem,
 		"can_manage_image",
 		[]string{
-			uintHex(uint64(controlPointID)),
+			uintHex(uint64(sectorID)),
 			operator,
 			uintHex(ownershipGeneration),
 		},

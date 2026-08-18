@@ -88,7 +88,7 @@ export function ArbiterModal({ isOpen, onClose }: ArbiterModalProps) {
               Validator stake must remain intact. If an Operator unstakes
               directly from the staking contract, the Arbiter permanently
               retires that address. Its ownership generation is invalidated, and
-              every Control Point it controls returns to neutral.
+              every Sector it controls returns to neutral.
             </p>
           </div>
 

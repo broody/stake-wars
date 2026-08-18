@@ -1,16 +1,16 @@
 import { config } from './config';
 import type {
-  IndexedControlPoint,
+  IndexedSector,
   OperatorActivity,
   OperatorActivityType,
   YieldClaim,
 } from '../types';
-import { isControlPointId } from '../utils/controlPointGeometry';
+import { isSectorId } from '../utils/sectorGeometry';
 import { addressesMatch, isZeroAddress } from '../utils/format';
 
-const CONTROL_POINTS_QUERY = `
-  query StakeWarsControlPoints {
-    stakewarsControlPointModels(first: 2000) {
+const SECTORS_QUERY = `
+  query StakeWarsSectors {
+    stakewarsSectorModels(first: 2000) {
       edges {
         node {
           id
@@ -44,14 +44,14 @@ const OPERATOR_GENERATIONS_QUERY = `
 
 const OPERATOR_ACTIVITY_QUERY = `
   query StakeWarsOperatorActivity($operator: ContractAddress!) {
-    captures: stakewarsControlPointCapturedModels(
+    captures: stakewarsSectorCapturedModels(
       first: 1000
       where: { controller: $operator }
     ) {
       edges {
         cursor
         node {
-          control_point_id
+          sector_id
           controller
           capture_force
           ownership_generation
@@ -66,7 +66,7 @@ const OPERATOR_ACTIVITY_QUERY = `
         cursor
         node {
           challenge_id
-          control_point_id
+          sector_id
           operator
           lost_force
         }
@@ -76,28 +76,28 @@ const OPERATOR_ACTIVITY_QUERY = `
       first: 1000
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger defender_force_at_risk committed_force deadline } }
+      edges { cursor node { challenge_id sector_id incumbent challenger defender_force_at_risk committed_force deadline } }
     }
     escalations: stakewarsChallengeEscalatedModels(
       first: 1000
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
+      edges { cursor node { challenge_id sector_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
     }
     settlements: stakewarsChallengeSettledModels(
       first: 1000
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner loser winning_force losing_force ownership_generation } }
+      edges { cursor node { challenge_id sector_id winner loser winning_force losing_force ownership_generation } }
     }
-    reinforcements: stakewarsControlPointReinforcedModels(
+    reinforcements: stakewarsSectorReinforcedModels(
       first: 1000
       where: { controller: $operator }
     ) {
       edges {
         cursor
         node {
-          control_point_id
+          sector_id
           controller
           added_force
           capture_force
@@ -105,14 +105,14 @@ const OPERATOR_ACTIVITY_QUERY = `
         }
       }
     }
-    releases: stakewarsControlPointReleasedModels(
+    releases: stakewarsSectorReleasedModels(
       first: 1000
       where: { previous_controller: $operator }
     ) {
       edges {
         cursor
         node {
-          control_point_id
+          sector_id
           previous_controller
           released_force
           ownership_generation
@@ -131,7 +131,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           new_generation
           invalidated_force
           live_delegated_amount
-          invalidated_point_count
+          invalidated_sector_count
         }
       }
     }
@@ -146,7 +146,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           previous_generation
           new_generation
           invalidated_force
-          released_point_count
+          released_sector_count
         }
       }
     }
@@ -175,12 +175,12 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
     $disqualificationsAfter: Cursor
     $relinquishmentsAfter: Cursor
   ) {
-    captures: stakewarsControlPointCapturedModels(
+    captures: stakewarsSectorCapturedModels(
       first: $capturesFirst
       after: $capturesAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller capture_force ownership_generation } }
+      edges { cursor node { sector_id controller capture_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     losses: stakewarsChallengePositionResolvedModels(
@@ -188,7 +188,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $lossesAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id operator lost_force } }
+      edges { cursor node { challenge_id sector_id operator lost_force } }
       pageInfo { hasNextPage endCursor }
     }
     initiations: stakewarsChallengeInitiatedModels(
@@ -196,7 +196,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $initiationsAfter
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger defender_force_at_risk committed_force deadline } }
+      edges { cursor node { challenge_id sector_id incumbent challenger defender_force_at_risk committed_force deadline } }
       pageInfo { hasNextPage endCursor }
     }
     escalations: stakewarsChallengeEscalatedModels(
@@ -204,7 +204,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $escalationsAfter
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
+      edges { cursor node { challenge_id sector_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
       pageInfo { hasNextPage endCursor }
     }
     settlements: stakewarsChallengeSettledModels(
@@ -212,23 +212,23 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $settlementsAfter
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner loser winning_force losing_force ownership_generation } }
+      edges { cursor node { challenge_id sector_id winner loser winning_force losing_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
-    reinforcements: stakewarsControlPointReinforcedModels(
+    reinforcements: stakewarsSectorReinforcedModels(
       first: $reinforcementsFirst
       after: $reinforcementsAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller added_force capture_force ownership_generation } }
+      edges { cursor node { sector_id controller added_force capture_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
-    releases: stakewarsControlPointReleasedModels(
+    releases: stakewarsSectorReleasedModels(
       first: $releasesFirst
       after: $releasesAfter
       where: { previous_controller: $operator }
     ) {
-      edges { cursor node { control_point_id previous_controller released_force ownership_generation } }
+      edges { cursor node { sector_id previous_controller released_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     disqualifications: stakewarsOperatorDisqualifiedModels(
@@ -236,7 +236,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $disqualificationsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation invalidated_force live_delegated_amount invalidated_point_count } }
+      edges { cursor node { operator previous_generation new_generation invalidated_force live_delegated_amount invalidated_sector_count } }
       pageInfo { hasNextPage endCursor }
     }
     relinquishments: stakewarsOperatorRetiredModels(
@@ -244,7 +244,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $relinquishmentsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation invalidated_force released_point_count } }
+      edges { cursor node { operator previous_generation new_generation invalidated_force released_sector_count } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -292,7 +292,7 @@ const POOL_EVENTS_QUERY = `
   }
 `;
 
-interface ToriiControlPointNode {
+interface ToriiSectorNode {
   id: number | string;
   controller: string;
   controller_generation: string;
@@ -313,10 +313,10 @@ interface ToriiOperatorGenerationResponse {
   errors?: Array<{ message?: string }>;
 }
 
-interface ToriiControlPointResponse {
+interface ToriiSectorResponse {
   data?: {
-    stakewarsControlPointModels?: {
-      edges?: Array<{ node?: ToriiControlPointNode }>;
+    stakewarsSectorModels?: {
+      edges?: Array<{ node?: ToriiSectorNode }>;
     };
   };
   errors?: Array<{ message?: string }>;
@@ -336,37 +336,37 @@ interface ToriiConnection<T> {
 }
 
 interface CaptureEventNode {
-  control_point_id: number | string;
+  sector_id: number | string;
   controller: string;
   capture_force: string;
   ownership_generation?: string;
 }
 
 interface ReinforcementEventNode {
-  control_point_id: number | string;
+  sector_id: number | string;
   added_force: string;
   capture_force: string;
 }
 
 interface ReleaseEventNode {
-  control_point_id: number | string;
+  sector_id: number | string;
   released_force: string;
 }
 
 interface DisqualificationEventNode {
   invalidated_force: string;
   live_delegated_amount: string;
-  invalidated_point_count: number | string;
+  invalidated_sector_count: number | string;
 }
 
 interface RelinquishmentEventNode {
   invalidated_force: string;
-  released_point_count: number | string;
+  released_sector_count: number | string;
 }
 
 interface ChallengeInitiatedEventNode {
   challenge_id: number | string;
-  control_point_id: number | string;
+  sector_id: number | string;
   incumbent: string;
   challenger: string;
   defender_force_at_risk: string;
@@ -376,7 +376,7 @@ interface ChallengeInitiatedEventNode {
 
 interface ChallengeEscalatedEventNode {
   challenge_id: number | string;
-  control_point_id: number | string;
+  sector_id: number | string;
   challenger: string;
   committed_force: string;
   added_force: string;
@@ -387,14 +387,14 @@ interface ChallengeEscalatedEventNode {
 
 interface ChallengePositionResolvedEventNode {
   challenge_id: number | string;
-  control_point_id: number | string;
+  sector_id: number | string;
   operator: string;
   lost_force: string;
 }
 
 interface SettlementEventNode {
   challenge_id: number | string;
-  control_point_id: number | string;
+  sector_id: number | string;
   winner: string;
   loser: string;
   winning_force: string;
@@ -466,10 +466,10 @@ function parseUnixTimestamp(
   return parsed || null;
 }
 
-function parseControlPointId(value: number | string): number {
+function parseSectorId(value: number | string): number {
   const id = Number(value);
-  if (!isControlPointId(id)) {
-    throw new Error(`Torii returned an invalid Control Point ID: ${value}`);
+  if (!isSectorId(id)) {
+    throw new Error(`Torii returned an invalid Sector ID: ${value}`);
   }
   return id;
 }
@@ -562,7 +562,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'capture',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.capture_force, 'capture force'),
       }))
     );
@@ -573,7 +573,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'loss',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.lost_force, 'lost challenge force'),
       }))
     );
@@ -584,7 +584,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'challenge_initiated',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.committed_force, 'committed challenge force'),
         counterparty: node.incumbent,
       }))
@@ -596,7 +596,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'challenge_escalated',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.committed_force, 'committed challenge force'),
         counterparty: node.previous_leader,
       }))
@@ -608,7 +608,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'settlement',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.winning_force, 'winning force'),
         secondaryAmount: parseBigInt(node.losing_force, 'last losing force'),
       }))
@@ -623,7 +623,7 @@ export function parseOperatorActivity(
         return {
           ...position,
           type: 'reinforcement',
-          controlPointId: parseControlPointId(node.control_point_id),
+          sectorId: parseSectorId(node.sector_id),
           amount: added,
           secondaryAmount: captureForce,
         };
@@ -636,7 +636,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'release',
-        controlPointId: parseControlPointId(node.control_point_id),
+        sectorId: parseSectorId(node.sector_id),
         amount: parseBigInt(node.released_force, 'released force'),
       }))
     );
@@ -652,7 +652,7 @@ export function parseOperatorActivity(
           node.live_delegated_amount,
           'live delegated amount'
         ),
-        affectedPointCount: Number(node.invalidated_point_count),
+        affectedSectorCount: Number(node.invalidated_sector_count),
       }))
     );
   });
@@ -663,7 +663,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'retirement',
         amount: parseBigInt(node.invalidated_force, 'invalidated force'),
-        affectedPointCount: Number(node.released_point_count),
+        affectedSectorCount: Number(node.released_sector_count),
       }))
     );
   });
@@ -1228,31 +1228,31 @@ export async function getOperatorActivity(
   return parseOperatorActivity(payload);
 }
 
-export function parseIndexedControlPoints(
-  payload: ToriiControlPointResponse
-): IndexedControlPoint[] {
+export function parseIndexedSectors(
+  payload: ToriiSectorResponse
+): IndexedSector[] {
   if (payload.errors?.length) {
     throw new Error(
-      payload.errors[0]?.message || 'Torii rejected the Control Point query'
+      payload.errors[0]?.message || 'Torii rejected the Sector query'
     );
   }
 
-  const edges = payload.data?.stakewarsControlPointModels?.edges;
+  const edges = payload.data?.stakewarsSectorModels?.edges;
   if (!edges) {
-    throw new Error('Torii omitted the Control Point collection');
+    throw new Error('Torii omitted the Sector collection');
   }
 
-  const controlPoints = new Map<number, IndexedControlPoint>();
+  const sectors = new Map<number, IndexedSector>();
   edges.forEach(({ node }) => {
     if (!node) return;
 
     const id = Number(node.id);
-    if (!isControlPointId(id)) {
-      throw new Error(`Torii returned an invalid Control Point ID: ${node.id}`);
+    if (!isSectorId(id)) {
+      throw new Error(`Torii returned an invalid Sector ID: ${node.id}`);
     }
     parseBigInt(node.controller, 'controller address');
 
-    controlPoints.set(id, {
+    sectors.set(id, {
       id,
       controller: node.controller,
       controllerGeneration: parseBigInt(
@@ -1275,16 +1275,16 @@ export function parseIndexedControlPoints(
     });
   });
 
-  return [...controlPoints.values()].sort((left, right) => left.id - right.id);
+  return [...sectors.values()].sort((left, right) => left.id - right.id);
 }
 
-export function filterControlPointsByOperatorGeneration(
-  controlPoints: IndexedControlPoint[],
+export function filterSectorsByOperatorGeneration(
+  sectors: IndexedSector[],
   operatorGenerations: ReadonlyArray<{
     operator: string;
     generation: bigint;
   }>
-): IndexedControlPoint[] {
+): IndexedSector[] {
   const generationByOperator = new Map(
     operatorGenerations.map(({ operator, generation }) => [
       parseBigInt(operator, 'operator address').toString(),
@@ -1292,7 +1292,7 @@ export function filterControlPointsByOperatorGeneration(
     ])
   );
 
-  return controlPoints.filter(({ controller, controllerGeneration }) => {
+  return sectors.filter(({ controller, controllerGeneration }) => {
     if (isZeroAddress(controller)) return true;
     return (
       generationByOperator.get(
@@ -1302,13 +1302,13 @@ export function filterControlPointsByOperatorGeneration(
   });
 }
 
-async function filterCurrentControlPoints(
-  controlPoints: IndexedControlPoint[],
+async function filterCurrentSectors(
+  sectors: IndexedSector[],
   signal?: AbortSignal
-): Promise<IndexedControlPoint[]> {
+): Promise<IndexedSector[]> {
   const controllers = [
     ...new Map(
-      controlPoints
+      sectors
         .filter(({ controller }) => !isZeroAddress(controller))
         .map(({ controller }) => [
           parseBigInt(controller, 'controller address').toString(),
@@ -1316,7 +1316,7 @@ async function filterCurrentControlPoints(
         ])
     ).values(),
   ];
-  if (controllers.length === 0) return controlPoints;
+  if (controllers.length === 0) return sectors;
 
   const payload = await queryTorii<ToriiOperatorGenerationResponse>(
     OPERATOR_GENERATIONS_QUERY,
@@ -1334,8 +1334,8 @@ async function filterCurrentControlPoints(
     throw new Error('Torii omitted the Operator generation collection');
   }
 
-  return filterControlPointsByOperatorGeneration(
-    controlPoints,
+  return filterSectorsByOperatorGeneration(
+    sectors,
     operatorEdges.flatMap(({ node }) =>
       node
         ? [
@@ -1349,13 +1349,13 @@ async function filterCurrentControlPoints(
   );
 }
 
-export async function getIndexedControlPoints(
+export async function getIndexedSectors(
   signal?: AbortSignal
-): Promise<IndexedControlPoint[]> {
-  const payload = await queryTorii<ToriiControlPointResponse>(
-    CONTROL_POINTS_QUERY,
+): Promise<IndexedSector[]> {
+  const payload = await queryTorii<ToriiSectorResponse>(
+    SECTORS_QUERY,
     {},
     signal
   );
-  return filterCurrentControlPoints(parseIndexedControlPoints(payload), signal);
+  return filterCurrentSectors(parseIndexedSectors(payload), signal);
 }

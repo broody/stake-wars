@@ -1,4 +1,4 @@
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useYield } from '../../contexts/useYield';
 import { formatStrk } from '../../utils/format';
@@ -29,21 +29,18 @@ export function OperatorStatusPanel() {
   const { summary, isLoading: isYieldLoading, openStaking } = useYield();
   const {
     operatorStatus,
-    ownedControlPointIds,
-    contestedControlPointIds,
+    ownedSectorIds,
+    contestedSectorIds,
     isOperatorLoading,
     operatorError,
     refreshOperator,
-  } = useControlPoints();
-  const contestedControlPointIdSet = new Set(contestedControlPointIds);
-  const defendedControlPointCount = ownedControlPointIds.filter(
-    (controlPointId) => contestedControlPointIdSet.has(controlPointId)
+  } = useSectors();
+  const contestedSectorIdSet = new Set(contestedSectorIds);
+  const defendedSectorCount = ownedSectorIds.filter((sectorId) =>
+    contestedSectorIdSet.has(sectorId)
   ).length;
-  const uncontestedControlPointCount = operatorStatus
-    ? Math.max(
-        0,
-        operatorStatus.controlledPointCount - defendedControlPointCount
-      )
+  const uncontestedSectorCount = operatorStatus
+    ? Math.max(0, operatorStatus.controlledSectorCount - defendedSectorCount)
     : 0;
 
   return (
@@ -78,9 +75,9 @@ export function OperatorStatusPanel() {
             highlight
           />
           <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
-            <span>CONTROL POINTS</span>
+            <span>SECTORS</span>
             <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
-              {uncontestedControlPointCount}
+              {uncontestedSectorCount}
             </span>
           </div>
           {operatorStatus.activeChallengeCount > 0 && (

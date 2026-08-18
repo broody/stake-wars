@@ -1,6 +1,6 @@
-import { useControlPoints } from '../../contexts/ControlPointContext';
-import { CONTROL_POINT_COUNT } from '../../utils/controlPointGeometry';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
+import { useSectors } from '../../contexts/SectorContext';
+import { SECTOR_COUNT } from '../../utils/sectorGeometry';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 
 interface LegendRowProps {
   color: string;
@@ -27,83 +27,83 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
   );
 }
 
-export function ControlPointLegend() {
+export function SectorLegend() {
   const {
     mode,
-    occupiedControlPointIds,
-    ownedControlPointIds,
-    opponentControlPointIds,
-    contestedControlPointIds,
-    isControlPointIndexLoading,
-    controlPointIndexError,
-    refreshControlPointIndex,
-  } = useControlPoints();
-  const contestedControlPointIdSet = new Set(contestedControlPointIds);
-  const uncontestedOwnedCount = ownedControlPointIds.filter(
-    (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+    occupiedSectorIds,
+    ownedSectorIds,
+    opponentSectorIds,
+    contestedSectorIds,
+    isSectorIndexLoading,
+    sectorIndexError,
+    refreshSectorIndex,
+  } = useSectors();
+  const contestedSectorIdSet = new Set(contestedSectorIds);
+  const uncontestedOwnedCount = ownedSectorIds.filter(
+    (sectorId) => !contestedSectorIdSet.has(sectorId)
   ).length;
-  const uncontestedOpponentCount = opponentControlPointIds.filter(
-    (controlPointId) => !contestedControlPointIdSet.has(controlPointId)
+  const uncontestedOpponentCount = opponentSectorIds.filter(
+    (sectorId) => !contestedSectorIdSet.has(sectorId)
   ).length;
 
   if (mode !== 'control') return null;
 
-  const neutralCount = CONTROL_POINT_COUNT - occupiedControlPointIds.length;
+  const neutralCount = SECTOR_COUNT - occupiedSectorIds.length;
 
   return (
     <section
-      aria-label="Control Point map legend"
+      aria-label="Sector map legend"
       className="pointer-events-auto absolute bottom-24 left-4 w-48 border border-neutral-800 bg-black/80 px-3 py-2.5 font-mono text-[9px] tracking-[0.14em] text-neutral-500 backdrop-blur-sm sm:bottom-5"
     >
       <header className="mb-2 flex items-center justify-between border-b border-neutral-800 pb-2">
-        <span className="text-neutral-300">CONTROL POINTS</span>
+        <span className="text-neutral-300">SECTORS</span>
         <span
           role="status"
           aria-label={
-            controlPointIndexError
-              ? 'Torii Control Point index offline'
-              : isControlPointIndexLoading
-                ? 'Syncing Torii Control Point index'
-                : 'Torii Control Point index synced'
+            sectorIndexError
+              ? 'Torii Sector index offline'
+              : isSectorIndexLoading
+                ? 'Syncing Torii Sector index'
+                : 'Torii Sector index synced'
           }
           className={`h-1.5 w-1.5 ${
-            controlPointIndexError
+            sectorIndexError
               ? 'bg-amber-400'
-              : isControlPointIndexLoading
+              : isSectorIndexLoading
                 ? 'animate-pulse bg-neutral-500'
                 : 'bg-white'
           }`}
           title={
-            controlPointIndexError
-              ? controlPointIndexError
-              : isControlPointIndexLoading
-                ? 'Syncing the Torii Control Point index'
-                : 'Torii Control Point index synced'
+            sectorIndexError
+              ? sectorIndexError
+              : isSectorIndexLoading
+                ? 'Syncing the Torii Sector index'
+                : 'Torii Sector index synced'
           }
         />
       </header>
 
       <div className="space-y-1.5">
         <LegendRow
-          color={CONTROL_POINT_COLORS.owned}
+          color={SECTOR_COLORS.owned}
           label="OWNED BY YOU"
           value={uncontestedOwnedCount}
         />
         <LegendRow
-          color={CONTROL_POINT_COLORS.opponent}
+          color={SECTOR_COLORS.opponent}
           label="OTHERS"
           value={uncontestedOpponentCount}
         />
-        {contestedControlPointIds.length > 0 ? (
+        {contestedSectorIds.length > 0 ? (
           <LegendRow
-            color={CONTROL_POINT_COLORS.contested}
+            color={SECTOR_COLORS.contested}
             label="CONTESTED"
-            value={contestedControlPointIds.length}
+            value={contestedSectorIds.length}
           />
         ) : null}
         {neutralCount > 0 ? (
           <LegendRow
-            color={CONTROL_POINT_COLORS.neutralGrid}
+            color={SECTOR_COLORS.neutralGrid}
             label="UNOCCUPIED"
             value={neutralCount}
             outline
@@ -111,10 +111,10 @@ export function ControlPointLegend() {
         ) : null}
       </div>
 
-      {controlPointIndexError && (
+      {sectorIndexError && (
         <button
           type="button"
-          onClick={refreshControlPointIndex}
+          onClick={refreshSectorIndex}
           className="mt-2 w-full border-t border-neutral-800 pt-2 text-left text-amber-400 hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           INDEX OFFLINE · RETRY

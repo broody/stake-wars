@@ -1,7 +1,7 @@
-import type { PreparedControlPointImage } from '../services/api';
+import type { PreparedSectorImage } from '../services/api';
 
-export const CONTROL_POINT_DETAIL_SIZE = 512;
-export const CONTROL_POINT_THUMBNAIL_SIZE = 256;
+export const SECTOR_DETAIL_SIZE = 512;
+export const SECTOR_THUMBNAIL_SIZE = 256;
 const MAX_SOURCE_MULTIPLIER = 8;
 const SUPPORTED_SOURCE_TYPES = new Set([
   'image/webp',
@@ -80,10 +80,10 @@ function renderSquare(
   return canvas;
 }
 
-export async function prepareControlPointImage(
+export async function prepareSectorImage(
   file: File,
   maximumEncodedBytes: number
-): Promise<PreparedControlPointImage> {
+): Promise<PreparedSectorImage> {
   if (!SUPPORTED_SOURCE_TYPES.has(file.type)) {
     throw new Error('Choose a WebP, JPEG, or PNG image.');
   }
@@ -104,13 +104,13 @@ export async function prepareControlPointImage(
       bitmap,
       bitmap.width,
       bitmap.height,
-      CONTROL_POINT_DETAIL_SIZE
+      SECTOR_DETAIL_SIZE
     );
     const thumbnailCanvas = renderSquare(
       bitmap,
       bitmap.width,
       bitmap.height,
-      CONTROL_POINT_THUMBNAIL_SIZE
+      SECTOR_THUMBNAIL_SIZE
     );
     let detail: Blob | null = null;
     for (const quality of [0.88, 0.76, 0.64, 0.52]) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useYield } from '../../contexts/useYield';
 import { useWallet } from '../../contexts/WalletContext';
 import { formatStrk, formatStrkFixed } from '../../utils/format';
@@ -128,7 +128,7 @@ function AnimatedAnnualYield({
 
 export function YieldModal() {
   const { address } = useWallet();
-  const { operatorStatus } = useControlPoints();
+  const { operatorStatus } = useSectors();
   const {
     summary,
     isLoading,
@@ -250,7 +250,7 @@ export function YieldModal() {
             ((now - (unlockTimestamp - exitWindow)) / exitWindow) * 100
           )
         );
-  const pointCount = operatorStatus?.controlledPointCount ?? 0;
+  const sectorCount = operatorStatus?.controlledSectorCount ?? 0;
 
   return (
     <div
@@ -518,8 +518,8 @@ export function YieldModal() {
                       </div>
                       <p className="mt-2 text-[10px] leading-relaxed text-neutral-500">
                         Permanently retires this address from StakeWars,
-                        invalidates {pointCount || 'all'} active Control
-                        {pointCount === 1 ? ' Point' : ' Points'}, and places
+                        invalidates {sectorCount || 'all'} active{' '}
+                        {sectorCount === 1 ? 'Sector' : 'Sectors'}, and places
                         your full active stake into the official Starknet exit
                         window. Restaking later will not reactivate this
                         address; playing again requires a new address. Funds are

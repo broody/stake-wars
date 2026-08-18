@@ -17,7 +17,7 @@ import { useTransactionToast } from './TransactionToastContext';
 import { YieldContext } from './useYield';
 import type { YieldContextValue } from './useYield';
 import { useWallet } from './WalletContext';
-import { useControlPoints } from './ControlPointContext';
+import { useSectors } from './SectorContext';
 
 type ClaimPhase = 'idle' | 'submitting' | 'confirming';
 
@@ -27,7 +27,7 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function YieldProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
-  const { refreshControlPointIndex, refreshOperator } = useControlPoints();
+  const { refreshSectorIndex, refreshOperator } = useSectors();
   const { provider } = useProvider();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
@@ -328,7 +328,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
           : current
       );
       refreshOperator();
-      refreshControlPointIndex();
+      refreshSectorIndex();
       refreshStaking();
     } catch (unstakeFailure) {
       const message = messageFrom(
@@ -347,7 +347,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     notifyFailed,
     notifySubmitting,
     provider,
-    refreshControlPointIndex,
+    refreshSectorIndex,
     refreshOperator,
     refreshStaking,
     summary,

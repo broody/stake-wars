@@ -11,7 +11,7 @@ export type SplitTransactionStatus =
   | 'failed';
 
 export interface SplitTransactionBatch {
-  pointCount: number;
+  sectorCount: number;
   status: SplitTransactionStatus;
   hash?: string;
   error?: string;
@@ -22,7 +22,7 @@ interface SplitTransactionModalProps {
   intent: 'capture' | 'fortify';
   isRunning: boolean;
   isOpen: boolean;
-  pointCount: number;
+  sectorCount: number;
   onClose: () => void;
   onProceed: () => void;
 }
@@ -71,7 +71,7 @@ export function SplitTransactionModal({
   intent,
   isRunning,
   isOpen,
-  pointCount,
+  sectorCount,
   onClose,
   onProceed,
 }: SplitTransactionModalProps) {
@@ -130,7 +130,7 @@ export function SplitTransactionModal({
               id="split-transaction-title"
               className="mt-1 text-sm tracking-[0.18em] text-white"
             >
-              {pointCount} POINTS // {batches.length} TRANSACTIONS
+              {sectorCount} SECTORS // {batches.length} TRANSACTIONS
             </h2>
           </div>
           <button
@@ -152,7 +152,7 @@ export function SplitTransactionModal({
           >
             This {action} is too large for one atomic transaction. It will be
             split into {batches.length} sequential transactions of up to 200
-            Control Points each. Confirm every wallet request to finish the full
+            Sectors each. Confirm every wallet request to finish the full
             selection.
           </p>
 
@@ -186,7 +186,7 @@ export function SplitTransactionModal({
                         TRANSACTION {index + 1}
                       </div>
                       <div className="mt-1 text-[8px] tracking-[0.14em] text-neutral-600">
-                        {batch.pointCount} CONTROL POINTS
+                        {batch.sectorCount} SECTORS
                       </div>
                     </div>
                   </div>

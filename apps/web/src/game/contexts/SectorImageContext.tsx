@@ -7,18 +7,18 @@ import {
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
-import type { ArtworkPlacement, ControlPointArtwork } from '../types';
+import type { ArtworkPlacement, SectorArtwork } from '../types';
 import { api } from '../services/api';
 import { addressesMatch } from '../utils/format';
-import { useControlPoints } from './ControlPointContext';
+import { useSectors } from './SectorContext';
 
 export interface PlacementDraft {
   previewUrl: string;
   placement: ArtworkPlacement | null;
 }
 
-interface ControlPointImageContextValue {
-  artworks: ControlPointArtwork[];
+interface SectorImageContextValue {
+  artworks: SectorArtwork[];
   isLoading: boolean;
   error: string | null;
   uploadsEnabled: boolean;
@@ -30,21 +30,19 @@ interface ControlPointImageContextValue {
   updatePlacement: (changes: Partial<ArtworkPlacement>) => void;
   endPlacement: () => void;
   refreshImages: () => void;
-  publishArtwork: (artwork: ControlPointArtwork) => void;
+  publishArtwork: (artwork: SectorArtwork) => void;
 }
 
 const DEFAULT_MAXIMUM_IMAGE_BYTES = 2 * 1024 * 1024;
 const IMAGE_REFRESH_INTERVAL_MS = 30_000;
 
-const ControlPointImageContext = createContext<
-  ControlPointImageContextValue | undefined
->(undefined);
+const SectorImageContext = createContext<SectorImageContextValue | undefined>(
+  undefined
+);
 
-export function ControlPointImageProvider({ children }: PropsWithChildren) {
-  const { controlPointOwnershipById } = useControlPoints();
-  const [storedArtworks, setStoredArtworks] = useState<ControlPointArtwork[]>(
-    []
-  );
+export function SectorImageProvider({ children }: PropsWithChildren) {
+  const { sectorOwnershipById } = useSectors();
+  const [storedArtworks, setStoredArtworks] = useState<SectorArtwork[]>([]);
   const [placementDraft, setPlacementDraft] = useState<PlacementDraft | null>(
     null
   );
@@ -63,16 +61,14 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
     () => setRevision((current) => current + 1),
     []
   );
-  const publishArtwork = useCallback((artwork: ControlPointArtwork) => {
-    const targetIds = new Set(
-      artwork.targets.map((target) => target.controlPointId)
-    );
+  const publishArtwork = useCallback((artwork: SectorArtwork) => {
+    const targetIds = new Set(artwork.targets.map((target) => target.sectorId));
     setStoredArtworks((current) => [
       ...current
         .map((candidate) => ({
           ...candidate,
           targets: candidate.targets.filter(
-            (target) => !targetIds.has(target.controlPointId)
+            (target) => !targetIds.has(target.sectorId)
           ),
         }))
         .filter((candidate) => candidate.targets.length > 0),
@@ -106,7 +102,7 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
     setError(null);
     Promise.all([
       api.getConfig(controller.signal),
-      api.getControlPointArtworks(controller.signal),
+      api.getSectorArtworks(controller.signal),
     ])
       .then(([configuration, artworks]) => {
         setUploadsEnabled(Boolean(configuration.imageUploadsEnabled));
@@ -124,7 +120,7 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
           setError(
             failure instanceof Error
               ? failure.message
-              : 'Unable to load Control Point artwork.'
+              : 'Unable to load Sector artwork.'
           );
         }
       })
@@ -149,9 +145,7 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
         .map((artwork) => ({
           ...artwork,
           targets: artwork.targets.filter((target) => {
-            const ownership = controlPointOwnershipById.get(
-              target.controlPointId
-            );
+            const ownership = sectorOwnershipById.get(target.sectorId);
             return (
               ownership !== undefined &&
               Number.isSafeInteger(target.ownershipGeneration) &&
@@ -162,10 +156,10 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
           }),
         }))
         .filter((artwork) => artwork.targets.length > 0),
-    [controlPointOwnershipById, storedArtworks]
+    [sectorOwnershipById, storedArtworks]
   );
 
-  const value = useMemo<ControlPointImageContextValue>(
+  const value = useMemo<SectorImageContextValue>(
     () => ({
       artworks,
       isLoading,
@@ -199,18 +193,16 @@ export function ControlPointImageProvider({ children }: PropsWithChildren) {
   );
 
   return (
-    <ControlPointImageContext.Provider value={value}>
+    <SectorImageContext.Provider value={value}>
       {children}
-    </ControlPointImageContext.Provider>
+    </SectorImageContext.Provider>
   );
 }
 
-export const useControlPointImages = () => {
-  const context = useContext(ControlPointImageContext);
+export const useSectorImages = () => {
+  const context = useContext(SectorImageContext);
   if (!context) {
-    throw new Error(
-      'useControlPointImages must be used within ControlPointImageProvider'
-    );
+    throw new Error('useSectorImages must be used within SectorImageProvider');
   }
   return context;
 };

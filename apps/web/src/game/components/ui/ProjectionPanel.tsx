@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSignTypedData } from '@starknet-start/react';
-import { useControlPoints } from '../../contexts/ControlPointContext';
-import { useControlPointImages } from '../../contexts/ControlPointImageContext';
+import { useSectors } from '../../contexts/SectorContext';
+import { useSectorImages } from '../../contexts/SectorImageContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { api, type PreparedControlPointImage } from '../../services/api';
-import { prepareControlPointImage } from '../../utils/controlPointImage';
+import { api, type PreparedSectorImage } from '../../services/api';
+import { prepareSectorImage } from '../../utils/sectorImage';
 
-function controlPointLabel(controlPointId: number): string {
-  return `CP-${controlPointId.toString().padStart(4, '0')}`;
+function sectorLabel(sectorId: number): string {
+  return `SECTOR-${sectorId.toString().padStart(4, '0')}`;
 }
 
 function formatMebibytes(bytes: number): string {
@@ -19,13 +19,13 @@ export function ProjectionPanel() {
   const { signTypedDataAsync } = useSignTypedData({});
   const {
     mode,
-    projectionControlPointIds,
+    projectionSectorIds,
     projectionLoadingId,
     projectionError,
-    controlPointOwnershipById,
-    toggleProjectionControlPoint,
+    sectorOwnershipById,
+    toggleProjectionSector,
     clearProjectionSelection,
-  } = useControlPoints();
+  } = useSectors();
   const {
     artworks,
     isLoading: isImageServiceLoading,
@@ -37,11 +37,9 @@ export function ProjectionPanel() {
     updatePlacement,
     endPlacement,
     publishArtwork,
-  } = useControlPointImages();
+  } = useSectorImages();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [prepared, setPrepared] = useState<PreparedControlPointImage | null>(
-    null
-  );
+  const [prepared, setPrepared] = useState<PreparedSectorImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isPreparing, setPreparing] = useState(false);
@@ -51,23 +49,23 @@ export function ProjectionPanel() {
 
   const selectedOwnerships = useMemo(
     () =>
-      projectionControlPointIds.map((controlPointId) => ({
-        controlPointId,
-        ownership: controlPointOwnershipById.get(controlPointId),
+      projectionSectorIds.map((sectorId) => ({
+        sectorId,
+        ownership: sectorOwnershipById.get(sectorId),
       })),
-    [controlPointOwnershipById, projectionControlPointIds]
+    [sectorOwnershipById, projectionSectorIds]
   );
-  const imagedControlPointIds = useMemo(
+  const imagedSectorIds = useMemo(
     () =>
       new Set(
         artworks.flatMap((artwork) =>
-          artwork.targets.map((target) => target.controlPointId)
+          artwork.targets.map((target) => target.sectorId)
         )
       ),
     [artworks]
   );
-  const replacementCount = projectionControlPointIds.filter((controlPointId) =>
-    imagedControlPointIds.has(controlPointId)
+  const replacementCount = projectionSectorIds.filter((sectorId) =>
+    imagedSectorIds.has(sectorId)
   ).length;
 
   useEffect(
@@ -89,7 +87,7 @@ export function ProjectionPanel() {
     setUploadError(null);
     setUploadNotice(null);
     try {
-      const next = await prepareControlPointImage(file, maximumImageBytes);
+      const next = await prepareSectorImage(file, maximumImageBytes);
       endPlacement();
       setPrepared(next);
       setFileName(file.name);
@@ -131,10 +129,10 @@ export function ProjectionPanel() {
     setUploadError(null);
     setUploadNotice(null);
     try {
-      const published = await api.uploadControlPointArtwork({
+      const published = await api.uploadSectorArtwork({
         walletAddress: address,
-        targets: selectedOwnerships.map(({ controlPointId, ownership }) => ({
-          controlPointId,
+        targets: selectedOwnerships.map(({ sectorId, ownership }) => ({
+          sectorId,
           ownershipGeneration: ownership!.ownershipGeneration,
         })),
         placement: placementDraft.placement,
@@ -143,7 +141,7 @@ export function ProjectionPanel() {
       });
       publishArtwork(published);
       setUploadNotice(
-        `Image projected to ${selectedOwnerships.length} Control Point${
+        `Image projected to ${selectedOwnerships.length} Sector${
           selectedOwnerships.length === 1 ? '' : 's'
         }.`
       );
@@ -164,7 +162,7 @@ export function ProjectionPanel() {
     !uploadsEnabled ||
     !prepared ||
     !placementDraft?.placement ||
-    projectionControlPointIds.length === 0;
+    projectionSectorIds.length === 0;
 
   return (
     <aside className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[24rem]">
@@ -173,11 +171,9 @@ export function ProjectionPanel() {
           IMAGE PROJECTION
         </div>
         <div className="mt-1 flex items-baseline justify-between gap-4">
-          <span className="text-base tracking-[0.12em]">
-            ASSIGN CONTROL POINT ART
-          </span>
+          <span className="text-base tracking-[0.12em]">ASSIGN SECTOR ART</span>
           <span className="text-[10px] tracking-wider text-neutral-500">
-            {projectionControlPointIds.length} VERIFIED
+            {projectionSectorIds.length} VERIFIED
           </span>
         </div>
       </header>
@@ -191,7 +187,7 @@ export function ProjectionPanel() {
         {projectionLoadingId !== null ? (
           <div className="mt-3 flex items-center gap-3 border-t border-grid pt-3 text-dim">
             <span className="h-2 w-2 animate-pulse bg-amber-400" />
-            VERIFYING {controlPointLabel(projectionLoadingId)}…
+            VERIFYING {sectorLabel(projectionLoadingId)}…
           </div>
         ) : null}
 
@@ -201,9 +197,9 @@ export function ProjectionPanel() {
           </div>
         ) : null}
 
-        {projectionControlPointIds.length === 0 ? (
+        {projectionSectorIds.length === 0 ? (
           <div className="mt-4 border border-dashed border-neutral-800 px-3 py-5 text-center text-[10px] tracking-[0.16em] text-neutral-600">
-            SELECT YOUR CONTROL POINTS ON THE CORE
+            SELECT YOUR SECTORS ON THE CORE
           </div>
         ) : (
           <div className="mt-4">
@@ -217,18 +213,16 @@ export function ProjectionPanel() {
               ) : null}
             </div>
             <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
-              {projectionControlPointIds.map((controlPointId) => (
+              {projectionSectorIds.map((sectorId) => (
                 <button
-                  key={controlPointId}
+                  key={sectorId}
                   type="button"
                   disabled={isUploading || placementDraft !== null}
-                  onClick={() =>
-                    void toggleProjectionControlPoint(controlPointId)
-                  }
+                  onClick={() => void toggleProjectionSector(sectorId)}
                   className="border border-neutral-600 px-2 py-1.5 text-[10px] tracking-wider text-neutral-300 transition-colors hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
-                  aria-label={`Remove Control Point ${controlPointId} from projection`}
+                  aria-label={`Remove Sector ${sectorId} from projection`}
                 >
-                  {controlPointLabel(controlPointId)} ×
+                  {sectorLabel(sectorId)} ×
                 </button>
               ))}
             </div>
@@ -265,7 +259,7 @@ export function ProjectionPanel() {
             {previewUrl ? (
               <img
                 src={previewUrl}
-                alt="Prepared Control Point image preview"
+                alt="Prepared Sector image preview"
                 className="h-[58px] w-[58px] object-cover"
                 style={{ clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }}
               />
@@ -383,7 +377,7 @@ export function ProjectionPanel() {
                 isUploading ||
                 !uploadsEnabled ||
                 !prepared ||
-                projectionControlPointIds.length === 0
+                projectionSectorIds.length === 0
           }
           onClick={() => {
             if (!placementDraft && previewUrl) beginPlacement(previewUrl);
@@ -395,18 +389,18 @@ export function ProjectionPanel() {
             ? 'CHECKING IMAGE SERVICE…'
             : isUploading
               ? 'PUBLISHING PROJECTION…'
-              : projectionControlPointIds.length === 0
-                ? 'SELECT CONTROL POINTS'
+              : projectionSectorIds.length === 0
+                ? 'SELECT SECTORS'
                 : placementDraft
                   ? placementDraft.placement
-                    ? `PUBLISH ACROSS ${projectionControlPointIds.length} CONTROL POINT${projectionControlPointIds.length === 1 ? '' : 'S'}`
+                    ? `PUBLISH ACROSS ${projectionSectorIds.length} SECTOR${projectionSectorIds.length === 1 ? '' : 'S'}`
                     : 'LOCKING CAMERA…'
                   : 'POSITION ON CORE'}
         </button>
 
         <div className="mt-4 border-t border-grid pt-3 text-[8px] leading-relaxed tracking-[0.11em] text-neutral-600">
           ONE ARTWORK IS PROJECTED CONTINUOUSLY ACROSS THE SELECTED SURFACE.
-          LOSING A CONTROL POINT HIDES THAT PORTION OF THE ARTWORK.
+          LOSING A SECTOR HIDES THAT PORTION OF THE ARTWORK.
         </div>
       </div>
     </aside>

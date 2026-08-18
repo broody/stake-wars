@@ -44,9 +44,9 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
-	mux.HandleFunc("GET /v1/control-point-artworks", server.listControlPointImages)
-	mux.HandleFunc("POST /v1/control-point-artworks/uploads", server.authorizeControlPointImage)
-	mux.HandleFunc("POST /v1/control-point-artworks/uploads/{uploadID}/complete", server.completeControlPointImage)
+	mux.HandleFunc("GET /v1/sector-artworks", server.listSectorImages)
+	mux.HandleFunc("POST /v1/sector-artworks/uploads", server.authorizeSectorImage)
+	mux.HandleFunc("POST /v1/sector-artworks/uploads/{uploadID}/complete", server.completeSectorImage)
 	if dependencies.Torii != nil {
 		mux.Handle("/torii/graphql", dependencies.Torii)
 		mux.Handle("/torii/health", dependencies.Torii)
@@ -96,7 +96,7 @@ func (s *server) publicConfig(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s *server) listControlPointImages(w http.ResponseWriter, r *http.Request) {
+func (s *server) listSectorImages(w http.ResponseWriter, r *http.Request) {
 	if s.dependencies.Images == nil {
 		w.Header().Set("Cache-Control", "public, max-age=30")
 		writeJSON(w, http.StatusOK, map[string]any{"artworks": []images.Artwork{}})
@@ -104,15 +104,15 @@ func (s *server) listControlPointImages(w http.ResponseWriter, r *http.Request) 
 	}
 	approved, err := s.dependencies.Images.Approved(r.Context())
 	if err != nil {
-		slog.ErrorContext(r.Context(), "list control point images", "error", err)
-		writeProblem(w, http.StatusInternalServerError, "internal error", "could not list Control Point images")
+		slog.ErrorContext(r.Context(), "list sector images", "error", err)
+		writeProblem(w, http.StatusInternalServerError, "internal error", "could not list Sector images")
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=30")
 	writeJSON(w, http.StatusOK, map[string]any{"artworks": approved})
 }
 
-func (s *server) authorizeControlPointImage(w http.ResponseWriter, r *http.Request) {
+func (s *server) authorizeSectorImage(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -146,16 +146,16 @@ func (s *server) authorizeControlPointImage(w http.ResponseWriter, r *http.Reque
 	case errors.Is(err, images.ErrInvalidImage):
 		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
 	case errors.Is(err, images.ErrForbidden):
-		writeProblem(w, http.StatusForbidden, "ownership required", "the authenticated wallet cannot manage this Control Point image")
+		writeProblem(w, http.StatusForbidden, "ownership required", "the authenticated wallet cannot manage this Sector image")
 	case errors.Is(err, images.ErrUploadUnavailable):
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
 	default:
-		slog.ErrorContext(r.Context(), "authorize control point image", "error", err)
+		slog.ErrorContext(r.Context(), "authorize sector image", "error", err)
 		writeProblem(w, http.StatusBadGateway, "upload authorization failed", "could not authorize the image upload")
 	}
 }
 
-func (s *server) completeControlPointImage(w http.ResponseWriter, r *http.Request) {
+func (s *server) completeSectorImage(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -181,7 +181,7 @@ func (s *server) completeControlPointImage(w http.ResponseWriter, r *http.Reques
 	case errors.Is(err, images.ErrUploadUnavailable):
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
 	default:
-		slog.ErrorContext(r.Context(), "complete control point image", "error", err)
+		slog.ErrorContext(r.Context(), "complete sector image", "error", err)
 		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the uploaded image")
 	}
 }

@@ -7,14 +7,14 @@ pub trait IAdmin<TContractState> {
         staking_pool: ContractAddress,
         minimum_stake: u128,
         challenge_period_seconds: u64,
-        control_point_limit: u32,
+        sector_limit: u32,
     );
     fn set_paused(ref self: TContractState, paused: bool);
     fn set_rules(
         ref self: TContractState,
         minimum_stake: u128,
         challenge_period_seconds: u64,
-        control_point_limit: u32,
+        sector_limit: u32,
     );
     fn set_staking_pool(ref self: TContractState, staking_pool: ContractAddress);
     fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
@@ -26,7 +26,7 @@ pub mod admin {
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use dojo::world::IWorldDispatcherTrait;
-    use stakewars::models::{CONFIG_ID, GameConfig, MAX_CONTROL_POINTS};
+    use stakewars::models::{CONFIG_ID, GameConfig, MAX_SECTORS};
     use starknet::{ContractAddress, get_caller_address};
     use super::IAdmin;
 
@@ -38,7 +38,7 @@ pub mod admin {
         pub staking_pool: ContractAddress,
         pub minimum_stake: u128,
         pub challenge_period_seconds: u64,
-        pub control_point_limit: u32,
+        pub sector_limit: u32,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -56,7 +56,7 @@ pub mod admin {
         pub admin: ContractAddress,
         pub minimum_stake: u128,
         pub challenge_period_seconds: u64,
-        pub control_point_limit: u32,
+        pub sector_limit: u32,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -83,7 +83,7 @@ pub mod admin {
             staking_pool: ContractAddress,
             minimum_stake: u128,
             challenge_period_seconds: u64,
-            control_point_limit: u32,
+            sector_limit: u32,
         ) {
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -95,7 +95,7 @@ pub mod admin {
                 'not world owner',
             );
             assert(!staking_pool.is_zero(), 'zero staking pool');
-            validate_rules(minimum_stake, challenge_period_seconds, control_point_limit);
+            validate_rules(minimum_stake, challenge_period_seconds, sector_limit);
 
             world
                 .write_model(
@@ -106,7 +106,7 @@ pub mod admin {
                         staking_pool,
                         minimum_stake,
                         challenge_period_seconds,
-                        control_point_limit,
+                        sector_limit,
                         paused: false,
                     },
                 );
@@ -117,7 +117,7 @@ pub mod admin {
                         staking_pool,
                         minimum_stake,
                         challenge_period_seconds,
-                        control_point_limit,
+                        sector_limit,
                     },
                 );
         }
@@ -134,23 +134,20 @@ pub mod admin {
             ref self: ContractState,
             minimum_stake: u128,
             challenge_period_seconds: u64,
-            control_point_limit: u32,
+            sector_limit: u32,
         ) {
-            validate_rules(minimum_stake, challenge_period_seconds, control_point_limit);
+            validate_rules(minimum_stake, challenge_period_seconds, sector_limit);
             let mut world = self.world_default();
             let mut config = self.assert_admin();
-            assert(control_point_limit >= config.control_point_limit, 'cannot reduce point limit');
+            assert(sector_limit >= config.sector_limit, 'cannot reduce sector limit');
             config.minimum_stake = minimum_stake;
             config.challenge_period_seconds = challenge_period_seconds;
-            config.control_point_limit = control_point_limit;
+            config.sector_limit = sector_limit;
             world.write_model(@config);
             world
                 .emit_event(
                     @RulesChanged {
-                        admin: config.admin,
-                        minimum_stake,
-                        challenge_period_seconds,
-                        control_point_limit,
+                        admin: config.admin, minimum_stake, challenge_period_seconds, sector_limit,
                     },
                 );
         }
@@ -197,10 +194,10 @@ pub mod admin {
         }
     }
 
-    fn validate_rules(minimum_stake: u128, challenge_period_seconds: u64, point_limit: u32) {
+    fn validate_rules(minimum_stake: u128, challenge_period_seconds: u64, sector_limit: u32) {
         assert(minimum_stake > 0, 'zero minimum stake');
         assert(challenge_period_seconds > 0, 'zero challenge period');
-        assert(point_limit > 0, 'zero point limit');
-        assert(point_limit <= MAX_CONTROL_POINTS, 'too many control points');
+        assert(sector_limit > 0, 'zero sector limit');
+        assert(sector_limit <= MAX_SECTORS, 'too many sectors');
     }
 }

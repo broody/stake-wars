@@ -24,7 +24,7 @@ import (
 
 const (
 	uploadAuthorizationLifetime = 5 * time.Minute
-	maximumControlPointID       = 1999
+	maximumSectorID             = 1999
 	maximumArtworkTargets       = 200
 	maximumDetailDimension      = 512
 	maximumThumbnailDimension   = 256
@@ -96,20 +96,20 @@ func validTargets(targets []Target) bool {
 	}
 	seen := make(map[uint32]struct{}, len(targets))
 	for _, target := range targets {
-		if target.ControlPointID > maximumControlPointID || target.OwnershipGeneration == 0 {
+		if target.SectorID > maximumSectorID || target.OwnershipGeneration == 0 {
 			return false
 		}
-		if _, exists := seen[target.ControlPointID]; exists {
+		if _, exists := seen[target.SectorID]; exists {
 			return false
 		}
-		seen[target.ControlPointID] = struct{}{}
+		seen[target.SectorID] = struct{}{}
 	}
 	return true
 }
 
 func (s *Service) verifyTargets(ctx context.Context, owner string, targets []Target) error {
 	for _, target := range targets {
-		allowed, err := s.control.CanManageImage(ctx, target.ControlPointID, owner, target.OwnershipGeneration)
+		allowed, err := s.control.CanManageImage(ctx, target.SectorID, owner, target.OwnershipGeneration)
 		if err != nil {
 			return fmt.Errorf("verify artwork ownership: %w", err)
 		}

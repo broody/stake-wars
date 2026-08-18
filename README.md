@@ -2,7 +2,7 @@
 
 StakeWars is a persistent, non-custodial strategy game built around Starknet
 validator delegation. Operators deploy their real delegated STRK as FORCE
-across Control Points and open ascending challenges without creating a separate
+across Sectors and open ascending challenges without creating a separate
 token. Challenge commitments are public and every accepted
 escalation restarts the full response window. Returning participants lock only
 the increase over their own prior commitment; final losing commitments become
@@ -73,7 +73,7 @@ pnpm dev:web:sepolia
 ```
 
 The shared Sepolia World uses a 0.1 STRK minimum capture force, a 180-second
-response window, and 2,000 Control Points. Mainnet launches with a 100 STRK
+response window, and 2,000 Sectors. Mainnet launches with a 100 STRK
 minimum and a 10,800-second response window. The game admin may change the
 response window through the on-chain rules configuration. Every accepted lead
 change uses the then-current window, with no absolute contest-duration cap.

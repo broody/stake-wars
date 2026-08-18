@@ -10,7 +10,7 @@ and permanent Spent Force without taking custody.
 Available Force = max(
   0,
   live delegated STRK
-    - Control Point garrisons
+    - Sector garrisons
     - active cumulative challenge commitments
     - spent force
 )
@@ -36,14 +36,14 @@ sequenceDiagram
     participant W as Dojo World
 
     A->>W: Existing 400 STRK garrison
-    B->>W: challenge(point, 500)
+    B->>W: challenge(sector, 500)
     W->>W: Keep A 400 and B 500 locked at risk
-    A->>W: challenge(point, 700)
+    A->>W: challenge(sector, 700)
     W->>W: Lock only 300 more for A
-    B->>W: challenge(point, 800)
+    B->>W: challenge(sector, 800)
     W->>W: Lock only 300 more for B
     Note over A,B: Each accepted lead resets the full window
-    A->>W: settle_challenge(point) after expiry
+    A->>W: settle_challenge(sector) after expiry
     W->>W: B's 800 becomes the new garrison
     W->>W: A's final 700 becomes Spent Force
 ```
@@ -51,7 +51,7 @@ sequenceDiagram
 ### Opening
 
 Any active non-Controller may initiate a challenge strictly above an occupied,
-uncontested point's garrison. The incumbent garrison and initiating commitment
+uncontested sector's garrison. The incumbent garrison and initiating commitment
 remain locked at risk; neither is spent merely because the challenge opened.
 
 ### Raising and re-entering
@@ -68,13 +68,13 @@ challenge-duration cap.
 ### Sacrifice
 
 `challenge_with_sacrifice(targetId, sourceId, newCommitment)` releases one other
-owned, uncontested point before validating the incremental lock. The source
+owned, uncontested sector before validating the incremental lock. The source
 becomes neutral and its garrison returns to Available Force. Sacrifice reallocates
 backing; it does not duplicate or automatically spend it.
 
 ### Settlement and losing-position resolution
 
-After expiry, any account may call `settle_challenge(controlPointId)`. A valid
+After expiry, any account may call `settle_challenge(sectorId)`. A valid
 leader's cumulative commitment becomes the new garrison. Every non-winner loses
 its own highest cumulative commitment as permanent game force; the underlying
 STRK remains delegated and reward-bearing.
@@ -88,7 +88,7 @@ permissionless, and emits `ChallengePositionResolved`.
 
 ## Multiple simultaneous actions
 
-An Operator may hold points and participate in multiple Challenges while its
+An Operator may hold sectors and participate in multiple Challenges while its
 aggregate garrisons, active challenge commitments, and Spent Force remain
 backed by Live Delegation. Joining one challenge does not globally disable other
 actions.

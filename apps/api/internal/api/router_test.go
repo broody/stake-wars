@@ -131,10 +131,10 @@ func TestCORSAllowsConfiguredOriginOnly(t *testing.T) {
 	}
 }
 
-func TestControlPointImagesArePublicAndUploadsRequireAuthentication(t *testing.T) {
+func TestSectorImagesArePublicAndUploadsRequireAuthentication(t *testing.T) {
 	handler := NewHandler(testDependencies(t))
 
-	listRequest := httptest.NewRequest(http.MethodGet, "/v1/control-point-artworks", nil)
+	listRequest := httptest.NewRequest(http.MethodGet, "/v1/sector-artworks", nil)
 	listResponse := httptest.NewRecorder()
 	handler.ServeHTTP(listResponse, listRequest)
 	if listResponse.Code != http.StatusOK {
@@ -146,8 +146,8 @@ func TestControlPointImagesArePublicAndUploadsRequireAuthentication(t *testing.T
 
 	uploadRequest := httptest.NewRequest(
 		http.MethodPost,
-		"/v1/control-point-artworks/uploads",
-		strings.NewReader(`{"controlPointId":42}`),
+		"/v1/sector-artworks/uploads",
+		strings.NewReader(`{"sectorId":42}`),
 	)
 	uploadRequest.Header.Set("Content-Type", "application/json")
 	uploadResponse := httptest.NewRecorder()

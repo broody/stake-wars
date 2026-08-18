@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import {
   addressesMatch,
@@ -7,30 +7,30 @@ import {
   isZeroAddress,
   shortAddress,
 } from '../../utils/format';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import { CaptureControl } from './CaptureControl';
 import { BatchCaptureControl } from './BatchCaptureControl';
-import { groupBatchControlPoints } from '../../services/controlPointBatch';
+import { groupBatchSectors } from '../../services/sectorBatch';
 
 export function SelectionPanel() {
   const { address } = useWallet();
   const {
-    selectedControlPointId,
-    selectedControlPointIds,
+    selectedSectorId,
+    selectedSectorIds,
     mode,
-    selectedControlPoint,
-    selectedControlPoints,
-    isControlPointInteractionLocked,
-    controlPointError,
-    selectControlPoint,
-    refreshControlPoint,
-  } = useControlPoints();
+    selectedSector,
+    selectedSectors,
+    isSectorInteractionLocked,
+    sectorError,
+    selectSector,
+    refreshSector,
+  } = useSectors();
 
   useEffect(() => {
     if (
       mode !== 'control' ||
-      selectedControlPointId === null ||
-      isControlPointInteractionLocked
+      selectedSectorId === null ||
+      isSectorInteractionLocked
     ) {
       return;
     }
@@ -39,33 +39,27 @@ export function SelectionPanel() {
       if (event.key !== 'Escape') return;
 
       event.preventDefault();
-      selectControlPoint(null);
+      selectSector(null);
     };
 
     window.addEventListener('keydown', cancelSelection);
     return () => window.removeEventListener('keydown', cancelSelection);
-  }, [
-    isControlPointInteractionLocked,
-    mode,
-    selectControlPoint,
-    selectedControlPointId,
-  ]);
+  }, [isSectorInteractionLocked, mode, selectSector, selectedSectorId]);
 
-  if (mode !== 'control' || selectedControlPointId === null) {
+  if (mode !== 'control' || selectedSectorId === null) {
     return null;
   }
 
   const neutral =
-    selectedControlPoint !== null &&
-    isZeroAddress(selectedControlPoint.controller);
+    selectedSector !== null && isZeroAddress(selectedSector.controller);
   const controlledByOperator =
     Boolean(address) &&
-    selectedControlPoint !== null &&
-    addressesMatch(selectedControlPoint.controller, address ?? '0x0');
-  const isMultiSelection = selectedControlPointIds.length > 1;
-  const batchGroups = groupBatchControlPoints(selectedControlPoints, address);
+    selectedSector !== null &&
+    addressesMatch(selectedSector.controller, address ?? '0x0');
+  const isMultiSelection = selectedSectorIds.length > 1;
+  const batchGroups = groupBatchSectors(selectedSectors, address);
   const hasLoadedFullSelection =
-    selectedControlPoints.length === selectedControlPointIds.length;
+    selectedSectors.length === selectedSectorIds.length;
 
   return (
     <aside className="pointer-events-auto absolute left-3 right-3 top-20 border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:left-auto sm:right-4 sm:w-[22rem]">
@@ -73,36 +67,36 @@ export function SelectionPanel() {
         <div>
           <div className="text-[9px] tracking-[0.24em] text-dim">
             {isMultiSelection
-              ? `${selectedControlPointIds.length} CONTROL POINTS SELECTED`
-              : 'SELECTED CONTROL POINT'}
+              ? `${selectedSectorIds.length} SECTORS SELECTED`
+              : 'SELECTED SECTOR'}
           </div>
           <div className="mt-1 text-base tracking-[0.12em]">
             {isMultiSelection
               ? 'MULTIPLE'
-              : `CP-${selectedControlPointId.toString().padStart(4, '0')}`}
+              : `SECTOR-${selectedSectorId.toString().padStart(4, '0')}`}
           </div>
         </div>
         <button
           type="button"
-          onClick={() => selectControlPoint(null)}
-          disabled={isControlPointInteractionLocked}
+          onClick={() => selectSector(null)}
+          disabled={isSectorInteractionLocked}
           className="border border-grid px-2 py-1 text-dim transition-colors hover:border-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
-          aria-label="Close Control Point details"
+          aria-label="Close Sector details"
         >
           ESC
         </button>
       </header>
 
       <div className="px-4 py-3">
-        {controlPointError && (
+        {sectorError && (
           <div className="py-3">
             <div className="text-amber-400">READ FAILED</div>
             <p className="mt-2 break-words leading-relaxed text-neutral-400">
-              {controlPointError}
+              {sectorError}
             </p>
             <button
               type="button"
-              onClick={refreshControlPoint}
+              onClick={refreshSector}
               className="mt-3 border border-neutral-600 px-3 py-1.5 tracking-widest transition-colors hover:border-white"
             >
               RETRY READ
@@ -117,17 +111,17 @@ export function SelectionPanel() {
                 OWNER
               </div>
               <div className="mt-1 flex items-baseline gap-2 tracking-wider text-neutral-300">
-                <span title={selectedControlPoint?.controller}>
-                  {!selectedControlPoint
+                <span title={selectedSector?.controller}>
+                  {!selectedSector
                     ? '---'
                     : neutral
                       ? '—'
-                      : shortAddress(selectedControlPoint.controller)}
+                      : shortAddress(selectedSector.controller)}
                 </span>
                 {controlledByOperator && (
                   <span
                     className="text-[9px] tracking-[0.16em]"
-                    style={{ color: CONTROL_POINT_COLORS.owned }}
+                    style={{ color: SECTOR_COLORS.owned }}
                   >
                     (YOU)
                   </span>
@@ -139,9 +133,9 @@ export function SelectionPanel() {
                 STAKED
               </span>
               <span className="text-neutral-300">
-                {selectedControlPoint ? (
+                {selectedSector ? (
                   <>
-                    {formatStrk(selectedControlPoint.captureForce, 18)}{' '}
+                    {formatStrk(selectedSector.captureForce, 18)}{' '}
                     <span className="text-[10px] text-dim">STRK</span>
                   </>
                 ) : (
@@ -152,23 +146,21 @@ export function SelectionPanel() {
           </>
         ) : null}
 
-        {selectedControlPoint ? (
+        {selectedSector ? (
           <>
             {!isMultiSelection &&
-              (selectedControlPoint.stale ||
-                selectedControlPoint.needsSync) && (
+              (selectedSector.stale || selectedSector.needsSync) && (
                 <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-                  This Control Point has stale Operator state and must be
-                  synced.
+                  This Sector has stale Operator state and must be synced.
                 </div>
               )}
 
             {!isMultiSelection &&
-            ((!selectedControlPoint.stale && !selectedControlPoint.needsSync) ||
-              selectedControlPoint.activeChallengeId !== 0n) ? (
+            ((!selectedSector.stale && !selectedSector.needsSync) ||
+              selectedSector.activeChallengeId !== 0n) ? (
               <CaptureControl
-                key={`action-${selectedControlPoint.id}-${selectedControlPoint.activeChallengeId}`}
-                controlPoints={[selectedControlPoint]}
+                key={`action-${selectedSector.id}-${selectedSector.activeChallengeId}`}
+                sectors={[selectedSector]}
                 intent={controlledByOperator ? 'fortify' : 'capture'}
               />
             ) : null}
@@ -177,20 +169,20 @@ export function SelectionPanel() {
                 {batchGroups.neutral.length > 0 && (
                   <BatchCaptureControl
                     key={`batch-capture-${batchGroups.neutral.map(({ id }) => id).join('-')}`}
-                    controlPoints={batchGroups.neutral}
+                    sectors={batchGroups.neutral}
                     intent="capture"
                   />
                 )}
                 {batchGroups.owned.length > 0 && (
                   <BatchCaptureControl
                     key={`batch-fortify-${batchGroups.owned.map(({ id }) => id).join('-')}`}
-                    controlPoints={batchGroups.owned}
+                    sectors={batchGroups.owned}
                     intent="fortify"
                   />
                 )}
                 {batchGroups.individualOnly.length > 0 && (
                   <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-                    {batchGroups.individualOnly.length} selected Control Point
+                    {batchGroups.individualOnly.length} selected Sector
                     {batchGroups.individualOnly.length === 1 ? '' : 's'} require
                     an individual challenge or state sync and are excluded from
                     batch actions.

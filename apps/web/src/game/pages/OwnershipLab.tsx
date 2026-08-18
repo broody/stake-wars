@@ -9,17 +9,17 @@ import {
   STAKE_RELIEF_CAP_STRK,
   type OwnershipScenario,
 } from '../utils/ownershipScenarios';
-import { CONTROL_POINT_COUNT } from '../utils/controlPointGeometry';
+import { SECTOR_COUNT } from '../utils/sectorGeometry';
 import {
   EXAMPLE_IMAGE_ATLAS_GPU_BYTES,
   EXAMPLE_IMAGE_ATLAS_HEIGHT,
   EXAMPLE_IMAGE_ATLAS_WIDTH,
   EXAMPLE_IMAGE_DETAIL_SIZE,
-  selectExampleImageControlPointIds,
+  selectExampleImageSectorIds,
 } from '../utils/exampleImageAtlas';
 import { shortAddress } from '../utils/format';
 
-const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, CONTROL_POINT_COUNT] as const;
+const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, SECTOR_COUNT] as const;
 
 function formatMebibytes(bytes: number): string {
   return `${Math.round(bytes / 1_048_576)} MIB`;
@@ -42,48 +42,47 @@ function OwnershipScenarioCard({
   scenario,
   reliefMode,
   logarithmicScale,
-  imageControlPointIds,
+  imageSectorIds,
 }: {
   scenario: OwnershipScenario;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
-  imageControlPointIds: readonly number[];
+  imageSectorIds: readonly number[];
 }) {
   const [markedOwner, setMarkedOwner] = useState(0);
-  const [hoveredControlPointId, setHoveredControlPointId] = useState<
-    number | null
-  >(null);
+  const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const [performance, setPerformance] =
     useState<GlobePerformanceMetrics | null>(null);
-  const [selectedDetailControlPointId, setSelectedDetailControlPointId] =
-    useState<number | null>(null);
-  const imageControlPointIdSet = useMemo(
-    () => new Set(imageControlPointIds),
-    [imageControlPointIds]
+  const [selectedDetailSectorId, setSelectedDetailSectorId] = useState<
+    number | null
+  >(null);
+  const imageSectorIdSet = useMemo(
+    () => new Set(imageSectorIds),
+    [imageSectorIds]
   );
-  const activeSelectedDetailControlPointId =
-    selectedDetailControlPointId !== null &&
-    imageControlPointIdSet.has(selectedDetailControlPointId)
-      ? selectedDetailControlPointId
+  const activeSelectedDetailSectorId =
+    selectedDetailSectorId !== null &&
+    imageSectorIdSet.has(selectedDetailSectorId)
+      ? selectedDetailSectorId
       : null;
 
   useEffect(() => {
     if (
-      selectedDetailControlPointId !== null &&
-      !imageControlPointIdSet.has(selectedDetailControlPointId)
+      selectedDetailSectorId !== null &&
+      !imageSectorIdSet.has(selectedDetailSectorId)
     ) {
-      setSelectedDetailControlPointId(null);
+      setSelectedDetailSectorId(null);
     }
-  }, [imageControlPointIdSet, selectedDetailControlPointId]);
+  }, [imageSectorIdSet, selectedDetailSectorId]);
   const validMarkedOwner =
     markedOwner >= 0 && markedOwner < scenario.ownerCount ? markedOwner : 0;
   const stats = useMemo(() => scenarioStats(scenario), [scenario]);
   const hoveredAssignment =
-    hoveredControlPointId === null ||
-    hoveredControlPointId < 0 ||
-    hoveredControlPointId >= scenario.ownerByControlPoint.length
+    hoveredSectorId === null ||
+    hoveredSectorId < 0 ||
+    hoveredSectorId >= scenario.ownerBySector.length
       ? null
-      : scenario.ownerByControlPoint[hoveredControlPointId];
+      : scenario.ownerBySector[hoveredSectorId];
   const hoveredOwner =
     hoveredAssignment !== null && hoveredAssignment >= 0
       ? hoveredAssignment
@@ -93,15 +92,15 @@ function OwnershipScenarioCard({
   const inspectedAddress = scenario.ownerAddresses[inspectedOwner];
   const inspectedCount = scenario.counts[inspectedOwner];
   const inspectedStake = scenario.stakedStrkByOwner[inspectedOwner] ?? 0;
-  const selectControlPoint = useCallback(
-    (controlPointId: number, owner: number) => {
+  const selectSector = useCallback(
+    (sectorId: number, owner: number) => {
       if (owner >= 0) setMarkedOwner(owner);
-      setSelectedDetailControlPointId(
-        imageControlPointIdSet.has(controlPointId) ? controlPointId : null
+      setSelectedDetailSectorId(
+        imageSectorIdSet.has(sectorId) ? sectorId : null
       );
-      setHoveredControlPointId(null);
+      setHoveredSectorId(null);
     },
-    [imageControlPointIdSet]
+    [imageSectorIdSet]
   );
 
   const cycleOwner = (direction: -1 | 1) => {
@@ -109,8 +108,8 @@ function OwnershipScenarioCard({
       (current) =>
         (current + direction + scenario.ownerCount) % scenario.ownerCount
     );
-    setHoveredControlPointId(null);
-    setSelectedDetailControlPointId(null);
+    setHoveredSectorId(null);
+    setSelectedDetailSectorId(null);
   };
 
   return (
@@ -141,7 +140,7 @@ function OwnershipScenarioCard({
             </div>
             <div>
               <div className="text-xl tabular-nums text-red-500">
-                {scenario.contestedControlPointIds.length}
+                {scenario.contestedSectorIds.length}
               </div>
               <div className="text-[8px] tracking-[0.16em] text-neutral-500">
                 CONTESTED
@@ -149,7 +148,7 @@ function OwnershipScenarioCard({
             </div>
             <div>
               <div className="text-xl tabular-nums text-fg">
-                {imageControlPointIds.length.toLocaleString()}
+                {imageSectorIds.length.toLocaleString()}
               </div>
               <div className="text-[8px] tracking-[0.16em] text-neutral-500">
                 IMAGES
@@ -165,11 +164,11 @@ function OwnershipScenarioCard({
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
           logarithmicScale={logarithmicScale}
-          imageControlPointIds={imageControlPointIds}
-          selectedDetailControlPointId={activeSelectedDetailControlPointId}
+          imageSectorIds={imageSectorIds}
+          selectedDetailSectorId={activeSelectedDetailSectorId}
           onPerformanceSample={setPerformance}
-          onHoverControlPoint={setHoveredControlPointId}
-          onSelectControlPoint={selectControlPoint}
+          onHoverSector={setHoveredSectorId}
+          onSelectSector={selectSector}
         />
       </div>
 
@@ -204,11 +203,11 @@ function OwnershipScenarioCard({
               </div>
               <div className="mt-1 text-[9px] tabular-nums text-neutral-500">
                 {isHoveredUnoccupied
-                  ? `CP-${String(hoveredControlPointId).padStart(4, '0')}`
-                  : `${inspectedCount} CONTROL POINTS${
-                      hoveredControlPointId === null
+                  ? `SECTOR-${String(hoveredSectorId).padStart(4, '0')}`
+                  : `${inspectedCount} SECTORS${
+                      hoveredSectorId === null
                         ? ''
-                        : ` · CP-${String(hoveredControlPointId).padStart(4, '0')}`
+                        : ` · SECTOR-${String(hoveredSectorId).padStart(4, '0')}`
                     }`}
               </div>
               {isHoveredUnoccupied ? null : (
@@ -219,14 +218,11 @@ function OwnershipScenarioCard({
                     : ''}
                 </div>
               )}
-              {activeSelectedDetailControlPointId === null ? null : (
+              {activeSelectedDetailSectorId === null ? null : (
                 <div className="mt-1 text-[8px] tabular-nums tracking-[0.1em] text-amber-300">
-                  DETAIL TEXTURE · CP-
-                  {String(activeSelectedDetailControlPointId).padStart(
-                    4,
-                    '0'
-                  )}{' '}
-                  · {EXAMPLE_IMAGE_DETAIL_SIZE} PX
+                  DETAIL TEXTURE · SECTOR-
+                  {String(activeSelectedDetailSectorId).padStart(4, '0')} ·{' '}
+                  {EXAMPLE_IMAGE_DETAIL_SIZE} PX
                 </div>
               )}
             </div>
@@ -266,7 +262,7 @@ function OwnershipScenarioCard({
           ['TRIANGLES', performance?.triangles.toLocaleString() ?? '—'],
           ['GPU TEXTURES', performance?.textures ?? '—'],
           ['CAMERA', performance ? performance.cameraDistance.toFixed(1) : '—'],
-          ['IMAGE ATLAS', imageControlPointIds.length > 0 ? '1 CALL' : 'OFF'],
+          ['IMAGE ATLAS', imageSectorIds.length > 0 ? '1 CALL' : 'OFF'],
           [
             'DETAIL TIER',
             performance && performance.textures > 1
@@ -299,11 +295,11 @@ export function CoreLab() {
     OWNERSHIP_SCENARIOS.find(
       (scenario) => scenario.id === selectedScenarioId
     ) ?? OWNERSHIP_SCENARIOS[0];
-  const imageControlPointIds = useMemo(
+  const imageSectorIds = useMemo(
     () =>
       selectedScenario
-        ? selectExampleImageControlPointIds(
-            selectedScenario.ownerByControlPoint,
+        ? selectExampleImageSectorIds(
+            selectedScenario.ownerBySector,
             requestedImageCount,
             selectedScenario.seed
           )
@@ -325,35 +321,34 @@ export function CoreLab() {
               CORE SYSTEMS LAB
             </h1>
             <p className="mt-3 max-w-3xl text-[10px] leading-6 tracking-[0.08em] text-neutral-500">
-              Every globe contains all 2,000 Control Points. Drag to rotate,
-              scroll to zoom, hover to inspect a tile, and select a tile to mark
-              its owner across the complete Core. Red stripes mark active
-              contests; black regions are unoccupied. Example images use one
-              atlas-backed draw call; these procedural samples isolate render
-              cost from future network and decode cost. Select an imaged tile,
-              or zoom close and hover, to add one {EXAMPLE_IMAGE_DETAIL_SIZE}px
-              detail texture. Stake relief has a hard{' '}
-              {STAKE_RELIEF_CAP_STRK.toLocaleString()} STRK height cap.
+              Every globe contains all 2,000 Sectors. Drag to rotate, scroll to
+              zoom, hover to inspect a tile, and select a tile to mark its owner
+              across the complete Core. Red stripes mark active contests; black
+              regions are unoccupied. Example images use one atlas-backed draw
+              call; these procedural samples isolate render cost from future
+              network and decode cost. Select an imaged tile, or zoom close and
+              hover, to add one {EXAMPLE_IMAGE_DETAIL_SIZE}px detail texture.
+              Stake relief has a hard {STAKE_RELIEF_CAP_STRK.toLocaleString()}{' '}
+              STRK height cap.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[9px] tracking-[0.12em]">
             <span className="text-neutral-600">OCCUPANCY</span>
             <span className="text-right text-fg">
               {Math.round(
-                ((CONTROL_POINT_COUNT -
-                  selectedScenario.unoccupiedControlPointIds.length) /
-                  CONTROL_POINT_COUNT) *
+                ((SECTOR_COUNT - selectedScenario.unoccupiedSectorIds.length) /
+                  SECTOR_COUNT) *
                   100
               )}
               %
             </span>
-            <span className="text-neutral-600">CONTROL POINTS</span>
+            <span className="text-neutral-600">SECTORS</span>
             <span className="text-right text-fg">
-              {CONTROL_POINT_COUNT.toLocaleString()}
+              {SECTOR_COUNT.toLocaleString()}
             </span>
             <span className="text-neutral-600">UNOCCUPIED</span>
             <span className="text-right text-neutral-500">
-              {selectedScenario.unoccupiedControlPointIds.length}
+              {selectedScenario.unoccupiedSectorIds.length}
             </span>
             <span className="text-neutral-600">MARKED OWNER</span>
             <span className="text-right text-amber-300">LIGHT GOLD</span>
@@ -361,7 +356,7 @@ export function CoreLab() {
             <span className="text-right text-red-500">RED STRIPES</span>
             <span className="text-neutral-600">IMAGES</span>
             <span className="text-right text-fg">
-              {imageControlPointIds.length.toLocaleString()}
+              {imageSectorIds.length.toLocaleString()}
             </span>
             <span className="text-neutral-600">ATLAS</span>
             <span className="text-right text-fg">
@@ -467,10 +462,10 @@ export function CoreLab() {
                   <option key={count} value={count}>
                     {count === 0
                       ? 'NONE'
-                      : count === CONTROL_POINT_COUNT
+                      : count === SECTOR_COUNT
                         ? `ALL OCCUPIED · ${(
-                            CONTROL_POINT_COUNT -
-                            selectedScenario.unoccupiedControlPointIds.length
+                            SECTOR_COUNT -
+                            selectedScenario.unoccupiedSectorIds.length
                           ).toLocaleString()}`
                         : `${count.toLocaleString()} IMAGES`}
                   </option>
@@ -484,7 +479,7 @@ export function CoreLab() {
             scenario={selectedScenario}
             reliefMode={reliefMode}
             logarithmicScale={logarithmicScale}
-            imageControlPointIds={imageControlPointIds}
+            imageSectorIds={imageSectorIds}
           />
         </div>
       </div>

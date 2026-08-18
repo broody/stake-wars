@@ -1,7 +1,7 @@
 import { hash } from 'starknet';
 import { config } from './config';
 import type {
-  ControlPointStatus,
+  SectorStatus,
   ChallengeStatus,
   ChallengeParticipantStatus,
   OperatorStatus,
@@ -9,10 +9,7 @@ import type {
   StakingPoolInfo,
 } from '../types';
 import { addressesMatch } from '../utils/format';
-import {
-  chunkControlPointActions,
-  MAX_CONTROL_POINT_SELECTION,
-} from './controlPointLimits';
+import { chunkSectorActions, MAX_SECTOR_SELECTION } from './sectorLimits';
 
 interface JsonRpcResponse<T> {
   id: number;
@@ -183,27 +180,24 @@ export async function checkStarknetConnection(
   return { blockNumber, chainId, worldClassHash };
 }
 
-export async function getControlPointStatus(
-  controlPointId: number,
+export async function getSectorStatus(
+  sectorId: number,
   signal?: AbortSignal
-): Promise<ControlPointStatus> {
+): Promise<SectorStatus> {
   const result = await callControlSystem(
-    'get_control_point_status',
-    [encodeRpcFelt(controlPointId)],
+    'get_sector_status',
+    [encodeRpcFelt(sectorId)],
     signal
   );
   if (result.length !== 11) {
-    throw new Error('Control System returned an invalid Control Point status');
+    throw new Error('Control System returned an invalid Sector status');
   }
-  return decodeControlPointStatus(result, 0);
+  return decodeSectorStatus(result, 0);
 }
 
-function decodeControlPointStatus(
-  result: string[],
-  offset: number
-): ControlPointStatus {
+function decodeSectorStatus(result: string[], offset: number): SectorStatus {
   return {
-    id: Number(parseFelt(result[offset], 'Control Point ID')),
+    id: Number(parseFelt(result[offset], 'Sector ID')),
     controller: result[offset + 1] ?? '0x0',
     captureForce: parseFelt(result[offset + 2], 'capture force'),
     ownershipGeneration: parseFelt(result[offset + 3], 'ownership generation'),
@@ -221,13 +215,11 @@ function decodeControlPointStatus(
   };
 }
 
-export function decodeControlPointStatusesResult(
+export function decodeSectorStatusesResult(
   result: string[],
   expectedCount: number
-): ControlPointStatus[] {
-  const resultLength = Number(
-    parseFelt(result[0], 'Control Point status count')
-  );
+): SectorStatus[] {
+  const resultLength = Number(parseFelt(result[0], 'Sector status count'));
   const statusWidth = 11;
   if (
     resultLength !== expectedCount ||
@@ -237,7 +229,7 @@ export function decodeControlPointStatusesResult(
   }
 
   return Array.from({ length: resultLength }, (_, index) =>
-    decodeControlPointStatus(result, 1 + index * statusWidth)
+    decodeSectorStatus(result, 1 + index * statusWidth)
   );
 }
 
@@ -276,25 +268,25 @@ export async function getBlockTimestamps(
   return timestamps;
 }
 
-export async function getControlPointStatuses(
-  controlPointIds: readonly number[],
+export async function getSectorStatuses(
+  sectorIds: readonly number[],
   signal?: AbortSignal
-): Promise<ControlPointStatus[]> {
-  if (controlPointIds.length > MAX_CONTROL_POINT_SELECTION) {
+): Promise<SectorStatus[]> {
+  if (sectorIds.length > MAX_SECTOR_SELECTION) {
     throw new RangeError(
-      `At most ${MAX_CONTROL_POINT_SELECTION} Control Points can be read at once`
+      `At most ${MAX_SECTOR_SELECTION} Sectors can be read at once`
     );
   }
 
-  const batches = chunkControlPointActions(controlPointIds);
+  const batches = chunkSectorActions(sectorIds);
   const batchStatuses = await Promise.all(
     batches.map(async (batch) => {
       const result = await callControlSystem(
-        'get_control_point_statuses',
+        'get_sector_statuses',
         [encodeRpcFelt(batch.length), ...batch.map(encodeRpcFelt)],
         signal
       );
-      return decodeControlPointStatusesResult(result, batch.length);
+      return decodeSectorStatusesResult(result, batch.length);
     })
   );
 
@@ -324,12 +316,12 @@ export function decodeOperatorStatusResult(
   return {
     operator: result[0] ?? operator,
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
-    pointForce: parseFelt(result[2], 'point commitments'),
+    sectorForce: parseFelt(result[2], 'sector commitments'),
     challengeForce: parseFelt(result[3], 'challenge commitments'),
     spentForce: parseFelt(result[4], 'spent force'),
     availableForce: parseFelt(result[5], 'available force'),
     generation: parseFelt(result[6], 'operator generation'),
-    controlledPointCount: Number(parseFelt(result[7], 'owned point count')),
+    controlledSectorCount: Number(parseFelt(result[7], 'owned sector count')),
     activeChallengeCount: Number(
       parseFelt(result[8], 'active challenge count')
     ),
@@ -357,7 +349,7 @@ export function decodeChallengeStatusResult(result: string[]): ChallengeStatus {
   }
   return {
     id: parseFelt(result[0], 'challenge ID'),
-    controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
+    sectorId: Number(parseFelt(result[1], 'Sector ID')),
     incumbent: result[2] ?? '0x0',
     leader: result[3] ?? '0x0',
     leadingForce: parseFelt(result[4], 'leading force'),
@@ -392,7 +384,7 @@ export async function getChallengeParticipantStatus(
     challengeId: parseFelt(result[0], 'challenge ID'),
     operator: result[1] ?? operator,
     committedForce: parseFelt(result[2], 'participant committed force'),
-    pointForceIncluded: parseFelt(result[3], 'participant point force'),
+    sectorForceIncluded: parseFelt(result[3], 'participant sector force'),
     additionalForce: parseFelt(result[4], 'participant additional force'),
     joined: parseFelt(result[5], 'participant joined flag') !== 0n,
     resolved: parseFelt(result[6], 'participant resolved flag') !== 0n,
@@ -400,19 +392,15 @@ export async function getChallengeParticipantStatus(
   };
 }
 
-export async function canManageControlPointImage(
-  controlPointId: number,
+export async function canManageSectorImage(
+  sectorId: number,
   operator: string,
   ownershipGeneration: bigint,
   signal?: AbortSignal
 ): Promise<boolean> {
   const result = await callControlSystem(
     'can_manage_image',
-    [
-      encodeRpcFelt(controlPointId),
-      operator,
-      encodeRpcFelt(ownershipGeneration),
-    ],
+    [encodeRpcFelt(sectorId), operator, encodeRpcFelt(ownershipGeneration)],
     signal
   );
 

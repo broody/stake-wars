@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { ControlPointStatus } from '../types';
-import { groupBatchControlPoints } from './controlPointBatch';
+import type { SectorStatus } from '../types';
+import { groupBatchSectors } from './sectorBatch';
 
-function point(
+function sector(
   id: number,
   controller: string,
-  overrides: Partial<ControlPointStatus> = {}
-): ControlPointStatus {
+  overrides: Partial<SectorStatus> = {}
+): SectorStatus {
   return {
     id,
     controller,
@@ -23,10 +23,10 @@ function point(
   };
 }
 
-describe('batch Control Point grouping', () => {
+describe('batch Sector grouping', () => {
   it('keeps neutral captures and owned fortifications batchable', () => {
-    const groups = groupBatchControlPoints(
-      [point(1, '0x0'), point(2, '0xabc'), point(3, '0xdef')],
+    const groups = groupBatchSectors(
+      [sector(1, '0x0'), sector(2, '0xabc'), sector(3, '0xdef')],
       '0xabc'
     );
 
@@ -35,12 +35,12 @@ describe('batch Control Point grouping', () => {
     expect(groups.individualOnly.map(({ id }) => id)).toEqual([3]);
   });
 
-  it('excludes challenged and stale points from batching', () => {
-    const groups = groupBatchControlPoints(
+  it('excludes challenged and stale sectors from batching', () => {
+    const groups = groupBatchSectors(
       [
-        point(1, '0x0', { activeChallengeId: 4n }),
-        point(2, '0xabc', { stale: true }),
-        point(3, '0xabc', { needsSync: true }),
+        sector(1, '0x0', { activeChallengeId: 4n }),
+        sector(2, '0xabc', { stale: true }),
+        sector(3, '0xabc', { needsSync: true }),
       ],
       '0xabc'
     );

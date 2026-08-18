@@ -1,14 +1,14 @@
 export const MAX_CONTROL_ACTION_BATCH = 200;
-export const MAX_CONTROL_POINT_SELECTION = 1_000;
+export const MAX_SECTOR_SELECTION = 1_000;
 
-export function requiresControlPointActionSplit(itemCount: number): boolean {
+export function requiresSectorActionSplit(itemCount: number): boolean {
   return itemCount > MAX_CONTROL_ACTION_BATCH;
 }
 
-export function chunkControlPointActions<T>(items: readonly T[]): T[][] {
-  if (items.length > MAX_CONTROL_POINT_SELECTION) {
+export function chunkSectorActions<T>(items: readonly T[]): T[][] {
+  if (items.length > MAX_SECTOR_SELECTION) {
     throw new RangeError(
-      `At most ${MAX_CONTROL_POINT_SELECTION} Control Points can be selected`
+      `At most ${MAX_SECTOR_SELECTION} Sectors can be selected`
     );
   }
 

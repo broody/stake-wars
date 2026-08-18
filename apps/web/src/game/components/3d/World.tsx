@@ -12,16 +12,16 @@ import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { Scene } from './Scene';
 import { IdleCameraRotation } from './IdleCameraRotation';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import { useSectors } from '../../contexts/SectorContext';
 import {
-  getControlPointIdsInScreenBounds,
+  getSectorIdsInScreenBounds,
   type ScreenBounds,
-} from '../../utils/controlPointMarquee';
+} from '../../utils/sectorMarquee';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
-import { MAX_CONTROL_POINT_SELECTION } from '../../services/controlPointLimits';
-import { CONTROL_POINT_COLORS } from '../../utils/controlPointVisuals';
-import { useControlPointImages } from '../../contexts/ControlPointImageContext';
-import { suggestedPlacement } from '../../utils/controlPointArtworkProjection';
+import { MAX_SECTOR_SELECTION } from '../../services/sectorLimits';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import { useSectorImages } from '../../contexts/SectorImageContext';
+import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { ArbiterModal } from '../ui/ArbiterModal';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
@@ -54,15 +54,15 @@ const PLACEMENT_CORNERS = [
 
 function PlacementCameraCapture() {
   const { camera, size } = useThree();
-  const { projectionControlPointIds } = useControlPoints();
+  const { projectionSectorIds } = useSectors();
   const { placementDraft, capturePlacement, updatePlacement } =
-    useControlPointImages();
+    useSectorImages();
   const lastProjectorRef = useRef<{ matrix: number[]; aspect: number } | null>(
     null
   );
 
   useFrame(() => {
-    if (!placementDraft || projectionControlPointIds.length === 0) {
+    if (!placementDraft || projectionSectorIds.length === 0) {
       lastProjectorRef.current = null;
       return;
     }
@@ -85,9 +85,7 @@ function PlacementCameraCapture() {
 
     lastProjectorRef.current = { matrix, aspect };
     if (!placementDraft.placement) {
-      capturePlacement(
-        suggestedPlacement(matrix, aspect, projectionControlPointIds)
-      );
+      capturePlacement(suggestedPlacement(matrix, aspect, projectionSectorIds));
       return;
     }
     updatePlacement({ projectorMatrix: matrix, viewportAspect: aspect });
@@ -101,7 +99,7 @@ function PlacementGuide({
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const { placementDraft, updatePlacement } = useControlPointImages();
+  const { placementDraft, updatePlacement } = useSectorImages();
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -274,25 +272,20 @@ interface MarqueeSelectorHandle {
 }
 
 interface MarqueeSelectorProps {
-  excludedControlPointIds: ReadonlySet<number>;
+  excludedSectorIds: ReadonlySet<number>;
 }
 
 const MarqueeSelector = forwardRef<MarqueeSelectorHandle, MarqueeSelectorProps>(
-  function MarqueeSelector({ excludedControlPointIds }, ref) {
+  function MarqueeSelector({ excludedSectorIds }, ref) {
     const { camera, size } = useThree();
 
     useImperativeHandle(
       ref,
       () => ({
         select: (bounds) =>
-          getControlPointIdsInScreenBounds(
-            camera,
-            size,
-            bounds,
-            excludedControlPointIds
-          ),
+          getSectorIdsInScreenBounds(camera, size, bounds, excludedSectorIds),
       }),
-      [camera, excludedControlPointIds, size]
+      [camera, excludedSectorIds, size]
     );
 
     return null;
@@ -313,13 +306,13 @@ function marqueeBounds(
 
 export function World() {
   const {
-    selectedControlPointIds,
-    projectionControlPointIds,
-    opponentControlPointIds,
-    isControlPointInteractionLocked,
+    selectedSectorIds,
+    projectionSectorIds,
+    opponentSectorIds,
+    isSectorInteractionLocked,
     mode,
-    selectControlPoints,
-  } = useControlPoints();
+    selectSectors,
+  } = useSectors();
   const { notifyWarning } = useTransactionToast();
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
@@ -332,14 +325,14 @@ export function World() {
   const [isArbiterOpen, setIsArbiterOpen] = useState(false);
   const openArbiterBriefing = useCallback(() => setIsArbiterOpen(true), []);
   const closeArbiterBriefing = useCallback(() => setIsArbiterOpen(false), []);
-  const opponentControlPointIdSet = useMemo(
-    () => new Set(opponentControlPointIds),
-    [opponentControlPointIds]
+  const opponentSectorIdSet = useMemo(
+    () => new Set(opponentSectorIds),
+    [opponentSectorIds]
   );
   const disableIdleRotation =
-    selectedControlPointIds.length > 0 ||
-    projectionControlPointIds.length > 0 ||
-    isControlPointInteractionLocked ||
+    selectedSectorIds.length > 0 ||
+    projectionSectorIds.length > 0 ||
+    isSectorInteractionLocked ||
     isArbiterOpen ||
     marqueeStart !== null;
 
@@ -370,13 +363,13 @@ export function World() {
         const selected = selectorRef.current?.select(
           marqueeBounds(marqueeStart, end)
         );
-        if (selected && selected.length > MAX_CONTROL_POINT_SELECTION) {
+        if (selected && selected.length > MAX_SECTOR_SELECTION) {
           notifyWarning(
-            `That bounding box contains ${selected.length} Control Points. Select a smaller area with no more than ${MAX_CONTROL_POINT_SELECTION} points.`,
+            `That bounding box contains ${selected.length} Sectors. Select a smaller area with no more than ${MAX_SECTOR_SELECTION} sectors.`,
             'SELECTION LIMIT'
           );
         } else if (selected) {
-          selectControlPoints(selected);
+          selectSectors(selected);
         }
       }
 
@@ -386,7 +379,7 @@ export function World() {
       setMarqueeStart(null);
       setMarqueeCurrent(null);
     },
-    [localPointerPosition, marqueeStart, notifyWarning, selectControlPoints]
+    [localPointerPosition, marqueeStart, notifyWarning, selectSectors]
   );
 
   const cancelMarquee = useCallback(
@@ -419,7 +412,7 @@ export function World() {
         if (
           event.button !== 2 ||
           mode !== 'control' ||
-          isControlPointInteractionLocked
+          isSectorInteractionLocked
         ) {
           return;
         }
@@ -450,7 +443,7 @@ export function World() {
 
         <MarqueeSelector
           ref={selectorRef}
-          excludedControlPointIds={opponentControlPointIdSet}
+          excludedSectorIds={opponentSectorIdSet}
         />
         <PlacementCameraCapture />
 
@@ -479,9 +472,9 @@ export function World() {
             top: activeMarquee.top,
             width: activeMarquee.right - activeMarquee.left,
             height: activeMarquee.bottom - activeMarquee.top,
-            borderColor: CONTROL_POINT_COLORS.selected,
-            backgroundColor: `${CONTROL_POINT_COLORS.selected}1a`,
-            boxShadow: `0 0 12px ${CONTROL_POINT_COLORS.selected}33`,
+            borderColor: SECTOR_COLORS.selected,
+            backgroundColor: `${SECTOR_COLORS.selected}1a`,
+            boxShadow: `0 0 12px ${SECTOR_COLORS.selected}33`,
           }}
         />
       ) : null}

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProvider, useSendTransaction } from '@starknet-start/react';
 import { TransactionExecutionStatus } from 'starknet';
-import type { ControlPointStatus, PoolMemberInfo } from '../../types';
-import { useControlPoints } from '../../contexts/ControlPointContext';
+import type { SectorStatus, PoolMemberInfo } from '../../types';
+import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { config } from '../../services/config';
 import {
-  getControlPointStatuses,
+  getSectorStatuses,
   getOperatorStatus,
   getPoolMemberInfo,
   getStakingPoolInfo,
@@ -18,10 +18,10 @@ import {
   stakeDeficit,
 } from '../../services/smartCapture';
 import {
-  chunkControlPointActions,
-  MAX_CONTROL_POINT_SELECTION,
-  requiresControlPointActionSplit,
-} from '../../services/controlPointLimits';
+  chunkSectorActions,
+  MAX_SECTOR_SELECTION,
+  requiresSectorActionSplit,
+} from '../../services/sectorLimits';
 import {
   addressesMatch,
   formatStrk,
@@ -34,7 +34,7 @@ import {
 } from './SplitTransactionModal';
 
 interface BatchCaptureControlProps {
-  controlPoints: ControlPointStatus[];
+  sectors: SectorStatus[];
   intent: 'capture' | 'fortify';
 }
 
@@ -45,69 +45,69 @@ interface StakingContext {
 }
 
 interface CompletedBatch {
-  controlPoints: ControlPointStatus[];
+  sectors: SectorStatus[];
   allocation: bigint;
 }
 
 const MAX_U128 = (1n << 128n) - 1n;
 
-function highestRequiredForce(controlPoints: readonly ControlPointStatus[]) {
-  return controlPoints.reduce(
-    (highest, point) =>
-      point.requiredStake > highest ? point.requiredStake : highest,
+function highestRequiredForce(sectors: readonly SectorStatus[]) {
+  return sectors.reduce(
+    (highest, sector) =>
+      sector.requiredStake > highest ? sector.requiredStake : highest,
     0n
   );
 }
 
 function assertBatchIsActionable(
-  controlPoints: readonly ControlPointStatus[],
+  sectors: readonly SectorStatus[],
   intent: 'capture' | 'fortify',
   operatorAddress: string,
   allocation: bigint
 ) {
-  for (const point of controlPoints) {
-    const label = `CP-${String(point.id).padStart(4, '0')}`;
-    if (point.stale || point.needsSync || point.activeChallengeId !== 0n) {
+  for (const sector of sectors) {
+    const label = `SECTOR-${String(sector.id).padStart(4, '0')}`;
+    if (sector.stale || sector.needsSync || sector.activeChallengeId !== 0n) {
       throw new Error(`${label} is no longer eligible for a batch action.`);
     }
     if (intent === 'capture') {
-      if (!isZeroAddress(point.controller)) {
+      if (!isZeroAddress(sector.controller)) {
         throw new Error(`${label} is no longer neutral.`);
       }
-      if (allocation < point.requiredStake) {
+      if (allocation < sector.requiredStake) {
         throw new Error(
-          `${label} now requires ${formatStrk(point.requiredStake, 18)} STRK.`
+          `${label} now requires ${formatStrk(sector.requiredStake, 18)} STRK.`
         );
       }
-    } else if (!addressesMatch(point.controller, operatorAddress)) {
+    } else if (!addressesMatch(sector.controller, operatorAddress)) {
       throw new Error(`${label} is no longer controlled by this Operator.`);
     }
   }
 }
 
 export function BatchCaptureControl({
-  controlPoints,
+  sectors,
   intent,
 }: BatchCaptureControlProps) {
   const isFortifying = intent === 'fortify';
   const { address, isConnected } = useWallet();
   const {
     operatorStatus,
-    isControlPointInteractionLocked,
-    refreshControlPoint,
+    isSectorInteractionLocked,
+    refreshSector,
     refreshOperator,
-    refreshControlPointIndex,
-    setControlPointInteractionLocked,
-    removeSelectedControlPoints,
-    confirmCapturedControlPoints,
-    confirmReinforcedControlPoints,
-  } = useControlPoints();
+    refreshSectorIndex,
+    setSectorInteractionLocked,
+    removeSelectedSectors,
+    confirmCapturedSectors,
+    confirmReinforcedSectors,
+  } = useSectors();
   const { provider } = useProvider();
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
   const transaction = useSendTransaction({});
-  const requiredForce = highestRequiredForce(controlPoints);
-  const controlPointKey = controlPoints.map(({ id }) => id).join('-');
+  const requiredForce = highestRequiredForce(sectors);
+  const sectorKey = sectors.map(({ id }) => id).join('-');
   const [allocation, setAllocation] = useState(() =>
     formatStrk(isFortifying ? 0n : requiredForce, 18)
   );
@@ -125,13 +125,13 @@ export function BatchCaptureControl({
     setAllocation(formatStrk(isFortifying ? 0n : requiredForce, 18));
     setError(null);
     setPhase('idle');
-  }, [controlPointKey, isFortifying, requiredForce]);
+  }, [sectorKey, isFortifying, requiredForce]);
 
   useEffect(() => {
     if (!isSplitModalOpen) return;
-    setControlPointInteractionLocked(true);
-    return () => setControlPointInteractionLocked(false);
-  }, [isSplitModalOpen, setControlPointInteractionLocked]);
+    setSectorInteractionLocked(true);
+    return () => setSectorInteractionLocked(false);
+  }, [isSplitModalOpen, setSectorInteractionLocked]);
 
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
@@ -152,7 +152,7 @@ export function BatchCaptureControl({
   const totalAllocation =
     selectedAllocation === null
       ? 0n
-      : selectedAllocation * BigInt(controlPoints.length);
+      : selectedAllocation * BigInt(sectors.length);
   const availableForce = operatorStatus?.availableForce ?? 0n;
   const deficit = stakeDeficit(totalAllocation, availableForce);
 
@@ -202,17 +202,13 @@ export function BatchCaptureControl({
   }, [address, deficit]);
 
   const disabledReason = useMemo(() => {
-    if (controlPoints.length === 0) return 'NO ELIGIBLE CONTROL POINTS';
-    if (controlPoints.length > MAX_CONTROL_POINT_SELECTION) {
-      return `SELECT UP TO ${MAX_CONTROL_POINT_SELECTION} POINTS`;
+    if (sectors.length === 0) return 'NO ELIGIBLE SECTORS';
+    if (sectors.length > MAX_SECTOR_SELECTION) {
+      return `SELECT UP TO ${MAX_SECTOR_SELECTION} SECTORS`;
     }
     if (!isConnected || !address) return 'CONNECT OPERATOR';
-    if (
-      isControlPointInteractionLocked &&
-      phase === 'idle' &&
-      !isSplitModalOpen
-    ) {
-      return 'ANOTHER CONTROL POINT ACTION IS IN PROGRESS';
+    if (isSectorInteractionLocked && phase === 'idle' && !isSplitModalOpen) {
+      return 'ANOTHER SECTOR ACTION IS IN PROGRESS';
     }
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
     if (operatorStatus.retired) return 'ADDRESS PERMANENTLY RETIRED';
@@ -228,10 +224,10 @@ export function BatchCaptureControl({
     return null;
   }, [
     address,
-    controlPoints.length,
+    sectors.length,
     deficit,
     isConnected,
-    isControlPointInteractionLocked,
+    isSectorInteractionLocked,
     isFortifying,
     isSplitModalOpen,
     operatorStatus,
@@ -252,15 +248,15 @@ export function BatchCaptureControl({
     completed.forEach((batch, index) => {
       const shouldClear = clearSelection && index === completed.length - 1;
       if (isFortifying) {
-        batch.controlPoints.forEach((point) =>
-          confirmReinforcedControlPoints(
-            [point],
-            point.captureForce + batch.allocation
+        batch.sectors.forEach((sector) =>
+          confirmReinforcedSectors(
+            [sector],
+            sector.captureForce + batch.allocation
           )
         );
       } else if (address) {
-        confirmCapturedControlPoints(
-          batch.controlPoints,
+        confirmCapturedSectors(
+          batch.sectors,
           address,
           batch.allocation,
           shouldClear
@@ -270,7 +266,7 @@ export function BatchCaptureControl({
   };
 
   const executeTransactions = async (
-    chunks: ControlPointStatus[][],
+    chunks: SectorStatus[][],
     showSplitProgress: boolean
   ) => {
     if (
@@ -285,13 +281,13 @@ export function BatchCaptureControl({
 
     setError(null);
     setPhase('submitting');
-    if (!showSplitProgress) setControlPointInteractionLocked(true);
+    if (!showSplitProgress) setSectorInteractionLocked(true);
     let hash: string | null = null;
     let currentBatch = 0;
     const completed: CompletedBatch[] = [];
 
     try {
-      for (const [chunkIndex, requestedPoints] of chunks.entries()) {
+      for (const [chunkIndex, requestedSectors] of chunks.entries()) {
         currentBatch = chunkIndex + 1;
         hash = null;
         setPhase('submitting');
@@ -303,21 +299,22 @@ export function BatchCaptureControl({
           );
         }
 
-        const [freshPoints, freshOperator] = await Promise.all([
-          getControlPointStatuses(requestedPoints.map(({ id }) => id)),
+        const [freshSectors, freshOperator] = await Promise.all([
+          getSectorStatuses(requestedSectors.map(({ id }) => id)),
           getOperatorStatus(address),
         ]);
         if (freshOperator.retired || freshOperator.needsSync) {
           throw new Error('Operator is no longer eligible for batch actions.');
         }
         assertBatchIsActionable(
-          freshPoints,
+          freshSectors,
           intent,
           address,
           selectedAllocation
         );
 
-        const chunkAllocation = selectedAllocation * BigInt(freshPoints.length);
+        const chunkAllocation =
+          selectedAllocation * BigInt(freshSectors.length);
         const chunkDeficit = stakeDeficit(
           chunkAllocation,
           freshOperator.availableForce
@@ -327,7 +324,7 @@ export function BatchCaptureControl({
             ? await getPoolMemberInfo(address)
             : staking?.member;
         const calls = buildSmartBatchGameActionCalls({
-          actions: freshPoints.map(({ id }) => ({
+          actions: freshSectors.map(({ id }) => ({
             entrypoint: isFortifying ? 'reinforce' : 'capture',
             calldata: [id.toString(), selectedAllocation.toString()],
           })),
@@ -360,7 +357,7 @@ export function BatchCaptureControl({
         } else {
           notifySubmitting(
             hash,
-            `${freshPoints.length} CONTROL POINT ${isFortifying ? 'FORTIFICATIONS' : 'CAPTURES'}`
+            `${freshSectors.length} SECTOR ${isFortifying ? 'FORTIFICATIONS' : 'CAPTURES'}`
           );
         }
         setPhase('confirming');
@@ -378,29 +375,29 @@ export function BatchCaptureControl({
         }
         completed.push({
           allocation: selectedAllocation,
-          controlPoints: freshPoints,
+          sectors: freshSectors,
         });
       }
 
       applyCompletedBatches(completed, !showSplitProgress);
       if (showSplitProgress && !isFortifying) {
         setCompletedSelectionIds(
-          completed.flatMap((batch) => batch.controlPoints.map(({ id }) => id))
+          completed.flatMap((batch) => batch.sectors.map(({ id }) => id))
         );
       }
-      if (!showSplitProgress) refreshControlPoint();
+      if (!showSplitProgress) refreshSector();
       refreshOperator();
-      refreshControlPointIndex();
+      refreshSectorIndex();
     } catch (reason) {
       const baseMessage =
         reason instanceof Error ? reason.message : 'Batch transaction failed.';
       const completedCount = completed.reduce(
-        (count, batch) => count + batch.controlPoints.length,
+        (count, batch) => count + batch.sectors.length,
         0
       );
       const message =
         completedCount > 0
-          ? `${baseMessage} ${completedCount} of ${controlPoints.length} points were confirmed.`
+          ? `${baseMessage} ${completedCount} of ${sectors.length} sectors were confirmed.`
           : baseMessage;
       if (showSplitProgress && currentBatch > 0) {
         setSplitBatches((current) =>
@@ -421,33 +418,33 @@ export function BatchCaptureControl({
       if (completedCount > 0) {
         applyCompletedBatches(completed, false);
         const completedIds = completed.flatMap((batch) =>
-          batch.controlPoints.map(({ id }) => id)
+          batch.sectors.map(({ id }) => id)
         );
         if (showSplitProgress && !isFortifying) {
           setCompletedSelectionIds(completedIds);
         } else if (!isFortifying) {
-          removeSelectedControlPoints(completedIds);
+          removeSelectedSectors(completedIds);
         }
-        refreshControlPoint();
+        refreshSector();
         refreshOperator();
-        refreshControlPointIndex();
+        refreshSectorIndex();
       }
       setError(message);
     } finally {
       setPhase('idle');
-      if (!showSplitProgress) setControlPointInteractionLocked(false);
+      if (!showSplitProgress) setSectorInteractionLocked(false);
     }
   };
 
   const requestSubmit = () => {
     if (disabledReason) return;
-    const chunks = chunkControlPointActions(controlPoints);
-    if (requiresControlPointActionSplit(controlPoints.length)) {
+    const chunks = chunkSectorActions(sectors);
+    if (requiresSectorActionSplit(sectors.length)) {
       setError(null);
       setCompletedSelectionIds([]);
       setSplitBatches(
         chunks.map((chunk) => ({
-          pointCount: chunk.length,
+          sectorCount: chunk.length,
           status: 'queued',
         }))
       );
@@ -462,10 +459,10 @@ export function BatchCaptureControl({
     setSplitModalOpen(false);
     setSplitBatches([]);
     if (completedSelectionIds.length > 0) {
-      removeSelectedControlPoints(completedSelectionIds);
+      removeSelectedSectors(completedSelectionIds);
       setCompletedSelectionIds([]);
     }
-    refreshControlPoint();
+    refreshSector();
   };
 
   const actionLabel =
@@ -475,14 +472,14 @@ export function BatchCaptureControl({
         ? 'CONFIRMING ON SEPOLIA…'
         : disabledReason ||
           (deficit > 0n
-            ? `STAKE ${formatStrk(deficit, 18)} + ${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${controlPoints.length}`
-            : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${controlPoints.length} WITH ${formatStrk(totalAllocation, 18)} STRK`);
+            ? `STAKE ${formatStrk(deficit, 18)} + ${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length}`
+            : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} STRK`);
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
-        {isFortifying ? 'FORTIFY' : 'CAPTURE'} {controlPoints.length} SELECTED
-        POINT{controlPoints.length === 1 ? '' : 'S'}
+        {isFortifying ? 'FORTIFY' : 'CAPTURE'} {sectors.length} SELECTED POINT
+        {sectors.length === 1 ? '' : 'S'}
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         <div className="flex justify-between gap-4">
@@ -491,13 +488,13 @@ export function BatchCaptureControl({
         </div>
         <label
           className="block pt-1 text-dim"
-          htmlFor={`${intent}-batch-allocation-${controlPointKey}`}
+          htmlFor={`${intent}-batch-allocation-${sectorKey}`}
         >
           {isFortifying ? 'ADDITIONAL ALLOCATION' : 'POINT ALLOCATION'} · EACH
         </label>
         <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
           <input
-            id={`${intent}-batch-allocation-${controlPointKey}`}
+            id={`${intent}-batch-allocation-${sectorKey}`}
             value={allocation}
             onChange={(event) => {
               setAllocation(event.target.value);
@@ -562,13 +559,10 @@ export function BatchCaptureControl({
         intent={intent}
         isOpen={isSplitModalOpen}
         isRunning={isBusy}
-        pointCount={controlPoints.length}
+        sectorCount={sectors.length}
         onClose={closeSplitModal}
         onProceed={() =>
-          void executeTransactions(
-            chunkControlPointActions(controlPoints),
-            true
-          )
+          void executeTransactions(chunkSectorActions(sectors), true)
         }
       />
     </section>

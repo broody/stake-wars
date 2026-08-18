@@ -86,7 +86,7 @@ func run() error {
 			configuration.StarknetChainID, configuration.MaxImageBytes,
 		)
 	} else {
-		slog.Warn("image storage is not configured; Control Point uploads are disabled")
+		slog.Warn("image storage is not configured; Sector uploads are disabled")
 	}
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
