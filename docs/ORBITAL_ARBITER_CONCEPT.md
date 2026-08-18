@@ -86,7 +86,7 @@ and reveal phases; bids use escrowed encrypted notes; revealed amounts must
 match those notes; and a force-reveal path is required when a bidder does not
 cooperate.
 
-A StakeWars implementation would therefore require a separately designed,
+A Stake Wars implementation would therefore require a separately designed,
 reviewed, audited, and deployed auction protocol. Decisions still required
 include:
 
@@ -156,4 +156,4 @@ maintenance.
 
 - [STRK20 sealed-bid auction RFP](https://strk20.starknet.io/rfp/sealed-bid-auctions)
 - [STRK20 private DeFi through the Wallet API](https://strk20-by-example.org/starknet-wallet-api/private-defi)
-- [StakeWars product requirements](./PRD.md)
+- [Stake Wars product requirements](./PRD.md)

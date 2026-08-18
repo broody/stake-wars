@@ -120,7 +120,7 @@ const policies: SessionPolicies = {
             {
               name: 'Retire Operator Address',
               entrypoint: 'retire',
-              description: 'Permanently retire this address from StakeWars.',
+              description: 'Permanently retire this address from Stake Wars.',
             },
           ],
         },

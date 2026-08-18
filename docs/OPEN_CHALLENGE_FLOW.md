@@ -1,6 +1,6 @@
 # Incremental Open Challenge Flow
 
-StakeWars challenges are public, unlimited-participant ascending contests. STRK
+Stake Wars challenges are public, unlimited-participant ascending contests. STRK
 stays directly delegated in the official pool; the Dojo World tracks game locks
 and permanent Spent Force without taking custody.
 

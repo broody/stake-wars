@@ -1,6 +1,6 @@
 [world]
-name = "StakeWars (Sepolia Sectors v4)"
-description = "StakeWars core sector-control world on Starknet Sepolia"
+name = "Stake Wars (Sepolia Sectors v4)"
+description = "Stake Wars core sector-control world on Starknet Sepolia"
 website = "https://stakewars.gg"
 seed = "stakewars-sepolia-sectors-v4"
 # Initialize GameConfig.minimum_stake with 100000000000000000 (0.1 STRK).

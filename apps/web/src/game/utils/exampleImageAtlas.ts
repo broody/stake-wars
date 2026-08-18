@@ -251,7 +251,7 @@ export function getExampleImageAtlasTexture(): THREE.CanvasTexture {
 
   cachedAtlasTexture = configureCanvasTexture(
     new THREE.CanvasTexture(canvas),
-    'StakeWars example artwork atlas'
+    'Stake Wars example artwork atlas'
   );
   cachedAtlasTexture.generateMipmaps = false;
   cachedAtlasTexture.minFilter = THREE.LinearFilter;
@@ -277,7 +277,7 @@ export function createExampleDetailTexture(
   drawExampleArtwork(context, sectorId, 0, 0, EXAMPLE_IMAGE_DETAIL_SIZE);
   const texture = configureCanvasTexture(
     new THREE.CanvasTexture(canvas),
-    `StakeWars example detail SECTOR-${sectorId}`
+    `Stake Wars example detail SECTOR-${sectorId}`
   );
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;

@@ -1,8 +1,8 @@
-# StakeWars contracts
+# Stake Wars contracts
 
-The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
+The Stake Wars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each Operator's live delegation and unpooling state from the official
-StakeWars delegation pool. Game capacity is derived as live delegation minus
+Stake Wars delegation pool. Game capacity is derived as live delegation minus
 Sector garrisons, active cumulative challenge commitments, and
 permanently spent game force.
 
@@ -92,7 +92,7 @@ same retirement. A live delegation reduction below recorded obligations also
 retires the address rather than creating reusable backing.
 
 Before a production deployment, supply the Mainnet RPC and deployment keystore
-outside version control, initialize the World with the official StakeWars STRK
+outside version control, initialize the World with the official Stake Wars STRK
 delegation-pool address and base-unit rule values, and place World ownership,
 namespace ownership, and the game-admin role under the approved multisig. The
 admin may update `challenge_period_seconds`; each subsequent valid lead change

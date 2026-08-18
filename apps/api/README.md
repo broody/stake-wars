@@ -1,4 +1,4 @@
-# StakeWars API
+# Stake Wars API
 
 The Go API owns wallet authentication and off-chain image metadata. Open
 Challenges and settlement are handled directly by the Dojo World; the API
@@ -82,7 +82,7 @@ on-chain ownership for every target, and publishes generation-bound target
 metadata with the captured camera and placement transform.
 
 The image bucket must allow public `GET` requests and browser `PUT` CORS from
-the configured StakeWars origins, including the `Content-Type` request header.
+the configured Stake Wars origins, including the `Content-Type` request header.
 Keep object-store write credentials in Fly secrets; they never belong in the
 frontend environment or repository.
 

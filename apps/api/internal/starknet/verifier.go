@@ -70,14 +70,14 @@ func (v *Verifier) TypedData(
 		},
 		PrimaryType: primaryType,
 		Domain: challengeDomain{
-			Name: "StakeWars", Version: "1", ChainID: v.chainID, Revision: "1",
+			Name: "Stake Wars", Version: "1", ChainID: v.chainID, Revision: "1",
 		},
 		Message: challengeMessage{
 			Wallet:    wallet,
 			Nonce:     nonce,
 			IssuedAt:  issuedAt.Unix(),
 			ExpiresAt: expiresAt.Unix(),
-			Statement: "Sign in to StakeWars",
+			Statement: "Sign in to Stake Wars",
 		},
 	}
 
@@ -154,11 +154,11 @@ func messageHash(encoded json.RawMessage, wallet string) (string, error) {
 		{Name: "statement", Type: "shortstring"},
 	}
 	if value.PrimaryType != primaryType ||
-		value.Domain.Name != "StakeWars" ||
+		value.Domain.Name != "Stake Wars" ||
 		value.Domain.Version != "1" ||
 		value.Domain.ChainID == "" ||
 		value.Domain.Revision != "1" ||
-		value.Message.Statement != "Sign in to StakeWars" ||
+		value.Message.Statement != "Sign in to Stake Wars" ||
 		!sameTypeParameters(value.Types["StarknetDomain"], expectedDomainTypes) ||
 		!sameTypeParameters(value.Types[primaryType], expectedMessageTypes) {
 		return "", fmt.Errorf("parse typed challenge: unsupported type or revision")

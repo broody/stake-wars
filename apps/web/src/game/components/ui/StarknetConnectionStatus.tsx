@@ -53,7 +53,7 @@ export function StarknetConnectionStatus() {
   }
 
   const title = walletMismatch
-    ? `Wallet network does not match StakeWars ${networkLabel}.`
+    ? `Wallet network does not match Stake Wars ${networkLabel}.`
     : connection.status === 'unavailable'
       ? connection.message
       : connected

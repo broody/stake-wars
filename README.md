@@ -1,13 +1,17 @@
-# StakeWars
+# Stake Wars
 
-StakeWars is a persistent, non-custodial strategy game built around Starknet
-validator delegation. Operators deploy their real delegated STRK as FORCE
-across Sectors and open ascending challenges without creating a separate
-token. Challenge commitments are public and every accepted
-escalation restarts the full response window. Returning participants lock only
-the increase over their own prior commitment; final losing commitments become
-permanently spent game force while the underlying STRK remains delegated to the
-validator.
+Stake Wars is a persistent, non-custodial strategy game that turns Starknet
+validator delegation into a battle for territory. Players deploy their
+delegated STRK as FORCE to capture and defend Sectors on the Core, challenge
+rivals, and decide how much strength to reveal—all without creating a separate
+game token or moving custody away from Starknet's staking system.
+
+A planned STRK20 integration will let players shield undeployed STRK reserves,
+adding uncertainty, bluffing, and strategic mind games when challenges begin.
+Once shadow accounts are fully supported for connected wallets, Stake Wars plans
+to use them to unlink players' public wallet identities from the accounts acting
+in the game; onchain gameplay itself will remain visible.
+
 This repository contains the web application, game API, and Dojo contracts.
 
 ## Repository layout
@@ -62,7 +66,7 @@ pnpm dev:torii
 Katana is reserved for isolated contract tests. The repository pins the
 compatible Dojo toolchain in `.tool-versions`.
 
-The development frontend checks that the configured StakeWars World is deployed
+The development frontend checks that the configured Stake Wars World is deployed
 before showing a green KATANA status in the navigation. Open the game locally at
 [http://localhost:3000/?app=game](http://localhost:3000/?app=game).
 
@@ -98,7 +102,7 @@ pnpm contracts:test
 
 ## License
 
-StakeWars is licensed under the
+Stake Wars is licensed under the
 [Apache License 2.0](LICENSE). Except where otherwise noted, this license
 applies to the source code, smart contracts, documentation, and original game
 assets in this repository. Third-party and vendored material remains subject to

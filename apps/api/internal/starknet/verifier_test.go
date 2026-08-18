@@ -28,7 +28,7 @@ func TestTypedDataCanBeHashed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "0x3ccdf368baffc77af5eea1aca8a307bd0d5224c8f1b9b38c582d586cf74f7dc"; hash != want {
+	if want := "0x5686adf6296ebb3f46449496c364b0c86337a28d837d3983575e2a931680443"; hash != want {
 		t.Fatalf("expected SNIP-12 hash %s, got %s", want, hash)
 	}
 

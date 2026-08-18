@@ -514,10 +514,10 @@ export function YieldModal() {
                     </span>
                     <div>
                       <div className="text-[10px] tracking-[0.16em] text-white">
-                        LEAVE STAKEWARS
+                        LEAVE STAKE WARS
                       </div>
                       <p className="mt-2 text-[10px] leading-relaxed text-neutral-500">
-                        Permanently retires this address from StakeWars,
+                        Permanently retires this address from Stake Wars,
                         invalidates {sectorCount || 'all'} active{' '}
                         {sectorCount === 1 ? 'Sector' : 'Sectors'}, and places
                         your full active stake into the official Starknet exit

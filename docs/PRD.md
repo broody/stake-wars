@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD): StakeWars.gg
+# Product Requirements Document (PRD): Stake Wars
 
 **Version:** 2.0
 **Status:** Draft
@@ -9,9 +9,9 @@
 
 ## 1. Executive Summary
 
-**StakeWars.gg** is a persistent, gamified staking interface built on Starknet. It transforms the passive act of network validation into a competitive "King of the Hill" strategy game.
+**Stake Wars** is a persistent, gamified staking interface built on Starknet. It transforms the passive act of network validation into a competitive "King of the Hill" strategy game.
 
-Players, known as **Operators**, compete to capture territories (**Sectors**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Sectors and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
+Players, known as **Operators**, compete to capture territories (**Sectors**) on a 3D spherical map (**The Core**). STRK is delegated to the Stake Wars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Sectors and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
 An Operator captures a neutral Sector by choosing how much staked STRK to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
 
@@ -25,7 +25,7 @@ An Operator captures a neutral Sector by choosing how much staked STRK to commit
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
 *   **Control Force (FORCE):** The game representation of an Operator's Live Delegation. One unit of FORCE corresponds to one unit of delegated STRK; FORCE is accounting terminology, not an ERC-20 or a custodial game asset.
 *   **Committed Force:** Internal allocation accounting for the portion of Live Delegation bound to Sector garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
-*   **Spent Force:** Staked STRK represented by a final losing Sector defense or Challenge commitment and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
+*   **Spent Force:** Staked STRK represented by a final losing Sector defense or Challenge commitment and no longer available to back Stake Wars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
 *   **Available Force:** `max(0, Live Delegation - Sector Commitments - Active Challenge Commitments - Spent Force)`. This is derived contract accounting, not a token or user-managed currency. The UI exposes it as the Operator's currently deployable FORCE.
 *   **Capture Force:** The Committed Force recorded on a Sector.
 *   **Controller:** The Operator currently holding a Sector.
@@ -40,17 +40,17 @@ An Operator captures a neutral Sector by choosing how much staked STRK to commit
 ## 3. Core Gameplay Mechanics
 
 ### 3.1. Territory Control (Delegation-Backed Allocation Accounting)
-The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) represents that delegated STRK as Control Force and tracks Sector ownership and recorded Capture Force.
+The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the Stake Wars Dojo World) represents that delegated STRK as Control Force and tracks Sector ownership and recorded Capture Force.
 
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
-*   **Action:** A transaction may first approve STRK and enter or add to the StakeWars validator's official delegation pool, then call a game action from the same Starknet account.
-*   **Authoritative Balance:** Before every force-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
+*   **Action:** A transaction may first approve STRK and enter or add to the Stake Wars validator's official delegation pool, then call a game action from the same Starknet account.
+*   **Authoritative Balance:** Before every force-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a Stake Wars capture call.
 *   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Sector Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Force. Available Force is derived from those obligations and Live Delegation.
 *   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Sector and retain 2,000 Available Force, but the same 1,000 cannot back another action.
 *   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible STRK amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
 *   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Sectors neutral without iterating over all 2,000 sectors.
-*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the StakeWars application. Every normal force-sensitive game action performs the same authoritative check independently.
-*   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
+*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the Stake Wars application. Every normal force-sensitive game action performs the same authoritative check independently.
+*   **No Custody:** Stake Wars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
 *   **Neutral Capture:** A neutral Sector may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
@@ -77,13 +77,13 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   A valid leader's exact commitment becomes the target Sector's Capture Force. If the leader has invalidated its staking position before settlement, the sector becomes neutral.
 *   Every non-winner loses its own highest cumulative commitment. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Available Force by the same amount.
 *   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
-*   StakeWars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
+*   Stake Wars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
 *   **Public Deployment:** Operator identities, direct delegation, cumulative commitments, incremental additions, Challenge timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
-*   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back StakeWars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
+*   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back Stake Wars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
-*   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from StakeWars. Its ownership generation is invalidated, its Sectors become neutral, and it may never capture, reinforce, or challenge again.
-*   **Direct Official-Contract Actions:** The periodic operator synchronization process and every game action inspect official unpooling state, so initiating an exit outside the StakeWars UI is still detected.
+*   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from Stake Wars. Its ownership generation is invalidated, its Sectors become neutral, and it may never capture, reinforce, or challenge again.
+*   **Direct Official-Contract Actions:** The periodic operator synchronization process and every game action inspect official unpooling state, so initiating an exit outside the Stake Wars UI is still detected.
 *   **Explicit Game Exit:** `retire` is a permanent retirement action, not a temporary release-all shortcut.
 *   **Latency:** Funds remain subject to the official Starknet unbonding period. Retirement applies immediately when the unpool intent is detected; the UI may continue showing the official unlock timestamp.
 *   **New Identity:** A player may use another address, but it starts with no history or tenure. Address tenure is expected to influence future gameplay and cannot be transferred from a retired address.
@@ -140,7 +140,7 @@ The first release intentionally excludes passive territory decay, recurring main
 ## 5. Technical Architecture
 
 ### 5.1. Smart Contracts (Cairo)
-StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store game state, systems enforce state transitions, and Torii indexes model and event updates for clients.
+Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store game state, systems enforce state transitions, and Torii indexes model and event updates for clients.
 
 *   **Models:**
     *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (3 minutes on Sepolia; initially 3 hours on Mainnet), Sector limit, and pause state.
@@ -191,7 +191,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 *   **Domain:** `validator.stakewars.gg`.
 *   **Initial Host:** Rebel Hosting KVM VPS with 6 vCPU, 16 GB RAM, 960 GB SSD, one public IP address, and unmetered 200 Mbps connectivity.
 *   **Validator Workload:** Pruned Pathfinder full node, Equilibrium Starknet validator attestation service, and validator-specific monitoring.
-*   **Isolation Requirement:** The validator must not host the StakeWars game API, user uploads, image processing, application database, or frontend. Other workloads require explicit owner approval. The existing `dad-care-facilities.service` personal workload is an approved exception outside the StakeWars project scope.
+*   **Isolation Requirement:** The validator must not host the Stake Wars game API, user uploads, image processing, application database, or frontend. Other workloads require explicit owner approval. The existing `dad-care-facilities.service` personal workload is an approved exception outside the Stake Wars project scope.
 *   **Key Separation:** Only the operational validator key may be present on the server. Staking and rewards keys remain separate from the host.
 *   **Operations:** Alert on chain-head lag, failed attestations, CPU steal, memory pressure, disk latency, disk utilization, staking-exporter health, validator self-stake, and delegation-pool inventory. Keep node/host operational health and staking economics on separate provisioned Grafana dashboards.
 
@@ -237,7 +237,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 *   **Phase 1: Delegation-Backed Allocation and Open Challenges**
     *   Basic 3D Sphere.
     *   Dojo World with internal delegation-backed allocation, unlimited-participant incremental open ascending Challenges, resettable network-configured response windows (3 minutes on Sepolia; initially 3 hours on Mainnet) with no absolute duration cap, settlement-time losing-commitment spending, Sector sacrifice, permissionless settlement and position resolution, permanent retirement, and synchronization logic.
-    *   Mainnet integration with the StakeWars validator's official STRK delegation pool.
+    *   Mainnet integration with the Stake Wars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
     *   Absolute, bounded Sector tenure relief in Control mode with exact held duration in the HUD.
@@ -247,7 +247,7 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
     *   Minimum viable image reporting and administrative removal.
 *   **Phase 2: Strategic Reserve Privacy**
     *   Evaluate a wallet-mediated STRK20 flow for shielding undeployed reserves without changing the direct-delegation requirement.
-    *   Clearly disclose that shield/unshield legs and all deployed StakeWars Challenge commitments remain public, and require a reviewed integration plan before implementation.
+    *   Clearly disclose that shield/unshield legs and all deployed Stake Wars Challenge commitments remain public, and require a reviewed integration plan before implementation.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.
     *   Live capture ticker, searchable gallery, and Operator profiles.

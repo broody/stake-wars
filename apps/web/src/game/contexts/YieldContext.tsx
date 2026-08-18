@@ -70,7 +70,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
 
     if (!config.stakingPoolAddress) {
       setSummary(null);
-      setError('The StakeWars staking pool is not configured.');
+      setError('The Stake Wars staking pool is not configured.');
       setHistoryError(null);
       setLoading(false);
       return () => controller.abort();

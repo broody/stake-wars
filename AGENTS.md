@@ -1,4 +1,4 @@
-# StakeWars Agent Guide
+# Stake Wars Agent Guide
 
 These instructions apply to the entire repository.
 
@@ -215,7 +215,7 @@ PromQL before replacing the remote file, and do not expose Grafana or Prometheus
 directly to the public internet.
 
 The VPS also runs the user-approved `dad-care-facilities.service` personal
-workload on port 43177. It is outside the StakeWars project scope; do not modify,
+workload on port 43177. It is outside the Stake Wars project scope; do not modify,
 stop, or treat it as validator configuration drift unless the user explicitly
 requests work on it.
 

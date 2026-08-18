@@ -76,7 +76,7 @@ export function ArbiterModal({ isOpen, onClose }: ArbiterModalProps) {
             >
               The Arbiter is an autonomous sentinel circling the Core. It keeps
               every Operator&rsquo;s command aligned with the stake securing the
-              StakeWars validator.
+              Stake Wars validator.
             </p>
           </div>
 

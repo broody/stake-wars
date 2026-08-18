@@ -1,6 +1,6 @@
 [world]
-name = "StakeWars (Development)"
-description = "StakeWars core territory-control world"
+name = "Stake Wars (Development)"
+description = "Stake Wars core territory-control world"
 website = "https://stakewars.gg"
 seed = "stakewars-dev"
 

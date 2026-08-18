@@ -18,7 +18,7 @@ export const Navbar = () => {
         >
           <img
             src="/stakewars.png"
-            alt="StakeWars Logo"
+            alt="Stake Wars Logo"
             className="w-12 h-12"
           />
         </button>
