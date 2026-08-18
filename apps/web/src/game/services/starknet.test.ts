@@ -39,7 +39,7 @@ describe('Starknet RPC calldata', () => {
       )[0]
     ).toMatchObject({
       id: 10,
-      capturePower: 100n,
+      captureForce: 100n,
       controlledSince: 1_000_000_000,
       requiredStake: 110n,
       activeChallengeId: 1n,
@@ -70,10 +70,10 @@ describe('Starknet RPC calldata', () => {
         '0xabc'
       )
     ).toMatchObject({
-      pointPower: 100n,
-      challengePower: 200n,
-      spentPower: 300n,
-      availablePower: 400n,
+      pointForce: 100n,
+      challengeForce: 200n,
+      spentForce: 300n,
+      availableForce: 400n,
       activeChallengeCount: 4,
       needsSync: true,
     });
@@ -98,8 +98,8 @@ describe('Starknet RPC calldata', () => {
     ).toMatchObject({
       controlPointId: 42,
       leader: '0x222',
-      leadingPower: 500n,
-      lastLosingPower: 400n,
+      leadingForce: 500n,
+      lastLosingForce: 400n,
       leadChangeCount: 3,
       participantCount: 4,
       settled: false,

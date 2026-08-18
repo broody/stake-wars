@@ -4,7 +4,7 @@ The StakeWars game layer is a Dojo World. It never holds or transfers STRK. It
 reads each Operator's live delegation and unpooling state from the official
 StakeWars delegation pool. Game capacity is derived as live delegation minus
 Control Point garrisons, active cumulative challenge commitments, and
-permanently spent game power.
+permanently spent game force.
 
 ## Local commands
 
@@ -56,7 +56,7 @@ An occupied point is contested through `challenge` or
   rounded up to the next STRK base unit. The incumbent's garrison and the
   challenger's commitment remain locked and at risk until settlement.
 - Any eligible Operator except the current leader may publicly commit at least
-  10% more power than the current lead, rounded up to the next STRK base unit. A
+  10% more force than the current lead, rounded up to the next STRK base unit. A
   returning participant locks only the difference between the new commitment
   and that Operator's own prior maximum.
 - Losing the lead does not spend a position. Each participant's highest
@@ -66,21 +66,21 @@ An occupied point is contested through `challenge` or
   the clock by challenging itself.
 - After the deadline, any account may call `settle_challenge`. The current
   leader's exact commitment becomes the new garrison and losing participants
-  spend their own highest commitments as game power.
+  spend their own highest commitments as game force.
 
 Each challenge action is constant-cost. Settlement resolves the winner,
 incumbent, and final runner-up without iterating an unbounded participant list.
 Any additional losing position remains locked—which has the same Ready STRK
-effect as spent power—until any account calls
+effect as spent force—until any account calls
 `resolve_challenge_position(challenge_id, operator)` to move it to the
-Operator's Spent Power in O(1).
+Operator's Spent Force in O(1).
 
-`challenge_with_sacrifice(target, source, committed_power)` atomically
+`challenge_with_sacrifice(target, source, committed_force)` atomically
 neutralizes an owned, uncontested source point before validating the new
 commitment. Its garrison returns to the Operator's Ready STRK; it is not
 duplicated or automatically spent.
 
-Spent power is permanent accounting for that Operator address. The contracts do
+Spent force is permanent accounting for that Operator address. The contracts do
 not slash, escrow, or transfer the underlying STRK, which remains in the official
 delegation pool under its normal staking and reward rules.
 

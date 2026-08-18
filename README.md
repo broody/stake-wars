@@ -1,12 +1,12 @@
 # StakeWars
 
 StakeWars is a persistent, non-custodial strategy game built around Starknet
-validator delegation. Operators choose how much of their real delegated STRK to
-allocate to Control Points and open ascending challenges without creating a
-separate power currency. Challenge commitments are public and every accepted
+validator delegation. Operators deploy their real delegated STRK as FORCE
+across Control Points and open ascending challenges without creating a separate
+token. Challenge commitments are public and every accepted
 escalation restarts the full response window. Returning participants lock only
 the increase over their own prior commitment; final losing commitments become
-permanently spent game power while the underlying STRK remains delegated to the
+permanently spent game force while the underlying STRK remains delegated to the
 validator.
 This repository contains the web application, game API, and Dojo contracts.
 
@@ -72,7 +72,7 @@ To run the frontend against the shared Sepolia deployment instead, use:
 pnpm dev:web:sepolia
 ```
 
-The shared Sepolia World uses a 0.1 STRK minimum capture power, a 180-second
+The shared Sepolia World uses a 0.1 STRK minimum capture force, a 180-second
 response window, and 2,000 Control Points. Mainnet launches with a 100 STRK
 minimum and a 10,800-second response window. The game admin may change the
 response window through the on-chain rules configuration. Every accepted lead

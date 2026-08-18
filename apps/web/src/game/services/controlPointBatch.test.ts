@@ -10,7 +10,7 @@ function point(
   return {
     id,
     controller,
-    capturePower: controller === '0x0' ? 0n : 100n,
+    captureForce: controller === '0x0' ? 0n : 100n,
     ownershipGeneration: 0n,
     controlledSince: null,
     requiredStake: 100n,

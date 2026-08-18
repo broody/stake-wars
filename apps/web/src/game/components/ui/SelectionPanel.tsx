@@ -141,7 +141,7 @@ export function SelectionPanel() {
               <span className="text-neutral-300">
                 {selectedControlPoint ? (
                   <>
-                    {formatStrk(selectedControlPoint.capturePower, 18)}{' '}
+                    {formatStrk(selectedControlPoint.captureForce, 18)}{' '}
                     <span className="text-[10px] text-dim">STRK</span>
                   </>
                 ) : (

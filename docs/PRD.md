@@ -11,9 +11,9 @@
 
 **StakeWars.gg** is a persistent, gamified staking interface built on Starknet. It transforms the passive act of network validation into a competitive "King of the Hill" strategy game.
 
-Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Operators explicitly allocate portions of that real delegation to Control Points and challenges without creating a separate power currency. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
+Players, known as **Operators**, compete to capture territories (**Control Points**) on a 3D spherical map (**The Core**). STRK is delegated to the StakeWars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Control Points and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point initiates an open ascending Challenge: every power commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Power. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Control Point by choosing how much staked STRK to commit. Taking an occupied point initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -23,15 +23,16 @@ An Operator captures a neutral Control Point by choosing how much staked STRK to
 *   **Control Point:** A single triangular face on the Core. In the initial release it is a Dojo-native game territory, not a freely transferable NFT.
 *   **Operator:** The user/player.
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
-*   **Committed Power:** Internal allocation accounting for the portion of Live Delegation bound to Control Point garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
-*   **Spent Power:** Staked STRK represented by a final losing Control Point defense or Challenge commitment and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
-*   **Ready STRK:** `max(0, Live Delegation - Point Commitments - Active Challenge Commitments - Spent Power)`. This is derived contract accounting, not a token or user-managed currency. The UI may expose it contextually as the maximum currently usable STRK.
-*   **Capture Power:** The Committed Power recorded on a Control Point.
+*   **Control Force (FORCE):** The game representation of an Operator's Live Delegation. One unit of FORCE corresponds to one unit of delegated STRK; FORCE is accounting terminology, not an ERC-20 or a custodial game asset.
+*   **Committed Force:** Internal allocation accounting for the portion of Live Delegation bound to Control Point garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
+*   **Spent Force:** Staked STRK represented by a final losing Control Point defense or Challenge commitment and no longer available to back StakeWars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
+*   **Available Force:** `max(0, Live Delegation - Point Commitments - Active Challenge Commitments - Spent Force)`. This is derived contract accounting, not a token or user-managed currency. The UI exposes it as the Operator's currently deployable FORCE.
+*   **Capture Force:** The Committed Force recorded on a Control Point.
 *   **Controller:** The Operator currently holding a Control Point.
 *   **Challenge:** An open, ascending contest for an occupied Control Point.
-*   **Leading Power:** The visible highest cumulative power commitment currently locked against a Challenge.
-*   **Response Window:** The configurable time allowed for another Operator to commit enough power to take the lead. Every valid new leader resets the full window; there is no overall deadline.
-*   **Control Point Sacrifice:** Voluntarily giving up another owned, uncontested Control Point while initiating or escalating a Challenge. The point becomes neutral and its garrison returns to Ready STRK for the same atomic Challenge transaction; any assets remain attached to the point.
+*   **Leading Force:** The visible highest cumulative force commitment currently locked against a Challenge.
+*   **Response Window:** The configurable time allowed for another Operator to commit enough force to take the lead. Every valid new leader resets the full window; there is no overall deadline.
+*   **Control Point Sacrifice:** Voluntarily giving up another owned, uncontested Control Point while initiating or escalating a Challenge. The point becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the point.
 *   **Arbiter:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Arbiter cannot select winners, alter commitments, or bypass contract validation.
 
 ---
@@ -39,44 +40,44 @@ An Operator captures a neutral Control Point by choosing how much staked STRK to
 ## 3. Core Gameplay Mechanics
 
 ### 3.1. Territory Control (Delegation-Backed Allocation Accounting)
-The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) tracks Control Point ownership and recorded Capture Power.
+The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the StakeWars Dojo World) represents that delegated STRK as Control Force and tracks Control Point ownership and recorded Capture Force.
 
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
 *   **Action:** A transaction may first approve STRK and enter or add to the StakeWars validator's official delegation pool, then call a game action from the same Starknet account.
-*   **Authoritative Balance:** Before every power-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
-*   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Point Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Power. Ready STRK is derived from those obligations and Live Delegation.
-*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Control Point and retain 2,000 Ready STRK, but the same 1,000 cannot back another action.
+*   **Authoritative Balance:** Before every force-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a StakeWars capture call.
+*   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Point Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Force. Available Force is derived from those obligations and Live Delegation.
+*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Control Point and retain 2,000 Available Force, but the same 1,000 cannot back another action.
 *   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible STRK amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
 *   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Control Points neutral without iterating over all 2,000 points.
-*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the StakeWars application. Every normal power-sensitive game action performs the same authoritative check independently.
+*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the StakeWars application. Every normal force-sensitive game action performs the same authoritative check independently.
 *   **No Custody:** StakeWars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the network-configured minimum stake and no more than Ready STRK. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
-*   **Reinforcement:** A Controller may allocate a selected positive amount of Ready STRK to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Power and the Operator's aggregate Point Commitments.
-*   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Power returns to Ready STRK.
-*   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Control Points while sufficient Ready STRK remains.
+*   **Neutral Capture:** A neutral Control Point may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
+*   **Reinforcement:** A Controller may allocate a selected positive amount of Available Force to one owned, uncontested Control Point. Reinforcement increases both that point's Capture Force and the Operator's aggregate Point Commitments.
+*   **Release:** A Controller may voluntarily release an uncontested Control Point. The point becomes neutral, its active image is hidden, and its Capture Force returns to Available Force.
+*   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Control Points while sufficient Available Force remains.
 
 #### 3.1.3. Open Ascending Challenges
-*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more power than an occupied, uncontested point's Capture Power. The minimum escalation is rounded up to the next STRK base unit. The commitment and challenger are public.
-*   **Opening Risk:** Initiating a Challenge places the incumbent's existing garrison and challenger's commitment at risk. Neither becomes Spent Power before settlement.
+*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more force than an occupied, uncontested point's Capture Force. The minimum escalation is rounded up to the next STRK base unit. The commitment and challenger are public.
+*   **Opening Risk:** Initiating a Challenge places the incumbent's existing garrison and challenger's commitment at risk. Neither becomes Spent Force before settlement.
 *   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the next STRK base unit. Each Operator has one cumulative position per Challenge.
-*   **Incremental Escalation:** A returning Operator locks only `New Commitment - Own Previous Commitment`. Example: after committing 500 STRK, escalating to 700 STRK requires only 200 additional Ready STRK. Losing the lead changes the visible leader but does not spend or unlock the prior position.
+*   **Incremental Escalation:** A returning Operator locks only `New Commitment - Own Previous Commitment`. Example: after committing 500 STRK, escalating to 700 STRK requires only 200 additional Available Force. Losing the lead changes the visible leader but does not spend or unlock the prior position.
 *   **Anti-Sniping Window:** Every valid lead change resets the full admin-configured response window: **3 minutes on Sepolia** for rapid testing and initially **3 hours on Mainnet**. The current leader cannot challenge itself to extend the clock. There is no absolute duration cap; a Challenge continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent lead change calculates its new response window.
 *   **Minimum Escalation:** Commitments below the 10% minimum—including ties and one-base-unit increases—are rejected. The first accepted qualifying commitment becomes leader.
-*   **Example:** A has a 500 STRK position and B leads at 600. A may commit 700 by locking 200 additional STRK. B may then commit 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Power.
+*   **Example:** A has a 500 STRK position and B leads at 600. A may commit 700 by locking 200 additional STRK. B may then commit 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Force.
 
 #### 3.1.4. Control Point Sacrifice
 *   Any participant may give up one other owned, uncontested Control Point within the same Challenge transaction.
-*   The source point becomes neutral immediately and its image is hidden. Its garrison returns to Ready STRK before the new commitment is checked, so backing moves rather than duplicates.
+*   The source point becomes neutral immediately and its image is hidden. Its garrison returns to Available Force before the new commitment is checked, so backing moves rather than duplicates.
 *   Assets or future rewards attached to the source Control Point remain with that point and become available to future Controllers. A defender may therefore abandon one front to fund a response on another.
 
 #### 3.1.5. Settlement and Privacy Boundary
 *   After a full response window passes without a lead change, any account may call `settle_challenge`. The contract derives the result from its current leader; there is no settlement authority or off-chain ranking.
-*   A valid leader's exact commitment becomes the target Control Point's Capture Power. If the leader has invalidated its staking position before settlement, the point becomes neutral.
-*   Every non-winner loses its own highest cumulative commitment. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Ready STRK by the same amount.
+*   A valid leader's exact commitment becomes the target Control Point's Capture Force. If the leader has invalidated its staking position before settlement, the point becomes neutral.
+*   Every non-winner loses its own highest cumulative commitment. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Available Force by the same amount.
 *   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
-*   StakeWars never transfers, escrows, or slashes STRK. Spent Power is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
+*   StakeWars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
 *   **Public Deployment:** Operator identities, direct delegation, cumulative commitments, incremental additions, Challenge timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
 *   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back StakeWars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
 
@@ -116,13 +117,13 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **States:**
     *   **Empty Control Point:** Wireframe outline.
     *   **Occupied Control Point:** Solid fill (White) or displays the Operator's custom image.
-    *   **Selected Control Point:** Highlights and displays the Controller, Capture Power, current leader, Leading Power, lead-change count, response-window deadline, and the connected Operator's contextually relevant Ready STRK.
+    *   **Selected Control Point:** Highlights and displays the Controller, Capture Force, current leader, Leading Force, lead-change count, response-window deadline, and the connected Operator's contextually relevant Available Force.
     *   **Control Tenure Relief:** In Control mode, every occupied Control Point is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Control Point panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
 *   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED CONTROL POINT 402 [10,000 STRK]`
-*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Control Point Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Power, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
+*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Control Point Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Force, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
 
 ### 4.4. Operator Image Uploads
 *   **Control Requirement:** Only the wallet currently controlling every selected Control Point may publish an artwork across them. The backend must independently verify wallet signatures, current Control Point ownership, and ownership generation for every target both before upload and before publication; client-supplied owner addresses and Control Point IDs are never trusted by themselves.
@@ -143,10 +144,10 @@ StakeWars is implemented as a Dojo World on Starknet Mainnet. Dojo models store 
 
 *   **Models:**
     *   `GameConfig`: Official STRK delegation pool address, minimum stake, admin-configurable response-window period (3 minutes on Sepolia; initially 3 hours on Mainnet), Control Point limit, and pause state.
-    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, aggregate active Challenge Commitments, aggregate Spent Power, controlled-point count, active-position count, and retirement state.
-    *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Power, ownership generation, ownership timestamp, and active challenge ID.
-    *   `Challenge`: Challenge ID, target Control Point, incumbent, current leader and generation, Leading Power, latest displaced Operator and amount, resettable deadline, lead-change and participant counts, winner, and settlement timestamp.
-    *   `ChallengeParticipant`: Per-Challenge Operator position, cumulative committed power, included incumbent garrison, Operator generation, and resolution result.
+    *   `OperatorState`: Operator address, ownership generation, aggregate Point Commitments, aggregate active Challenge Commitments, aggregate Spent Force, controlled-point count, active-position count, and retirement state.
+    *   `ControlPoint`: Control Point ID, Controller address, Controller generation, Capture Force, ownership generation, ownership timestamp, and active challenge ID.
+    *   `Challenge`: Challenge ID, target Control Point, incumbent, current leader and generation, Leading Force, latest displaced Operator and amount, resettable deadline, lead-change and participant counts, winner, and settlement timestamp.
+    *   `ChallengeParticipant`: Per-Challenge Operator position, cumulative committed force, included incumbent garrison, Operator generation, and resolution result.
 *   **Control System:** Implements Capture, Reinforce, Release, incremental open ascending Challenges, deferred losing-commitment spending, Control Point Sacrifice, permissionless settlement and position resolution, permanent retirement, and Operator synchronization.
 *   **Staking Adapter:** Uses the official delegation pool's read-only `get_pool_member_info_v1` interface and treats its `amount`, `unpool_amount`, and `unpool_time` fields as authoritative delegation and exit state.
 *   **Admin System:** Provides narrowly scoped pause and configuration operations protected by Dojo World ownership. Production ownership should be held by a multisig.

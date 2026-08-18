@@ -38,7 +38,7 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if point.ID != 12 || point.Controller != "0x123" || point.CapturePower != "100" ||
+	if point.ID != 12 || point.Controller != "0x123" || point.CaptureForce != "100" ||
 		point.ControlledSince != 1000 || point.RequiredStake != "110" || !point.NeedsSync {
 		t.Fatalf("unexpected point status: %+v", point)
 	}
@@ -47,9 +47,9 @@ func TestControlReaderDecodesAuthoritativeViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if operator.LiveDelegatedAmount != "1000" || operator.PointPower != "100" ||
-		operator.ChallengePower != "200" || operator.SpentPower != "300" ||
-		operator.AvailablePower != "400" ||
+	if operator.LiveDelegatedAmount != "1000" || operator.PointForce != "100" ||
+		operator.ChallengeForce != "200" || operator.SpentForce != "300" ||
+		operator.AvailableForce != "400" ||
 		operator.ActiveChallengeCount != 2 ||
 		operator.Generation != 2 || operator.NeedsSync {
 		t.Fatalf("unexpected operator status: %+v", operator)

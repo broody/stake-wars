@@ -205,7 +205,7 @@ function decodeControlPointStatus(
   return {
     id: Number(parseFelt(result[offset], 'Control Point ID')),
     controller: result[offset + 1] ?? '0x0',
-    capturePower: parseFelt(result[offset + 2], 'capture power'),
+    captureForce: parseFelt(result[offset + 2], 'capture force'),
     ownershipGeneration: parseFelt(result[offset + 3], 'ownership generation'),
     controlledSince:
       parseTimestamp(result[offset + 4], 'control start time') || null,
@@ -324,10 +324,10 @@ export function decodeOperatorStatusResult(
   return {
     operator: result[0] ?? operator,
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
-    pointPower: parseFelt(result[2], 'point commitments'),
-    challengePower: parseFelt(result[3], 'challenge commitments'),
-    spentPower: parseFelt(result[4], 'spent power'),
-    availablePower: parseFelt(result[5], 'available power'),
+    pointForce: parseFelt(result[2], 'point commitments'),
+    challengeForce: parseFelt(result[3], 'challenge commitments'),
+    spentForce: parseFelt(result[4], 'spent force'),
+    availableForce: parseFelt(result[5], 'available force'),
     generation: parseFelt(result[6], 'operator generation'),
     controlledPointCount: Number(parseFelt(result[7], 'owned point count')),
     activeChallengeCount: Number(
@@ -360,16 +360,16 @@ export function decodeChallengeStatusResult(result: string[]): ChallengeStatus {
     controlPointId: Number(parseFelt(result[1], 'Control Point ID')),
     incumbent: result[2] ?? '0x0',
     leader: result[3] ?? '0x0',
-    leadingPower: parseFelt(result[4], 'leading power'),
+    leadingForce: parseFelt(result[4], 'leading force'),
     lastLoser: result[5] ?? '0x0',
-    lastLosingPower: parseFelt(result[6], 'last losing power'),
+    lastLosingForce: parseFelt(result[6], 'last losing force'),
     deadline: parseTimestamp(result[7], 'challenge deadline'),
     leadChangeCount: Number(parseFelt(result[8], 'lead change count')),
     participantCount: Number(parseFelt(result[9], 'participant count')),
     settled: parseFelt(result[10], 'settled flag') !== 0n,
     winner: result[11] ?? '0x0',
-    winningPower: parseFelt(result[12], 'winning power'),
-    losingPower: parseFelt(result[13], 'losing power'),
+    winningForce: parseFelt(result[12], 'winning force'),
+    losingForce: parseFelt(result[13], 'losing force'),
   };
 }
 
@@ -391,9 +391,9 @@ export async function getChallengeParticipantStatus(
   return {
     challengeId: parseFelt(result[0], 'challenge ID'),
     operator: result[1] ?? operator,
-    committedPower: parseFelt(result[2], 'participant committed power'),
-    pointPowerIncluded: parseFelt(result[3], 'participant point power'),
-    additionalPower: parseFelt(result[4], 'participant additional power'),
+    committedForce: parseFelt(result[2], 'participant committed force'),
+    pointForceIncluded: parseFelt(result[3], 'participant point force'),
+    additionalForce: parseFelt(result[4], 'participant additional force'),
     joined: parseFelt(result[5], 'participant joined flag') !== 0n,
     resolved: parseFelt(result[6], 'participant resolved flag') !== 0n,
     won: parseFelt(result[7], 'participant winner flag') !== 0n,

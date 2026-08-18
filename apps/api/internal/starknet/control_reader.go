@@ -22,7 +22,7 @@ type ControlReader interface {
 type ControlPointStatus struct {
 	ID                       uint32
 	Controller               string
-	CapturePower             string
+	CaptureForce             string
 	OwnershipGeneration      uint64
 	ControlledSince          uint64
 	RequiredStake            string
@@ -36,10 +36,10 @@ type ControlPointStatus struct {
 type OperatorStatus struct {
 	Operator             string
 	LiveDelegatedAmount  string
-	PointPower           string
-	ChallengePower       string
-	SpentPower           string
-	AvailablePower       string
+	PointForce           string
+	ChallengeForce       string
+	SpentForce           string
+	AvailableForce       string
 	Generation           uint64
 	ControlledPointCount uint32
 	ActiveChallengeCount uint32
@@ -86,9 +86,9 @@ func (r *RPCControlReader) ControlPointStatus(
 	if err != nil {
 		return ControlPointStatus{}, fieldError("controller", err)
 	}
-	capturePower, err := parseUintString(result[2], 128)
+	captureForce, err := parseUintString(result[2], 128)
 	if err != nil {
-		return ControlPointStatus{}, fieldError("capture_power", err)
+		return ControlPointStatus{}, fieldError("capture_force", err)
 	}
 	generation, err := parseUint(result[3], 64)
 	if err != nil {
@@ -126,7 +126,7 @@ func (r *RPCControlReader) ControlPointStatus(
 	return ControlPointStatus{
 		ID:                       uint32(id),
 		Controller:               controller,
-		CapturePower:             capturePower,
+		CaptureForce:             captureForce,
 		OwnershipGeneration:      generation,
 		ControlledSince:          controlledSince,
 		RequiredStake:            requiredStake,
@@ -162,21 +162,21 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("live_delegated_amount", err)
 	}
-	pointPower, err := parseUintString(result[2], 128)
+	pointForce, err := parseUintString(result[2], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("point_power", err)
+		return OperatorStatus{}, fieldError("point_force", err)
 	}
-	challengePower, err := parseUintString(result[3], 128)
+	challengeForce, err := parseUintString(result[3], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("challenge_power", err)
+		return OperatorStatus{}, fieldError("challenge_force", err)
 	}
-	spentPower, err := parseUintString(result[4], 128)
+	spentForce, err := parseUintString(result[4], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("spent_power", err)
+		return OperatorStatus{}, fieldError("spent_force", err)
 	}
-	availablePower, err := parseUintString(result[5], 128)
+	availableForce, err := parseUintString(result[5], 128)
 	if err != nil {
-		return OperatorStatus{}, fieldError("available_power", err)
+		return OperatorStatus{}, fieldError("available_force", err)
 	}
 	generation, err := parseUint(result[6], 64)
 	if err != nil {
@@ -206,10 +206,10 @@ func (r *RPCControlReader) OperatorStatus(
 	return OperatorStatus{
 		Operator:             returnedOperator,
 		LiveDelegatedAmount:  live,
-		PointPower:           pointPower,
-		ChallengePower:       challengePower,
-		SpentPower:           spentPower,
-		AvailablePower:       availablePower,
+		PointForce:           pointForce,
+		ChallengeForce:       challengeForce,
+		SpentForce:           spentForce,
+		AvailableForce:       availableForce,
 		Generation:           generation,
 		ControlledPointCount: uint32(pointCount),
 		ActiveChallengeCount: uint32(activeChallengeCount),

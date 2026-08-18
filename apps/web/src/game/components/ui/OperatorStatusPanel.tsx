@@ -51,7 +51,7 @@ export function OperatorStatusPanel() {
       {address && isOperatorLoading && (
         <div className="mt-2 flex items-center gap-2 text-dim">
           <span className="h-1.5 w-1.5 animate-pulse bg-white" />
-          READING COMMAND POWER…
+          READING CONTROL FORCE…
         </div>
       )}
 

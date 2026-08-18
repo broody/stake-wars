@@ -107,8 +107,8 @@ function eventDetail(activity: OperatorActivity): string {
       return 'FINAL COMMITMENT SPENT AT SETTLEMENT';
     case 'reinforcement':
       return activity.secondaryAmount === undefined
-        ? 'CAPTURE POWER INCREASED'
-        : `NEW POWER ${formatStrk(activity.secondaryAmount)} STRK`;
+        ? 'CAPTURE FORCE INCREASED'
+        : `NEW FORCE ${formatStrk(activity.secondaryAmount)} STRK`;
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
     case 'challenge_initiated':
@@ -137,7 +137,7 @@ function stakeDetail(activity: OperatorActivity): string {
     case 'loss':
       return `${amount} DEFEATED`;
     case 'release':
-      return `${amount} PRIOR POWER`;
+      return `${amount} PRIOR FORCE`;
     case 'retirement':
       return `${amount} INVALIDATED`;
     case 'reinforcement':

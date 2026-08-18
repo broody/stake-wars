@@ -41,7 +41,7 @@ function LandingApp() {
       title: '03. CHALLENGE',
       description: (
         <>
-          Challenge an occupied point with a visible STRK power commitment.
+          Challenge an occupied point with a visible STRK force commitment.
           Every escalation restarts the response window, and any Operator can{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             take the lead

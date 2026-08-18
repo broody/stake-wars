@@ -9,7 +9,7 @@ const MINIMUM_CHALLENGE_RAISE_DIVISOR: u128 = 10;
 pub struct ControlPointStatus {
     pub id: u32,
     pub controller: ContractAddress,
-    pub capture_power: u128,
+    pub capture_force: u128,
     pub ownership_generation: u64,
     pub controlled_since: u64,
     pub required_stake: u128,
@@ -24,10 +24,10 @@ pub struct ControlPointStatus {
 pub struct OperatorStatus {
     pub operator: ContractAddress,
     pub live_delegated_amount: u128,
-    pub point_power: u128,
-    pub challenge_power: u128,
-    pub spent_power: u128,
-    pub available_power: u128,
+    pub point_force: u128,
+    pub challenge_force: u128,
+    pub spent_force: u128,
+    pub available_force: u128,
     pub generation: u64,
     pub controlled_point_count: u32,
     pub active_challenge_count: u32,
@@ -42,25 +42,25 @@ pub struct ChallengeStatus {
     pub control_point_id: u32,
     pub incumbent: ContractAddress,
     pub leader: ContractAddress,
-    pub leading_power: u128,
+    pub leading_force: u128,
     pub last_loser: ContractAddress,
-    pub last_losing_power: u128,
+    pub last_losing_force: u128,
     pub deadline: u64,
     pub lead_change_count: u32,
     pub participant_count: u32,
     pub settled: bool,
     pub winner: ContractAddress,
-    pub winning_power: u128,
-    pub losing_power: u128,
+    pub winning_force: u128,
+    pub losing_force: u128,
 }
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ChallengeParticipantStatus {
     pub challenge_id: u64,
     pub operator: ContractAddress,
-    pub committed_power: u128,
-    pub point_power_included: u128,
-    pub additional_power: u128,
+    pub committed_force: u128,
+    pub point_force_included: u128,
+    pub additional_force: u128,
     pub joined: bool,
     pub resolved: bool,
     pub won: bool,
@@ -71,12 +71,12 @@ pub trait IControl<TContractState> {
     fn capture(ref self: TContractState, control_point_id: u32, allocation: u128);
     fn reinforce(ref self: TContractState, control_point_id: u32, additional_allocation: u128);
     fn release(ref self: TContractState, control_point_id: u32);
-    fn challenge(ref self: TContractState, control_point_id: u32, committed_power: u128);
+    fn challenge(ref self: TContractState, control_point_id: u32, committed_force: u128);
     fn challenge_with_sacrifice(
         ref self: TContractState,
         control_point_id: u32,
         sacrificed_control_point_id: u32,
-        committed_power: u128,
+        committed_force: u128,
     );
     fn settle_challenge(ref self: TContractState, control_point_id: u32);
     fn resolve_challenge_position(
@@ -126,7 +126,7 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub controller: ContractAddress,
-        pub capture_power: u128,
+        pub capture_force: u128,
         pub ownership_generation: u64,
     }
 
@@ -137,8 +137,8 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub controller: ContractAddress,
-        pub added_power: u128,
-        pub capture_power: u128,
+        pub added_force: u128,
+        pub capture_force: u128,
         pub ownership_generation: u64,
     }
 
@@ -149,7 +149,7 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub previous_controller: ContractAddress,
-        pub released_power: u128,
+        pub released_force: u128,
         pub ownership_generation: u64,
     }
 
@@ -163,8 +163,8 @@ pub mod control {
         #[key]
         pub challenger: ContractAddress,
         pub incumbent: ContractAddress,
-        pub defender_power_at_risk: u128,
-        pub committed_power: u128,
+        pub defender_force_at_risk: u128,
+        pub committed_force: u128,
         pub deadline: u64,
     }
 
@@ -177,10 +177,10 @@ pub mod control {
         pub control_point_id: u32,
         #[key]
         pub challenger: ContractAddress,
-        pub committed_power: u128,
-        pub added_power: u128,
+        pub committed_force: u128,
+        pub added_force: u128,
         pub previous_leader: ContractAddress,
-        pub previous_leading_power: u128,
+        pub previous_leading_force: u128,
         pub deadline: u64,
     }
 
@@ -193,7 +193,7 @@ pub mod control {
         pub operator: ContractAddress,
         #[key]
         pub control_point_id: u32,
-        pub power: u128,
+        pub force: u128,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -205,8 +205,8 @@ pub mod control {
         pub control_point_id: u32,
         pub winner: ContractAddress,
         pub loser: ContractAddress,
-        pub winning_power: u128,
-        pub losing_power: u128,
+        pub winning_force: u128,
+        pub losing_force: u128,
         pub ownership_generation: u64,
     }
 
@@ -219,7 +219,7 @@ pub mod control {
         pub operator: ContractAddress,
         #[key]
         pub control_point_id: u32,
-        pub lost_power: u128,
+        pub lost_force: u128,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -229,7 +229,7 @@ pub mod control {
         pub operator: ContractAddress,
         pub previous_generation: u64,
         pub new_generation: u64,
-        pub invalidated_power: u128,
+        pub invalidated_force: u128,
         pub live_delegated_amount: u128,
         pub invalidated_point_count: u32,
     }
@@ -241,7 +241,7 @@ pub mod control {
         pub operator: ContractAddress,
         pub previous_generation: u64,
         pub new_generation: u64,
-        pub invalidated_power: u128,
+        pub invalidated_force: u128,
         pub released_point_count: u32,
     }
 
@@ -266,14 +266,14 @@ pub mod control {
 
             assert(allocation >= config.minimum_stake, 'below minimum stake');
             assert(
-                allocation <= available_power(delegation.amount, operator),
-                'insufficient available power',
+                allocation <= available_force(delegation.amount, operator),
+                'insufficient available force',
             );
-            operator.point_power += allocation;
+            operator.point_force += allocation;
             operator.controlled_point_count += 1;
             point.controller = caller;
             point.controller_generation = operator.generation;
-            point.capture_power = allocation;
+            point.capture_force = allocation;
             point.ownership_generation += 1;
             point.controlled_since = get_block_timestamp();
             point.active_challenge_id = 0;
@@ -284,7 +284,7 @@ pub mod control {
                     @ControlPointCaptured {
                         control_point_id,
                         controller: caller,
-                        capture_power: allocation,
+                        capture_force: allocation,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -302,11 +302,11 @@ pub mod control {
             assert(point.active_challenge_id == 0, 'point challenged');
             assert(additional_allocation > 0, 'zero allocation');
             assert(
-                additional_allocation <= available_power(delegation.amount, operator),
-                'insufficient available power',
+                additional_allocation <= available_force(delegation.amount, operator),
+                'insufficient available force',
             );
-            operator.point_power += additional_allocation;
-            point.capture_power += additional_allocation;
+            operator.point_force += additional_allocation;
+            point.capture_force += additional_allocation;
             world.write_model(@operator);
             world.write_model(@point);
             world
@@ -314,8 +314,8 @@ pub mod control {
                     @ControlPointReinforced {
                         control_point_id,
                         controller: caller,
-                        added_power: additional_allocation,
-                        capture_power: point.capture_power,
+                        added_force: additional_allocation,
+                        capture_force: point.capture_force,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -331,7 +331,7 @@ pub mod control {
             let mut point: ControlPoint = world.read_model(control_point_id);
             self.assert_controller(point, caller, operator);
             assert(point.active_challenge_id == 0, 'point challenged');
-            let released_power = point.capture_power;
+            let released_force = point.capture_force;
             self.release_point(ref operator, ref point);
             world.write_model(@operator);
             world.write_model(@point);
@@ -340,25 +340,25 @@ pub mod control {
                     @ControlPointReleased {
                         control_point_id,
                         previous_controller: caller,
-                        released_power,
+                        released_force,
                         ownership_generation: point.ownership_generation,
                     },
                 );
         }
 
-        fn challenge(ref self: ContractState, control_point_id: u32, committed_power: u128) {
-            self.commit_challenge_power(control_point_id, committed_power, Option::None);
+        fn challenge(ref self: ContractState, control_point_id: u32, committed_force: u128) {
+            self.commit_challenge_force(control_point_id, committed_force, Option::None);
         }
 
         fn challenge_with_sacrifice(
             ref self: ContractState,
             control_point_id: u32,
             sacrificed_control_point_id: u32,
-            committed_power: u128,
+            committed_force: u128,
         ) {
             self
-                .commit_challenge_power(
-                    control_point_id, committed_power, Option::Some(sacrificed_control_point_id),
+                .commit_challenge_force(
+                    control_point_id, committed_force, Option::Some(sacrificed_control_point_id),
                 );
         }
 
@@ -379,18 +379,18 @@ pub mod control {
                 && winner_position.joined
                 && !winner_position.resolved
                 && winner_position.operator_generation == leader.generation
-                && winner_position.committed_power == challenge.leading_power;
+                && winner_position.committed_force == challenge.leading_force;
             let mut winner = zero_address();
-            let mut winning_power = 0;
+            let mut winning_force = 0;
             if leader_valid {
                 winner = challenge.leader;
-                winning_power = challenge.leading_power;
-                let additional_power = winning_power - winner_position.point_power_included;
-                assert(leader.challenge_power >= additional_power, 'challenge power invariant');
+                winning_force = challenge.leading_force;
+                let additional_force = winning_force - winner_position.point_force_included;
+                assert(leader.challenge_force >= additional_force, 'challenge force invariant');
                 assert(leader.active_challenge_count > 0, 'challenge count invariant');
-                leader.challenge_power -= additional_power;
-                leader.point_power += additional_power;
-                if winner_position.point_power_included == 0 {
+                leader.challenge_force -= additional_force;
+                leader.point_force += additional_force;
+                if winner_position.point_force_included == 0 {
                     leader.controlled_point_count += 1;
                 }
                 leader.active_challenge_count -= 1;
@@ -417,13 +417,13 @@ pub mod control {
                 }
                 point.controller = winner;
                 point.controller_generation = leader.generation;
-                point.capture_power = winning_power;
+                point.capture_force = winning_force;
                 point.active_challenge_id = 0;
             }
 
             challenge.settled = true;
-            challenge.winning_power = winning_power;
-            challenge.losing_power = challenge.last_losing_power;
+            challenge.winning_force = winning_force;
+            challenge.losing_force = challenge.last_losing_force;
             challenge.settled_at = get_block_timestamp();
             world.write_model(@point);
             world.write_model(@challenge);
@@ -434,8 +434,8 @@ pub mod control {
                         control_point_id,
                         winner,
                         loser: challenge.last_loser,
-                        winning_power,
-                        losing_power: challenge.last_losing_power,
+                        winning_force,
+                        losing_force: challenge.last_losing_force,
                         ownership_generation: point.ownership_generation,
                     },
                 );
@@ -452,8 +452,8 @@ pub mod control {
             assert(challenge.id == challenge_id, 'challenge not found');
             assert(challenge.settled, 'challenge active');
             assert(operator != challenge.winner, 'winner position');
-            let resolved_power = self.resolve_losing_position(config, challenge, operator);
-            assert(resolved_power > 0, 'position unavailable');
+            let resolved_force = self.resolve_losing_position(config, challenge, operator);
+            assert(resolved_force > 0, 'position unavailable');
         }
 
         fn retire(ref self: ContractState) {
@@ -521,16 +521,16 @@ pub mod control {
                 control_point_id: challenge.control_point_id,
                 incumbent: challenge.incumbent,
                 leader: challenge.leader,
-                leading_power: challenge.leading_power,
+                leading_force: challenge.leading_force,
                 last_loser: challenge.last_loser,
-                last_losing_power: challenge.last_losing_power,
+                last_losing_force: challenge.last_losing_force,
                 deadline: challenge.deadline,
                 lead_change_count: challenge.lead_change_count,
                 participant_count: challenge.participant_count,
                 settled: challenge.settled,
                 winner: challenge.winner,
-                winning_power: challenge.winning_power,
-                losing_power: challenge.losing_power,
+                winning_force: challenge.winning_force,
+                losing_force: challenge.losing_force,
             }
         }
 
@@ -543,19 +543,19 @@ pub mod control {
             let challenge: Challenge = world.read_model(challenge_id);
             assert(challenge.id == challenge_id, 'challenge not found');
             let participant: ChallengeParticipant = world.read_model((challenge_id, operator));
-            let additional_power = if participant
-                .committed_power > participant
-                .point_power_included {
-                participant.committed_power - participant.point_power_included
+            let additional_force = if participant
+                .committed_force > participant
+                .point_force_included {
+                participant.committed_force - participant.point_force_included
             } else {
                 0
             };
             ChallengeParticipantStatus {
                 challenge_id,
                 operator,
-                committed_power: participant.committed_power,
-                point_power_included: participant.point_power_included,
-                additional_power,
+                committed_force: participant.committed_force,
+                point_force_included: participant.point_force_included,
+                additional_force,
                 joined: participant.joined,
                 resolved: participant.resolved,
                 won: participant.won,
@@ -638,10 +638,10 @@ pub mod control {
             OperatorStatus {
                 operator: operator_address,
                 live_delegated_amount: delegation.amount,
-                point_power: operator.point_power,
-                challenge_power: operator.challenge_power,
-                spent_power: operator.spent_power,
-                available_power: available_power(delegation.amount, operator),
+                point_force: operator.point_force,
+                challenge_force: operator.challenge_force,
+                spent_force: operator.spent_force,
+                available_force: available_force(delegation.amount, operator),
                 generation: operator.generation,
                 controlled_point_count: operator.controlled_point_count,
                 active_challenge_count: operator.active_challenge_count,
@@ -658,7 +658,7 @@ pub mod control {
             let world = self.world_default();
             let point: ControlPoint = world.read_model(control_point_id);
             let mut controller = zero_address();
-            let mut capture_power = 0;
+            let mut capture_force = 0;
             let mut controlled_since = 0;
             let mut stale = false;
             let mut needs_sync = false;
@@ -669,7 +669,7 @@ pub mod control {
                     && !operator.needs_sync;
                 if current {
                     controller = point.controller;
-                    capture_power = point.capture_power;
+                    capture_force = point.capture_force;
                     controlled_since = point.controlled_since;
                 } else {
                     stale = true;
@@ -682,21 +682,21 @@ pub mod control {
             let mut required_stake = if controller.is_zero() {
                 config.minimum_stake
             } else {
-                minimum_challenge_power(capture_power)
+                minimum_challenge_force(capture_force)
             };
             if point.active_challenge_id > 0 {
                 let challenge: Challenge = world.read_model(point.active_challenge_id);
                 if !challenge.settled {
                     challenge_lead_change_count = challenge.lead_change_count;
                     challenge_deadline = challenge.deadline;
-                    required_stake = minimum_challenge_power(challenge.leading_power);
+                    required_stake = minimum_challenge_force(challenge.leading_force);
                 }
             }
 
             ControlPointStatus {
                 id: control_point_id,
                 controller,
-                capture_power,
+                capture_force,
                 ownership_generation: point.ownership_generation,
                 controlled_since,
                 required_stake,
@@ -727,7 +727,7 @@ pub mod control {
                 changed = true;
             } else if !operator.retired && delegation.amount < total_obligations(operator) {
                 let previous_generation = operator.generation;
-                let invalidated_power = total_obligations(operator);
+                let invalidated_force = total_obligations(operator);
                 let invalidated_point_count = operator.controlled_point_count;
                 self.retire_state(ref operator);
                 changed = true;
@@ -737,7 +737,7 @@ pub mod control {
                             operator: operator_address,
                             previous_generation,
                             new_generation: operator.generation,
-                            invalidated_power,
+                            invalidated_force,
                             live_delegated_amount: delegation.amount,
                             invalidated_point_count,
                         },
@@ -749,10 +749,10 @@ pub mod control {
             (operator, delegation, changed)
         }
 
-        fn commit_challenge_power(
+        fn commit_challenge_force(
             ref self: ContractState,
             control_point_id: u32,
-            committed_power: u128,
+            committed_force: u128,
             sacrificed_control_point_id: Option<u32>,
         ) {
             let config = self.active_config();
@@ -769,9 +769,9 @@ pub mod control {
                     .refresh_operator(point.controller, config.staking_pool);
                 self.assert_controller(point, point.controller, incumbent);
                 assert(caller != point.controller, 'already controller');
-                assert(committed_power > point.capture_power, 'challenge too weak');
+                assert(committed_force > point.capture_force, 'challenge too weak');
                 assert(
-                    committed_power >= minimum_challenge_power(point.capture_power),
+                    committed_force >= minimum_challenge_force(point.capture_force),
                     'challenge too weak',
                 );
                 let challenge_id = self.next_challenge_id();
@@ -780,13 +780,13 @@ pub mod control {
                         ref operator, challenge_id, control_point_id, sacrificed_control_point_id,
                     );
                 assert(
-                    committed_power <= available_power(delegation.amount, operator),
-                    'insufficient available power',
+                    committed_force <= available_force(delegation.amount, operator),
+                    'insufficient available force',
                 );
                 let deadline = get_block_timestamp() + config.challenge_period_seconds;
-                let defender_power_at_risk = point.capture_power;
+                let defender_force_at_risk = point.capture_force;
                 incumbent.active_challenge_count += 1;
-                operator.challenge_power += committed_power;
+                operator.challenge_force += committed_force;
                 operator.active_challenge_count += 1;
                 point.active_challenge_id = challenge_id;
                 let challenge = Challenge {
@@ -795,23 +795,23 @@ pub mod control {
                     incumbent: point.controller,
                     leader: caller,
                     leader_generation: operator.generation,
-                    leading_power: committed_power,
+                    leading_force: committed_force,
                     last_loser: point.controller,
-                    last_losing_power: defender_power_at_risk,
+                    last_losing_force: defender_force_at_risk,
                     deadline,
                     lead_change_count: 1,
                     participant_count: 2,
                     settled: false,
                     winner: zero_address(),
-                    winning_power: 0,
-                    losing_power: 0,
+                    winning_force: 0,
+                    losing_force: 0,
                     settled_at: 0,
                 };
                 let incumbent_position = ChallengeParticipant {
                     challenge_id,
                     operator: point.controller,
-                    committed_power: defender_power_at_risk,
-                    point_power_included: defender_power_at_risk,
+                    committed_force: defender_force_at_risk,
+                    point_force_included: defender_force_at_risk,
                     operator_generation: incumbent.generation,
                     joined: true,
                     resolved: false,
@@ -820,8 +820,8 @@ pub mod control {
                 let challenger_position = ChallengeParticipant {
                     challenge_id,
                     operator: caller,
-                    committed_power,
-                    point_power_included: 0,
+                    committed_force,
+                    point_force_included: 0,
                     operator_generation: operator.generation,
                     joined: true,
                     resolved: false,
@@ -840,8 +840,8 @@ pub mod control {
                             control_point_id,
                             incumbent: point.controller,
                             challenger: caller,
-                            defender_power_at_risk,
-                            committed_power,
+                            defender_force_at_risk,
+                            committed_force,
                             deadline,
                         },
                     );
@@ -852,9 +852,9 @@ pub mod control {
             assert(!challenge.settled, 'challenge settled');
             assert(get_block_timestamp() < challenge.deadline, 'challenge ended');
             assert(caller != challenge.leader, 'already leading');
-            assert(committed_power > challenge.leading_power, 'challenge too weak');
+            assert(committed_force > challenge.leading_force, 'challenge too weak');
             assert(
-                committed_power >= minimum_challenge_power(challenge.leading_power),
+                committed_force >= minimum_challenge_force(challenge.leading_force),
                 'challenge too weak',
             );
             let mut participant: ChallengeParticipant = world.read_model((challenge.id, caller));
@@ -864,40 +864,40 @@ pub mod control {
                     participant.operator_generation == operator.generation,
                     'position generation mismatch',
                 );
-                participant.committed_power
+                participant.committed_force
             } else {
                 0
             };
-            let added_power = committed_power - previous_commitment;
+            let added_force = committed_force - previous_commitment;
             self
                 .sacrifice_if_requested(
                     ref operator, challenge.id, control_point_id, sacrificed_control_point_id,
                 );
             assert(
-                added_power <= available_power(delegation.amount, operator),
-                'insufficient available power',
+                added_force <= available_force(delegation.amount, operator),
+                'insufficient available force',
             );
             let previous_leader = challenge.leader;
-            let previous_leading_power = challenge.leading_power;
+            let previous_leading_force = challenge.leading_force;
             let deadline = get_block_timestamp() + config.challenge_period_seconds;
-            operator.challenge_power += added_power;
+            operator.challenge_force += added_force;
             if !participant.joined {
                 operator.active_challenge_count += 1;
                 challenge.participant_count += 1;
                 participant.challenge_id = challenge.id;
                 participant.operator = caller;
-                participant.point_power_included = 0;
+                participant.point_force_included = 0;
                 participant.operator_generation = operator.generation;
                 participant.joined = true;
                 participant.resolved = false;
                 participant.won = false;
             }
-            participant.committed_power = committed_power;
+            participant.committed_force = committed_force;
             challenge.leader = caller;
             challenge.leader_generation = operator.generation;
-            challenge.leading_power = committed_power;
+            challenge.leading_force = committed_force;
             challenge.last_loser = previous_leader;
-            challenge.last_losing_power = previous_leading_power;
+            challenge.last_losing_force = previous_leading_force;
             challenge.deadline = deadline;
             challenge.lead_change_count += 1;
             world.write_model(@operator);
@@ -909,10 +909,10 @@ pub mod control {
                         challenge_id: challenge.id,
                         control_point_id,
                         challenger: caller,
-                        committed_power,
-                        added_power,
+                        committed_force,
+                        added_force,
                         previous_leader,
-                        previous_leading_power,
+                        previous_leading_force,
                         deadline,
                     },
                 );
@@ -934,7 +934,7 @@ pub mod control {
                     let mut source: ControlPoint = world.read_model(source_id);
                     self.assert_controller(source, operator.operator, operator);
                     assert(source.active_challenge_id == 0, 'sacrifice challenged');
-                    let power = source.capture_power;
+                    let force = source.capture_force;
                     self.release_point(ref operator, ref source);
                     world.write_model(@source);
                     world
@@ -943,7 +943,7 @@ pub mod control {
                                 challenge_id,
                                 operator: operator.operator,
                                 control_point_id: source_id,
-                                power,
+                                force,
                             },
                         );
                 },
@@ -964,23 +964,23 @@ pub mod control {
                 return 0;
             }
 
-            let lost_power = participant.committed_power;
-            let additional_power = lost_power - participant.point_power_included;
+            let lost_force = participant.committed_force;
+            let additional_force = lost_force - participant.point_force_included;
             let (mut operator, _, _) = self.refresh_operator(operator_address, config.staking_pool);
             if valid_challenge_operator(operator, participant.operator_generation) {
-                assert(operator.challenge_power >= additional_power, 'challenge power invariant');
+                assert(operator.challenge_force >= additional_force, 'challenge force invariant');
                 assert(operator.active_challenge_count > 0, 'challenge count invariant');
-                operator.challenge_power -= additional_power;
-                if participant.point_power_included > 0 {
+                operator.challenge_force -= additional_force;
+                if participant.point_force_included > 0 {
                     assert(
-                        operator.point_power >= participant.point_power_included,
-                        'point power invariant',
+                        operator.point_force >= participant.point_force_included,
+                        'point force invariant',
                     );
                     assert(operator.controlled_point_count > 0, 'point count invariant');
-                    operator.point_power -= participant.point_power_included;
+                    operator.point_force -= participant.point_force_included;
                     operator.controlled_point_count -= 1;
                 }
-                operator.spent_power += lost_power;
+                operator.spent_force += lost_force;
                 operator.active_challenge_count -= 1;
                 world.write_model(@operator);
             }
@@ -993,19 +993,19 @@ pub mod control {
                         challenge_id: challenge.id,
                         operator: operator_address,
                         control_point_id: challenge.control_point_id,
-                        lost_power,
+                        lost_force,
                     },
                 );
-            lost_power
+            lost_force
         }
 
         fn release_point(
             self: @ContractState, ref operator: OperatorState, ref point: ControlPoint,
         ) {
-            let released_power = point.capture_power;
+            let released_force = point.capture_force;
             assert(operator.controlled_point_count > 0, 'point count invariant');
-            assert(operator.point_power >= released_power, 'point power invariant');
-            operator.point_power -= released_power;
+            assert(operator.point_force >= released_force, 'point force invariant');
+            operator.point_force -= released_force;
             operator.controlled_point_count -= 1;
             clear_point(ref point);
         }
@@ -1026,7 +1026,7 @@ pub mod control {
                 return;
             }
             let previous_generation = operator.generation;
-            let invalidated_power = total_obligations(operator);
+            let invalidated_force = total_obligations(operator);
             let released_point_count = operator.controlled_point_count;
             if operator.generation == 0 {
                 operator.generation = 1;
@@ -1039,7 +1039,7 @@ pub mod control {
                         operator: operator_address,
                         previous_generation,
                         new_generation: operator.generation,
-                        invalidated_power,
+                        invalidated_force,
                         released_point_count,
                     },
                 );
@@ -1047,9 +1047,9 @@ pub mod control {
 
         fn retire_state(self: @ContractState, ref operator: OperatorState) {
             operator.generation += 1;
-            operator.point_power = 0;
-            operator.challenge_power = 0;
-            operator.spent_power = 0;
+            operator.point_force = 0;
+            operator.challenge_force = 0;
+            operator.spent_force = 0;
             operator.controlled_point_count = 0;
             operator.active_challenge_count = 0;
             operator.retired = true;
@@ -1061,10 +1061,10 @@ pub mod control {
     }
 
     fn total_obligations(operator: OperatorState) -> u128 {
-        operator.point_power + operator.challenge_power + operator.spent_power
+        operator.point_force + operator.challenge_force + operator.spent_force
     }
 
-    fn available_power(live_amount: u128, operator: OperatorState) -> u128 {
+    fn available_force(live_amount: u128, operator: OperatorState) -> u128 {
         if operator.retired {
             return 0;
         }
@@ -1076,13 +1076,13 @@ pub mod control {
         }
     }
 
-    fn minimum_challenge_power(current_power: u128) -> u128 {
-        if current_power == super::MAX_U128 {
-            return current_power;
+    fn minimum_challenge_force(current_force: u128) -> u128 {
+        if current_force == super::MAX_U128 {
+            return current_force;
         }
 
-        let quotient = current_power / super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
-        let remainder = current_power % super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
+        let quotient = current_force / super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
+        let remainder = current_force % super::MINIMUM_CHALLENGE_RAISE_DIVISOR;
         let rounded_tenth = quotient + if remainder > 0 {
             1
         } else {
@@ -1094,17 +1094,17 @@ pub mod control {
             1
         };
 
-        if increment > super::MAX_U128 - current_power {
+        if increment > super::MAX_U128 - current_force {
             super::MAX_U128
         } else {
-            current_power + increment
+            current_force + increment
         }
     }
 
     fn clear_point(ref point: ControlPoint) {
         point.controller = zero_address();
         point.controller_generation = 0;
-        point.capture_power = 0;
+        point.capture_force = 0;
         point.ownership_generation += 1;
         point.controlled_since = 0;
         point.active_challenge_id = 0;

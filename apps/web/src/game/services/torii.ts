@@ -16,7 +16,7 @@ const CONTROL_POINTS_QUERY = `
           id
           controller
           controller_generation
-          capture_power
+          capture_force
           ownership_generation
           controlled_since
           active_challenge_id
@@ -53,7 +53,7 @@ const OPERATOR_ACTIVITY_QUERY = `
         node {
           control_point_id
           controller
-          capture_power
+          capture_force
           ownership_generation
         }
       }
@@ -68,7 +68,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           challenge_id
           control_point_id
           operator
-          lost_power
+          lost_force
         }
       }
     }
@@ -76,19 +76,19 @@ const OPERATOR_ACTIVITY_QUERY = `
       first: 1000
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger defender_power_at_risk committed_power deadline } }
+      edges { cursor node { challenge_id control_point_id incumbent challenger defender_force_at_risk committed_force deadline } }
     }
     escalations: stakewarsChallengeEscalatedModels(
       first: 1000
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id challenger committed_power added_power previous_leader previous_leading_power deadline } }
+      edges { cursor node { challenge_id control_point_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
     }
     settlements: stakewarsChallengeSettledModels(
       first: 1000
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner loser winning_power losing_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner loser winning_force losing_force ownership_generation } }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
       first: 1000
@@ -99,8 +99,8 @@ const OPERATOR_ACTIVITY_QUERY = `
         node {
           control_point_id
           controller
-          added_power
-          capture_power
+          added_force
+          capture_force
           ownership_generation
         }
       }
@@ -114,7 +114,7 @@ const OPERATOR_ACTIVITY_QUERY = `
         node {
           control_point_id
           previous_controller
-          released_power
+          released_force
           ownership_generation
         }
       }
@@ -129,7 +129,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           operator
           previous_generation
           new_generation
-          invalidated_power
+          invalidated_force
           live_delegated_amount
           invalidated_point_count
         }
@@ -145,7 +145,7 @@ const OPERATOR_ACTIVITY_QUERY = `
           operator
           previous_generation
           new_generation
-          invalidated_power
+          invalidated_force
           released_point_count
         }
       }
@@ -180,7 +180,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $capturesAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller capture_power ownership_generation } }
+      edges { cursor node { control_point_id controller capture_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     losses: stakewarsChallengePositionResolvedModels(
@@ -188,7 +188,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $lossesAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id operator lost_power } }
+      edges { cursor node { challenge_id control_point_id operator lost_force } }
       pageInfo { hasNextPage endCursor }
     }
     initiations: stakewarsChallengeInitiatedModels(
@@ -196,7 +196,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $initiationsAfter
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id incumbent challenger defender_power_at_risk committed_power deadline } }
+      edges { cursor node { challenge_id control_point_id incumbent challenger defender_force_at_risk committed_force deadline } }
       pageInfo { hasNextPage endCursor }
     }
     escalations: stakewarsChallengeEscalatedModels(
@@ -204,7 +204,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $escalationsAfter
       where: { challenger: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id challenger committed_power added_power previous_leader previous_leading_power deadline } }
+      edges { cursor node { challenge_id control_point_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
       pageInfo { hasNextPage endCursor }
     }
     settlements: stakewarsChallengeSettledModels(
@@ -212,7 +212,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $settlementsAfter
       where: { winner: $operator }
     ) {
-      edges { cursor node { challenge_id control_point_id winner loser winning_power losing_power ownership_generation } }
+      edges { cursor node { challenge_id control_point_id winner loser winning_force losing_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     reinforcements: stakewarsControlPointReinforcedModels(
@@ -220,7 +220,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $reinforcementsAfter
       where: { controller: $operator }
     ) {
-      edges { cursor node { control_point_id controller added_power capture_power ownership_generation } }
+      edges { cursor node { control_point_id controller added_force capture_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     releases: stakewarsControlPointReleasedModels(
@@ -228,7 +228,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $releasesAfter
       where: { previous_controller: $operator }
     ) {
-      edges { cursor node { control_point_id previous_controller released_power ownership_generation } }
+      edges { cursor node { control_point_id previous_controller released_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
     disqualifications: stakewarsOperatorDisqualifiedModels(
@@ -236,7 +236,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $disqualificationsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation invalidated_power live_delegated_amount invalidated_point_count } }
+      edges { cursor node { operator previous_generation new_generation invalidated_force live_delegated_amount invalidated_point_count } }
       pageInfo { hasNextPage endCursor }
     }
     relinquishments: stakewarsOperatorRetiredModels(
@@ -244,7 +244,7 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       after: $relinquishmentsAfter
       where: { operator: $operator }
     ) {
-      edges { cursor node { operator previous_generation new_generation invalidated_power released_point_count } }
+      edges { cursor node { operator previous_generation new_generation invalidated_force released_point_count } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -296,7 +296,7 @@ interface ToriiControlPointNode {
   id: number | string;
   controller: string;
   controller_generation: string;
-  capture_power: string;
+  capture_force: string;
   ownership_generation: string;
   controlled_since?: string | null;
   active_challenge_id: string;
@@ -338,29 +338,29 @@ interface ToriiConnection<T> {
 interface CaptureEventNode {
   control_point_id: number | string;
   controller: string;
-  capture_power: string;
+  capture_force: string;
   ownership_generation?: string;
 }
 
 interface ReinforcementEventNode {
   control_point_id: number | string;
-  added_power: string;
-  capture_power: string;
+  added_force: string;
+  capture_force: string;
 }
 
 interface ReleaseEventNode {
   control_point_id: number | string;
-  released_power: string;
+  released_force: string;
 }
 
 interface DisqualificationEventNode {
-  invalidated_power: string;
+  invalidated_force: string;
   live_delegated_amount: string;
   invalidated_point_count: number | string;
 }
 
 interface RelinquishmentEventNode {
-  invalidated_power: string;
+  invalidated_force: string;
   released_point_count: number | string;
 }
 
@@ -369,8 +369,8 @@ interface ChallengeInitiatedEventNode {
   control_point_id: number | string;
   incumbent: string;
   challenger: string;
-  defender_power_at_risk: string;
-  committed_power: string;
+  defender_force_at_risk: string;
+  committed_force: string;
   deadline: string;
 }
 
@@ -378,10 +378,10 @@ interface ChallengeEscalatedEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
   challenger: string;
-  committed_power: string;
-  added_power: string;
+  committed_force: string;
+  added_force: string;
   previous_leader: string;
-  previous_leading_power: string;
+  previous_leading_force: string;
   deadline: string;
 }
 
@@ -389,7 +389,7 @@ interface ChallengePositionResolvedEventNode {
   challenge_id: number | string;
   control_point_id: number | string;
   operator: string;
-  lost_power: string;
+  lost_force: string;
 }
 
 interface SettlementEventNode {
@@ -397,8 +397,8 @@ interface SettlementEventNode {
   control_point_id: number | string;
   winner: string;
   loser: string;
-  winning_power: string;
-  losing_power: string;
+  winning_force: string;
+  losing_force: string;
   ownership_generation: string;
 }
 
@@ -563,7 +563,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'capture',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.capture_power, 'capture power'),
+        amount: parseBigInt(node.capture_force, 'capture force'),
       }))
     );
   });
@@ -574,7 +574,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'loss',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.lost_power, 'lost challenge power'),
+        amount: parseBigInt(node.lost_force, 'lost challenge force'),
       }))
     );
   });
@@ -585,7 +585,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'challenge_initiated',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.committed_power, 'committed challenge power'),
+        amount: parseBigInt(node.committed_force, 'committed challenge force'),
         counterparty: node.incumbent,
       }))
     );
@@ -597,7 +597,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'challenge_escalated',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.committed_power, 'committed challenge power'),
+        amount: parseBigInt(node.committed_force, 'committed challenge force'),
         counterparty: node.previous_leader,
       }))
     );
@@ -609,8 +609,8 @@ export function parseOperatorActivity(
         ...position,
         type: 'settlement',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.winning_power, 'winning power'),
-        secondaryAmount: parseBigInt(node.losing_power, 'last losing power'),
+        amount: parseBigInt(node.winning_force, 'winning force'),
+        secondaryAmount: parseBigInt(node.losing_force, 'last losing force'),
       }))
     );
   });
@@ -618,14 +618,14 @@ export function parseOperatorActivity(
   edges(payload.data.reinforcements).forEach((edge) => {
     append(
       activityFromEdge(edge, (position, node) => {
-        const added = parseBigInt(node.added_power, 'added power');
-        const capturePower = parseBigInt(node.capture_power, 'capture power');
+        const added = parseBigInt(node.added_force, 'added force');
+        const captureForce = parseBigInt(node.capture_force, 'capture force');
         return {
           ...position,
           type: 'reinforcement',
           controlPointId: parseControlPointId(node.control_point_id),
           amount: added,
-          secondaryAmount: capturePower,
+          secondaryAmount: captureForce,
         };
       })
     );
@@ -637,7 +637,7 @@ export function parseOperatorActivity(
         ...position,
         type: 'release',
         controlPointId: parseControlPointId(node.control_point_id),
-        amount: parseBigInt(node.released_power, 'released power'),
+        amount: parseBigInt(node.released_force, 'released force'),
       }))
     );
   });
@@ -647,7 +647,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'disqualification',
-        amount: parseBigInt(node.invalidated_power, 'invalidated power'),
+        amount: parseBigInt(node.invalidated_force, 'invalidated force'),
         secondaryAmount: parseBigInt(
           node.live_delegated_amount,
           'live delegated amount'
@@ -662,7 +662,7 @@ export function parseOperatorActivity(
       activityFromEdge(edge, (position, node) => ({
         ...position,
         type: 'retirement',
-        amount: parseBigInt(node.invalidated_power, 'invalidated power'),
+        amount: parseBigInt(node.invalidated_force, 'invalidated force'),
         affectedPointCount: Number(node.released_point_count),
       }))
     );
@@ -1259,7 +1259,7 @@ export function parseIndexedControlPoints(
         node.controller_generation,
         'controller generation'
       ),
-      capturePower: parseBigInt(node.capture_power, 'capture power'),
+      captureForce: parseBigInt(node.capture_force, 'capture force'),
       ownershipGeneration: parseBigInt(
         node.ownership_generation,
         'ownership generation'

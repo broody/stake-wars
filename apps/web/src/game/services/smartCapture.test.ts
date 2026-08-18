@@ -3,7 +3,7 @@ import {
   buildSmartBatchGameActionCalls,
   buildSmartGameActionCalls,
   encodeU256,
-  incrementalCommittedPower,
+  incrementalCommittedForce,
   stakeDeficit,
 } from './smartCapture';
 
@@ -16,14 +16,14 @@ const shared = {
 };
 
 describe('allocation action calls', () => {
-  it('uses available power for the selected allocation before staking more', () => {
+  it('uses available force for the selected allocation before staking more', () => {
     expect(
       buildSmartGameActionCalls({
         ...shared,
         entrypoint: 'challenge',
         calldata: ['7', '420'],
         allocation: 420n,
-        availablePower: 420n,
+        availableForce: 420n,
       })
     ).toEqual([
       {
@@ -40,7 +40,7 @@ describe('allocation action calls', () => {
       entrypoint: 'capture',
       calldata: ['7', '1100'],
       allocation: 1_100n,
-      availablePower: 1_000n,
+      availableForce: 1_000n,
     });
     expect(calls[0]).toEqual({
       contractAddress: '0xstrk',
@@ -60,7 +60,7 @@ describe('allocation action calls', () => {
       entrypoint: 'reinforce',
       calldata: ['7', '300'],
       allocation: 300n,
-      availablePower: 100n,
+      availableForce: 100n,
     });
     expect(calls[0]?.calldata).toEqual(['0xpool', '200', '0']);
     expect(calls[2]).toEqual({
@@ -77,7 +77,7 @@ describe('allocation action calls', () => {
         entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
         allocation: 100n,
-        availablePower: 100n,
+        availableForce: 100n,
       })
     ).toEqual([
       {
@@ -95,7 +95,7 @@ describe('allocation action calls', () => {
         entrypoint: 'challenge_with_sacrifice',
         calldata: ['7', '8', '420'],
         allocation: 0n,
-        availablePower: 0n,
+        availableForce: 0n,
       })
     ).toEqual([
       {
@@ -116,7 +116,7 @@ describe('allocation action calls', () => {
           { entrypoint: 'capture', calldata: ['9', '100'] },
         ],
         allocation: 300n,
-        availablePower: 100n,
+        availableForce: 100n,
       })
     ).toEqual([
       {
@@ -153,7 +153,7 @@ describe('allocation action calls', () => {
         ...shared,
         actions: [],
         allocation: 0n,
-        availablePower: 0n,
+        availableForce: 0n,
       })
     ).toThrow('At least one Control Point action is required');
   });
@@ -161,8 +161,8 @@ describe('allocation action calls', () => {
 
 describe('staking arithmetic', () => {
   it('locks only the increase over an operator previous challenge commitment', () => {
-    expect(incrementalCommittedPower(700n, 500n)).toBe(200n);
-    expect(incrementalCommittedPower(500n, 500n)).toBe(0n);
+    expect(incrementalCommittedForce(700n, 500n)).toBe(200n);
+    expect(incrementalCommittedForce(500n, 500n)).toBe(0n);
   });
 
   it('stakes only the portion of a selected allocation that is unavailable', () => {

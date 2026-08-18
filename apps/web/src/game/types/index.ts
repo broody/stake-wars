@@ -12,7 +12,7 @@ export interface ArtData {
 export interface ControlPointStatus {
   id: number;
   controller: string;
-  capturePower: bigint;
+  captureForce: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
   requiredStake: bigint;
@@ -27,7 +27,7 @@ export interface IndexedControlPoint {
   id: number;
   controller: string;
   controllerGeneration: bigint;
-  capturePower: bigint;
+  captureForce: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
   activeChallengeId: bigint;
@@ -67,10 +67,10 @@ export interface ControlPointArtwork {
 export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;
-  pointPower: bigint;
-  challengePower: bigint;
-  spentPower: bigint;
-  availablePower: bigint;
+  pointForce: bigint;
+  challengeForce: bigint;
+  spentForce: bigint;
+  availableForce: bigint;
   generation: bigint;
   controlledPointCount: number;
   activeChallengeCount: number;
@@ -84,24 +84,24 @@ export interface ChallengeStatus {
   controlPointId: number;
   incumbent: string;
   leader: string;
-  leadingPower: bigint;
+  leadingForce: bigint;
   lastLoser: string;
-  lastLosingPower: bigint;
+  lastLosingForce: bigint;
   deadline: number;
   leadChangeCount: number;
   participantCount: number;
   settled: boolean;
   winner: string;
-  winningPower: bigint;
-  losingPower: bigint;
+  winningForce: bigint;
+  losingForce: bigint;
 }
 
 export interface ChallengeParticipantStatus {
   challengeId: bigint;
   operator: string;
-  committedPower: bigint;
-  pointPowerIncluded: bigint;
-  additionalPower: bigint;
+  committedForce: bigint;
+  pointForceIncluded: bigint;
+  additionalForce: bigint;
   joined: boolean;
   resolved: boolean;
   won: boolean;

@@ -23,7 +23,7 @@ import {
 import {
   buildControlCall,
   buildSmartGameActionCalls,
-  incrementalCommittedPower,
+  incrementalCommittedForce,
   stakeDeficit,
 } from '../../services/smartCapture';
 import {
@@ -82,7 +82,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   const owned = Boolean(
     address && point && addressesMatch(point.controller, address)
   );
-  const neutral = point?.capturePower === 0n;
+  const neutral = point?.captureForce === 0n;
   const expired = Boolean(
     challenged &&
       point.challengeDeadline &&
@@ -97,13 +97,13 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
         : owned || intent === 'fortify'
           ? 'reinforce'
           : 'challenge';
-  const availablePower = operatorStatus?.availablePower ?? 0n;
-  const requiredPower = point?.requiredStake ?? 0n;
+  const availableForce = operatorStatus?.availableForce ?? 0n;
+  const requiredForce = point?.requiredStake ?? 0n;
   const currentLeader = Boolean(
     address && challenge && addressesMatch(challenge.leader, address)
   );
   const suggestedAllocation =
-    action === 'capture' || action === 'challenge' ? requiredPower : 0n;
+    action === 'capture' || action === 'challenge' ? requiredForce : 0n;
 
   useEffect(() => {
     if (!challenged || !point?.challengeDeadline) return;
@@ -177,17 +177,17 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
   }, [allocation]);
   const selectedAllocation = parsedAllocation.value;
   const personalCommitment = participant?.joined
-    ? participant.committedPower
+    ? participant.committedForce
     : 0n;
-  const requestedPower = action === 'settle' ? 0n : (selectedAllocation ?? 0n);
-  const additionalCommittedPower =
+  const requestedForce = action === 'settle' ? 0n : (selectedAllocation ?? 0n);
+  const additionalCommittedForce =
     action === 'challenge'
-      ? incrementalCommittedPower(requestedPower, personalCommitment)
-      : requestedPower;
-  const deficit = stakeDeficit(additionalCommittedPower, availablePower);
+      ? incrementalCommittedForce(requestedForce, personalCommitment)
+      : requestedForce;
+  const deficit = stakeDeficit(additionalCommittedForce, availableForce);
   const currentPosition =
-    action === 'reinforce' ? (point?.capturePower ?? 0n) : 0n;
-  const projectedCommitment = currentPosition + requestedPower;
+    action === 'reinforce' ? (point?.captureForce ?? 0n) : 0n;
+  const projectedCommitment = currentPosition + requestedForce;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -272,12 +272,12 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
       return 'ENTER STRK AMOUNT';
     if (
       (action === 'capture' || action === 'challenge') &&
-      selectedAllocation < requiredPower
+      selectedAllocation < requiredForce
     ) {
-      return `COMMIT AT LEAST ${formatStrk(requiredPower, 18)} STRK`;
+      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} STRK`;
     }
     return null;
-  }, [action, commonDisabledReason, requiredPower, selectedAllocation]);
+  }, [action, commonDisabledReason, requiredForce, selectedAllocation]);
 
   const collateralCommonDisabledReason =
     commonDisabledReason === 'INSUFFICIENT WALLET STRK' ||
@@ -328,7 +328,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             throw new Error('Enter the additional STRK allocation.');
           }
           const member =
-            stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
+            stakeDeficit(allocationAmount, freshOperator.availableForce) > 0n
               ? await getPoolMemberInfo(address)
               : staking?.member;
           calls = buildSmartGameActionCalls({
@@ -336,7 +336,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             entrypoint: 'reinforce',
             calldata: [String(point.id), allocationAmount.toString()],
             allocation: allocationAmount,
-            availablePower: freshOperator.availablePower,
+            availableForce: freshOperator.availableForce,
             operatorAddress: address,
             poolAddress: config.stakingPoolAddress,
             strkTokenAddress: config.strkTokenAddress,
@@ -364,11 +364,11 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               address
             );
             if (freshParticipant.joined && !freshParticipant.resolved) {
-              previousPersonalCommitment = freshParticipant.committedPower;
+              previousPersonalCommitment = freshParticipant.committedForce;
             }
           }
 
-          let sacrificedPower = 0n;
+          let sacrificedForce = 0n;
           let source: number | null = null;
           if (withSacrifice) {
             source = Number(collateralId);
@@ -390,28 +390,28 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
                 'The sacrificed Control Point must be uncontested and owned by you.'
               );
             }
-            sacrificedPower = sourcePoint.capturePower;
+            sacrificedForce = sourcePoint.captureForce;
           }
           if (allocationAmount < freshPoint.requiredStake) {
             throw new Error(
-              `Challenge power must reach at least ${formatStrk(
+              `Challenge force must reach at least ${formatStrk(
                 freshPoint.requiredStake,
                 18
               )} STRK.`
             );
           }
-          const addedCommittedPower = incrementalCommittedPower(
+          const addedCommittedForce = incrementalCommittedForce(
             allocationAmount,
             previousPersonalCommitment
           );
           const allocationAfterSacrifice =
-            addedCommittedPower > sacrificedPower
-              ? addedCommittedPower - sacrificedPower
+            addedCommittedForce > sacrificedForce
+              ? addedCommittedForce - sacrificedForce
               : 0n;
           const member =
             stakeDeficit(
               allocationAfterSacrifice,
-              freshOperator.availablePower
+              freshOperator.availableForce
             ) > 0n
               ? await getPoolMemberInfo(address)
               : staking?.member;
@@ -424,7 +424,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               ? [String(point.id), String(source), allocationAmount.toString()]
               : [String(point.id), allocationAmount.toString()],
             allocation: allocationAfterSacrifice,
-            availablePower: freshOperator.availablePower,
+            availableForce: freshOperator.availableForce,
             operatorAddress: address,
             poolAddress: config.stakingPoolAddress,
             strkTokenAddress: config.strkTokenAddress,
@@ -447,7 +447,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             );
           }
           const member =
-            stakeDeficit(allocationAmount, freshOperator.availablePower) > 0n
+            stakeDeficit(allocationAmount, freshOperator.availableForce) > 0n
               ? await getPoolMemberInfo(address)
               : staking?.member;
           calls = buildSmartGameActionCalls({
@@ -455,7 +455,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
             entrypoint: 'capture',
             calldata: [String(point.id), allocationAmount.toString()],
             allocation: allocationAmount,
-            availablePower: freshOperator.availablePower,
+            availableForce: freshOperator.availableForce,
             operatorAddress: address,
             poolAddress: config.stakingPoolAddress,
             strkTokenAddress: config.strkTokenAddress,
@@ -539,9 +539,9 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>LEADING POWER</span>
+              <span>LEADING FORCE</span>
               <span className="text-fg">
-                {formatStrk(challenge.leadingPower, 18)} STRK
+                {formatStrk(challenge.leadingForce, 18)} STRK
               </span>
             </div>
             {point.challengeDeadline && (
@@ -563,7 +563,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               {action === 'reinforce'
                 ? 'ADDITIONAL STRK'
                 : action === 'challenge'
-                  ? 'CHALLENGE POWER'
+                  ? 'CHALLENGE FORCE'
                   : 'CAPTURE STRK'}
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
@@ -592,7 +592,7 @@ export function CaptureControl({ controlPoints, intent }: CaptureControlProps) {
               <>
                 <div className="flex justify-between gap-4">
                   <span>MINIMUM</span>
-                  <span>{formatStrk(requiredPower, 18)} STRK</span>
+                  <span>{formatStrk(requiredForce, 18)} STRK</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span>BALANCE</span>

@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     #[available_gas(500000000)]
-    fn capture_and_reinforcement_commit_selected_power() {
+    fn capture_and_reinforcement_commit_selected_force() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
@@ -177,9 +177,9 @@ mod tests {
         control.reinforce(42, 150);
         let point = control.get_control_point_status(42);
         let operator = control.get_operator_status(player);
-        assert_eq!(point.capture_power, 550);
-        assert_eq!(operator.point_power, 550);
-        assert_eq!(operator.available_power, 450);
+        assert_eq!(point.capture_force, 550);
+        assert_eq!(operator.point_force, 550);
+        assert_eq!(operator.available_force, 450);
     }
 
     #[test]
@@ -192,15 +192,15 @@ mod tests {
         control.capture(1, 300);
         control.capture(2, 400);
         let operator = control.get_operator_status(player);
-        assert_eq!(operator.point_power, 700);
-        assert_eq!(operator.available_power, 300);
+        assert_eq!(operator.point_force, 700);
+        assert_eq!(operator.available_force, 300);
         assert_eq!(operator.controlled_point_count, 2);
     }
 
     #[test]
     #[available_gas(400000000)]
-    #[should_panic(expected: ('insufficient available power', 'ENTRYPOINT_FAILED'))]
-    fn committed_power_cannot_back_another_capture() {
+    #[should_panic(expected: ('insufficient available force', 'ENTRYPOINT_FAILED'))]
+    fn committed_force_cannot_back_another_capture() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 500);
@@ -227,16 +227,16 @@ mod tests {
         let defender = control.get_operator_status(incumbent);
         let attacker = control.get_operator_status(challenger);
         assert_eq!(challenge.leader, challenger);
-        assert_eq!(challenge.leading_power, 500);
+        assert_eq!(challenge.leading_force, 500);
         assert_eq!(challenge.last_loser, incumbent);
-        assert_eq!(challenge.last_losing_power, 400);
+        assert_eq!(challenge.last_losing_force, 400);
         assert_eq!(challenge.deadline, 2_000 + CHALLENGE_PERIOD);
-        assert_eq!(defender.point_power, 400);
-        assert_eq!(defender.spent_power, 0);
+        assert_eq!(defender.point_force, 400);
+        assert_eq!(defender.spent_force, 0);
         assert_eq!(defender.active_challenge_count, 1);
-        assert_eq!(defender.available_power, 600);
-        assert_eq!(attacker.challenge_power, 500);
-        assert_eq!(attacker.available_power, 500);
+        assert_eq!(defender.available_force, 600);
+        assert_eq!(attacker.challenge_force, 500);
+        assert_eq!(attacker.available_force, 500);
         assert_eq!(control.get_control_point_status(7).required_stake, 550);
     }
 
@@ -277,14 +277,14 @@ mod tests {
         let displaced = control.get_operator_status(first);
         let leader = control.get_operator_status(second);
         assert_eq!(challenge.leader, second);
-        assert_eq!(challenge.leading_power, 550);
+        assert_eq!(challenge.leading_force, 550);
         assert_eq!(challenge.lead_change_count, 2);
         assert_eq!(challenge.deadline, 1_000 + CHALLENGE_PERIOD);
         assert_eq!(challenge.participant_count, 3);
-        assert_eq!(displaced.challenge_power, 500);
-        assert_eq!(displaced.spent_power, 0);
+        assert_eq!(displaced.challenge_force, 500);
+        assert_eq!(displaced.spent_force, 0);
         assert_eq!(displaced.active_challenge_count, 1);
-        assert_eq!(leader.challenge_power, 550);
+        assert_eq!(leader.challenge_force, 550);
         assert_eq!(leader.active_challenge_count, 1);
     }
 
@@ -311,14 +311,14 @@ mod tests {
         let returned = control.get_operator_status(first);
         let displaced = control.get_operator_status(second);
         assert_eq!(challenge.leader, first);
-        assert_eq!(challenge.leading_power, 700);
+        assert_eq!(challenge.leading_force, 700);
         let position: ChallengeParticipant = world.read_model((1_u64, first));
-        assert_eq!(position.committed_power, 700);
-        assert_eq!(returned.spent_power, 0);
-        assert_eq!(returned.challenge_power, 700);
-        assert_eq!(returned.available_power, 0);
-        assert_eq!(displaced.challenge_power, 600);
-        assert_eq!(displaced.spent_power, 0);
+        assert_eq!(position.committed_force, 700);
+        assert_eq!(returned.spent_force, 0);
+        assert_eq!(returned.challenge_force, 700);
+        assert_eq!(returned.available_force, 0);
+        assert_eq!(displaced.challenge_force, 600);
+        assert_eq!(displaced.spent_force, 0);
     }
 
     #[test]
@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     #[available_gas(900000000)]
-    fn permissionless_settlement_allocates_the_winning_power() {
+    fn permissionless_settlement_allocates_the_winning_force() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -393,12 +393,12 @@ mod tests {
         let winner = control.get_operator_status(challenger);
         let loser = control.get_operator_status(incumbent);
         assert_eq!(point.controller, challenger);
-        assert_eq!(point.capture_power, 500);
-        assert_eq!(winner.point_power, 500);
-        assert_eq!(winner.challenge_power, 0);
+        assert_eq!(point.capture_force, 500);
+        assert_eq!(winner.point_force, 500);
+        assert_eq!(winner.challenge_force, 0);
         assert_eq!(winner.active_challenge_count, 0);
-        assert_eq!(loser.spent_power, 400);
-        assert_eq!(loser.available_power, 600);
+        assert_eq!(loser.spent_force, 400);
+        assert_eq!(loser.available_force, 600);
     }
 
     #[test]
@@ -416,14 +416,14 @@ mod tests {
         testing::set_contract_address(incumbent);
         control.challenge(7, 700);
         let incumbent_mid = control.get_operator_status(incumbent);
-        assert_eq!(incumbent_mid.point_power, 400);
-        assert_eq!(incumbent_mid.challenge_power, 300);
-        assert_eq!(incumbent_mid.spent_power, 0);
+        assert_eq!(incumbent_mid.point_force, 400);
+        assert_eq!(incumbent_mid.challenge_force, 300);
+        assert_eq!(incumbent_mid.spent_force, 0);
         testing::set_contract_address(challenger);
         control.challenge(7, 800);
         let challenger_mid = control.get_operator_status(challenger);
-        assert_eq!(challenger_mid.challenge_power, 800);
-        assert_eq!(challenger_mid.spent_power, 0);
+        assert_eq!(challenger_mid.challenge_force, 800);
+        assert_eq!(challenger_mid.spent_force, 0);
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(7);
@@ -431,12 +431,12 @@ mod tests {
         let winner = control.get_operator_status(challenger);
         let loser = control.get_operator_status(incumbent);
         assert_eq!(point.controller, challenger);
-        assert_eq!(point.capture_power, 800);
-        assert_eq!(winner.point_power, 800);
-        assert_eq!(winner.challenge_power, 0);
-        assert_eq!(loser.point_power, 0);
-        assert_eq!(loser.challenge_power, 0);
-        assert_eq!(loser.spent_power, 700);
+        assert_eq!(point.capture_force, 800);
+        assert_eq!(winner.point_force, 800);
+        assert_eq!(winner.challenge_force, 0);
+        assert_eq!(loser.point_force, 0);
+        assert_eq!(loser.challenge_force, 0);
+        assert_eq!(loser.spent_force, 700);
     }
 
     #[test]
@@ -465,15 +465,15 @@ mod tests {
         let incumbent_result = control.get_operator_status(incumbent);
         let runner_up_result = control.get_operator_status(runner_up);
         let unresolved = control.get_operator_status(first);
-        assert_eq!(incumbent_result.spent_power, 400);
-        assert_eq!(runner_up_result.challenge_power, 0);
-        assert_eq!(runner_up_result.spent_power, 600);
-        assert_eq!(unresolved.challenge_power, 500);
-        assert_eq!(unresolved.spent_power, 0);
+        assert_eq!(incumbent_result.spent_force, 400);
+        assert_eq!(runner_up_result.challenge_force, 0);
+        assert_eq!(runner_up_result.spent_force, 600);
+        assert_eq!(unresolved.challenge_force, 500);
+        assert_eq!(unresolved.spent_force, 0);
         control.resolve_challenge_position(1, first);
         let resolved = control.get_operator_status(first);
-        assert_eq!(resolved.challenge_power, 0);
-        assert_eq!(resolved.spent_power, 500);
+        assert_eq!(resolved.challenge_force, 0);
+        assert_eq!(resolved.spent_force, 500);
     }
 
     #[test]
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     #[available_gas(800000000)]
     #[should_panic(expected: ('challenge ended', 'ENTRYPOINT_FAILED'))]
-    fn expired_challenge_rejects_a_late_power_commitment() {
+    fn expired_challenge_rejects_a_late_force_commitment() {
         let (_, control, pool) = setup();
         let incumbent = player_one();
         let challenger = player_two();
@@ -530,11 +530,11 @@ mod tests {
 
         let source = control.get_control_point_status(11);
         let status = control.get_operator_status(defender);
-        assert_eq!(source.capture_power, 0);
-        assert_eq!(status.point_power, 400);
-        assert_eq!(status.challenge_power, 600);
-        assert_eq!(status.spent_power, 0);
-        assert_eq!(status.available_power, 0);
+        assert_eq!(source.capture_force, 0);
+        assert_eq!(status.point_force, 400);
+        assert_eq!(status.challenge_force, 600);
+        assert_eq!(status.spent_force, 0);
+        assert_eq!(status.available_force, 0);
     }
 
     #[test]
@@ -559,35 +559,35 @@ mod tests {
 
         let active = control.get_operator_status(operator);
         assert_eq!(active.active_challenge_count, 2);
-        assert_eq!(active.challenge_power, 220);
-        assert_eq!(active.point_power, 200);
+        assert_eq!(active.challenge_force, 220);
+        assert_eq!(active.point_force, 200);
 
         testing::set_block_timestamp(CHALLENGE_PERIOD);
         control.settle_challenge(1);
         control.settle_challenge(2);
         let settled = control.get_operator_status(operator);
         assert_eq!(settled.active_challenge_count, 0);
-        assert_eq!(settled.challenge_power, 0);
-        assert_eq!(settled.point_power, 420);
+        assert_eq!(settled.challenge_force, 0);
+        assert_eq!(settled.point_force, 420);
         assert_eq!(settled.controlled_point_count, 3);
     }
 
     #[test]
     #[available_gas(500000000)]
-    fn release_returns_commitment_to_available_power() {
+    fn release_returns_commitment_to_available_force() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
         testing::set_contract_address(player);
         control.capture(4, 400);
         control.release(4);
-        assert_eq!(control.get_operator_status(player).available_power, 1_000);
-        assert_eq!(control.get_control_point_status(4).capture_power, 0);
+        assert_eq!(control.get_operator_status(player).available_force, 1_000);
+        assert_eq!(control.get_control_point_status(4).capture_force, 0);
     }
 
     #[test]
     #[available_gas(600000000)]
-    fn power_reduction_retires_operator_and_invalidates_points() {
+    fn force_reduction_retires_operator_and_invalidates_points() {
         let (_, control, pool) = setup();
         let player = player_one();
         pool.set_amount(player, 1_000);
@@ -597,8 +597,8 @@ mod tests {
         control.sync_operator(player);
         let status = control.get_operator_status(player);
         assert(status.retired, 'operator not retired');
-        assert_eq!(status.available_power, 0);
-        assert_eq!(control.get_control_point_status(1).capture_power, 0);
+        assert_eq!(status.available_force, 0);
+        assert_eq!(control.get_control_point_status(1).capture_force, 0);
     }
 
     #[test]
@@ -642,8 +642,8 @@ mod tests {
         control.retire();
         let state: OperatorState = world.read_model(player);
         assert(state.retired, 'operator not retired');
-        assert_eq!(state.point_power, 0);
-        assert_eq!(state.spent_power, 0);
+        assert_eq!(state.point_force, 0);
+        assert_eq!(state.spent_force, 0);
     }
 
     #[test]

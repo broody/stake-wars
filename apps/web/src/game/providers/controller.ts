@@ -70,19 +70,19 @@ const policies: SessionPolicies = {
               name: 'Capture Control Point',
               entrypoint: 'capture',
               description:
-                'Allocate selected delegated power to a neutral Control Point.',
+                'Allocate selected delegated force to a neutral Control Point.',
             },
             {
               name: 'Reinforce Control Point',
               entrypoint: 'reinforce',
               description:
-                'Add selected delegated power to an owned Control Point.',
+                'Add selected delegated force to an owned Control Point.',
             },
             {
               name: 'Challenge Control Point',
               entrypoint: 'challenge',
               description:
-                'Commit visible STRK-backed power to challenge a Control Point.',
+                'Commit visible STRK-backed force to challenge a Control Point.',
             },
             {
               name: 'Sacrifice and Challenge',
@@ -100,7 +100,7 @@ const policies: SessionPolicies = {
               name: 'Resolve Challenge Position',
               entrypoint: 'resolve_challenge_position',
               description:
-                'Finalize a losing power commitment after its challenge settles.',
+                'Finalize a losing force commitment after its challenge settles.',
             },
             {
               name: 'Release Control Point',

@@ -51,7 +51,7 @@ interface CompletedBatch {
 
 const MAX_U128 = (1n << 128n) - 1n;
 
-function highestRequiredPower(controlPoints: readonly ControlPointStatus[]) {
+function highestRequiredForce(controlPoints: readonly ControlPointStatus[]) {
   return controlPoints.reduce(
     (highest, point) =>
       point.requiredStake > highest ? point.requiredStake : highest,
@@ -106,10 +106,10 @@ export function BatchCaptureControl({
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
   const transaction = useSendTransaction({});
-  const requiredPower = highestRequiredPower(controlPoints);
+  const requiredForce = highestRequiredForce(controlPoints);
   const controlPointKey = controlPoints.map(({ id }) => id).join('-');
   const [allocation, setAllocation] = useState(() =>
-    formatStrk(isFortifying ? 0n : requiredPower, 18)
+    formatStrk(isFortifying ? 0n : requiredForce, 18)
   );
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -122,10 +122,10 @@ export function BatchCaptureControl({
   );
 
   useEffect(() => {
-    setAllocation(formatStrk(isFortifying ? 0n : requiredPower, 18));
+    setAllocation(formatStrk(isFortifying ? 0n : requiredForce, 18));
     setError(null);
     setPhase('idle');
-  }, [controlPointKey, isFortifying, requiredPower]);
+  }, [controlPointKey, isFortifying, requiredForce]);
 
   useEffect(() => {
     if (!isSplitModalOpen) return;
@@ -153,8 +153,8 @@ export function BatchCaptureControl({
     selectedAllocation === null
       ? 0n
       : selectedAllocation * BigInt(controlPoints.length);
-  const availablePower = operatorStatus?.availablePower ?? 0n;
-  const deficit = stakeDeficit(totalAllocation, availablePower);
+  const availableForce = operatorStatus?.availableForce ?? 0n;
+  const deficit = stakeDeficit(totalAllocation, availableForce);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -220,8 +220,8 @@ export function BatchCaptureControl({
     if (parsedAllocation.error) return 'ENTER A VALID ALLOCATION';
     if (selectedAllocation === null || selectedAllocation === 0n)
       return 'ENTER ALLOCATION PER POINT';
-    if (!isFortifying && selectedAllocation < requiredPower)
-      return `ALLOCATE AT LEAST ${formatStrk(requiredPower, 18)} STRK EACH`;
+    if (!isFortifying && selectedAllocation < requiredForce)
+      return `ALLOCATE AT LEAST ${formatStrk(requiredForce, 18)} STRK EACH`;
     if (deficit > 0n && (!staking || walletBalance === null))
       return 'READING WALLET STRK';
     if (deficit > (walletBalance ?? 0n)) return 'INSUFFICIENT WALLET STRK';
@@ -237,7 +237,7 @@ export function BatchCaptureControl({
     operatorStatus,
     phase,
     parsedAllocation.error,
-    requiredPower,
+    requiredForce,
     selectedAllocation,
     staking,
     walletBalance,
@@ -255,7 +255,7 @@ export function BatchCaptureControl({
         batch.controlPoints.forEach((point) =>
           confirmReinforcedControlPoints(
             [point],
-            point.capturePower + batch.allocation
+            point.captureForce + batch.allocation
           )
         );
       } else if (address) {
@@ -320,7 +320,7 @@ export function BatchCaptureControl({
         const chunkAllocation = selectedAllocation * BigInt(freshPoints.length);
         const chunkDeficit = stakeDeficit(
           chunkAllocation,
-          freshOperator.availablePower
+          freshOperator.availableForce
         );
         const member =
           chunkDeficit > 0n
@@ -332,7 +332,7 @@ export function BatchCaptureControl({
             calldata: [id.toString(), selectedAllocation.toString()],
           })),
           allocation: chunkAllocation,
-          availablePower: freshOperator.availablePower,
+          availableForce: freshOperator.availableForce,
           controlSystemAddress: config.controlSystemAddress,
           isPoolMember: Boolean(member),
           operatorAddress: address,
@@ -486,8 +486,8 @@ export function BatchCaptureControl({
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         <div className="flex justify-between gap-4">
-          <span>AVAILABLE POWER</span>
-          <span className="text-fg">{formatStrk(availablePower, 18)} STRK</span>
+          <span>AVAILABLE FORCE</span>
+          <span className="text-fg">{formatStrk(availableForce, 18)} STRK</span>
         </div>
         <label
           className="block pt-1 text-dim"
@@ -519,7 +519,7 @@ export function BatchCaptureControl({
           <>
             <div className="flex justify-between gap-4">
               <span>MINIMUM EACH</span>
-              <span>{formatStrk(requiredPower, 18)} STRK</span>
+              <span>{formatStrk(requiredForce, 18)} STRK</span>
             </div>
             <div className="flex justify-between gap-4">
               <span>BALANCE</span>

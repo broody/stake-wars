@@ -68,12 +68,12 @@ interface ControlPointContextValue {
   confirmCapturedControlPoints: (
     controlPoints: ControlPointStatus[],
     operator: string,
-    capturePower: bigint,
+    captureForce: bigint,
     clearSelection?: boolean
   ) => void;
   confirmReinforcedControlPoints: (
     controlPoints: ControlPointStatus[],
-    capturePower: bigint
+    captureForce: bigint
   ) => void;
 }
 
@@ -321,14 +321,14 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
     (
       controlPoints: ControlPointStatus[],
       operator: string,
-      capturePower: bigint,
+      captureForce: bigint,
       clearSelection = true
     ) => {
       const controlledSince = Math.floor(Date.now() / 1_000);
       const confirmedControlPoints = controlPoints.map((controlPoint) => ({
         ...controlPoint,
         controller: operator,
-        capturePower,
+        captureForce,
         ownershipGeneration: controlPoint.ownershipGeneration + 1n,
         controlledSince,
         stale: false,
@@ -349,7 +349,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
             id: controlPoint.id,
             controller: controlPoint.controller,
             controllerGeneration: operatorStatus?.generation || 1n,
-            capturePower: controlPoint.capturePower,
+            captureForce: controlPoint.captureForce,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
             activeChallengeId: controlPoint.activeChallengeId,
@@ -367,10 +367,10 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
   );
 
   const confirmReinforcedControlPoints = useCallback(
-    (controlPoints: ControlPointStatus[], capturePower: bigint) => {
+    (controlPoints: ControlPointStatus[], captureForce: bigint) => {
       const reinforcedControlPoints = controlPoints.map((controlPoint) => ({
         ...controlPoint,
-        capturePower,
+        captureForce,
       }));
       const reinforcedById = new Map(
         reinforcedControlPoints.map((controlPoint) => [
@@ -397,7 +397,7 @@ export function ControlPointProvider({ children }: PropsWithChildren) {
               previous?.controllerGeneration ||
               operatorStatus?.generation ||
               1n,
-            capturePower: controlPoint.capturePower,
+            captureForce: controlPoint.captureForce,
             ownershipGeneration: controlPoint.ownershipGeneration,
             controlledSince: controlPoint.controlledSince,
             activeChallengeId: controlPoint.activeChallengeId,

@@ -9,7 +9,7 @@ interface SmartGameActionCallsOptions {
     | 'challenge_with_sacrifice';
   calldata: string[];
   allocation: bigint;
-  availablePower: bigint;
+  availableForce: bigint;
   operatorAddress: string;
   poolAddress: string;
   strkTokenAddress: string;
@@ -25,7 +25,7 @@ interface SmartBatchGameActionCallsOptions {
   actions: BatchGameAction[];
   controlSystemAddress: string;
   allocation: bigint;
-  availablePower: bigint;
+  availableForce: bigint;
   operatorAddress: string;
   poolAddress: string;
   strkTokenAddress: string;
@@ -36,12 +36,12 @@ const U128_MODULUS = 1n << 128n;
 
 export function stakeDeficit(
   allocation: bigint,
-  availablePower: bigint
+  availableForce: bigint
 ): bigint {
-  return allocation > availablePower ? allocation - availablePower : 0n;
+  return allocation > availableForce ? allocation - availableForce : 0n;
 }
 
-export function incrementalCommittedPower(
+export function incrementalCommittedForce(
   newCommitment: bigint,
   previousCommitment: bigint
 ): bigint {
@@ -62,7 +62,7 @@ export function buildSmartGameActionCalls({
   entrypoint,
   calldata,
   allocation,
-  availablePower,
+  availableForce,
   operatorAddress,
   poolAddress,
   strkTokenAddress,
@@ -76,7 +76,7 @@ export function buildSmartGameActionCalls({
   return buildStakedGameActionCalls({
     actionCalls: [actionCall],
     allocation,
-    availablePower,
+    availableForce,
     operatorAddress,
     poolAddress,
     strkTokenAddress,
@@ -88,7 +88,7 @@ export function buildSmartBatchGameActionCalls({
   actions,
   controlSystemAddress,
   allocation,
-  availablePower,
+  availableForce,
   operatorAddress,
   poolAddress,
   strkTokenAddress,
@@ -105,7 +105,7 @@ export function buildSmartBatchGameActionCalls({
       calldata,
     })),
     allocation,
-    availablePower,
+    availableForce,
     operatorAddress,
     poolAddress,
     strkTokenAddress,
@@ -116,7 +116,7 @@ export function buildSmartBatchGameActionCalls({
 interface StakedGameActionCallsOptions {
   actionCalls: Call[];
   allocation: bigint;
-  availablePower: bigint;
+  availableForce: bigint;
   operatorAddress: string;
   poolAddress: string;
   strkTokenAddress: string;
@@ -126,13 +126,13 @@ interface StakedGameActionCallsOptions {
 function buildStakedGameActionCalls({
   actionCalls,
   allocation,
-  availablePower,
+  availableForce,
   operatorAddress,
   poolAddress,
   strkTokenAddress,
   isPoolMember,
 }: StakedGameActionCallsOptions): Call[] {
-  const deficit = stakeDeficit(allocation, availablePower);
+  const deficit = stakeDeficit(allocation, availableForce);
   if (deficit === 0n) return actionCalls;
 
   const [deficitLow, deficitHigh] = encodeU256(deficit);

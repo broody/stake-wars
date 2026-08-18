@@ -2,17 +2,17 @@
 
 StakeWars challenges are public, unlimited-participant ascending contests. STRK
 stays directly delegated in the official pool; the Dojo World tracks game locks
-and permanent Spent Power without taking custody.
+and permanent Spent Force without taking custody.
 
 ## Per-Operator accounting
 
 ```text
-Ready STRK = max(
+Available Force = max(
   0,
   live delegated STRK
     - Control Point garrisons
     - active cumulative challenge commitments
-    - spent power
+    - spent force
 )
 ```
 
@@ -45,7 +45,7 @@ sequenceDiagram
     Note over A,B: Each accepted lead resets the full window
     A->>W: settle_challenge(point) after expiry
     W->>W: B's 800 becomes the new garrison
-    W->>W: A's final 700 becomes Spent Power
+    W->>W: A's final 700 becomes Spent Force
 ```
 
 ### Opening
@@ -69,27 +69,27 @@ challenge-duration cap.
 
 `challenge_with_sacrifice(targetId, sourceId, newCommitment)` releases one other
 owned, uncontested point before validating the incremental lock. The source
-becomes neutral and its garrison returns to Ready STRK. Sacrifice reallocates
+becomes neutral and its garrison returns to Available Force. Sacrifice reallocates
 backing; it does not duplicate or automatically spend it.
 
 ### Settlement and losing-position resolution
 
 After expiry, any account may call `settle_challenge(controlPointId)`. A valid
 leader's cumulative commitment becomes the new garrison. Every non-winner loses
-its own highest cumulative commitment as permanent game power; the underlying
+its own highest cumulative commitment as permanent game force; the underlying
 STRK remains delegated and reward-bearing.
 
 An unbounded participant list must not make settlement exceed Starknet's
 transaction limits. Settlement therefore resolves the winner, incumbent, and
 final runner-up in constant work. Any older losing position remains locked,
-which has the same Ready STRK effect as Spent Power, until any account calls
+which has the same Available Force effect as Spent Force, until any account calls
 `resolve_challenge_position(challengeId, operator)`. Each resolution is O(1),
 permissionless, and emits `ChallengePositionResolved`.
 
 ## Multiple simultaneous actions
 
 An Operator may hold points and participate in multiple Challenges while its
-aggregate garrisons, active challenge commitments, and Spent Power remain
+aggregate garrisons, active challenge commitments, and Spent Force remain
 backed by Live Delegation. Joining one challenge does not globally disable other
 actions.
 
