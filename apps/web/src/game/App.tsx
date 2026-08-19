@@ -6,7 +6,7 @@ import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Home } from './pages/Home';
 import { Gallery } from './pages/Gallery';
-import { Profile } from './pages/Profile';
+import { Operator } from './pages/Operator';
 import { Staking } from './pages/Staking';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
@@ -34,7 +34,7 @@ function GameApp() {
                         <Route path="/" element={<Home />} />
                         <Route path="/gallery" element={<Gallery />} />
                         <Route path="/staking" element={<Staking />} />
-                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/operator" element={<Operator />} />
                         <Route
                           path="/core-lab"
                           element={
