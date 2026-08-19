@@ -28,6 +28,13 @@ import {
   PlacementPreviewLayer,
 } from './SectorImageLayer';
 import { artworkForSector } from '../../utils/sectorArtworkProjection';
+import {
+  addSectorFlipAttributes,
+  randomOutsideSectorWaveOrigin,
+  sectorFlipWaveDelayForCount,
+  sectorWaveDistanceRange as createSectorWaveDistanceRange,
+  SECTOR_FLIP_DURATION_SECONDS,
+} from '../../utils/sectorFlip';
 
 const DRAG_SELECTION_THRESHOLD_PX = 5;
 const TENURE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
@@ -36,6 +43,88 @@ const SECTOR_GRID_FULL_DISTANCE = 10;
 const SECTOR_GRID_FADE_DISTANCE = 22;
 const DETAIL_IMAGE_CAMERA_DISTANCE = 10.5;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
+const MODE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
+
+const SECTOR_FLIP_VERTEX_SHADER = `
+  attribute vec3 flipAxis;
+  attribute vec3 flipNormal;
+  attribute vec3 flipPivot;
+  uniform float uFlipProgress;
+  uniform float uFlipDirection;
+  uniform vec3 uWaveOrigin;
+  uniform vec2 uWaveDistanceRange;
+  uniform float uWaveDelay;
+  varying float vFlipProgress;
+
+  void main() {
+    float angularDistance = acos(clamp(
+      dot(normalize(flipPivot), normalize(uWaveOrigin)),
+      -1.0,
+      1.0
+    )) / 3.14159265359;
+    float normalizedDistance = clamp(
+      (angularDistance - uWaveDistanceRange.x)
+        / max(uWaveDistanceRange.y - uWaveDistanceRange.x, 0.000001),
+      0.0,
+      1.0
+    );
+    float waveDelay = normalizedDistance * uWaveDelay;
+    float waveProgress = uFlipDirection > 0.0
+      ? uFlipProgress
+      : 1.0 - uFlipProgress;
+    float localWaveProgress = clamp(
+      (waveProgress - waveDelay) / max(1.0 - uWaveDelay, 0.000001),
+      0.0,
+      1.0
+    );
+    float localProgress = uFlipDirection > 0.0
+      ? localWaveProgress
+      : 1.0 - localWaveProgress;
+    float easedProgress = localProgress * localProgress
+      * (3.0 - 2.0 * localProgress);
+    vec3 localPosition = position - flipPivot;
+    vec3 hingePosition = flipAxis * dot(localPosition, flipAxis);
+    vec3 panelWidth = localPosition - hingePosition;
+    float collapse = abs(cos(easedProgress * 3.14159265359));
+    float lift = sin(easedProgress * 3.14159265359) * 0.018;
+    vec3 flippedPosition = flipPivot
+      + hingePosition
+      + panelWidth * collapse
+      + flipNormal * lift;
+    vFlipProgress = localProgress;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(flippedPosition, 1.0);
+  }
+`;
+
+const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
+  uniform vec3 uColor;
+  uniform vec3 uBackColor;
+  uniform float uBackVisible;
+  varying float vFlipProgress;
+
+  void main() {
+    vec3 panelColor = uColor;
+    if (vFlipProgress >= 0.5) {
+      if (uBackVisible < 0.5) discard;
+      panelColor = uBackColor;
+    }
+    gl_FragColor = vec4(panelColor, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
+  uniform vec3 uColor;
+  varying float vFlipProgress;
+
+  void main() {
+    if (vFlipProgress >= 0.999) discard;
+    gl_FragColor = vec4(uColor, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
 
 const STRIPE_VERTEX_SHADER = `
   void main() {
@@ -368,33 +457,124 @@ interface ExtrudedSectorLayerProps {
   sectorIds: number[];
   sectorGroups: number[][];
   heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  interactive: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
   topColor: THREE.ColorRepresentation;
+  topBackColor?: THREE.ColorRepresentation;
   sideColor: THREE.ColorRepresentation;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
   onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
 }
 
+function FlippingSectorMaterial({
+  color,
+  backColor,
+  flipped,
+  panelSide,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
+}: {
+  color: THREE.ColorRepresentation;
+  backColor?: THREE.ColorRepresentation;
+  flipped: boolean;
+  panelSide: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
+}) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const progressRef = useRef(flipped ? 1 : 0);
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
+  const uniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(color) },
+      uBackColor: { value: new THREE.Color(backColor ?? color) },
+      uBackVisible: { value: backColor === undefined ? 0 : 1 },
+      uFlipProgress: { value: progressRef.current },
+      uFlipDirection: { value: flipped ? 1 : -1 },
+      uWaveOrigin: { value: waveOrigin },
+      uWaveDistanceRange: { value: waveDistanceRange },
+      uWaveDelay: { value: waveDelay },
+    }),
+    [backColor, color, flipped, waveDelay, waveDistanceRange, waveOrigin]
+  );
+
+  useFrame((_state, delta) => {
+    const target = flipped ? 1 : 0;
+    const step = delta / SECTOR_FLIP_DURATION_SECONDS;
+    const distance = target - progressRef.current;
+    progressRef.current =
+      prefersReducedMotion || Math.abs(distance) <= step
+        ? target
+        : progressRef.current + Math.sign(distance) * step;
+    if (materialRef.current) {
+      materialRef.current.uniforms.uFlipProgress.value = progressRef.current;
+      materialRef.current.uniforms.uFlipDirection.value = flipped ? 1 : -1;
+    }
+  });
+
+  return (
+    <shaderMaterial
+      ref={materialRef}
+      uniforms={uniforms}
+      vertexShader={SECTOR_FLIP_VERTEX_SHADER}
+      fragmentShader={
+        panelSide
+          ? SECTOR_TOP_FLIP_FRAGMENT_SHADER
+          : SECTOR_SIDE_FLIP_FRAGMENT_SHADER
+      }
+      side={THREE.DoubleSide}
+    />
+  );
+}
+
 function ExtrudedSectorLayer({
   sectorIds,
   sectorGroups,
   heights,
+  flipped,
+  interactive,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
   topColor,
+  topBackColor,
   sideColor,
   onClickSector,
   onHoverSector,
   onPointerOut,
 }: ExtrudedSectorLayerProps) {
-  const geometries = useMemo(
-    () =>
-      createExtrudedSectorGeometries(
-        sectorIds,
-        heights,
-        TENURE_SURFACE_RADIUS,
-        sectorGroups
-      ),
-    [sectorGroups, sectorIds, heights]
-  );
+  const geometries = useMemo(() => {
+    const nextGeometries = createExtrudedSectorGeometries(
+      sectorIds,
+      heights,
+      TENURE_SURFACE_RADIUS,
+      sectorGroups
+    );
+    addSectorFlipAttributes(
+      nextGeometries.tops,
+      nextGeometries.topSectorIds,
+      heights,
+      TENURE_SURFACE_RADIUS
+    );
+    addSectorFlipAttributes(
+      nextGeometries.sides,
+      nextGeometries.sideSectorIds,
+      heights,
+      TENURE_SURFACE_RADIUS
+    );
+    return nextGeometries;
+  }, [sectorGroups, sectorIds, heights]);
 
   useEffect(
     () => () => {
@@ -424,27 +604,56 @@ function ExtrudedSectorLayer({
     <group>
       <mesh
         geometry={geometries.sides}
-        onClick={(event) =>
-          sectorHandler(event, geometries.sideSectorIds, onClickSector)
+        onClick={
+          interactive
+            ? (event) =>
+                sectorHandler(event, geometries.sideSectorIds, onClickSector)
+            : undefined
         }
-        onPointerMove={(event) =>
-          sectorHandler(event, geometries.sideSectorIds, onHoverSector)
+        onPointerMove={
+          interactive
+            ? (event) =>
+                sectorHandler(event, geometries.sideSectorIds, onHoverSector)
+            : undefined
         }
-        onPointerOut={onPointerOut}
+        onPointerOut={interactive ? onPointerOut : undefined}
+        raycast={interactive ? undefined : () => undefined}
       >
-        <meshBasicMaterial color={sideColor} side={THREE.DoubleSide} />
+        <FlippingSectorMaterial
+          color={sideColor}
+          flipped={flipped}
+          panelSide={false}
+          waveOrigin={waveOrigin}
+          waveDistanceRange={waveDistanceRange}
+          waveDelay={waveDelay}
+        />
       </mesh>
       <mesh
         geometry={geometries.tops}
-        onClick={(event) =>
-          sectorHandler(event, geometries.topSectorIds, onClickSector)
+        onClick={
+          interactive
+            ? (event) =>
+                sectorHandler(event, geometries.topSectorIds, onClickSector)
+            : undefined
         }
-        onPointerMove={(event) =>
-          sectorHandler(event, geometries.topSectorIds, onHoverSector)
+        onPointerMove={
+          interactive
+            ? (event) =>
+                sectorHandler(event, geometries.topSectorIds, onHoverSector)
+            : undefined
         }
-        onPointerOut={onPointerOut}
+        onPointerOut={interactive ? onPointerOut : undefined}
+        raycast={interactive ? undefined : () => undefined}
       >
-        <meshBasicMaterial color={topColor} side={THREE.DoubleSide} />
+        <FlippingSectorMaterial
+          color={topColor}
+          backColor={topBackColor}
+          flipped={flipped}
+          panelSide
+          waveOrigin={waveOrigin}
+          waveDistanceRange={waveDistanceRange}
+          waveDelay={waveDelay}
+        />
       </mesh>
     </group>
   );
@@ -455,6 +664,11 @@ interface SectorOwnershipLayersProps {
   opponentSectorIds: number[];
   sectorOwnerGroups: number[][];
   sectorHeights: ReadonlyMap<number, number>;
+  flipped?: boolean;
+  interactive?: boolean;
+  waveOrigin?: THREE.Vector3;
+  waveDistanceRange?: THREE.Vector2;
+  waveDelay?: number;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
   onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
@@ -465,10 +679,40 @@ export function SectorOwnershipLayers({
   opponentSectorIds,
   sectorOwnerGroups,
   sectorHeights,
+  flipped = false,
+  interactive = true,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
   onClickSector,
   onHoverSector,
   onPointerOut,
 }: SectorOwnershipLayersProps) {
+  const occupiedSectorIds = useMemo(
+    () => [...ownedSectorIds, ...opponentSectorIds],
+    [opponentSectorIds, ownedSectorIds]
+  );
+  const waveSectorIds =
+    ownedSectorIds.length > 0 ? ownedSectorIds : occupiedSectorIds;
+  const activeWaveOrigin = useMemo(() => {
+    void flipped;
+    return (
+      waveOrigin ??
+      randomOutsideSectorWaveOrigin(waveSectorIds, TENURE_SURFACE_RADIUS)
+    );
+  }, [flipped, waveOrigin, waveSectorIds]);
+  const activeWaveDistanceRange = useMemo(
+    () =>
+      waveDistanceRange ??
+      createSectorWaveDistanceRange(
+        waveSectorIds,
+        activeWaveOrigin,
+        TENURE_SURFACE_RADIUS
+      ),
+    [activeWaveOrigin, waveDistanceRange, waveSectorIds]
+  );
+  const activeWaveDelay =
+    waveDelay ?? sectorFlipWaveDelayForCount(waveSectorIds.length);
   const { ownedSectorGroups, opponentSectorGroups } = useMemo(() => {
     const ownedSectorIdSet = new Set(ownedSectorIds);
     const ownedGroups: number[][] = [];
@@ -496,6 +740,11 @@ export function SectorOwnershipLayers({
         sectorIds={opponentSectorIds}
         sectorGroups={sectorOwnerGroups}
         heights={sectorHeights}
+        flipped={flipped}
+        interactive={interactive}
+        waveOrigin={activeWaveOrigin}
+        waveDistanceRange={activeWaveDistanceRange}
+        waveDelay={activeWaveDelay}
         topColor={SECTOR_COLORS.opponent}
         sideColor={SECTOR_COLORS.opponentSide}
         onClickSector={onClickSector}
@@ -506,24 +755,34 @@ export function SectorOwnershipLayers({
         sectorIds={ownedSectorIds}
         sectorGroups={sectorOwnerGroups}
         heights={sectorHeights}
+        flipped={flipped}
+        interactive={interactive}
+        waveOrigin={activeWaveOrigin}
+        waveDistanceRange={activeWaveDistanceRange}
+        waveDelay={activeWaveDelay}
         topColor={SECTOR_COLORS.owned}
+        topBackColor={SECTOR_COLORS.owned}
         sideColor={SECTOR_COLORS.ownedSide}
         onClickSector={onClickSector}
         onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
-      <SectorGridLayer
-        sectorGroups={opponentSectorGroups}
-        color={SECTOR_COLORS.opponentGrid}
-        heights={sectorHeights}
-      />
-      <SectorGridLayer
-        sectorGroups={ownedSectorGroups}
-        color={SECTOR_COLORS.ownedGrid}
-        heights={sectorHeights}
-        opacity={0.42}
-        innerOpacity={0.2}
-      />
+      {!flipped ? (
+        <>
+          <SectorGridLayer
+            sectorGroups={opponentSectorGroups}
+            color={SECTOR_COLORS.opponentGrid}
+            heights={sectorHeights}
+          />
+          <SectorGridLayer
+            sectorGroups={ownedSectorGroups}
+            color={SECTOR_COLORS.ownedGrid}
+            heights={sectorHeights}
+            opacity={0.42}
+            innerOpacity={0.2}
+          />
+        </>
+      ) : null}
     </>
   );
 }
@@ -569,6 +828,34 @@ export function Planet({
     [contestedSectorIds]
   );
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
+  const [projectionSurfaceVisible, setProjectionSurfaceVisible] = useState(
+    mode === 'projection'
+  );
+  const flipWaveSectorIds =
+    ownedSectorIds.length > 0 ? ownedSectorIds : occupiedSectorIds;
+  const flipWaveOrigin = useMemo(() => {
+    void mode;
+    return randomOutsideSectorWaveOrigin(
+      flipWaveSectorIds,
+      TENURE_SURFACE_RADIUS
+    );
+  }, [flipWaveSectorIds, mode]);
+  const flipWaveDistanceRange = useMemo(
+    () =>
+      createSectorWaveDistanceRange(
+        flipWaveSectorIds,
+        flipWaveOrigin,
+        TENURE_SURFACE_RADIUS
+      ),
+    [flipWaveOrigin, flipWaveSectorIds]
+  );
+  const flipWaveDelay = sectorFlipWaveDelayForCount(flipWaveSectorIds.length);
 
   useEffect(() => {
     if (!tenureExtrusionEnabled) return;
@@ -578,6 +865,22 @@ export function Planet({
     );
     return () => window.clearInterval(interval);
   }, [tenureExtrusionEnabled]);
+
+  useEffect(() => {
+    if (mode === 'projection') {
+      setProjectionSurfaceVisible(true);
+      return;
+    }
+    if (prefersReducedMotion) {
+      setProjectionSurfaceVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setProjectionSurfaceVisible(false),
+      MODE_FLIP_DURATION_MS
+    );
+    return () => window.clearTimeout(timeout);
+  }, [mode, prefersReducedMotion]);
 
   const sectorHeights = useMemo(
     () =>
@@ -623,7 +926,7 @@ export function Planet({
     mode,
     selectedSectorId,
   ]);
-  const imageHeights = mode === 'control' ? sectorHeights : FLAT_SECTOR_HEIGHTS;
+  const imageHeights = FLAT_SECTOR_HEIGHTS;
   const placementArtwork = useMemo(() => {
     if (!placementDraft?.placement) return null;
     return {
@@ -771,44 +1074,55 @@ export function Planet({
         />
       </mesh>
 
-      {mode === 'control' ? (
-        <SectorOwnershipLayers
-          ownedSectorIds={ownedSectorIds}
-          opponentSectorIds={opponentSectorIds}
-          sectorOwnerGroups={sectorOwnerGroups}
-          sectorHeights={sectorHeights}
-          onClickSector={handleSectorClick}
-          onHoverSector={handleSectorHover}
-          onPointerOut={() => setHoveredSectorId(null)}
-        />
-      ) : (
-        <SectorLayer
-          sectorIds={ownedSectorIds}
-          color={SECTOR_COLORS.owned}
-          opacity={0.72}
-          scale={1.004}
-        />
-      )}
-
-      {mode === 'projection' ? (
+      {projectionSurfaceVisible ? (
         <>
-          <SectorImageLayer artworks={artworks} heights={imageHeights} />
+          <SectorImageLayer
+            artworks={artworks}
+            heights={imageHeights}
+            flipped={mode === 'projection'}
+            waveOrigin={flipWaveOrigin}
+            waveDistanceRange={flipWaveDistanceRange}
+            waveDelay={flipWaveDelay}
+          />
 
-          {detailArtwork ? (
+          {mode === 'projection' && detailArtwork ? (
             <SectorDetailImageLayer
               artwork={detailArtwork}
               heights={imageHeights}
+              flipped
+              waveOrigin={flipWaveOrigin}
+              waveDistanceRange={flipWaveDistanceRange}
+              waveDelay={flipWaveDelay}
             />
           ) : null}
 
-          {placementArtwork ? (
+          {mode === 'projection' && placementArtwork ? (
             <PlacementPreviewLayer
               artwork={placementArtwork}
               heights={imageHeights}
+              flipped
+              waveOrigin={flipWaveOrigin}
+              waveDistanceRange={flipWaveDistanceRange}
+              waveDelay={flipWaveDelay}
             />
           ) : null}
         </>
       ) : null}
+
+      <SectorOwnershipLayers
+        ownedSectorIds={ownedSectorIds}
+        opponentSectorIds={opponentSectorIds}
+        sectorOwnerGroups={sectorOwnerGroups}
+        sectorHeights={sectorHeights}
+        flipped={mode === 'projection'}
+        interactive={mode === 'control'}
+        waveOrigin={flipWaveOrigin}
+        waveDistanceRange={flipWaveDistanceRange}
+        waveDelay={flipWaveDelay}
+        onClickSector={handleSectorClick}
+        onHoverSector={handleSectorHover}
+        onPointerOut={() => setHoveredSectorId(null)}
+      />
 
       {hoveredSectorId !== null && !isHoveredSectorActive && (
         <SectorLayer

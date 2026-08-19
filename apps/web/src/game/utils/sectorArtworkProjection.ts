@@ -23,7 +23,9 @@ export function createProjectedArtworkGeometry(
   const placements: number[] = [];
   const aspects: number[] = [];
   const atlasRects: number[] = [];
+  const sectorCenters: number[] = [];
   const position = new THREE.Vector3();
+  const sectorCenter = new THREE.Vector3();
   const clip = new THREE.Vector4();
 
   slots.forEach(({ artwork, column, row }) => {
@@ -39,6 +41,13 @@ export function createProjectedArtworkGeometry(
 
     artwork.targets.forEach(({ sectorId }) => {
       const raw = extractSectorPositions([sectorId], IMAGE_SURFACE_RADIUS);
+      sectorCenter
+        .set(
+          (raw[0] + raw[3] + raw[6]) / 3,
+          (raw[1] + raw[4] + raw[7]) / 3,
+          (raw[2] + raw[5] + raw[8]) / 3
+        )
+        .normalize();
       const radialScale =
         (IMAGE_SURFACE_RADIUS + (heights.get(sectorId) ?? 0)) /
         IMAGE_SURFACE_RADIUS;
@@ -57,6 +66,7 @@ export function createProjectedArtworkGeometry(
         );
         aspects.push(artwork.placement.viewportAspect);
         atlasRects.push(left, bottom, width, height);
+        sectorCenters.push(sectorCenter.x, sectorCenter.y, sectorCenter.z);
       }
     });
   });
@@ -81,6 +91,10 @@ export function createProjectedArtworkGeometry(
   geometry.setAttribute(
     'atlasRect',
     new THREE.Float32BufferAttribute(atlasRects, 4)
+  );
+  geometry.setAttribute(
+    'sectorCenter',
+    new THREE.Float32BufferAttribute(sectorCenters, 3)
   );
   geometry.computeBoundingSphere();
   return geometry;

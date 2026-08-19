@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
 import {
   createProjectedArtworkGeometry,
   type ArtworkAtlasSlot,
 } from '../../utils/sectorArtworkProjection';
+import { SECTOR_FLIP_DURATION_SECONDS } from '../../utils/sectorFlip';
 
 const ATLAS_CELL_SIZE = 256;
 const ATLAS_MAX_COLUMNS = 16;
@@ -16,15 +18,18 @@ const vertexShader = `
   attribute vec4 placement;
   attribute float viewportAspect;
   attribute vec4 atlasRect;
+  attribute vec3 sectorCenter;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
   varying vec4 vAtlasRect;
+  varying vec3 vSectorCenter;
   void main() {
     vProjectorClip = projectorClip;
     vPlacement = placement;
     vViewportAspect = viewportAspect;
     vAtlasRect = atlasRect;
+    vSectorCenter = sectorCenter;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -32,11 +37,44 @@ const vertexShader = `
 const fragmentShader = `
   uniform sampler2D artworkMap;
   uniform float opacity;
+  uniform float flipProgress;
+  uniform float flipDirection;
+  uniform vec3 waveOrigin;
+  uniform vec2 waveDistanceRange;
+  uniform float waveDelayAmount;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
   varying vec4 vAtlasRect;
+  varying vec3 vSectorCenter;
   void main() {
+    float angularDistance = acos(clamp(
+      dot(normalize(vSectorCenter), normalize(waveOrigin)),
+      -1.0,
+      1.0
+    )) / 3.14159265359;
+    float normalizedDistance = clamp(
+      (angularDistance - waveDistanceRange.x)
+        / max(waveDistanceRange.y - waveDistanceRange.x, 0.000001),
+      0.0,
+      1.0
+    );
+    float sectorWaveDelay = normalizedDistance * waveDelayAmount;
+    float waveProgress = flipDirection > 0.0
+      ? flipProgress
+      : 1.0 - flipProgress;
+    float localWaveProgress = clamp(
+      (waveProgress - sectorWaveDelay)
+        / max(1.0 - waveDelayAmount, 0.000001),
+      0.0,
+      1.0
+    );
+    float localFlipProgress = flipDirection > 0.0
+      ? localWaveProgress
+      : 1.0 - localWaveProgress;
+    // Let the reverse face nearly settle before its artwork resolves so the
+    // static texture never reads as a second panel behind the moving one.
+    if (localFlipProgress < 0.92) discard;
     if (vProjectorClip.z <= 0.0) discard;
     vec2 ndc = vProjectorClip.xy / vProjectorClip.z;
     vec2 delta = vec2(
@@ -126,6 +164,10 @@ function ProjectedArtworkMesh({
   slots,
   heights,
   texture,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
   opacity = 1,
   renderOrder = 3,
   atlasColumns = 1,
@@ -134,11 +176,22 @@ function ProjectedArtworkMesh({
   slots: readonly ArtworkAtlasSlot[];
   heights: ReadonlyMap<number, number>;
   texture: THREE.Texture;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
   opacity?: number;
   renderOrder?: number;
   atlasColumns?: number;
   atlasRows?: number;
 }) {
+  const progressRef = useRef(0);
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
   const geometry = useMemo(
     () =>
       createProjectedArtworkGeometry(
@@ -156,6 +209,11 @@ function ProjectedArtworkMesh({
         uniforms: {
           artworkMap: { value: texture },
           opacity: { value: opacity },
+          flipProgress: { value: progressRef.current },
+          flipDirection: { value: flipped ? 1 : -1 },
+          waveOrigin: { value: waveOrigin },
+          waveDistanceRange: { value: waveDistanceRange },
+          waveDelayAmount: { value: waveDelay },
         },
         vertexShader,
         fragmentShader,
@@ -164,10 +222,21 @@ function ProjectedArtworkMesh({
         depthWrite: opacity >= 1,
         toneMapped: false,
       }),
-    [opacity, texture]
+    [flipped, opacity, texture, waveDelay, waveDistanceRange, waveOrigin]
   );
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);
+  useFrame((_state, delta) => {
+    const target = flipped ? 1 : 0;
+    const step = delta / SECTOR_FLIP_DURATION_SECONDS;
+    const distance = target - progressRef.current;
+    progressRef.current =
+      prefersReducedMotion || Math.abs(distance) <= step
+        ? target
+        : progressRef.current + Math.sign(distance) * step;
+    material.uniforms.flipProgress.value = progressRef.current;
+    material.uniforms.flipDirection.value = flipped ? 1 : -1;
+  });
   return (
     <mesh
       geometry={geometry}
@@ -181,9 +250,17 @@ function ProjectedArtworkMesh({
 function ArtworkAtlasPage({
   artworks,
   heights,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
 }: {
   artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
 }) {
   const columns = Math.min(
     ATLAS_MAX_COLUMNS,
@@ -206,6 +283,10 @@ function ArtworkAtlasPage({
       slots={slots}
       heights={heights}
       texture={texture}
+      flipped={flipped}
+      waveOrigin={waveOrigin}
+      waveDistanceRange={waveDistanceRange}
+      waveDelay={waveDelay}
       atlasColumns={columns}
       atlasRows={rows}
     />
@@ -215,9 +296,17 @@ function ArtworkAtlasPage({
 export function SectorImageLayer({
   artworks,
   heights,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
 }: {
   artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
 }) {
   const pages = useMemo(() => {
     const result: SectorArtwork[][] = [];
@@ -232,16 +321,32 @@ export function SectorImageLayer({
   }, [artworks]);
 
   return pages.map((page) => (
-    <ArtworkAtlasPage key={page[0].id} artworks={page} heights={heights} />
+    <ArtworkAtlasPage
+      key={page[0].id}
+      artworks={page}
+      heights={heights}
+      flipped={flipped}
+      waveOrigin={waveOrigin}
+      waveDistanceRange={waveDistanceRange}
+      waveDelay={waveDelay}
+    />
   ));
 }
 
 export function SectorDetailImageLayer({
   artwork,
   heights,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
 }: {
   artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const slots = useMemo(() => [{ artwork, column: 0, row: 0 }], [artwork]);
@@ -267,6 +372,10 @@ export function SectorDetailImageLayer({
       slots={slots}
       heights={heights}
       texture={texture}
+      flipped={flipped}
+      waveOrigin={waveOrigin}
+      waveDistanceRange={waveDistanceRange}
+      waveDelay={waveDelay}
       renderOrder={4}
       atlasColumns={1}
       atlasRows={1}
@@ -277,9 +386,17 @@ export function SectorDetailImageLayer({
 export function PlacementPreviewLayer({
   artwork,
   heights,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
 }: {
   artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const slots = useMemo(() => [{ artwork, column: 0, row: 0 }], [artwork]);
@@ -296,6 +413,10 @@ export function PlacementPreviewLayer({
       slots={slots}
       heights={heights}
       texture={texture}
+      flipped={flipped}
+      waveOrigin={waveOrigin}
+      waveDistanceRange={waveDistanceRange}
+      waveDelay={waveDelay}
       opacity={0.82}
       renderOrder={8}
       atlasColumns={1}
