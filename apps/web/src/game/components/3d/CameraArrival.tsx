@@ -9,22 +9,11 @@ import {
 } from '../../utils/cameraArrival';
 
 const ORIGIN = new THREE.Vector3();
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
-const FALLBACK_UP = new THREE.Vector3(1, 0, 0);
-const FORWARD = new THREE.Vector3();
 const MAX_FRAME_DELTA_SECONDS = 1 / 20;
 
 function applyCameraSample(camera: THREE.Camera, sample: CameraArrivalSample) {
   camera.position.copy(sample.position);
-
-  const forward = FORWARD.copy(sample.position).negate().normalize();
-  const upSource =
-    Math.abs(forward.dot(WORLD_UP)) > 0.96 ? FALLBACK_UP : WORLD_UP;
-  camera.up
-    .copy(upSource)
-    .addScaledVector(forward, -upSource.dot(forward))
-    .normalize()
-    .applyAxisAngle(forward, sample.roll);
+  camera.up.copy(sample.up);
   camera.lookAt(ORIGIN);
   camera.updateMatrixWorld(true);
 }
@@ -34,6 +23,7 @@ export function CameraArrival() {
   const path = useRef(createCameraArrivalPath());
   const sample = useRef<CameraArrivalSample>({
     position: new THREE.Vector3(),
+    up: new THREE.Vector3(),
     roll: 0,
   });
   const elapsed = useRef(0);

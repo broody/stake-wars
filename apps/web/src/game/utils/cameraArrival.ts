@@ -6,6 +6,7 @@ export const CAMERA_ARRIVAL_DISTANCE = 15;
 export interface CameraArrivalPath {
   startDirection: THREE.Vector3;
   endDirection: THREE.Vector3;
+  orbitUp: THREE.Vector3;
   startDistance: number;
   endDistance: number;
   startRoll: number;
@@ -14,6 +15,7 @@ export interface CameraArrivalPath {
 
 export interface CameraArrivalSample {
   position: THREE.Vector3;
+  up: THREE.Vector3;
   roll: number;
 }
 
@@ -59,6 +61,9 @@ export function createCameraArrivalPath(
     .multiplyScalar(Math.cos(arc))
     .addScaledVector(tangent, Math.sin(arc))
     .normalize();
+  const orbitUp = new THREE.Vector3()
+    .crossVectors(startDirection, endDirection)
+    .normalize();
   const endRoll = THREE.MathUtils.lerp(-Math.PI, Math.PI, random());
   const rollDirection = random() < 0.5 ? -1 : 1;
   const rollTravel = THREE.MathUtils.lerp(0.65, 1.2, random());
@@ -66,6 +71,7 @@ export function createCameraArrivalPath(
   return {
     startDirection,
     endDirection,
+    orbitUp,
     startDistance: THREE.MathUtils.lerp(24, 29, random()),
     endDistance: CAMERA_ARRIVAL_DISTANCE,
     startRoll: endRoll - rollDirection * rollTravel,
@@ -77,6 +83,7 @@ export function createCameraArrivalPath(
 const arcRotation = new THREE.Quaternion();
 const sampledRotation = new THREE.Quaternion();
 const identityRotation = new THREE.Quaternion();
+const sampledForward = new THREE.Vector3();
 
 function easeInOutCubic(value: number) {
   return value < 0.5
@@ -111,4 +118,9 @@ export function sampleCameraArrival(
     path.endRoll,
     travelProgress
   );
+  sampledForward.copy(target.position).negate().normalize();
+  target.up
+    .copy(path.orbitUp)
+    .applyAxisAngle(sampledForward, target.roll)
+    .normalize();
 }

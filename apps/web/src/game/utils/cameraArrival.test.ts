@@ -20,6 +20,9 @@ describe('camera arrival', () => {
 
     expect(path.startDirection.length()).toBeCloseTo(1);
     expect(path.endDirection.length()).toBeCloseTo(1);
+    expect(path.orbitUp.length()).toBeCloseTo(1);
+    expect(path.orbitUp.dot(path.startDirection)).toBeCloseTo(0);
+    expect(path.orbitUp.dot(path.endDirection)).toBeCloseTo(0);
     expect(THREE.MathUtils.radToDeg(separation)).toBeGreaterThanOrEqual(65);
     expect(THREE.MathUtils.radToDeg(separation)).toBeLessThanOrEqual(115);
     expect(path.startDistance).toBeGreaterThanOrEqual(24);
@@ -29,7 +32,11 @@ describe('camera arrival', () => {
 
   it('lands exactly at the randomized final view', () => {
     const path = createCameraArrivalPath(() => 0.42);
-    const sample = { position: new THREE.Vector3(), roll: 0 };
+    const sample = {
+      position: new THREE.Vector3(),
+      up: new THREE.Vector3(),
+      roll: 0,
+    };
 
     sampleCameraArrival(path, 1, sample);
 
@@ -38,5 +45,38 @@ describe('camera arrival', () => {
       sample.position.clone().normalize().distanceTo(path.endDirection)
     ).toBeCloseTo(0);
     expect(sample.roll).toBeCloseTo(path.endRoll);
+  });
+
+  it('keeps a continuous up direction while crossing a world pole', () => {
+    const angle = THREE.MathUtils.degToRad(20);
+    const path = {
+      startDirection: new THREE.Vector3(-Math.sin(angle), Math.cos(angle), 0),
+      endDirection: new THREE.Vector3(Math.sin(angle), Math.cos(angle), 0),
+      orbitUp: new THREE.Vector3(0, 0, -1),
+      startDistance: 24,
+      endDistance: CAMERA_ARRIVAL_DISTANCE,
+      startRoll: 0,
+      endRoll: 0,
+    };
+    const sample = {
+      position: new THREE.Vector3(),
+      up: new THREE.Vector3(),
+      roll: 0,
+    };
+    const previousUp = new THREE.Vector3();
+    let largestUpChange = 0;
+
+    for (let step = 0; step <= 40; step += 1) {
+      sampleCameraArrival(path, step / 40, sample);
+      if (step > 0) {
+        largestUpChange = Math.max(
+          largestUpChange,
+          previousUp.angleTo(sample.up)
+        );
+      }
+      previousUp.copy(sample.up);
+    }
+
+    expect(largestUpChange).toBeLessThan(0.001);
   });
 });
