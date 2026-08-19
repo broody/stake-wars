@@ -3,6 +3,10 @@ import { useAccount, useConnect } from '@starknet-start/react';
 
 const STORAGE_KEY = 'stakewars.last-connected-wallet';
 
+function isSupportedWallet(name: string) {
+  return /ready|argent/i.test(name);
+}
+
 export function AutoConnect() {
   const { connect, connectors } = useConnect();
   const { connector, status } = useAccount();
@@ -35,7 +39,8 @@ export function AutoConnect() {
     }
 
     const savedConnector = connectors.find(
-      (candidate) => candidate.name === connectorName
+      (candidate) =>
+        candidate.name === connectorName && isSupportedWallet(candidate.name)
     );
     if (!savedConnector) {
       return;

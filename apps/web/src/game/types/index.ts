@@ -185,7 +185,6 @@ export interface WalletState {
   address: string | null;
   chainId: string | null;
   walletName: string | null;
-  username: string | null;
   error: string | null;
 }
 

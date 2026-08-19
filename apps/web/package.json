@@ -16,9 +16,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@cartridge/connector": "^0.14.0",
-    "@cartridge/controller": "^0.14.0",
-    "@cartridge/presets": "^0.5.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.7.0",
     "@starknet-io/get-starknet-modal": "^5.0.0",

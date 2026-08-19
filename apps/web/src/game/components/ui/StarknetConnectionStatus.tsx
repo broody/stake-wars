@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { checkStarknetConnection } from '../../services/starknet';
 import { config } from '../../services/config';
-import { stakeWarsChain } from '../../providers/controller';
+import { stakeWarsChain } from '../../providers/chain';
 import { useWallet } from '../../contexts/WalletContext';
 
 type ConnectionState =

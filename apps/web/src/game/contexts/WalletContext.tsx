@@ -1,15 +1,7 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useAccount, useConnect, useDisconnect } from '@starknet-start/react';
 import type { WalletState } from '../types';
-import { controllerConnector } from '../providers/controller';
 
 interface WalletContextType extends WalletState {
   connect: (walletName: string) => Promise<void>;
@@ -24,7 +16,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const account = useAccount();
   const connection = useConnect();
   const disconnection = useDisconnect();
-  const [username, setUsername] = useState<string | null>(null);
 
   const connect = useCallback(
     async (walletName: string) => {
@@ -43,35 +34,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     await disconnection.disconnectAsync();
   }, [disconnection]);
 
-  const isController = account.connector?.name === controllerConnector.name;
-
-  useEffect(() => {
-    let active = true;
-
-    if (!account.address || !isController) {
-      setUsername(null);
-      return () => {
-        active = false;
-      };
-    }
-
-    Promise.resolve(controllerConnector.controller.username())
-      .then((name) => {
-        if (active) {
-          setUsername(name || null);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setUsername(null);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [account.address, isController]);
-
   const value = useMemo<WalletContextType>(() => {
     const error = connection.error || disconnection.error;
 
@@ -87,7 +49,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       isConnecting: Boolean(
         account.isConnecting || connection.isPending || disconnection.isPending
       ),
-      username,
     };
   }, [
     account.address,
@@ -101,7 +62,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     disconnect,
     disconnection.error,
     disconnection.isPending,
-    username,
     account.connector?.name,
   ]);
 

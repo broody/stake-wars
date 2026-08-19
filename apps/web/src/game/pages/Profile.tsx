@@ -5,7 +5,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { formatStrk, shortAddress } from '../utils/format';
 
 export function Profile() {
-  const { isConnected, address, username, walletName } = useWallet();
+  const { isConnected, address, walletName } = useWallet();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useSectors();
   const stakeMetrics = operatorStatus
@@ -39,7 +39,7 @@ export function Profile() {
             OPERATOR TERMINAL
           </div>
           <h1 className="mt-2 text-3xl tracking-wider text-white">
-            {username || 'CONNECTED OPERATOR'}
+            CONNECTED OPERATOR
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
             {walletName || 'Wallet'} ·{' '}

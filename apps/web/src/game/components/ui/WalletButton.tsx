@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WalletList } from '@starknet-io/get-starknet-modal';
 import { useWallet } from '../../contexts/WalletContext';
-import { controllerConnector } from '../../providers/controller';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -33,7 +32,6 @@ export function WalletButton() {
     error,
     isConnected,
     isConnecting,
-    username,
     walletName,
   } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
@@ -62,7 +60,7 @@ export function WalletButton() {
   const label = isConnecting
     ? '> CONNECTING'
     : isConnected && address
-      ? `> ${username || shortAddress(address)}`
+      ? `> ${shortAddress(address)}`
       : '> CONNECT_WALLET';
 
   const handleButtonClick = async () => {
@@ -116,8 +114,7 @@ export function WalletButton() {
           <WalletList className="flex flex-col gap-1">
             {(option) => {
               const id = option.info?.id;
-              const isController = option.name === controllerConnector.name;
-              if (!isController && !isReadyWallet(option.name, id)) {
+              if (!isReadyWallet(option.name, id)) {
                 return null;
               }
 

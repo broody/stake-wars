@@ -1,11 +1,9 @@
 import type { PropsWithChildren } from 'react';
-import { ControllerToaster } from '@cartridge/controller/react';
-import '@cartridge/controller/react/styles.css';
 import { jsonRpcProvider } from '@starknet-start/providers';
 import { StarknetConfig } from '@starknet-start/react';
 import { AutoConnect } from './useAutoConnect';
 import { config } from '../services/config';
-import { stakeWarsChain } from './controller';
+import { stakeWarsChain } from './chain';
 
 const provider = jsonRpcProvider({
   rpc: (chain) =>
@@ -21,7 +19,6 @@ export function StakeWarsStarknetProvider({ children }: PropsWithChildren) {
     >
       <AutoConnect />
       {children}
-      <ControllerToaster position="bottom-right" />
     </StarknetConfig>
   );
 }
