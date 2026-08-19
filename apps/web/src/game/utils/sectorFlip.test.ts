@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { CORE_RADIUS, extractSectorPositions } from './sectorGeometry';
+import {
+  CORE_RADIUS,
+  extractSectorPositions,
+  SECTOR_COUNT,
+} from './sectorGeometry';
 import {
   addSectorFlipAttributes,
   randomOutsideSectorWaveOrigin,
   randomSectorWaveOrigin,
+  randomVisibleOutsideSectorWaveOrigin,
   sectorFlipWaveDelayForCount,
   sectorFlipParameters,
   sectorWaveDelay,
@@ -52,6 +57,59 @@ describe('sector flip parameters', () => {
     expect(origin.distanceTo(expectedOrigin)).toBeCloseTo(0);
     expect(range.x).toBeGreaterThan(0);
     expect(range.y).toBeGreaterThan(range.x);
+  });
+
+  it('chooses a visible origin outside occupied Sectors when one is in view', () => {
+    const camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 100);
+    camera.position.set(0, 0, 13);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    const visibleSectorIds = Array.from(
+      { length: SECTOR_COUNT },
+      (_, sectorId) => sectorId
+    ).filter((sectorId) => {
+      const position = sectorFlipParameters(sectorId, 0, CORE_RADIUS).pivot;
+      const projected = position.clone().project(camera);
+      return (
+        position
+          .clone()
+          .normalize()
+          .dot(camera.position.clone().sub(position).normalize()) > 0 &&
+        Math.abs(projected.x) <= 1 &&
+        Math.abs(projected.y) <= 1 &&
+        projected.z >= -1 &&
+        projected.z <= 1
+      );
+    });
+    const expectedSectorId = visibleSectorIds[0];
+    if (expectedSectorId === undefined) {
+      throw new Error('Expected at least one visible Sector');
+    }
+    const excludedSectorIds = Array.from(
+      { length: SECTOR_COUNT },
+      (_, sectorId) => sectorId
+    ).filter((sectorId) => sectorId !== expectedSectorId);
+
+    const origin = randomVisibleOutsideSectorWaveOrigin(
+      excludedSectorIds,
+      camera,
+      CORE_RADIUS,
+      () => 0
+    );
+    const expectedOrigin = sectorFlipParameters(
+      expectedSectorId,
+      0,
+      CORE_RADIUS
+    ).pivot.normalize();
+    const projectedOrigin = origin
+      .clone()
+      .multiplyScalar(CORE_RADIUS)
+      .project(camera);
+
+    expect(origin.distanceTo(expectedOrigin)).toBeCloseTo(0);
+    expect(Math.abs(projectedOrigin.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(projectedOrigin.y)).toBeLessThanOrEqual(1);
   });
 
   it('keeps a seven-Sector wave compact and gives larger sets more travel', () => {

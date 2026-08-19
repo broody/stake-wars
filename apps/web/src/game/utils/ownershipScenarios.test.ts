@@ -19,6 +19,12 @@ describe('ownership scenarios', () => {
         scenario.counts.reduce((total, count) => total + count, 0) +
           scenario.unoccupiedSectorIds.length
       ).toBe(SECTOR_COUNT);
+      expect(scenario.counts.reduce((total, count) => total + count, 0)).toBe(
+        definition.occupiedSectorCount
+      );
+      expect(scenario.unoccupiedSectorIds).toHaveLength(
+        SECTOR_COUNT - definition.occupiedSectorCount
+      );
       expect(scenario.counts.every((count) => count > 0)).toBe(true);
       expect(scenario.stakedStrkByOwner).toHaveLength(definition.ownerCount);
       expect(scenario.stakedStrkByOwner.every((stake) => stake > 0)).toBe(true);
@@ -51,8 +57,20 @@ describe('ownership scenarios', () => {
     }
   );
 
+  it('provides representative occupied Sector counts for flip testing', () => {
+    expect(
+      OWNERSHIP_SCENARIO_DEFINITIONS.filter(
+        (definition) => definition.kind === 'wave'
+      ).map((definition) => definition.occupiedSectorCount)
+    ).toEqual([7, 32, 128, 512, 1_840]);
+  });
+
   it('keeps every territory connected in a contiguous scenario', () => {
-    const scenario = createOwnershipScenario(OWNERSHIP_SCENARIO_DEFINITIONS[1]);
+    const definition = OWNERSHIP_SCENARIO_DEFINITIONS.find(
+      (candidate) => candidate.id === 'city-states'
+    );
+    if (!definition) throw new Error('CITY STATES scenario is missing');
+    const scenario = createOwnershipScenario(definition);
 
     scenario.sectorIdsByOwner.forEach((sectorIds, owner) => {
       const territory = new Set(sectorIds);
@@ -78,7 +96,10 @@ describe('ownership scenarios', () => {
   });
 
   it('is deterministic', () => {
-    const definition = OWNERSHIP_SCENARIO_DEFINITIONS[2];
+    const definition = OWNERSHIP_SCENARIO_DEFINITIONS.find(
+      (candidate) => candidate.id === 'fractured'
+    );
+    if (!definition) throw new Error('FRACTURED scenario is missing');
     expect(createOwnershipScenario(definition)).toEqual(
       createOwnershipScenario(definition)
     );

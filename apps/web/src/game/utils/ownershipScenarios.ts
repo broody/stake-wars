@@ -1,8 +1,10 @@
 import { SECTOR_COUNT, adjacentSectorIds } from './sectorGeometry';
 
 export type OwnershipDistribution = 'contiguous' | 'mixed' | 'scattered';
+export type OwnershipScenarioKind = 'wave' | 'distribution';
 
 const UNOCCUPIED_SECTOR_COUNT = Math.round(SECTOR_COUNT * 0.08);
+const DEFAULT_OCCUPIED_SECTOR_COUNT = SECTOR_COUNT - UNOCCUPIED_SECTOR_COUNT;
 const UNOCCUPIED_REGION_COUNT = 12;
 export const STAKE_RELIEF_CAP_STRK = 100_000;
 export const MAX_STAKE_RELIEF_HEIGHT = 0.9;
@@ -12,7 +14,9 @@ export interface OwnershipScenario {
   title: string;
   description: string;
   distribution: OwnershipDistribution;
+  kind: OwnershipScenarioKind;
   ownerCount: number;
+  occupiedSectorCount: number;
   ownerBySector: readonly number[];
   sectorIdsByOwner: readonly (readonly number[])[];
   unoccupiedSectorIds: readonly number[];
@@ -23,23 +27,82 @@ export interface OwnershipScenario {
   seed: number;
 }
 
-interface OwnershipScenarioDefinition {
+export interface OwnershipScenarioDefinition {
   id: string;
   title: string;
   description: string;
   distribution: OwnershipDistribution;
+  kind: OwnershipScenarioKind;
   ownerCount: number;
+  occupiedSectorCount: number;
   seed: number;
 }
 
 export const OWNERSHIP_SCENARIO_DEFINITIONS: readonly OwnershipScenarioDefinition[] =
   [
     {
+      id: 'wave-7',
+      title: 'WAVE · 7',
+      description:
+        'A tiny two-Operator holding for checking individual panel cadence.',
+      distribution: 'contiguous',
+      kind: 'wave',
+      ownerCount: 2,
+      occupiedSectorCount: 7,
+      seed: 101,
+    },
+    {
+      id: 'wave-32',
+      title: 'WAVE · 32',
+      description:
+        'A compact frontier that makes the wave front easy to follow.',
+      distribution: 'contiguous',
+      kind: 'wave',
+      ownerCount: 4,
+      occupiedSectorCount: 32,
+      seed: 131,
+    },
+    {
+      id: 'wave-128',
+      title: 'WAVE · 128',
+      description:
+        'A regional holding for balancing travel time against panel speed.',
+      distribution: 'contiguous',
+      kind: 'wave',
+      ownerCount: 8,
+      occupiedSectorCount: 128,
+      seed: 163,
+    },
+    {
+      id: 'wave-512',
+      title: 'WAVE · 512',
+      description:
+        'A quarter-Core load for checking a broad, readable wave front.',
+      distribution: 'mixed',
+      kind: 'wave',
+      ownerCount: 16,
+      occupiedSectorCount: 512,
+      seed: 197,
+    },
+    {
+      id: 'wave-1840',
+      title: 'WAVE · 1,840',
+      description:
+        'A near-full Core for checking dense opponent and ownership waves.',
+      distribution: 'mixed',
+      kind: 'wave',
+      ownerCount: 32,
+      occupiedSectorCount: DEFAULT_OCCUPIED_SECTOR_COUNT,
+      seed: 229,
+    },
+    {
       id: 'frontiers',
       title: 'FRONTIERS',
       description: 'A few Operators holding large, contiguous territories.',
       distribution: 'contiguous',
+      kind: 'distribution',
       ownerCount: 8,
+      occupiedSectorCount: DEFAULT_OCCUPIED_SECTOR_COUNT,
       seed: 11,
     },
     {
@@ -47,7 +110,9 @@ export const OWNERSHIP_SCENARIO_DEFINITIONS: readonly OwnershipScenarioDefinitio
       title: 'CITY STATES',
       description: 'Thirty-two Operators forming smaller contiguous regions.',
       distribution: 'contiguous',
+      kind: 'distribution',
       ownerCount: 32,
+      occupiedSectorCount: DEFAULT_OCCUPIED_SECTOR_COUNT,
       seed: 29,
     },
     {
@@ -56,7 +121,9 @@ export const OWNERSHIP_SCENARIO_DEFINITIONS: readonly OwnershipScenarioDefinitio
       description:
         'Ninety-six Operators with clustered cores and remote holdings.',
       distribution: 'mixed',
+      kind: 'distribution',
       ownerCount: 96,
+      occupiedSectorCount: DEFAULT_OCCUPIED_SECTOR_COUNT,
       seed: 47,
     },
     {
@@ -65,7 +132,9 @@ export const OWNERSHIP_SCENARIO_DEFINITIONS: readonly OwnershipScenarioDefinitio
       description:
         'Three hundred twenty Operators spread across a densely occupied Core.',
       distribution: 'scattered',
+      kind: 'distribution',
       ownerCount: 320,
+      occupiedSectorCount: DEFAULT_OCCUPIED_SECTOR_COUNT,
       seed: 83,
     },
   ];
@@ -175,6 +244,58 @@ function clusteredUnoccupiedSectorIds(seed: number): number[] {
   }
 
   return [...selected].sort((left, right) => left - right);
+}
+
+function connectedOccupiedSectorIds(
+  seed: number,
+  targetCount: number
+): Set<number> {
+  const random = createRandom(seed ^ 0x51ed270b);
+  const shuffledIds = shuffledSectorIds(random);
+  const firstSectorId = shuffledIds[0];
+  const selected = new Set<number>();
+  const pending = firstSectorId === undefined ? [] : [firstSectorId];
+  const queued = new Set(pending);
+
+  while (pending.length > 0 && selected.size < targetCount) {
+    const pendingIndex = Math.floor(random() * pending.length);
+    const sectorId = pending.splice(pendingIndex, 1)[0];
+    if (sectorId === undefined || selected.has(sectorId)) continue;
+    selected.add(sectorId);
+
+    const neighbors = [...adjacentSectorIds(sectorId)];
+    for (let index = neighbors.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(random() * (index + 1));
+      [neighbors[index], neighbors[swapIndex]] = [
+        neighbors[swapIndex],
+        neighbors[index],
+      ];
+    }
+    neighbors.forEach((neighborId) => {
+      if (!selected.has(neighborId) && !queued.has(neighborId)) {
+        pending.push(neighborId);
+        queued.add(neighborId);
+      }
+    });
+  }
+
+  return selected;
+}
+
+function unoccupiedSectorIdsForDefinition(
+  definition: OwnershipScenarioDefinition
+): number[] {
+  if (definition.occupiedSectorCount === DEFAULT_OCCUPIED_SECTOR_COUNT) {
+    return clusteredUnoccupiedSectorIds(definition.seed);
+  }
+
+  const occupiedSectorIds = connectedOccupiedSectorIds(
+    definition.seed,
+    definition.occupiedSectorCount
+  );
+  return Array.from({ length: SECTOR_COUNT }, (_, sectorId) => sectorId).filter(
+    (sectorId) => !occupiedSectorIds.has(sectorId)
+  );
 }
 
 function ownerWeights(ownerCount: number, random: () => number): number[] {
@@ -456,8 +577,17 @@ export function createOwnershipScenario(
   ) {
     throw new RangeError('Owner count must fit within the Sector count');
   }
+  if (
+    !Number.isInteger(definition.occupiedSectorCount) ||
+    definition.occupiedSectorCount < definition.ownerCount ||
+    definition.occupiedSectorCount > SECTOR_COUNT
+  ) {
+    throw new RangeError(
+      'Occupied Sector count must include every owner and fit within the Core'
+    );
+  }
 
-  const unoccupiedSectorIds = clusteredUnoccupiedSectorIds(definition.seed);
+  const unoccupiedSectorIds = unoccupiedSectorIdsForDefinition(definition);
   const unoccupiedSectorIdSet = new Set(unoccupiedSectorIds);
   const ownerBySector =
     definition.distribution === 'contiguous'

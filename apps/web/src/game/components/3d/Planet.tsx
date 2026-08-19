@@ -31,6 +31,7 @@ import { artworkForSector } from '../../utils/sectorArtworkProjection';
 import {
   addSectorFlipAttributes,
   randomOutsideSectorWaveOrigin,
+  randomVisibleOutsideSectorWaveOrigin,
   sectorFlipWaveDelayForCount,
   sectorWaveDistanceRange as createSectorWaveDistanceRange,
   SECTOR_FLIP_DURATION_SECONDS,
@@ -692,27 +693,25 @@ export function SectorOwnershipLayers({
     () => [...ownedSectorIds, ...opponentSectorIds],
     [opponentSectorIds, ownedSectorIds]
   );
-  const waveSectorIds =
-    ownedSectorIds.length > 0 ? ownedSectorIds : occupiedSectorIds;
   const activeWaveOrigin = useMemo(() => {
     void flipped;
     return (
       waveOrigin ??
-      randomOutsideSectorWaveOrigin(waveSectorIds, TENURE_SURFACE_RADIUS)
+      randomOutsideSectorWaveOrigin(occupiedSectorIds, TENURE_SURFACE_RADIUS)
     );
-  }, [flipped, waveOrigin, waveSectorIds]);
+  }, [flipped, occupiedSectorIds, waveOrigin]);
   const activeWaveDistanceRange = useMemo(
     () =>
       waveDistanceRange ??
       createSectorWaveDistanceRange(
-        waveSectorIds,
+        occupiedSectorIds,
         activeWaveOrigin,
         TENURE_SURFACE_RADIUS
       ),
-    [activeWaveOrigin, waveDistanceRange, waveSectorIds]
+    [activeWaveOrigin, occupiedSectorIds, waveDistanceRange]
   );
   const activeWaveDelay =
-    waveDelay ?? sectorFlipWaveDelayForCount(waveSectorIds.length);
+    waveDelay ?? sectorFlipWaveDelayForCount(occupiedSectorIds.length);
   const { ownedSectorGroups, opponentSectorGroups } = useMemo(() => {
     const ownedSectorIdSet = new Set(ownedSectorIds);
     const ownedGroups: number[][] = [];
@@ -837,25 +836,24 @@ export function Planet({
   const [projectionSurfaceVisible, setProjectionSurfaceVisible] = useState(
     mode === 'projection'
   );
-  const flipWaveSectorIds =
-    ownedSectorIds.length > 0 ? ownedSectorIds : occupiedSectorIds;
   const flipWaveOrigin = useMemo(() => {
     void mode;
-    return randomOutsideSectorWaveOrigin(
-      flipWaveSectorIds,
+    return randomVisibleOutsideSectorWaveOrigin(
+      occupiedSectorIds,
+      camera,
       TENURE_SURFACE_RADIUS
     );
-  }, [flipWaveSectorIds, mode]);
+  }, [camera, mode, occupiedSectorIds]);
   const flipWaveDistanceRange = useMemo(
     () =>
       createSectorWaveDistanceRange(
-        flipWaveSectorIds,
+        occupiedSectorIds,
         flipWaveOrigin,
         TENURE_SURFACE_RADIUS
       ),
-    [flipWaveOrigin, flipWaveSectorIds]
+    [flipWaveOrigin, occupiedSectorIds]
   );
-  const flipWaveDelay = sectorFlipWaveDelayForCount(flipWaveSectorIds.length);
+  const flipWaveDelay = sectorFlipWaveDelayForCount(occupiedSectorIds.length);
 
   useEffect(() => {
     if (!tenureExtrusionEnabled) return;

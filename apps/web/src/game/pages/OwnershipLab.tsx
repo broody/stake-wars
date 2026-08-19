@@ -20,9 +20,20 @@ import {
 import { shortAddress } from '../utils/format';
 
 const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, SECTOR_COUNT] as const;
+const WAVE_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
+  (scenario) => scenario.kind === 'wave'
+);
+const DISTRIBUTION_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
+  (scenario) => scenario.kind === 'distribution'
+);
 
 function formatMebibytes(bytes: number): string {
   return `${Math.round(bytes / 1_048_576)} MIB`;
+}
+
+function formatOccupancy(scenario: OwnershipScenario): string {
+  const percentage = (scenario.occupiedSectorCount / SECTOR_COUNT) * 100;
+  return `${percentage < 10 ? percentage.toFixed(1) : Math.round(percentage)}%`;
 }
 
 function scenarioStats(scenario: OwnershipScenario): {
@@ -43,11 +54,13 @@ function OwnershipScenarioCard({
   reliefMode,
   logarithmicScale,
   imageSectorIds,
+  flipped,
 }: {
   scenario: OwnershipScenario;
   reliefMode: OwnershipReliefMode;
   logarithmicScale: boolean;
   imageSectorIds: readonly number[];
+  flipped: boolean;
 }) {
   const [markedOwner, setMarkedOwner] = useState(0);
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
@@ -114,7 +127,7 @@ function OwnershipScenarioCard({
 
   return (
     <article className="overflow-hidden border border-neutral-700 bg-[#050505]">
-      <header className="grid grid-cols-[1fr_auto] gap-4 border-b border-grid px-4 py-3">
+      <header className="grid gap-4 border-b border-grid px-4 py-3 sm:grid-cols-[1fr_auto]">
         <div>
           <div className="flex items-baseline gap-3">
             <h2 className="text-sm font-semibold tracking-[0.2em] text-fg">
@@ -128,8 +141,16 @@ function OwnershipScenarioCard({
             {scenario.description}
           </p>
         </div>
-        <div className="text-right">
-          <div className="flex gap-5">
+        <div className="sm:text-right">
+          <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:flex sm:gap-5">
+            <div>
+              <div className="text-xl tabular-nums text-fg">
+                {scenario.occupiedSectorCount.toLocaleString()}
+              </div>
+              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
+                OCCUPIED
+              </div>
+            </div>
             <div>
               <div className="text-xl tabular-nums text-fg">
                 {scenario.ownerCount}
@@ -166,6 +187,7 @@ function OwnershipScenarioCard({
           logarithmicScale={logarithmicScale}
           imageSectorIds={imageSectorIds}
           selectedDetailSectorId={activeSelectedDetailSectorId}
+          flipped={flipped}
           onPerformanceSample={setPerformance}
           onHoverSector={setHoveredSectorId}
           onSelectSector={selectSector}
@@ -290,7 +312,8 @@ export function CoreLab() {
   );
   const [reliefMode, setReliefMode] = useState<OwnershipReliefMode>('flat');
   const [logarithmicScale, setLogarithmicScale] = useState(true);
-  const [requestedImageCount, setRequestedImageCount] = useState(256);
+  const [requestedImageCount, setRequestedImageCount] = useState(0);
+  const [flipped, setFlipped] = useState(false);
   const selectedScenario =
     OWNERSHIP_SCENARIOS.find(
       (scenario) => scenario.id === selectedScenarioId
@@ -329,18 +352,15 @@ export function CoreLab() {
               network and decode cost. Select an imaged tile, or zoom close and
               hover, to add one {EXAMPLE_IMAGE_DETAIL_SIZE}px detail texture.
               Stake relief has a hard {STAKE_RELIEF_CAP_STRK.toLocaleString()}{' '}
-              STRK height cap.
+              STRK height cap. Use the wave-load scenarios and Flip Preview to
+              compare the same transition across different occupied Sector
+              counts.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[9px] tracking-[0.12em]">
             <span className="text-neutral-600">OCCUPANCY</span>
             <span className="text-right text-fg">
-              {Math.round(
-                ((SECTOR_COUNT - selectedScenario.unoccupiedSectorIds.length) /
-                  SECTOR_COUNT) *
-                  100
-              )}
-              %
+              {formatOccupancy(selectedScenario)}
             </span>
             <span className="text-neutral-600">SECTORS</span>
             <span className="text-right text-fg">
@@ -390,24 +410,54 @@ export function CoreLab() {
         </header>
 
         <div className="mt-8 max-w-[1100px]">
-          <div className="mb-4 grid gap-px border border-neutral-700 bg-grid lg:grid-cols-3">
+          <div className="mb-4 grid gap-px border border-neutral-700 bg-grid lg:grid-cols-4">
             <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
               <span className="text-[9px] tracking-[0.18em] text-neutral-500">
                 SCENARIO
               </span>
               <select
                 value={selectedScenario.id}
-                onChange={(event) => setSelectedScenarioId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedScenarioId(event.target.value);
+                  setFlipped(false);
+                }}
                 className="min-w-0 border border-neutral-600 bg-black px-3 py-2 text-[10px] tracking-[0.12em] text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
-                {OWNERSHIP_SCENARIOS.map((scenario) => (
-                  <option key={scenario.id} value={scenario.id}>
-                    {scenario.title} · {scenario.ownerCount} OPERATORS ·{' '}
-                    {scenario.distribution.toUpperCase()}
-                  </option>
-                ))}
+                <optgroup label="FLIP WAVE LOAD">
+                  {WAVE_SCENARIOS.map((scenario) => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.occupiedSectorCount.toLocaleString()} OCCUPIED ·{' '}
+                      {scenario.ownerCount} OPERATORS
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="OWNERSHIP DISTRIBUTIONS">
+                  {DISTRIBUTION_SCENARIOS.map((scenario) => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.title} · {scenario.ownerCount} OPERATORS ·{' '}
+                      {scenario.distribution.toUpperCase()}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </label>
+
+            <div className="grid gap-2 bg-[#050505] px-4 py-3">
+              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
+                FLIP PREVIEW
+              </span>
+              <button
+                type="button"
+                onClick={() => setFlipped((current) => !current)}
+                aria-pressed={flipped}
+                className="border border-amber-300 bg-amber-300 px-3 py-2 text-left text-[10px] tracking-[0.12em] text-black hover:bg-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                {flipped ? 'RETURN TO CONTROL' : 'FLIP TO PROJECTION'}
+              </button>
+              <span className="text-[8px] leading-relaxed tracking-[0.1em] text-neutral-600">
+                EACH TRIGGER PICKS A NEW EXTERNAL ORIGIN
+              </span>
+            </div>
 
             <div className="grid gap-3 bg-[#050505] px-4 py-3">
               <label className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
@@ -480,6 +530,7 @@ export function CoreLab() {
             reliefMode={reliefMode}
             logarithmicScale={logarithmicScale}
             imageSectorIds={imageSectorIds}
+            flipped={flipped}
           />
         </div>
       </div>

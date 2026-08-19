@@ -47,6 +47,55 @@ export function randomOutsideSectorWaveOrigin(
   return randomSectorWaveOrigin(random);
 }
 
+export function randomVisibleOutsideSectorWaveOrigin(
+  excludedSectorIds: readonly number[],
+  camera: THREE.Camera,
+  radius: number,
+  random: () => number = Math.random
+): THREE.Vector3 {
+  camera.updateMatrixWorld();
+  const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
+  const excluded = new Set(excludedSectorIds);
+  const visibleOutsidePositions: THREE.Vector3[] = [];
+  const visiblePositions: THREE.Vector3[] = [];
+
+  for (let sectorId = 0; sectorId < SECTOR_COUNT; sectorId += 1) {
+    const position = sectorFlipParameters(sectorId, 0, radius).pivot;
+    const surfaceNormal = position.clone().normalize();
+    const directionToCamera = cameraPosition.clone().sub(position).normalize();
+    if (surfaceNormal.dot(directionToCamera) <= 0) continue;
+
+    const projected = position.clone().project(camera);
+    if (
+      projected.z < -1 ||
+      projected.z > 1 ||
+      Math.abs(projected.x) > 1 ||
+      Math.abs(projected.y) > 1
+    ) {
+      continue;
+    }
+
+    const normalizedPosition = position.normalize();
+    visiblePositions.push(normalizedPosition);
+    if (!excluded.has(sectorId)) {
+      visibleOutsidePositions.push(normalizedPosition);
+    }
+  }
+
+  const candidates =
+    visibleOutsidePositions.length > 0
+      ? visibleOutsidePositions
+      : visiblePositions;
+  if (candidates.length === 0) {
+    return randomOutsideSectorWaveOrigin(excludedSectorIds, radius, random);
+  }
+  const candidateIndex = Math.min(
+    Math.floor(random() * candidates.length),
+    candidates.length - 1
+  );
+  return candidates[candidateIndex].clone();
+}
+
 export function sectorWaveDistance(
   sectorPosition: THREE.Vector3,
   waveOrigin: THREE.Vector3
