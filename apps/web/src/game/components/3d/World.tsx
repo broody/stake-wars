@@ -12,6 +12,7 @@ import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { Scene } from './Scene';
 import { IdleCameraRotation } from './IdleCameraRotation';
+import { CameraArrival } from './CameraArrival';
 import { useSectors } from '../../contexts/SectorContext';
 import {
   getSectorIdsInScreenBounds,
@@ -454,6 +455,8 @@ export function World() {
           enablePan={mode === 'projection'}
           enabled={marqueeStart === null && !isArbiterOpen}
         />
+
+        <CameraArrival />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
