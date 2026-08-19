@@ -17,7 +17,6 @@ import {
   EXAMPLE_IMAGE_DETAIL_SIZE,
   selectExampleImageSectorIds,
 } from '../utils/exampleImageAtlas';
-import { shortAddress } from '../utils/format';
 
 const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, SECTOR_COUNT] as const;
 const WAVE_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
@@ -26,6 +25,7 @@ const WAVE_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
 const DISTRIBUTION_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
   (scenario) => scenario.kind === 'distribution'
 );
+const ignoreHoveredSector: (sectorId: number | null) => void = () => undefined;
 
 function formatMebibytes(bytes: number): string {
   return `${Math.round(bytes / 1_048_576)} MIB`;
@@ -34,19 +34,6 @@ function formatMebibytes(bytes: number): string {
 function formatOccupancy(scenario: OwnershipScenario): string {
   const percentage = (scenario.occupiedSectorCount / SECTOR_COUNT) * 100;
   return `${percentage < 10 ? percentage.toFixed(1) : Math.round(percentage)}%`;
-}
-
-function scenarioStats(scenario: OwnershipScenario): {
-  largest: number;
-  median: number;
-  smallest: number;
-} {
-  const sorted = [...scenario.counts].sort((left, right) => left - right);
-  return {
-    largest: sorted[sorted.length - 1],
-    median: sorted[Math.floor(sorted.length / 2)],
-    smallest: sorted[0],
-  };
 }
 
 function OwnershipScenarioCard({
@@ -63,7 +50,6 @@ function OwnershipScenarioCard({
   flipped: boolean;
 }) {
   const [markedOwner, setMarkedOwner] = useState(0);
-  const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const [performance, setPerformance] =
     useState<GlobePerformanceMetrics | null>(null);
   const [selectedDetailSectorId, setSelectedDetailSectorId] = useState<
@@ -89,41 +75,15 @@ function OwnershipScenarioCard({
   }, [imageSectorIdSet, selectedDetailSectorId]);
   const validMarkedOwner =
     markedOwner >= 0 && markedOwner < scenario.ownerCount ? markedOwner : 0;
-  const stats = useMemo(() => scenarioStats(scenario), [scenario]);
-  const hoveredAssignment =
-    hoveredSectorId === null ||
-    hoveredSectorId < 0 ||
-    hoveredSectorId >= scenario.ownerBySector.length
-      ? null
-      : scenario.ownerBySector[hoveredSectorId];
-  const hoveredOwner =
-    hoveredAssignment !== null && hoveredAssignment >= 0
-      ? hoveredAssignment
-      : null;
-  const isHoveredUnoccupied = hoveredAssignment === -1;
-  const inspectedOwner = hoveredOwner ?? validMarkedOwner;
-  const inspectedAddress = scenario.ownerAddresses[inspectedOwner];
-  const inspectedCount = scenario.counts[inspectedOwner];
-  const inspectedStake = scenario.stakedStrkByOwner[inspectedOwner] ?? 0;
   const selectSector = useCallback(
     (sectorId: number, owner: number) => {
       if (owner >= 0) setMarkedOwner(owner);
       setSelectedDetailSectorId(
         imageSectorIdSet.has(sectorId) ? sectorId : null
       );
-      setHoveredSectorId(null);
     },
     [imageSectorIdSet]
   );
-
-  const cycleOwner = (direction: -1 | 1) => {
-    setMarkedOwner(
-      (current) =>
-        (current + direction + scenario.ownerCount) % scenario.ownerCount
-    );
-    setHoveredSectorId(null);
-    setSelectedDetailSectorId(null);
-  };
 
   return (
     <article className="overflow-hidden border border-neutral-700 bg-[#050505]">
@@ -189,92 +149,9 @@ function OwnershipScenarioCard({
           selectedDetailSectorId={activeSelectedDetailSectorId}
           flipped={flipped}
           onPerformanceSample={setPerformance}
-          onHoverSector={setHoveredSectorId}
+          onHoverSector={ignoreHoveredSector}
           onSelectSector={selectSector}
         />
-      </div>
-
-      <div className="grid gap-px bg-grid sm:grid-cols-[1.45fr_1fr]">
-        <section className="bg-[#050505] px-4 py-3" aria-live="polite">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => cycleOwner(-1)}
-              className="border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-              aria-label="Mark previous owner"
-            >
-              ←
-            </button>
-            <div className="min-w-0 flex-1 text-center">
-              <div className="text-[8px] tracking-[0.18em] text-amber-300">
-                {isHoveredUnoccupied
-                  ? 'TILE STATUS'
-                  : hoveredOwner === null
-                    ? 'MARKED OWNER'
-                    : 'TILE OWNER'}
-              </div>
-              <div className="mt-1 truncate text-[10px] tracking-[0.1em] text-fg">
-                {isHoveredUnoccupied ? (
-                  'UNOCCUPIED'
-                ) : (
-                  <>
-                    OP-{String(inspectedOwner + 1).padStart(3, '0')} ·{' '}
-                    {shortAddress(inspectedAddress)}
-                  </>
-                )}
-              </div>
-              <div className="mt-1 text-[9px] tabular-nums text-neutral-500">
-                {isHoveredUnoccupied
-                  ? `SECTOR-${String(hoveredSectorId).padStart(4, '0')}`
-                  : `${inspectedCount} SECTORS${
-                      hoveredSectorId === null
-                        ? ''
-                        : ` · SECTOR-${String(hoveredSectorId).padStart(4, '0')}`
-                    }`}
-              </div>
-              {isHoveredUnoccupied ? null : (
-                <div className="mt-1 text-[8px] tabular-nums tracking-[0.1em] text-neutral-600">
-                  SIMULATED STAKE · {inspectedStake.toLocaleString()} STRK
-                  {inspectedStake > STAKE_RELIEF_CAP_STRK
-                    ? ' · HEIGHT CAPPED'
-                    : ''}
-                </div>
-              )}
-              {activeSelectedDetailSectorId === null ? null : (
-                <div className="mt-1 text-[8px] tabular-nums tracking-[0.1em] text-amber-300">
-                  DETAIL TEXTURE · SECTOR-
-                  {String(activeSelectedDetailSectorId).padStart(4, '0')} ·{' '}
-                  {EXAMPLE_IMAGE_DETAIL_SIZE} PX
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => cycleOwner(1)}
-              className="border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-              aria-label="Mark next owner"
-            >
-              →
-            </button>
-          </div>
-        </section>
-
-        <dl className="grid grid-cols-3 bg-[#050505] px-4 py-3 text-center">
-          {[
-            ['MAX', stats.largest],
-            ['MED', stats.median],
-            ['MIN', stats.smallest],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-[8px] tracking-[0.14em] text-neutral-600">
-                {label}
-              </dt>
-              <dd className="mt-1 text-[10px] tabular-nums text-neutral-300">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
       </div>
 
       <dl className="grid grid-cols-2 gap-px border-t border-grid bg-grid sm:grid-cols-4 lg:grid-cols-7">
