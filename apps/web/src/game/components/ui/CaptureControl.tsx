@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProvider, useSendTransaction } from '@starknet-start/react';
+import { Link } from 'react-router-dom';
 import { TransactionExecutionStatus } from 'starknet';
 import type {
   ChallengeParticipantStatus,
   ChallengeStatus,
   SectorStatus,
-  PoolMemberInfo,
 } from '../../types';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
@@ -16,13 +16,10 @@ import {
   getChallengeStatus,
   getSectorStatus,
   getOperatorStatus,
-  getPoolMemberInfo,
-  getStakingPoolInfo,
-  getStrkBalance,
 } from '../../services/starknet';
 import {
   buildControlCall,
-  buildSmartGameActionCalls,
+  buildGameActionCalls,
   incrementalCommittedForce,
   stakeDeficit,
 } from '../../services/smartCapture';
@@ -42,10 +39,6 @@ interface CaptureControlProps {
 type Phase = 'idle' | 'submitting' | 'confirming';
 type Action = 'capture' | 'reinforce' | 'challenge' | 'settle';
 
-interface StakingContext {
-  member: PoolMemberInfo | null;
-}
-
 const MAX_U128 = (1n << 128n) - 1n;
 
 export function CaptureControl({ sectors, intent }: CaptureControlProps) {
@@ -64,8 +57,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
   const transaction = useSendTransaction({});
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [staking, setStaking] = useState<StakingContext | null>(null);
-  const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
   const [allocation, setAllocation] = useState('');
   const [collateralId, setCollateralId] = useState('');
   const [challenge, setChallenge] = useState<ChallengeStatus | null>(null);
@@ -163,7 +154,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
     try {
-      const value = parseStrk(allocation);
+      const value = parseStrk(allocation, 'FORCE');
       return value > MAX_U128
         ? { value: null, error: 'Allocation is too large.' }
         : { value, error: null };
@@ -189,51 +180,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     action === 'reinforce' ? (sector?.captureForce ?? 0n) : 0n;
   const projectedCommitment = currentPosition + requestedForce;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!address) {
-      setWalletBalance(null);
-      return () => controller.abort();
-    }
-    setWalletBalance(null);
-    getStrkBalance(address, controller.signal)
-      .then(setWalletBalance)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Unable to read wallet STRK balance.'
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [address]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!address || deficit === 0n || action === 'settle') {
-      setStaking(null);
-      return () => controller.abort();
-    }
-    setStaking(null);
-    Promise.all([
-      getStakingPoolInfo(controller.signal),
-      getPoolMemberInfo(address, controller.signal),
-    ])
-      .then(([, member]) => setStaking({ member }))
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Unable to read staking state.'
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [action, address, deficit]);
-
   const commonDisabledReason = useMemo(() => {
     if (sectors.length !== 1 || !sector) return 'SELECT ONE SECTOR';
     if (!isConnected || !address) return 'CONNECT OPERATOR';
@@ -244,10 +190,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     if (challenged && challengeLoading) return 'READING OPEN CONTEST';
     if (action === 'challenge' && currentLeader)
       return 'YOU ARE CURRENTLY LEADING';
-    if (parsedAllocation.error) return 'ENTER A VALID STRK AMOUNT';
-    if (deficit > 0n && (!staking || walletBalance === null))
-      return 'READING WALLET STRK';
-    if (deficit > (walletBalance ?? 0n)) return 'INSUFFICIENT WALLET STRK';
+    if (parsedAllocation.error) return 'ENTER A VALID FORCE AMOUNT';
     return null;
   }, [
     action,
@@ -256,34 +199,27 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     challengeLoading,
     sectors.length,
     currentLeader,
-    deficit,
     isConnected,
     operatorStatus,
     parsedAllocation.error,
     sector,
-    staking,
-    walletBalance,
   ]);
 
   const primaryDisabledReason = useMemo(() => {
     if (commonDisabledReason) return commonDisabledReason;
     if (action === 'settle') return null;
     if (selectedAllocation === null || selectedAllocation === 0n)
-      return 'ENTER STRK AMOUNT';
+      return 'ENTER FORCE AMOUNT';
     if (
       (action === 'capture' || action === 'challenge') &&
       selectedAllocation < requiredForce
     ) {
-      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} STRK`;
+      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} FORCE`;
     }
     return null;
   }, [action, commonDisabledReason, requiredForce, selectedAllocation]);
 
-  const collateralCommonDisabledReason =
-    commonDisabledReason === 'INSUFFICIENT WALLET STRK' ||
-    commonDisabledReason === 'READING WALLET STRK'
-      ? null
-      : commonDisabledReason;
+  const collateralCommonDisabledReason = commonDisabledReason;
 
   const submit = async (withSacrifice = false) => {
     if (
@@ -325,22 +261,21 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
         const freshOperator = await getOperatorStatus(address);
         if (action === 'reinforce') {
           if (allocationAmount === 0n) {
-            throw new Error('Enter the additional STRK allocation.');
+            throw new Error('Enter the additional FORCE allocation.');
           }
-          const member =
-            stakeDeficit(allocationAmount, freshOperator.availableForce) > 0n
-              ? await getPoolMemberInfo(address)
-              : staking?.member;
-          calls = buildSmartGameActionCalls({
+          const freshDeficit = stakeDeficit(
+            allocationAmount,
+            freshOperator.availableForce
+          );
+          if (freshDeficit > 0n) {
+            throw new Error(
+              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before fortifying.`
+            );
+          }
+          calls = buildGameActionCalls({
             controlSystemAddress: config.controlSystemAddress,
             entrypoint: 'reinforce',
             calldata: [String(sector.id), allocationAmount.toString()],
-            allocation: allocationAmount,
-            availableForce: freshOperator.availableForce,
-            operatorAddress: address,
-            poolAddress: config.stakingPoolAddress,
-            strkTokenAddress: config.strkTokenAddress,
-            isPoolMember: Boolean(member),
           });
           label = 'FORTIFICATION';
         } else if (action === 'challenge') {
@@ -397,7 +332,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
               `Challenge force must reach at least ${formatStrk(
                 freshSector.requiredStake,
                 18
-              )} STRK.`
+              )} FORCE.`
             );
           }
           const addedCommittedForce = incrementalCommittedForce(
@@ -408,14 +343,16 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             addedCommittedForce > sacrificedForce
               ? addedCommittedForce - sacrificedForce
               : 0n;
-          const member =
-            stakeDeficit(
-              allocationAfterSacrifice,
-              freshOperator.availableForce
-            ) > 0n
-              ? await getPoolMemberInfo(address)
-              : staking?.member;
-          calls = buildSmartGameActionCalls({
+          const freshDeficit = stakeDeficit(
+            allocationAfterSacrifice,
+            freshOperator.availableForce
+          );
+          if (freshDeficit > 0n) {
+            throw new Error(
+              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before challenging.`
+            );
+          }
+          calls = buildGameActionCalls({
             controlSystemAddress: config.controlSystemAddress,
             entrypoint: withSacrifice
               ? 'challenge_with_sacrifice'
@@ -423,12 +360,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             calldata: withSacrifice
               ? [String(sector.id), String(source), allocationAmount.toString()]
               : [String(sector.id), allocationAmount.toString()],
-            allocation: allocationAfterSacrifice,
-            availableForce: freshOperator.availableForce,
-            operatorAddress: address,
-            poolAddress: config.stakingPoolAddress,
-            strkTokenAddress: config.strkTokenAddress,
-            isPoolMember: Boolean(member),
           });
           label = challenged
             ? withSacrifice
@@ -443,23 +374,22 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
               `Capture requires ${formatStrk(
                 freshSector.requiredStake,
                 18
-              )} STRK.`
+              )} FORCE.`
             );
           }
-          const member =
-            stakeDeficit(allocationAmount, freshOperator.availableForce) > 0n
-              ? await getPoolMemberInfo(address)
-              : staking?.member;
-          calls = buildSmartGameActionCalls({
+          const freshDeficit = stakeDeficit(
+            allocationAmount,
+            freshOperator.availableForce
+          );
+          if (freshDeficit > 0n) {
+            throw new Error(
+              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before capturing.`
+            );
+          }
+          calls = buildGameActionCalls({
             controlSystemAddress: config.controlSystemAddress,
             entrypoint: 'capture',
             calldata: [String(sector.id), allocationAmount.toString()],
-            allocation: allocationAmount,
-            availableForce: freshOperator.availableForce,
-            operatorAddress: address,
-            poolAddress: config.stakingPoolAddress,
-            strkTokenAddress: config.strkTokenAddress,
-            isPoolMember: Boolean(member),
           });
           label = 'CAPTURE';
         }
@@ -504,14 +434,12 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
         : primaryDisabledReason ||
-          (deficit > 0n && action !== 'settle'
-            ? `STAKE ${formatStrk(deficit, 18)} + ${actionLabel}`
-            : action === 'settle'
-              ? actionLabel
-              : `${actionLabel} WITH ${formatStrk(
-                  selectedAllocation ?? 0n,
-                  18
-                )} STRK`);
+          (action === 'settle'
+            ? actionLabel
+            : `${actionLabel} WITH ${formatStrk(
+                selectedAllocation ?? 0n,
+                18
+              )} FORCE`);
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
@@ -541,7 +469,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             <div className="flex justify-between gap-4">
               <span>LEADING FORCE</span>
               <span className="text-fg">
-                {formatStrk(challenge.leadingForce, 18)} STRK
+                {formatStrk(challenge.leadingForce, 18)} FORCE
               </span>
             </div>
             {sector.challengeDeadline && (
@@ -561,10 +489,10 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
               htmlFor={`allocation-${sector?.id ?? 'none'}`}
             >
               {action === 'reinforce'
-                ? 'ADDITIONAL STRK'
+                ? 'ADDITIONAL FORCE'
                 : action === 'challenge'
                   ? 'CHALLENGE FORCE'
-                  : 'CAPTURE STRK'}
+                  : 'CAPTURE FORCE'}
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
               <input
@@ -575,7 +503,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
                 placeholder="0"
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none"
               />
-              <span className="px-2 text-dim">STRK</span>
+              <span className="px-2 text-dim">FORCE</span>
             </div>
             {parsedAllocation.error && (
               <div className="leading-relaxed text-amber-400">
@@ -585,29 +513,25 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             {action === 'reinforce' && (
               <div className="flex justify-between gap-4">
                 <span>RESULTING GARRISON</span>
-                <span>{formatStrk(projectedCommitment, 18)} STRK</span>
+                <span>{formatStrk(projectedCommitment, 18)} FORCE</span>
               </div>
             )}
             {(action === 'capture' || action === 'challenge') && (
               <>
                 <div className="flex justify-between gap-4">
                   <span>MINIMUM</span>
-                  <span>{formatStrk(requiredForce, 18)} STRK</span>
+                  <span>{formatStrk(requiredForce, 18)} FORCE</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span>BALANCE</span>
-                  <span>
-                    {walletBalance === null
-                      ? '…'
-                      : `${formatStrk(walletBalance, 6)} STRK`}
-                  </span>
+                  <span>AVAILABLE</span>
+                  <span>{formatStrk(availableForce, 18)} FORCE</span>
                 </div>
               </>
             )}
             {action === 'challenge' && personalCommitment > 0n && (
               <div className="flex justify-between gap-4">
                 <span>YOUR COMMITMENT</span>
-                <span>{formatStrk(personalCommitment, 18)} STRK</span>
+                <span>{formatStrk(personalCommitment, 18)} FORCE</span>
               </div>
             )}
           </>
@@ -617,14 +541,23 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             ACTION FAILED · {error}
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => void submit()}
-          disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
-          className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
-        >
-          {label}
-        </button>
+        {deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
+          <Link
+            to="/staking"
+            className="mt-2 block w-full border border-white bg-white px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            GENERATE {formatStrk(deficit, 18)} MORE FORCE
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
+            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+          >
+            {label}
+          </button>
+        )}
         {action === 'challenge' && !currentLeader && (
           <div className="border-t border-grid pt-3">
             <label

@@ -1,11 +1,14 @@
 const STRK_DECIMALS = 18;
 
-export function parseStrk(value: string): bigint {
+export function parseStrk(
+  value: string,
+  unit: 'STRK' | 'FORCE' = 'STRK'
+): bigint {
   const normalized = value.trim();
   const match = /^(\d+)(?:\.(\d{0,18}))?$/.exec(normalized);
 
   if (!match) {
-    throw new Error('Enter a valid STRK amount with up to 18 decimals.');
+    throw new Error(`Enter a valid ${unit} amount with up to 18 decimals.`);
   }
 
   const whole = match[1];

@@ -14,13 +14,12 @@ function LandingApp() {
       title: '01. STAKE',
       description: (
         <>
-          Select a{' '}
+          Stake $STRK with the Stake Wars validator to generate{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            Sector
-          </span>{' '}
-          on the Core. Choose how much of your available delegated $STRK to
-          allocate through the official Starknet staking system. One unit of
-          delegation can back only one position.
+            FORCE
+          </span>
+          . One staked STRK backs one FORCE, and each FORCE can back only one
+          Sector or Challenge position.
         </>
       ),
     },

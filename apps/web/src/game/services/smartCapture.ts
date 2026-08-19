@@ -1,7 +1,7 @@
 import type { Call } from 'starknet';
 import { MAX_CONTROL_ACTION_BATCH } from './sectorLimits';
 
-interface SmartGameActionCallsOptions {
+interface GameActionCallsOptions {
   controlSystemAddress: string;
   entrypoint:
     | 'capture'
@@ -9,12 +9,6 @@ interface SmartGameActionCallsOptions {
     | 'challenge'
     | 'challenge_with_sacrifice';
   calldata: string[];
-  allocation: bigint;
-  availableForce: bigint;
-  operatorAddress: string;
-  poolAddress: string;
-  strkTokenAddress: string;
-  isPoolMember: boolean;
 }
 
 interface BatchGameAction {
@@ -22,18 +16,10 @@ interface BatchGameAction {
   calldata: string[];
 }
 
-interface SmartBatchGameActionCallsOptions {
+interface BatchGameActionCallsOptions {
   actions: BatchGameAction[];
   controlSystemAddress: string;
-  allocation: bigint;
-  availableForce: bigint;
-  operatorAddress: string;
-  poolAddress: string;
-  strkTokenAddress: string;
-  isPoolMember: boolean;
 }
-
-const U128_MODULUS = 1n << 128n;
 
 export function stakeDeficit(
   allocation: bigint,
@@ -51,50 +37,18 @@ export function incrementalCommittedForce(
     : 0n;
 }
 
-export function encodeU256(value: bigint): [string, string] {
-  if (value < 0n || value >= 1n << 256n) {
-    throw new RangeError('Value does not fit in a u256');
-  }
-  return [(value % U128_MODULUS).toString(), (value / U128_MODULUS).toString()];
-}
-
-export function buildSmartGameActionCalls({
+export function buildGameActionCalls({
   controlSystemAddress,
   entrypoint,
   calldata,
-  allocation,
-  availableForce,
-  operatorAddress,
-  poolAddress,
-  strkTokenAddress,
-  isPoolMember,
-}: SmartGameActionCallsOptions): Call[] {
-  const actionCall: Call = {
-    contractAddress: controlSystemAddress,
-    entrypoint,
-    calldata,
-  };
-  return buildStakedGameActionCalls({
-    actionCalls: [actionCall],
-    allocation,
-    availableForce,
-    operatorAddress,
-    poolAddress,
-    strkTokenAddress,
-    isPoolMember,
-  });
+}: GameActionCallsOptions): Call[] {
+  return [{ contractAddress: controlSystemAddress, entrypoint, calldata }];
 }
 
-export function buildSmartBatchGameActionCalls({
+export function buildBatchGameActionCalls({
   actions,
   controlSystemAddress,
-  allocation,
-  availableForce,
-  operatorAddress,
-  poolAddress,
-  strkTokenAddress,
-  isPoolMember,
-}: SmartBatchGameActionCallsOptions): Call[] {
+}: BatchGameActionCallsOptions): Call[] {
   if (actions.length === 0) {
     throw new RangeError('At least one Sector action is required');
   }
@@ -111,7 +65,7 @@ export function buildSmartBatchGameActionCalls({
     throw new RangeError('Batch Sector actions require two calldata values');
   }
 
-  const actionCalls: Call[] = [
+  return [
     actions.length === 1
       ? {
           contractAddress: controlSystemAddress,
@@ -127,60 +81,6 @@ export function buildSmartBatchGameActionCalls({
             ...actions.flatMap(({ calldata }) => calldata),
           ],
         },
-  ];
-
-  return buildStakedGameActionCalls({
-    actionCalls,
-    allocation,
-    availableForce,
-    operatorAddress,
-    poolAddress,
-    strkTokenAddress,
-    isPoolMember,
-  });
-}
-
-interface StakedGameActionCallsOptions {
-  actionCalls: Call[];
-  allocation: bigint;
-  availableForce: bigint;
-  operatorAddress: string;
-  poolAddress: string;
-  strkTokenAddress: string;
-  isPoolMember: boolean;
-}
-
-function buildStakedGameActionCalls({
-  actionCalls,
-  allocation,
-  availableForce,
-  operatorAddress,
-  poolAddress,
-  strkTokenAddress,
-  isPoolMember,
-}: StakedGameActionCallsOptions): Call[] {
-  const deficit = stakeDeficit(allocation, availableForce);
-  if (deficit === 0n) return actionCalls;
-
-  const [deficitLow, deficitHigh] = encodeU256(deficit);
-  return [
-    {
-      contractAddress: strkTokenAddress,
-      entrypoint: 'approve',
-      calldata: [poolAddress, deficitLow, deficitHigh],
-    },
-    isPoolMember
-      ? {
-          contractAddress: poolAddress,
-          entrypoint: 'add_to_delegation_pool',
-          calldata: [operatorAddress, deficit.toString()],
-        }
-      : {
-          contractAddress: poolAddress,
-          entrypoint: 'enter_delegation_pool',
-          calldata: [operatorAddress, deficit.toString()],
-        },
-    ...actionCalls,
   ];
 }
 

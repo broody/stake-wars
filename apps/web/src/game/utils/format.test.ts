@@ -56,6 +56,7 @@ describe('Sector formatting', () => {
 
   it('rejects malformed or over-precise values', () => {
     expect(() => parseStrk('')).toThrow('valid STRK amount');
+    expect(() => parseStrk('', 'FORCE')).toThrow('valid FORCE amount');
     expect(() => parseStrk('-1')).toThrow('valid STRK amount');
     expect(() => parseStrk('1.0000000000000000001')).toThrow(
       'valid STRK amount'

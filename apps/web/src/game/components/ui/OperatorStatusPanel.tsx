@@ -1,32 +1,23 @@
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useYield } from '../../contexts/useYield';
 import { formatStrk } from '../../utils/format';
 
 interface OperatorMetricProps {
   label: string;
   value: bigint;
-  highlight?: boolean;
 }
 
-function OperatorMetric({ label, value, highlight }: OperatorMetricProps) {
+function OperatorMetric({ label, value }: OperatorMetricProps) {
   return (
     <div className="flex items-baseline justify-between gap-6">
-      <span className="text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
-        {label}
-      </span>
-      <span
-        className={`${highlight ? 'text-fg' : 'text-neutral-400'} transition-colors group-hover:text-white group-focus-visible:text-white`}
-      >
-        {formatStrk(value)} STRK
-      </span>
+      <span className="text-dim">{label}</span>
+      <span className="text-neutral-400">{formatStrk(value)}</span>
     </div>
   );
 }
 
 export function OperatorStatusPanel() {
   const { address } = useWallet();
-  const { summary, isLoading: isYieldLoading, openStaking } = useYield();
   const {
     operatorStatus,
     ownedSectorIds,
@@ -63,27 +54,19 @@ export function OperatorStatusPanel() {
       )}
 
       {operatorStatus && (
-        <button
-          type="button"
-          onClick={openStaking}
-          className="group mt-3 block w-64 space-y-1 border-l border-neutral-700 pl-3 text-left transition-colors hover:border-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white"
-          aria-label="Open staking position"
-        >
+        <div className="mt-3 block w-64 space-y-1 border-l border-neutral-700 pl-3 text-left">
           <OperatorMetric
-            label="TOTAL STAKED"
-            value={operatorStatus.liveDelegatedAmount}
-            highlight
+            label="AVAILABLE FORCE"
+            value={operatorStatus.availableForce}
           />
-          <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
+          <div className="flex items-baseline justify-between gap-6 text-dim">
             <span>SECTORS</span>
-            <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
-              {uncontestedSectorCount}
-            </span>
+            <span className="text-neutral-400">{uncontestedSectorCount}</span>
           </div>
           {operatorStatus.activeChallengeCount > 0 && (
-            <div className="flex items-baseline justify-between gap-6 text-dim transition-colors group-hover:text-white group-focus-visible:text-white">
+            <div className="flex items-baseline justify-between gap-6 text-dim">
               <span>CONTESTED</span>
-              <span className="text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white">
+              <span className="text-neutral-400">
                 {operatorStatus.activeChallengeCount}
               </span>
             </div>
@@ -93,20 +76,10 @@ export function OperatorStatusPanel() {
               ADDRESS PERMANENTLY RETIRED
             </div>
           )}
-          <div className="flex w-full items-baseline justify-between gap-6 pt-1 text-left text-dim transition-colors group-hover:text-white">
-            <span>YIELD</span>
-            <span className="text-white">
-              {isYieldLoading && !summary
-                ? '…'
-                : summary?.lifetimeRewards === null || !summary
-                  ? '—'
-                  : `${formatStrk(summary.lifetimeRewards)} STRK`}
-            </span>
-          </div>
           {operatorStatus.needsSync && (
             <div className="pt-2 text-amber-400">SYNC REQUIRED</div>
           )}
-        </button>
+        </div>
       )}
     </aside>
   );

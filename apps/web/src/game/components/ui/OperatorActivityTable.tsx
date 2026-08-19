@@ -108,7 +108,7 @@ function eventDetail(activity: OperatorActivity): string {
     case 'reinforcement':
       return activity.secondaryAmount === undefined
         ? 'CAPTURE FORCE INCREASED'
-        : `NEW FORCE ${formatStrk(activity.secondaryAmount)} STRK`;
+        : `NEW FORCE ${formatStrk(activity.secondaryAmount)} FORCE`;
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
     case 'challenge_initiated':
@@ -129,10 +129,11 @@ function eventDetail(activity: OperatorActivity): string {
 }
 
 function stakeDetail(activity: OperatorActivity): string {
+  const unit = activity.type === 'yield_claim' ? 'STRK' : 'FORCE';
   const amount = `${formatStrk(
     activity.amount,
     activity.type === 'yield_claim' ? 6 : 4
-  )} STRK`;
+  )} ${unit}`;
   switch (activity.type) {
     case 'loss':
       return `${amount} DEFEATED`;

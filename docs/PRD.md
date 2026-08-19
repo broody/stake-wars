@@ -13,7 +13,7 @@
 
 Players, known as **Operators**, compete to capture territories (**Sectors**) on a 3D spherical map (**The Core**). STRK is delegated to the Stake Wars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Sectors and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Sector by choosing how much staked STRK to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Sector by choosing how much FORCE, backed by delegated STRK, to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
 
 ---
 
@@ -24,6 +24,7 @@ An Operator captures a neutral Sector by choosing how much staked STRK to commit
 *   **Operator:** The user/player.
 *   **Live Delegation:** An Operator's authoritative delegated STRK balance, read directly from the official delegation pool.
 *   **Control Force (FORCE):** The game representation of an Operator's Live Delegation. One unit of FORCE corresponds to one unit of delegated STRK; FORCE is accounting terminology, not an ERC-20 or a custodial game asset.
+*   **UI Unit Convention:** The interface labels derived gameplay accounting—including Available Force, Capture Force, garrisons, and Challenge commitments—in `FORCE`. It uses `STRK` only for actual token contexts such as wallet balances, delegation, staking, withdrawals, and rewards. The interface may explain that 1 FORCE is backed by 1 delegated STRK, but it must not present FORCE as a token or imply that FORCE is independently transferable.
 *   **Committed Force:** Internal allocation accounting for the portion of Live Delegation bound to Sector garrisons or active cumulative Challenge positions. It cannot simultaneously back another action.
 *   **Spent Force:** Staked STRK represented by a final losing Sector defense or Challenge commitment and no longer available to back Stake Wars gameplay from that Operator address. The underlying STRK remains delegated directly to the validator and continues following the official staking and reward rules.
 *   **Available Force:** `max(0, Live Delegation - Sector Commitments - Active Challenge Commitments - Spent Force)`. This is derived contract accounting, not a token or user-managed currency. The UI exposes it as the Operator's currently deployable FORCE.
@@ -43,29 +44,29 @@ An Operator captures a neutral Sector by choosing how much staked STRK to commit
 The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (the official Starknet staking and delegation pool contracts) handles custody, yield, and authoritative Staking Power, while the **Game Layer** (the Stake Wars Dojo World) represents that delegated STRK as Control Force and tracks Sector ownership and recorded Capture Force.
 
 #### 3.1.1. The Sync Protocol (Official Contract Integration)
-*   **Action:** A transaction may first approve STRK and enter or add to the Stake Wars validator's official delegation pool, then call a game action from the same Starknet account.
+*   **Staking Flow:** Operators stake STRK through the dedicated Staking interface before taking force-sensitive game actions. Capture, reinforcement, and Challenge transactions never approve or stake STRK automatically; when Available Force is insufficient, the client shows the exact deficit and directs the Operator to generate more FORCE first.
 *   **Authoritative Balance:** Before every force-sensitive action, the Control System reads the Operator's live `amount` and unpooling state from the official STRK delegation pool. Delegation performed directly through the official contract is therefore recognized without passing through a Stake Wars capture call.
 *   **Allocation Accounting:** The Game Layer records only the obligations needed to prevent reuse: aggregate Sector Commitments, aggregate active cumulative Challenge Commitments, and aggregate Spent Force. Available Force is derived from those obligations and Live Delegation.
-*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK may deploy 1,000 to one Sector and retain 2,000 Available Force, but the same 1,000 cannot back another action.
-*   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible STRK amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
+*   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK has 3,000 FORCE, may deploy 1,000 FORCE to one Sector, and retains 2,000 Available Force; the same 1,000 FORCE cannot back another action.
+*   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible FORCE amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
 *   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Sectors neutral without iterating over all 2,000 sectors.
 *   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the Stake Wars application. Every normal force-sensitive game action performs the same authoritative check independently.
 *   **No Custody:** Stake Wars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
-*   **Neutral Capture:** A neutral Sector may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 STRK** so gameplay can be exercised cheaply; the Mainnet production minimum is **100 STRK**. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
+*   **Neutral Capture:** A neutral Sector may be captured by allocating at least the network-configured minimum stake and no more than Available Force. The Sepolia testing minimum is **0.1 FORCE** and the Mainnet production minimum is **100 FORCE**, each backed 1:1 by the corresponding delegated STRK amount. These values are stored in base units in each World's `GameConfig` and must not be inferred from the frontend environment.
 *   **Reinforcement:** A Controller may allocate a selected positive amount of Available Force to one owned, uncontested Sector. Reinforcement increases both that sector's Capture Force and the Operator's aggregate Sector Commitments.
 *   **Release:** A Controller may voluntarily release an uncontested Sector. The sector becomes neutral, its active image is hidden, and its Capture Force returns to Available Force.
 *   **Multiple Positions:** An Operator may lead multiple Challenges and manage other uncontested Sectors while sufficient Available Force remains.
 
 #### 3.1.3. Open Ascending Challenges
-*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more force than an occupied, uncontested sector's Capture Force. The minimum escalation is rounded up to the next STRK base unit. The commitment and challenger are public.
+*   **Initiating a Challenge:** Any eligible non-Controller may commit at least 10% more force than an occupied, uncontested sector's Capture Force. The minimum escalation is rounded up to the smallest FORCE accounting unit, corresponding 1:1 to a STRK base unit. The commitment and challenger are public.
 *   **Opening Risk:** Initiating a Challenge places the incumbent's existing garrison and challenger's commitment at risk. Neither becomes Spent Force before settlement.
-*   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the next STRK base unit. Each Operator has one cumulative position per Challenge.
-*   **Incremental Escalation:** A returning Operator locks only `New Commitment - Own Previous Commitment`. Example: after committing 500 STRK, escalating to 700 STRK requires only 200 additional Available Force. Losing the lead changes the visible leader but does not spend or unlock the prior position.
+*   **Open Participation:** Any eligible Operator other than the current leader may submit a public total at least 10% above the current lead, rounded up to the smallest FORCE accounting unit. Each Operator has one cumulative position per Challenge.
+*   **Incremental Escalation:** A returning Operator locks only `New Commitment - Own Previous Commitment`. Example: after committing 500 FORCE, escalating to 700 FORCE requires only 200 additional Available Force. Losing the lead changes the visible leader but does not spend or unlock the prior position.
 *   **Anti-Sniping Window:** Every valid lead change resets the full admin-configured response window: **3 minutes on Sepolia** for rapid testing and initially **3 hours on Mainnet**. The current leader cannot challenge itself to extend the clock. There is no absolute duration cap; a Challenge continues as long as other Operators keep risking higher amounts. A later rule change applies when a subsequent lead change calculates its new response window.
 *   **Minimum Escalation:** Commitments below the 10% minimum—including ties and one-base-unit increases—are rejected. The first accepted qualifying commitment becomes leader.
-*   **Example:** A has a 500 STRK position and B leads at 600. A may commit 700 by locking 200 additional STRK. B may then commit 800 by locking 200 additional STRK. If the response window expires with B leading, B's 800 becomes the garrison and A's final 700 becomes Spent Force.
+*   **Example:** A has a 500 FORCE position and B leads at 600 FORCE. A may commit 700 FORCE by locking 200 additional FORCE. B may then commit 800 FORCE by locking 200 additional FORCE. If the response window expires with B leading, B's 800 FORCE becomes the garrison and A's final 700 FORCE becomes Spent Force.
 
 #### 3.1.4. Sector Sacrifice
 *   Any participant may give up one other owned, uncontested Sector within the same Challenge transaction.
@@ -122,8 +123,8 @@ The first release intentionally excludes passive territory decay, recurring main
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
-*   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED SECTOR 402 [10,000 STRK]`
-*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Sector Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Force, shows the minimum qualifying commitment and incremental lock, and previews any additional direct delegation needed.
+*   **Ticker:** Scrolling marquee at the bottom displaying live events: `> OPERATOR 0x4a... CAPTURED SECTOR 402 [10,000 FORCE]`
+*   **Control Panel:** A concise action panel for Capture, Reinforce, Release, Initiate Challenge, Escalate Challenge, Sector Sacrifice, permissionless Settlement, and Retire transactions. It clearly communicates that Challenge commitments are public and the final losing total becomes Spent Force, shows the minimum qualifying commitment and incremental lock, and directs Operators to the Staking interface when more FORCE is needed.
 
 ### 4.4. Operator Image Uploads
 *   **Control Requirement:** Only the wallet currently controlling every selected Sector may publish an artwork across them. The backend must independently verify wallet signatures, current Sector ownership, and ownership generation for every target both before upload and before publication; client-supplied owner addresses and Sector IDs are never trusted by themselves.
@@ -222,7 +223,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 
 ## 6. User Stories
 
-1.  **As an Operator:** I want every action expressed in STRK while the game tracks allocation, current leads, and spent capacity under the hood.
+1.  **As an Operator:** I want gameplay actions expressed in FORCE while wallet, staking, withdrawal, and reward amounts remain clearly labeled in STRK.
 2.  **As a Challenger:** I want to see the current lead and response window before deciding whether a higher public commitment is worth permanently risking.
 3.  **As a Controller:** I want to position one camera-projected artwork across the contiguous surface I control so it reads as a whole rather than repeated tiles.
 4.  **As a Challenge Participant:** I want every lead change to reset the response window so last-block sniping cannot bypass my chance to respond.

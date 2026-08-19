@@ -10,6 +10,7 @@ import {
 } from '../services/starknet';
 import { getPoolMemberStart, getYieldClaims } from '../services/torii';
 import {
+  buildStakeCalls,
   buildUnstakeAllCalls,
   buildWithdrawUnstakedCall,
 } from '../services/staking';
@@ -27,7 +28,7 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function YieldProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
-  const { refreshSectorIndex, refreshOperator } = useSectors();
+  const { operatorStatus, refreshSectorIndex, refreshOperator } = useSectors();
   const { provider } = useProvider();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
@@ -36,7 +37,8 @@ export function YieldProvider({ children }: PropsWithChildren) {
   const [isLoading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [isOpen, setOpen] = useState(false);
+  const [stakePhase, setStakePhase] = useState<ClaimPhase>('idle');
+  const [stakeError, setStakeError] = useState<string | null>(null);
   const [claimPhase, setClaimPhase] = useState<ClaimPhase>('idle');
   const [claimError, setClaimError] = useState<string | null>(null);
   const [unstakePhase, setUnstakePhase] = useState<ClaimPhase>('idle');
@@ -61,6 +63,8 @@ export function YieldProvider({ children }: PropsWithChildren) {
       setLoading(false);
       setClaimError(null);
       setClaimPhase('idle');
+      setStakePhase('idle');
+      setStakeError(null);
       setUnstakePhase('idle');
       setWithdrawPhase('idle');
       setStakingError(null);
@@ -172,7 +176,6 @@ export function YieldProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (
-      !isOpen ||
       pendingExitAmount === 0n ||
       pendingExitTime !== null ||
       unstakePhase !== 'idle'
@@ -181,35 +184,85 @@ export function YieldProvider({ children }: PropsWithChildren) {
     }
     const timeout = window.setTimeout(refreshStaking, 3_000);
     return () => window.clearTimeout(timeout);
-  }, [
-    isOpen,
-    pendingExitAmount,
-    pendingExitTime,
-    refreshStaking,
-    unstakePhase,
-  ]);
+  }, [pendingExitAmount, pendingExitTime, refreshStaking, unstakePhase]);
 
-  const openStaking = useCallback(() => {
-    setOpen(true);
-    setClaimError(null);
-    setStakingError(null);
-  }, []);
+  const stake = useCallback(
+    async (amount: bigint) => {
+      if (
+        !address ||
+        amount <= 0n ||
+        stakePhase !== 'idle' ||
+        claimPhase !== 'idle' ||
+        unstakePhase !== 'idle' ||
+        withdrawPhase !== 'idle' ||
+        operatorStatus?.retired ||
+        operatorStatus?.exiting ||
+        !config.stakingPoolAddress ||
+        !config.strkTokenAddress
+      ) {
+        return;
+      }
 
-  const closeStaking = useCallback(() => {
-    if (
-      claimPhase === 'idle' &&
-      unstakePhase === 'idle' &&
-      withdrawPhase === 'idle'
-    ) {
-      setOpen(false);
-    }
-  }, [claimPhase, unstakePhase, withdrawPhase]);
+      let submittedHash: string | null = null;
+      setStakeError(null);
+      setStakePhase('submitting');
+
+      try {
+        const member = await getPoolMemberInfo(address);
+        const result = await transaction.sendAsync(
+          buildStakeCalls({
+            stakingPoolAddress: config.stakingPoolAddress,
+            strkTokenAddress: config.strkTokenAddress,
+            operatorAddress: address,
+            amount,
+            isPoolMember: Boolean(member),
+          })
+        );
+        submittedHash = result.transaction_hash;
+        notifySubmitting(submittedHash, 'STRK STAKE');
+        setStakePhase('confirming');
+
+        await provider.waitForTransaction(submittedHash, {
+          errorStates: [TransactionExecutionStatus.REVERTED],
+        });
+        notifyConfirmed(submittedHash);
+        refreshOperator();
+        refreshStaking();
+      } catch (stakeFailure) {
+        const message = messageFrom(
+          stakeFailure,
+          'The STRK stake could not be completed.'
+        );
+        if (submittedHash) notifyFailed(submittedHash, message);
+        setStakeError(message);
+      } finally {
+        setStakePhase('idle');
+      }
+    },
+    [
+      address,
+      claimPhase,
+      notifyConfirmed,
+      notifyFailed,
+      notifySubmitting,
+      operatorStatus?.exiting,
+      operatorStatus?.retired,
+      provider,
+      refreshOperator,
+      refreshStaking,
+      stakePhase,
+      transaction,
+      unstakePhase,
+      withdrawPhase,
+    ]
+  );
 
   const claimYield = useCallback(async () => {
     if (
       !address ||
       !summary ||
       summary.unclaimedRewards === 0n ||
+      stakePhase !== 'idle' ||
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
@@ -277,6 +330,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     notifySubmitting,
     provider,
     refreshStaking,
+    stakePhase,
     summary,
     transaction,
     unstakePhase,
@@ -289,6 +343,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       !summary ||
       summary.stakedAmount === 0n ||
       summary.unpoolAmount > 0n ||
+      stakePhase !== 'idle' ||
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
@@ -350,6 +405,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     refreshSectorIndex,
     refreshOperator,
     refreshStaking,
+    stakePhase,
     summary,
     transaction,
     unstakePhase,
@@ -363,6 +419,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       summary.unpoolAmount === 0n ||
       summary.unpoolTime === null ||
       summary.unpoolTime > Math.floor(Date.now() / 1_000) ||
+      stakePhase !== 'idle' ||
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
@@ -409,6 +466,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     notifySubmitting,
     provider,
     refreshStaking,
+    stakePhase,
     summary,
     transaction,
     unstakePhase,
@@ -421,15 +479,15 @@ export function YieldProvider({ children }: PropsWithChildren) {
       isLoading,
       error,
       historyError,
-      isOpen,
+      stakePhase,
+      stakeError,
       claimPhase,
       claimError,
       unstakePhase,
       withdrawPhase,
       stakingError,
-      openStaking,
-      closeStaking,
       refreshStaking,
+      stake,
       claimYield,
       unstakeAll,
       withdrawUnstaked,
@@ -438,13 +496,13 @@ export function YieldProvider({ children }: PropsWithChildren) {
       claimError,
       claimPhase,
       claimYield,
-      closeStaking,
       error,
       historyError,
       isLoading,
-      isOpen,
-      openStaking,
       refreshStaking,
+      stake,
+      stakeError,
+      stakePhase,
       stakingError,
       summary,
       unstakeAll,

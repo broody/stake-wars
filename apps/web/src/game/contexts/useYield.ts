@@ -9,15 +9,15 @@ export interface YieldContextValue {
   isLoading: boolean;
   error: string | null;
   historyError: string | null;
-  isOpen: boolean;
+  stakePhase: StakingActionPhase;
+  stakeError: string | null;
   claimPhase: ClaimPhase;
   claimError: string | null;
   unstakePhase: StakingActionPhase;
   withdrawPhase: StakingActionPhase;
   stakingError: string | null;
-  openStaking: () => void;
-  closeStaking: () => void;
   refreshStaking: () => void;
+  stake: (amount: bigint) => Promise<void>;
   claimYield: () => Promise<void>;
   unstakeAll: () => Promise<void>;
   withdrawUnstaked: () => Promise<void>;

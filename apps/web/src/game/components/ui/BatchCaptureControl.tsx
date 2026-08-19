@@ -1,20 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProvider, useSendTransaction } from '@starknet-start/react';
+import { Link } from 'react-router-dom';
 import { TransactionExecutionStatus } from 'starknet';
-import type { SectorStatus, PoolMemberInfo } from '../../types';
+import type { SectorStatus } from '../../types';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { config } from '../../services/config';
+import { getSectorStatuses, getOperatorStatus } from '../../services/starknet';
 import {
-  getSectorStatuses,
-  getOperatorStatus,
-  getPoolMemberInfo,
-  getStakingPoolInfo,
-  getStrkBalance,
-} from '../../services/starknet';
-import {
-  buildSmartBatchGameActionCalls,
+  buildBatchGameActionCalls,
   stakeDeficit,
 } from '../../services/smartCapture';
 import {
@@ -39,10 +34,6 @@ interface BatchCaptureControlProps {
 }
 
 type Phase = 'idle' | 'submitting' | 'confirming';
-
-interface StakingContext {
-  member: PoolMemberInfo | null;
-}
 
 interface CompletedBatch {
   sectors: SectorStatus[];
@@ -76,7 +67,7 @@ function assertBatchIsActionable(
       }
       if (allocation < sector.requiredStake) {
         throw new Error(
-          `${label} now requires ${formatStrk(sector.requiredStake, 18)} STRK.`
+          `${label} now requires ${formatStrk(sector.requiredStake, 18)} FORCE.`
         );
       }
     } else if (!addressesMatch(sector.controller, operatorAddress)) {
@@ -113,8 +104,6 @@ export function BatchCaptureControl({
   );
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [staking, setStaking] = useState<StakingContext | null>(null);
-  const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
   const [isSplitModalOpen, setSplitModalOpen] = useState(false);
   const [splitBatches, setSplitBatches] = useState<SplitTransactionBatch[]>([]);
   const [completedSelectionIds, setCompletedSelectionIds] = useState<number[]>(
@@ -136,7 +125,7 @@ export function BatchCaptureControl({
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
     try {
-      const value = parseStrk(allocation);
+      const value = parseStrk(allocation, 'FORCE');
       return value > MAX_U128
         ? { value: null, error: 'Allocation is too large.' }
         : { value, error: null };
@@ -156,51 +145,6 @@ export function BatchCaptureControl({
   const availableForce = operatorStatus?.availableForce ?? 0n;
   const deficit = stakeDeficit(totalAllocation, availableForce);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!address) {
-      setWalletBalance(null);
-      return () => controller.abort();
-    }
-    setWalletBalance(null);
-    getStrkBalance(address, controller.signal)
-      .then(setWalletBalance)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Unable to read wallet STRK balance.'
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [address]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!address || deficit === 0n) {
-      setStaking(null);
-      return () => controller.abort();
-    }
-    setStaking(null);
-    Promise.all([
-      getStakingPoolInfo(controller.signal),
-      getPoolMemberInfo(address, controller.signal),
-    ])
-      .then(([, member]) => setStaking({ member }))
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Unable to read staking state.'
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [address, deficit]);
-
   const disabledReason = useMemo(() => {
     if (sectors.length === 0) return 'NO ELIGIBLE SECTORS';
     if (sectors.length > MAX_SECTOR_SELECTION) {
@@ -217,15 +161,11 @@ export function BatchCaptureControl({
     if (selectedAllocation === null || selectedAllocation === 0n)
       return 'ENTER ALLOCATION PER POINT';
     if (!isFortifying && selectedAllocation < requiredForce)
-      return `ALLOCATE AT LEAST ${formatStrk(requiredForce, 18)} STRK EACH`;
-    if (deficit > 0n && (!staking || walletBalance === null))
-      return 'READING WALLET STRK';
-    if (deficit > (walletBalance ?? 0n)) return 'INSUFFICIENT WALLET STRK';
+      return `ALLOCATE AT LEAST ${formatStrk(requiredForce, 18)} FORCE EACH`;
     return null;
   }, [
     address,
     sectors.length,
-    deficit,
     isConnected,
     isSectorInteractionLocked,
     isFortifying,
@@ -235,8 +175,6 @@ export function BatchCaptureControl({
     parsedAllocation.error,
     requiredForce,
     selectedAllocation,
-    staking,
-    walletBalance,
   ]);
 
   const isBusy = phase !== 'idle';
@@ -319,22 +257,17 @@ export function BatchCaptureControl({
           chunkAllocation,
           freshOperator.availableForce
         );
-        const member =
-          chunkDeficit > 0n
-            ? await getPoolMemberInfo(address)
-            : staking?.member;
-        const calls = buildSmartBatchGameActionCalls({
+        if (chunkDeficit > 0n) {
+          throw new Error(
+            `Generate ${formatStrk(chunkDeficit, 18)} more FORCE before continuing.`
+          );
+        }
+        const calls = buildBatchGameActionCalls({
           actions: freshSectors.map(({ id }) => ({
             entrypoint: isFortifying ? 'reinforce' : 'capture',
             calldata: [id.toString(), selectedAllocation.toString()],
           })),
-          allocation: chunkAllocation,
-          availableForce: freshOperator.availableForce,
           controlSystemAddress: config.controlSystemAddress,
-          isPoolMember: Boolean(member),
-          operatorAddress: address,
-          poolAddress: config.stakingPoolAddress,
-          strkTokenAddress: config.strkTokenAddress,
         });
 
         if (showSplitProgress) {
@@ -471,9 +404,7 @@ export function BatchCaptureControl({
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
         : disabledReason ||
-          (deficit > 0n
-            ? `STAKE ${formatStrk(deficit, 18)} + ${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length}`
-            : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} STRK`);
+          `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
@@ -484,7 +415,9 @@ export function BatchCaptureControl({
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         <div className="flex justify-between gap-4">
           <span>AVAILABLE FORCE</span>
-          <span className="text-fg">{formatStrk(availableForce, 18)} STRK</span>
+          <span className="text-fg">
+            {formatStrk(availableForce, 18)} FORCE
+          </span>
         </div>
         <label
           className="block pt-1 text-dim"
@@ -505,7 +438,7 @@ export function BatchCaptureControl({
             disabled={isBusy}
             className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none disabled:text-neutral-600"
           />
-          <span className="px-2 text-dim">STRK</span>
+          <span className="px-2 text-dim">FORCE</span>
         </div>
         {parsedAllocation.error && (
           <div className="leading-relaxed text-amber-400">
@@ -516,43 +449,38 @@ export function BatchCaptureControl({
           <>
             <div className="flex justify-between gap-4">
               <span>MINIMUM EACH</span>
-              <span>{formatStrk(requiredForce, 18)} STRK</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>BALANCE</span>
-              <span>
-                {walletBalance === null
-                  ? '…'
-                  : `${formatStrk(walletBalance, 6)} STRK`}
-              </span>
+              <span>{formatStrk(requiredForce, 18)} FORCE</span>
             </div>
           </>
         )}
         <div className="flex justify-between gap-4 border-t border-grid pt-2">
           <span>TOTAL COMMITMENT</span>
           <span className="text-fg">
-            {formatStrk(totalAllocation, 18)} STRK
+            {formatStrk(totalAllocation, 18)} FORCE
           </span>
         </div>
-        {deficit > 0n && (
-          <div className="flex justify-between gap-4">
-            <span>ADDITIONAL STRK TO STAKE</span>
-            <span>{formatStrk(deficit, 18)} STRK</span>
-          </div>
-        )}
         {error && (
           <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">
             BATCH ACTION FAILED · {error}
           </div>
         )}
-        <button
-          type="button"
-          onClick={requestSubmit}
-          disabled={Boolean(disabledReason) || isBusy}
-          className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
-        >
-          {actionLabel}
-        </button>
+        {deficit > 0n && !disabledReason ? (
+          <Link
+            to="/staking"
+            className="mt-2 block w-full border border-white bg-white px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            GENERATE {formatStrk(deficit, 18)} MORE FORCE
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={requestSubmit}
+            disabled={Boolean(disabledReason) || isBusy}
+            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+          >
+            {actionLabel}
+          </button>
+        )}
       </div>
       <SplitTransactionModal
         batches={splitBatches}

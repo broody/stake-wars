@@ -1,12 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useWallet } from '../../contexts/WalletContext';
 import { cn } from '../../utils/cn';
-import { ActivityButton } from '../ui/ActivityButton';
-import { ActivityModal } from '../ui/ActivityModal';
 import { WalletButton } from '../ui/WalletButton';
-import { YieldButton } from '../ui/YieldButton';
-import { YieldModal } from '../ui/YieldModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,19 +9,10 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const { address } = useWallet();
-  const [isActivityOpen, setActivityOpen] = useState(false);
-
-  const closeActivity = useCallback(() => setActivityOpen(false), []);
-
-  useEffect(() => {
-    if (!address) closeActivity();
-  }, [address, closeActivity]);
 
   const navLinks = [
     { path: '/', label: 'THE CORE' },
-    { path: '/gallery', label: 'GALLERY' },
-    { path: '/core-lab', label: 'CORE LAB' },
+    { path: '/staking', label: 'STAKING' },
     { path: '/profile', label: 'PROFILE' },
   ];
 
@@ -35,22 +21,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Navigation */}
       <nav className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-bg/80 to-transparent border-b border-grid">
         <div className="px-4">
-          <div className="flex items-center justify-between h-16">
+          <div className="grid h-16 grid-cols-[auto_1fr_auto] items-center gap-3">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2">
-              <span className="text-sm font-bold tracking-wider text-fg sm:text-xl">
+              <span className="hidden text-sm font-bold tracking-wider text-fg sm:inline sm:text-xl">
                 STAKE<span className="text-dim">//</span>WARS
+              </span>
+              <span className="text-sm font-bold tracking-wider text-fg sm:hidden">
+                S<span className="text-dim">//</span>W
               </span>
             </Link>
 
             {/* Nav Links */}
-            <div className="hidden space-x-8 md:flex">
+            <div className="flex items-center justify-center gap-3 sm:gap-6 md:absolute md:left-1/2 md:-translate-x-1/2 md:gap-8">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   className={cn(
-                    'text-dim hover:text-fg transition-colors text-sm tracking-widest',
+                    'border-b border-transparent py-1 text-[9px] tracking-[0.12em] text-dim transition-colors hover:text-fg sm:text-xs sm:tracking-widest md:text-sm',
                     location.pathname === link.path &&
                       'text-fg border-b border-fg'
                   )}
@@ -60,13 +49,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               ))}
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-3">
-              {address ? (
-                <>
-                  <ActivityButton onClick={() => setActivityOpen(true)} />
-                  <YieldButton />
-                </>
-              ) : null}
+            <div className="flex items-center justify-end">
               <WalletButton />
             </div>
           </div>
@@ -75,12 +58,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className="flex-1 w-full h-full overflow-hidden">{children}</main>
-      <YieldModal />
-      <ActivityModal
-        isOpen={isActivityOpen}
-        operator={address}
-        onClose={closeActivity}
-      />
     </div>
   );
 };

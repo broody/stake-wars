@@ -79,7 +79,7 @@ export function Profile() {
                     {label.toString()}
                   </div>
                   <div className="mt-3 text-xl text-white">
-                    {formatStrk(value)}
+                    {formatStrk(value)} FORCE
                   </div>
                 </div>
               ))}

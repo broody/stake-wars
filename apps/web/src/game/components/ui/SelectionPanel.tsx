@@ -130,13 +130,13 @@ export function SelectionPanel() {
             </div>
             <div className="flex items-baseline justify-between gap-6 py-2">
               <span className="text-[10px] tracking-[0.18em] text-dim">
-                STAKED
+                CAPTURE FORCE
               </span>
               <span className="text-neutral-300">
                 {selectedSector ? (
                   <>
                     {formatStrk(selectedSector.captureForce, 18)}{' '}
-                    <span className="text-[10px] text-dim">STRK</span>
+                    <span className="text-[10px] text-dim">FORCE</span>
                   </>
                 ) : (
                   '---'

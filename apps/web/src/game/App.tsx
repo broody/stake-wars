@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Home } from './pages/Home';
 import { Gallery } from './pages/Gallery';
 import { Profile } from './pages/Profile';
+import { Staking } from './pages/Staking';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
@@ -32,6 +33,7 @@ function GameApp() {
                       <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/gallery" element={<Gallery />} />
+                        <Route path="/staking" element={<Staking />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route
                           path="/core-lab"
