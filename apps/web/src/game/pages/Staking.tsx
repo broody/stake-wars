@@ -8,6 +8,50 @@ import { formatStrk, parseStrk } from '../utils/format';
 import { calculateYieldMetrics, calculateYieldPercent } from '../utils/yield';
 
 const MAX_U128 = (1n << 128n) - 1n;
+const VOYAGER_VALIDATOR_URL =
+  'https://voyager.online/staking?validator=0x026232d459668b7183dd54e7cddccd27e168882b597743e233645cefa61eb1eb';
+const VOYAGER_LOGO_URL = '/voyager-logo.svg';
+
+function ValidatorLink({ compact = false }: { compact?: boolean }) {
+  return (
+    <a
+      href={VOYAGER_VALIDATOR_URL}
+      target="_blank"
+      rel="noreferrer"
+      className={`group flex border border-[#ff4a04]/60 bg-[#ff4a04]/[0.05] text-left transition-colors hover:border-[#ff4a04] hover:bg-[#ff4a04]/[0.1] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white ${
+        compact ? 'mt-6 items-center p-3' : 'w-full items-stretch sm:w-auto'
+      }`}
+      aria-label="View the Stake Wars validator on Voyager (opens in a new tab)"
+    >
+      <div
+        className={`flex shrink-0 items-center justify-center border-[#ff4a04]/40 ${
+          compact ? 'mr-3' : 'border-r px-4'
+        }`}
+      >
+        <img
+          src={VOYAGER_LOGO_URL}
+          alt=""
+          aria-hidden="true"
+          className={compact ? 'h-7 w-auto' : 'h-9 w-auto'}
+        />
+      </div>
+      <div className={compact ? '' : 'px-5 py-4'}>
+        <div className="text-[8px] tracking-[0.2em] text-[#ff6a2f]">
+          OFFICIAL STARKNET VALIDATOR
+        </div>
+        <div className="mt-1 text-[10px] tracking-[0.16em] text-white">
+          VIEW &amp; STAKE ON VOYAGER{' '}
+          <span
+            aria-hidden="true"
+            className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transition-none"
+          >
+            ↗
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
 
 function Metric({
   label,
@@ -212,6 +256,7 @@ export function Staking() {
           <div className="inline-block">
             <WalletButton />
           </div>
+          <ValidatorLink compact />
         </div>
       </div>
     );
@@ -220,7 +265,7 @@ export function Staking() {
   return (
     <div className="h-full w-full overflow-y-auto bg-bg font-mono">
       <div className="mx-auto max-w-6xl px-4 pb-20 pt-24">
-        <header className="border-b border-grid pb-8">
+        <header className="flex flex-col gap-6 border-b border-grid pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-[10px] tracking-[0.28em] text-neutral-500">
               OFFICIAL STARKNET STAKING
@@ -229,6 +274,7 @@ export function Staking() {
               GENERATE FORCE
             </h1>
           </div>
+          <ValidatorLink />
         </header>
 
         <section className="mt-8 grid border-l border-t border-grid lg:grid-cols-[1.15fr_0.85fr]">
