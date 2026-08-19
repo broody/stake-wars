@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   OwnershipGlobe,
   type GlobePerformanceMetrics,
@@ -17,6 +17,7 @@ import {
   EXAMPLE_IMAGE_DETAIL_SIZE,
   selectExampleImageSectorIds,
 } from '../utils/exampleImageAtlas';
+import { useTransactionToast } from '../contexts/TransactionToastContext';
 
 const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, SECTOR_COUNT] as const;
 const WAVE_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
@@ -26,6 +27,8 @@ const DISTRIBUTION_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
   (scenario) => scenario.kind === 'distribution'
 );
 const ignoreHoveredSector: (sectorId: number | null) => void = () => undefined;
+
+type ToastExampleState = 'submitting' | 'confirmed' | 'failed';
 
 function formatMebibytes(bytes: number): string {
   return `${Math.round(bytes / 1_048_576)} MIB`;
@@ -191,6 +194,31 @@ export function CoreLab() {
   const [logarithmicScale, setLogarithmicScale] = useState(true);
   const [requestedImageCount, setRequestedImageCount] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const toastExampleId = useRef(0);
+  const { notifySubmitting, notifyConfirmed, notifyFailed } =
+    useTransactionToast();
+  const showToastExample = useCallback(
+    (state: ToastExampleState, label: string) => {
+      toastExampleId.current += 1;
+      const hash = `0x${toastExampleId.current.toString(16).padStart(64, '0')}`;
+      notifySubmitting(hash, label);
+      if (state === 'confirmed') notifyConfirmed(hash);
+      if (state === 'failed') {
+        notifyFailed(hash, 'Transaction reverted before it reached the Core.');
+      }
+    },
+    [notifyConfirmed, notifyFailed, notifySubmitting]
+  );
+  const showToastStackExample = useCallback(() => {
+    showToastExample('confirmed', 'CAPTURE');
+    showToastExample('confirmed', 'STAKE');
+    showToastExample('failed', 'YIELD CLAIM');
+    showToastExample('confirmed', 'ARTWORK');
+    showToastExample('submitting', 'UNSTAKE');
+    showToastExample('confirmed', 'REWARD CLAIM');
+    showToastExample('failed', 'BATCH CAPTURE');
+    showToastExample('submitting', 'SECTOR FLIP');
+  }, [showToastExample]);
   const selectedScenario =
     OWNERSHIP_SCENARIOS.find(
       (scenario) => scenario.id === selectedScenarioId
@@ -287,6 +315,54 @@ export function CoreLab() {
         </header>
 
         <div className="mt-8 max-w-[1100px]">
+          <section className="mb-4 grid border border-neutral-700 bg-[#050505] lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="border-b border-grid px-4 py-4 lg:border-b-0 lg:border-r">
+              <div className="flex items-center gap-3">
+                <h2 className="text-[10px] tracking-[0.2em] text-fg">
+                  TRANSACTION TOASTS
+                </h2>
+                <span className="border border-amber-300/50 px-1.5 py-0.5 text-[8px] tracking-[0.14em] text-amber-300">
+                  INTERACTION LAB
+                </span>
+              </div>
+              <p className="mt-2 max-w-xl text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+                Trigger individual states or load a full stack. The newest
+                transaction stays in front; hover the bottom-right stack or move
+                keyboard focus into it, then scroll to inspect its history.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-grid sm:grid-cols-4 lg:min-w-[520px]">
+              <button
+                type="button"
+                onClick={() => showToastExample('submitting', 'CAPTURE')}
+                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+              >
+                SUBMITTING
+              </button>
+              <button
+                type="button"
+                onClick={() => showToastExample('confirmed', 'STAKE')}
+                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+              >
+                CONFIRMED
+              </button>
+              <button
+                type="button"
+                onClick={() => showToastExample('failed', 'YIELD CLAIM')}
+                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-amber-400 transition-colors hover:bg-neutral-900 hover:text-amber-300 focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+              >
+                FAILED
+              </button>
+              <button
+                type="button"
+                onClick={showToastStackExample}
+                className="bg-amber-300 px-4 py-3 text-left text-[9px] tracking-[0.14em] text-black transition-colors hover:bg-amber-200 focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+              >
+                LOAD STACK ×8
+              </button>
+            </div>
+          </section>
+
           <div className="mb-4 grid gap-px border border-neutral-700 bg-grid lg:grid-cols-4">
             <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
               <span className="text-[9px] tracking-[0.18em] text-neutral-500">
