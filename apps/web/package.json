@@ -18,7 +18,10 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.7.0",
-    "@starknet-io/get-starknet-modal": "^5.0.0",
+    "@starknet-io/get-starknet-discovery": "6.0.4",
+    "@starknet-io/get-starknet-modal": "6.0.1",
+    "@starknet-io/get-starknet-wallet-standard": "5.0.0",
+    "@starknet-io/types-js": "0.10.3",
     "@starknet-start/chains": "^1.0.7",
     "@starknet-start/providers": "^1.0.7",
     "@starknet-start/react": "^1.0.8",
@@ -28,7 +31,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
-    "starknet": "^10.0.2",
+    "starknet": "10.7.0",
     "tailwind-merge": "^3.4.0",
     "three": "^0.181.2",
     "three-projected-material": "^2.2.2",
@@ -53,8 +56,8 @@
     "tailwindcss": "^3.4.0",
     "typescript": "~5.9.3",
     "vite": "^5.0.8",
-    "vitest": "^2.1.9",
     "vite-plugin-top-level-await": "^1.6.0",
-    "vite-plugin-wasm": "^3.5.0"
+    "vite-plugin-wasm": "^3.5.0",
+    "vitest": "^2.1.9"
   }
 }

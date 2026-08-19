@@ -1,11 +1,45 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
-import { useAccount, useConnect, useDisconnect } from '@starknet-start/react';
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useProvider,
+} from '@starknet-start/react';
+import { WalletAccountV6, walletV6 } from 'starknet';
 import type { WalletState } from '../types';
+import { config } from '../services/config';
+import {
+  readShieldedTokenBalance,
+  supportsShieldedBalances,
+} from '../services/shieldedBalance';
+
+export type ShieldedStrkStatus =
+  | 'disconnected'
+  | 'checking'
+  | 'available'
+  | 'unsupported'
+  | 'reading'
+  | 'ready'
+  | 'error';
+
+type PrivacyWallet = Parameters<typeof walletV6.supportedWalletApi>[0];
 
 interface WalletContextType extends WalletState {
   connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  readShieldedStrkBalance: () => Promise<void>;
+  shieldedStrkBalance: bigint | null;
+  shieldedStrkError: string | null;
+  shieldedStrkStatus: ShieldedStrkStatus;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -16,6 +50,46 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const account = useAccount();
   const connection = useConnect();
   const disconnection = useDisconnect();
+  const { provider } = useProvider();
+  const [shieldedStrkBalance, setShieldedStrkBalance] = useState<bigint | null>(
+    null
+  );
+  const [shieldedStrkError, setShieldedStrkError] = useState<string | null>(
+    null
+  );
+  const [shieldedStrkStatus, setShieldedStrkStatus] =
+    useState<ShieldedStrkStatus>('disconnected');
+  const shieldedRequestRevision = useRef(0);
+
+  const privacyWallet = account.connector as unknown as
+    | PrivacyWallet
+    | undefined;
+
+  useEffect(() => {
+    const revision = shieldedRequestRevision.current + 1;
+    shieldedRequestRevision.current = revision;
+    setShieldedStrkBalance(null);
+    setShieldedStrkError(null);
+
+    if (!account.address || !privacyWallet) {
+      setShieldedStrkStatus('disconnected');
+      return;
+    }
+
+    setShieldedStrkStatus('checking');
+    walletV6
+      .supportedWalletApi(privacyWallet)
+      .then((versions) => {
+        if (shieldedRequestRevision.current !== revision) return;
+        setShieldedStrkStatus(
+          supportsShieldedBalances(versions) ? 'available' : 'unsupported'
+        );
+      })
+      .catch(() => {
+        if (shieldedRequestRevision.current !== revision) return;
+        setShieldedStrkStatus('unsupported');
+      });
+  }, [account.address, account.chainId, privacyWallet]);
 
   const connect = useCallback(
     async (walletName: string) => {
@@ -34,6 +108,48 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     await disconnection.disconnectAsync();
   }, [disconnection]);
 
+  const readShieldedStrkBalance = useCallback(async () => {
+    if (
+      !account.address ||
+      !privacyWallet ||
+      !config.strkTokenAddress ||
+      (shieldedStrkStatus !== 'available' &&
+        shieldedStrkStatus !== 'ready' &&
+        shieldedStrkStatus !== 'error')
+    ) {
+      return;
+    }
+
+    const revision = shieldedRequestRevision.current + 1;
+    shieldedRequestRevision.current = revision;
+    setShieldedStrkError(null);
+    setShieldedStrkStatus('reading');
+
+    try {
+      const walletAccount = new WalletAccountV6({
+        address: account.address,
+        provider,
+        walletProvider: privacyWallet,
+      });
+      const balance = await readShieldedTokenBalance(
+        walletAccount,
+        config.strkTokenAddress
+      );
+      if (shieldedRequestRevision.current !== revision) return;
+      setShieldedStrkBalance(balance);
+      setShieldedStrkStatus('ready');
+    } catch (reason) {
+      if (shieldedRequestRevision.current !== revision) return;
+      setShieldedStrkBalance(null);
+      setShieldedStrkError(
+        reason instanceof Error
+          ? reason.message
+          : 'Unable to read shielded STRK from the wallet.'
+      );
+      setShieldedStrkStatus('error');
+    }
+  }, [account.address, privacyWallet, provider, shieldedStrkStatus]);
+
   const value = useMemo<WalletContextType>(() => {
     const error = connection.error || disconnection.error;
 
@@ -49,6 +165,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       isConnecting: Boolean(
         account.isConnecting || connection.isPending || disconnection.isPending
       ),
+      readShieldedStrkBalance,
+      shieldedStrkBalance,
+      shieldedStrkError,
+      shieldedStrkStatus,
     };
   }, [
     account.address,
@@ -63,6 +183,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     disconnection.error,
     disconnection.isPending,
     account.connector?.name,
+    readShieldedStrkBalance,
+    shieldedStrkBalance,
+    shieldedStrkError,
+    shieldedStrkStatus,
   ]);
 
   return (

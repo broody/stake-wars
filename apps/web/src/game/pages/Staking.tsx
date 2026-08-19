@@ -6,6 +6,7 @@ import { useYield } from '../contexts/useYield';
 import { getStrkBalance } from '../services/starknet';
 import { formatStrk, parseStrk } from '../utils/format';
 import { calculateYieldMetrics, calculateYieldPercent } from '../utils/yield';
+import type { ShieldedStrkStatus } from '../contexts/WalletContext';
 
 const MAX_U128 = (1n << 128n) - 1n;
 const VOYAGER_VALIDATOR_URL =
@@ -78,6 +79,59 @@ function Metric({
   );
 }
 
+export function ShieldedMetric({
+  balance,
+  error,
+  onRead,
+  status,
+}: {
+  balance: bigint | null;
+  error: string | null;
+  onRead: () => Promise<void>;
+  status: ShieldedStrkStatus;
+}) {
+  const canRead =
+    status === 'available' || status === 'ready' || status === 'error';
+  const value =
+    status === 'checking'
+      ? 'CHECKING…'
+      : status === 'unsupported'
+        ? 'UNAVAILABLE'
+        : status === 'reading'
+          ? 'AWAITING WALLET…'
+          : balance === null
+            ? '— [STRK]'
+            : `${formatStrk(balance, 6)} [STRK]`;
+
+  return (
+    <div className="border-b border-r border-grid px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[9px] tracking-[0.2em] text-neutral-500">
+          SHIELDED
+        </div>
+        {canRead ? (
+          <button
+            type="button"
+            onClick={() => void onRead()}
+            className="text-[8px] tracking-[0.16em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            {status === 'ready' ? 'REFRESH' : 'READ [STRK]'}
+          </button>
+        ) : null}
+      </div>
+      <div
+        className={`mt-2 tabular-nums text-white ${value.length > 18 ? 'text-sm' : 'text-lg'}`}
+        aria-live="polite"
+      >
+        {value}
+      </div>
+      {error ? (
+        <div className="mt-2 text-[8px] leading-4 text-amber-400">{error}</div>
+      ) : null}
+    </div>
+  );
+}
+
 function durationValue(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const days = Math.floor(seconds / 86_400);
@@ -95,7 +149,14 @@ function percentValue(value: number | null): string {
 }
 
 export function Staking() {
-  const { address, isConnected } = useWallet();
+  const {
+    address,
+    isConnected,
+    readShieldedStrkBalance,
+    shieldedStrkBalance,
+    shieldedStrkError,
+    shieldedStrkStatus,
+  } = useWallet();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useSectors();
   const {
@@ -388,23 +449,15 @@ export function Staking() {
                 unit="FORCE"
                 emphasis
               />
-              <Metric
-                label="COMMITTED"
-                value={
-                  operatorStatus
-                    ? operatorStatus.sectorForce + operatorStatus.challengeForce
-                    : null
-                }
-                unit="FORCE"
-              />
-              <Metric
-                label="SPENT"
-                value={operatorStatus?.spentForce ?? null}
-                unit="FORCE"
+              <ShieldedMetric
+                balance={shieldedStrkBalance}
+                error={shieldedStrkError}
+                onRead={readShieldedStrkBalance}
+                status={shieldedStrkStatus}
               />
             </div>
             <div className="p-5 text-[10px] leading-5 text-neutral-500">
-              FORCE is allocation accounting, not a separate token. Uncommitted
+              FORCE is allocation accounting, not a separate token. Available
               FORCE stays ready for captures, reinforcements, and challenges.
             </div>
           </div>
