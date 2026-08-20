@@ -177,6 +177,8 @@ export interface YieldSummary {
 }
 
 export type CoreMode = 'control' | 'projection';
+export type ControlView = 'flat' | 'staked';
+export type StakeScale = 'absolute' | 'logarithmic';
 
 export interface WalletState {
   isConnected: boolean;

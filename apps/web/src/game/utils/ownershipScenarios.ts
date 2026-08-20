@@ -1,4 +1,11 @@
 import { SECTOR_COUNT, adjacentSectorIds } from './sectorGeometry';
+import { STAKE_RELIEF_CAP_STRK } from './sectorStakeRelief';
+
+export {
+  MAX_STAKE_RELIEF_HEIGHT,
+  STAKE_RELIEF_CAP_STRK,
+  stakeReliefHeight,
+} from './sectorStakeRelief';
 
 export type OwnershipDistribution = 'contiguous' | 'mixed' | 'scattered';
 export type OwnershipScenarioKind = 'wave' | 'distribution';
@@ -6,8 +13,6 @@ export type OwnershipScenarioKind = 'wave' | 'distribution';
 const UNOCCUPIED_SECTOR_COUNT = Math.round(SECTOR_COUNT * 0.08);
 const DEFAULT_OCCUPIED_SECTOR_COUNT = SECTOR_COUNT - UNOCCUPIED_SECTOR_COUNT;
 const UNOCCUPIED_REGION_COUNT = 12;
-export const STAKE_RELIEF_CAP_STRK = 100_000;
-export const MAX_STAKE_RELIEF_HEIGHT = 0.9;
 
 export interface OwnershipScenario {
   id: string;
@@ -550,21 +555,6 @@ function simulatedStakedStrk(ownerCount: number, seed: number): number[] {
     stakes[stakes.length - 1] = STAKE_RELIEF_CAP_STRK * 5;
   }
   return stakes;
-}
-
-export function stakeReliefHeight(
-  stakedStrk: number,
-  logarithmic = true
-): number {
-  if (!Number.isFinite(stakedStrk) || stakedStrk <= 0) return 0;
-  const cappedStake = Math.min(stakedStrk, STAKE_RELIEF_CAP_STRK);
-  if (!logarithmic) {
-    return MAX_STAKE_RELIEF_HEIGHT * (cappedStake / STAKE_RELIEF_CAP_STRK);
-  }
-  return (
-    (MAX_STAKE_RELIEF_HEIGHT * Math.log1p(cappedStake)) /
-    Math.log1p(STAKE_RELIEF_CAP_STRK)
-  );
 }
 
 export function createOwnershipScenario(

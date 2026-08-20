@@ -22,6 +22,7 @@ import {
   sectorTenureHeights,
   DEFAULT_TENURE_EXTRUSION_ENABLED,
 } from '../../utils/sectorTenure';
+import { sectorStakeHeights } from '../../utils/sectorStakeRelief';
 import {
   SectorDetailImageLayer,
   SectorImageLayer,
@@ -745,6 +746,7 @@ export function SectorOwnershipLayers({
         waveDistanceRange={activeWaveDistanceRange}
         waveDelay={activeWaveDelay}
         topColor={SECTOR_COLORS.opponent}
+        topBackColor={SECTOR_COLORS.opponent}
         sideColor={SECTOR_COLORS.opponentSide}
         onClickSector={onClickSector}
         onHoverSector={onHoverSector}
@@ -798,6 +800,8 @@ export function Planet({
   const { artworks, placementDraft, featuredArtworkId } = useSectorImages();
   const {
     mode,
+    controlView,
+    stakeScale,
     isSectorInteractionLocked,
     selectedSectorIds,
     selectedSectorId,
@@ -807,6 +811,7 @@ export function Planet({
     occupiedSectorIds,
     sectorOwnerGroups,
     sectorControlledSince,
+    sectorCaptureForce,
     projectionSectorIds,
     projectionLoadingId,
     selectSector,
@@ -880,23 +885,35 @@ export function Planet({
     return () => window.clearTimeout(timeout);
   }, [mode, prefersReducedMotion]);
 
-  const sectorHeights = useMemo(
-    () =>
-      sectorTenureHeights(
-        tenureExtrusionEnabled,
+  const sectorHeights = useMemo(() => {
+    const stakeReliefEnabled = mode === 'control' && controlView === 'staked';
+    if (stakeReliefEnabled) {
+      return sectorStakeHeights(
+        true,
         occupiedSectorIds,
-        sectorOwnerGroups,
-        sectorControlledSince,
-        tenureClock
-      ),
-    [
-      sectorControlledSince,
-      sectorOwnerGroups,
+        sectorCaptureForce,
+        stakeScale === 'logarithmic'
+      );
+    }
+
+    return sectorTenureHeights(
+      tenureExtrusionEnabled && mode === 'control',
       occupiedSectorIds,
-      tenureClock,
-      tenureExtrusionEnabled,
-    ]
-  );
+      sectorOwnerGroups,
+      sectorControlledSince,
+      tenureClock
+    );
+  }, [
+    controlView,
+    mode,
+    sectorControlledSince,
+    sectorCaptureForce,
+    sectorOwnerGroups,
+    occupiedSectorIds,
+    stakeScale,
+    tenureClock,
+    tenureExtrusionEnabled,
+  ]);
   const detailArtwork = useMemo(() => {
     if (mode === 'projection' && featuredArtworkId) {
       const featured = artworks.find(

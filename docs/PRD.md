@@ -119,7 +119,7 @@ The first release intentionally excludes passive territory decay, recurring main
     *   **Empty Sector:** Wireframe outline.
     *   **Occupied Sector:** Solid fill (White) or displays the Operator's custom image.
     *   **Selected Sector:** Highlights and displays the Controller, Capture Force, current leader, Leading Force, lead-change count, response-window deadline, and the connected Operator's contextually relevant Available Force.
-    *   **Control Tenure Relief:** In Control mode, every occupied Sector is extruded radially according to how long the current Controller has continuously held it. Height uses one fixed, absolute logarithmic scale for every visitor and session, capped visually at one year so old holdings cannot overwhelm the Core. The exact duration remains visible in the selected Sector panel. Neutral capture and challenge settlement to a new Controller reset tenure; successful defense and reinforcement do not. Projection mode remains flat.
+    *   **Control Views:** Control mode offers `FLAT VIEW` and `STAKED VIEW`. Staked View extrudes each occupied Sector radially according to its committed Capture Force so Operators can compare targets before selecting a Sector to challenge. Users may switch the fixed height scale between capped absolute and logarithmic mappings; the exact Capture Force remains visible in the selected Sector panel. Projection mode remains flat.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
@@ -241,7 +241,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Mainnet integration with the Stake Wars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
-    *   Absolute, bounded Sector tenure relief in Control mode with exact held duration in the HUD.
+    *   Flat and Staked Control views with capped absolute and logarithmic Capture Force relief scales.
     *   Fly.io API with wallet-verified, ownership-bound upload authorization.
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.

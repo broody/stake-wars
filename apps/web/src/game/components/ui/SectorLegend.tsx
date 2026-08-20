@@ -1,4 +1,5 @@
 import { useSectors } from '../../contexts/SectorContext';
+import { useWallet } from '../../contexts/WalletContext';
 import { SECTOR_COUNT } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 
@@ -28,6 +29,7 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
 }
 
 export function SectorLegend() {
+  const { isConnected } = useWallet();
   const {
     mode,
     occupiedSectorIds,
@@ -46,7 +48,7 @@ export function SectorLegend() {
     (sectorId) => !contestedSectorIdSet.has(sectorId)
   ).length;
 
-  if (mode !== 'control') return null;
+  if (!isConnected || mode !== 'control') return null;
 
   const neutralCount = SECTOR_COUNT - occupiedSectorIds.length;
 

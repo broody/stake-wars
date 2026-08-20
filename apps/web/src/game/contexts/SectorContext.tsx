@@ -14,6 +14,8 @@ import type {
   CoreMode,
   IndexedSector,
   OperatorStatus,
+  ControlView,
+  StakeScale,
 } from '../types';
 import {
   canManageSectorImage,
@@ -30,6 +32,8 @@ import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
 
 interface SectorContextValue {
   mode: CoreMode;
+  controlView: ControlView;
+  stakeScale: StakeScale;
   isSectorInteractionLocked: boolean;
   selectedSectorId: number | null;
   selectedSectorIds: number[];
@@ -42,6 +46,7 @@ interface SectorContextValue {
   contestedSectorIds: number[];
   sectorOwnerGroups: number[][];
   sectorControlledSince: ReadonlyMap<number, number>;
+  sectorCaptureForce: ReadonlyMap<number, bigint>;
   sectorOwnershipById: ReadonlyMap<number, SectorOwnership>;
   projectionSectorIds: number[];
   projectionLoadingId: number | null;
@@ -53,6 +58,8 @@ interface SectorContextValue {
   sectorIndexError: string | null;
   projectionError: string | null;
   changeMode: (mode: CoreMode) => void;
+  changeControlView: (view: ControlView) => void;
+  changeStakeScale: (scale: StakeScale) => void;
   selectSector: (sectorId: number | null, extendSelection?: boolean) => void;
   selectSectors: (sectorIds: number[]) => void;
   removeSelectedSectors: (sectorIds: readonly number[]) => void;
@@ -97,6 +104,8 @@ function projectionErrorFor(
 export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
   const [mode, setMode] = useState<CoreMode>('control');
+  const [controlView, setControlView] = useState<ControlView>('flat');
+  const [stakeScale, setStakeScale] = useState<StakeScale>('logarithmic');
   const [isSectorInteractionLocked, setSectorInteractionLocked] =
     useState(false);
   const [selectedSectorIds, setSelectedSectorIds] = useState<number[]>([]);
@@ -157,6 +166,14 @@ export function SectorProvider({ children }: PropsWithChildren) {
     },
     [address]
   );
+
+  const changeControlView = useCallback((view: ControlView) => {
+    setControlView(view);
+  }, []);
+
+  const changeStakeScale = useCallback((scale: StakeScale) => {
+    setStakeScale(scale);
+  }, []);
 
   const selectSector = useCallback(
     (sectorId: number | null, extendSelection = false) => {
@@ -511,6 +528,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       number,
       {
         controller: string;
+        captureForce: bigint;
         ownershipGeneration: bigint;
         controlledSince: number | null;
         activeChallengeId: bigint;
@@ -521,6 +539,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       if (!isZeroAddress(sector.controller)) {
         sectors.set(sector.id, {
           controller: sector.controller,
+          captureForce: sector.captureForce,
           ownershipGeneration: sector.ownershipGeneration,
           controlledSince: sector.controlledSince,
           activeChallengeId: sector.activeChallengeId,
@@ -539,6 +558,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         const indexed = sectors.get(status.id);
         sectors.set(status.id, {
           controller: status.controller,
+          captureForce: status.captureForce,
           ownershipGeneration: status.ownershipGeneration,
           controlledSince:
             status.controlledSince ??
@@ -560,6 +580,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
     contestedSectorIds,
     sectorOwnerGroups,
     sectorControlledSince,
+    sectorCaptureForce,
     sectorOwnershipById,
   } = useMemo(() => {
     const occupied: number[] = [];
@@ -568,6 +589,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
     const contested: number[] = [];
     const ownerGroups = new Map<string, number[]>();
     const controlledSince = new Map<number, number>();
+    const captureForce = new Map<number, bigint>();
     const ownershipById = new Map<number, SectorOwnership>();
 
     activeSectors.forEach((sector, id) => {
@@ -581,6 +603,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         controller,
         ownershipGeneration: sector.ownershipGeneration,
       });
+      captureForce.set(id, sector.captureForce);
 
       if (address && addressesMatch(controller, address)) {
         owned.push(id);
@@ -610,6 +633,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         ids.sort(ascending)
       ),
       sectorControlledSince: controlledSince,
+      sectorCaptureForce: captureForce,
       sectorOwnershipById: ownershipById,
     };
   }, [activeSectors, address]);
@@ -617,6 +641,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const value = useMemo<SectorContextValue>(
     () => ({
       mode,
+      controlView,
+      stakeScale,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -629,6 +655,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       contestedSectorIds,
       sectorOwnerGroups,
       sectorControlledSince,
+      sectorCaptureForce,
       sectorOwnershipById,
       projectionSectorIds,
       projectionLoadingId,
@@ -640,6 +667,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorIndexError,
       projectionError,
       changeMode,
+      changeControlView,
+      changeStakeScale,
       selectSector,
       selectSectors,
       removeSelectedSectors,
@@ -654,6 +683,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
     }),
     [
       mode,
+      controlView,
+      stakeScale,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -666,6 +697,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       contestedSectorIds,
       sectorOwnerGroups,
       sectorControlledSince,
+      sectorCaptureForce,
       sectorOwnershipById,
       projectionSectorIds,
       projectionLoadingId,
@@ -677,6 +709,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorIndexError,
       projectionError,
       changeMode,
+      changeControlView,
+      changeStakeScale,
       selectSector,
       selectSectors,
       removeSelectedSectors,

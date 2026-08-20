@@ -5,10 +5,8 @@ import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { createSectorGeometry, isSectorId } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
-import {
-  stakeReliefHeight,
-  type OwnershipScenario,
-} from '../../utils/ownershipScenarios';
+import type { OwnershipScenario } from '../../utils/ownershipScenarios';
+import { stakeReliefHeight } from '../../utils/sectorStakeRelief';
 import { SectorContestLayer, SectorOwnershipLayers } from './Planet';
 import {
   ExampleDetailImageLayer,
