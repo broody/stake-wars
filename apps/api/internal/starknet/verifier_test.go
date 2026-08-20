@@ -28,16 +28,19 @@ func TestTypedDataCanBeHashed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "0x5686adf6296ebb3f46449496c364b0c86337a28d837d3983575e2a931680443"; hash != want {
+	if want := "0x6b6e74b29c763d6dbd88967e6452d49a53c522df2c5e6bde04389379454bbb7"; hash != want {
 		t.Fatalf("expected SNIP-12 hash %s, got %s", want, hash)
 	}
 
-	var decoded map[string]any
+	var decoded challengeTypedData
 	if err := json.Unmarshal(typedData, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded["primaryType"] != primaryType {
-		t.Fatalf("unexpected primary type %v", decoded["primaryType"])
+	if decoded.PrimaryType != primaryType {
+		t.Fatalf("unexpected primary type %v", decoded.PrimaryType)
+	}
+	if decoded.Message.Statement != challengeStatement {
+		t.Fatalf("unexpected challenge statement %q", decoded.Message.Statement)
 	}
 }
 

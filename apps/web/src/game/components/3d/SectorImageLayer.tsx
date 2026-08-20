@@ -417,7 +417,6 @@ export function PlacementPreviewLayer({
       waveOrigin={waveOrigin}
       waveDistanceRange={waveDistanceRange}
       waveDelay={waveDelay}
-      opacity={0.82}
       renderOrder={8}
       atlasColumns={1}
       atlasRows={1}

@@ -23,7 +23,6 @@ export function ProjectionPanel() {
     projectionLoadingId,
     projectionError,
     sectorOwnershipById,
-    toggleProjectionSector,
     clearProjectionSelection,
   } = useSectors();
   const {
@@ -81,20 +80,33 @@ export function ProjectionPanel() {
 
   if (mode !== 'projection') return null;
 
+  const discardPreparedImage = () => {
+    endPlacement();
+    setPrepared(null);
+    setFileName(null);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
   const chooseFile = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || projectionSectorIds.length === 0) return;
     setPreparing(true);
     setUploadError(null);
     setUploadNotice(null);
     try {
       const next = await prepareSectorImage(file, maximumImageBytes);
+      const nextPreviewUrl = URL.createObjectURL(next.detail);
       endPlacement();
       setPrepared(next);
       setFileName(file.name);
       setPreviewUrl((current) => {
         if (current) URL.revokeObjectURL(current);
-        return URL.createObjectURL(next.detail);
+        return nextPreviewUrl;
       });
+      beginPlacement(nextPreviewUrl);
     } catch (failure) {
       setPrepared(null);
       setFileName(null);
@@ -145,7 +157,7 @@ export function ProjectionPanel() {
           selectedOwnerships.length === 1 ? '' : 's'
         }.`
       );
-      endPlacement();
+      discardPreparedImage();
       clearProjectionSelection();
     } catch (failure) {
       setUploadError(
@@ -172,8 +184,22 @@ export function ProjectionPanel() {
         </div>
         <div className="mt-1 flex items-baseline justify-between gap-4">
           <span className="text-base tracking-[0.12em]">ASSIGN SECTOR ART</span>
-          <span className="text-[10px] tracking-wider text-neutral-500">
-            {projectionSectorIds.length} VERIFIED
+          <span
+            className="grid h-3 w-3 place-items-center"
+            role="status"
+            aria-live="polite"
+          >
+            {projectionLoadingId !== null ? (
+              <span
+                className="h-2.5 w-2.5 animate-spin rounded-full border border-neutral-700 border-t-amber-400"
+                aria-hidden
+              />
+            ) : null}
+            {projectionLoadingId !== null ? (
+              <span className="sr-only">
+                Verifying {sectorLabel(projectionLoadingId)}
+              </span>
+            ) : null}
           </span>
         </div>
       </header>
@@ -184,69 +210,75 @@ export function ProjectionPanel() {
           projection from your current view of the Core.
         </p>
 
-        {projectionLoadingId !== null ? (
-          <div className="mt-3 flex items-center gap-3 border-t border-grid pt-3 text-dim">
-            <span className="h-2 w-2 animate-pulse bg-amber-400" />
-            VERIFYING {sectorLabel(projectionLoadingId)}…
-          </div>
-        ) : null}
-
         {projectionError ? (
           <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
             {projectionError}
           </div>
         ) : null}
 
-        {projectionSectorIds.length === 0 ? (
-          <div className="mt-4 border border-dashed border-neutral-800 px-3 py-5 text-center text-[10px] tracking-[0.16em] text-neutral-600">
-            SELECT YOUR SECTORS ON THE CORE
+        <div className="mt-4">
+          <div className="mb-2 flex justify-between text-[9px] tracking-[0.2em] text-dim">
+            <span>PROJECTION TARGETS</span>
+            {replacementCount > 0 ? (
+              <span className="text-neutral-500">
+                {replacementCount} REPLACEMENT
+                {replacementCount === 1 ? '' : 'S'}
+              </span>
+            ) : null}
           </div>
-        ) : (
-          <div className="mt-4">
-            <div className="mb-2 flex justify-between text-[9px] tracking-[0.2em] text-dim">
-              <span>PROJECTION TARGETS</span>
-              {replacementCount > 0 ? (
-                <span className="text-neutral-500">
-                  {replacementCount} REPLACEMENT
-                  {replacementCount === 1 ? '' : 'S'}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
-              {projectionSectorIds.map((sectorId) => (
+          <div
+            className={`flex h-[54px] items-center px-3 ${
+              projectionSectorIds.length === 0
+                ? 'justify-center border border-dashed border-neutral-800 text-center'
+                : 'justify-between border border-neutral-800'
+            }`}
+          >
+            {projectionSectorIds.length === 0 ? (
+              <span className="text-[10px] tracking-[0.16em] text-neutral-600">
+                SELECT YOUR SECTORS ON THE CORE
+              </span>
+            ) : (
+              <>
+                <div className="flex items-center gap-2" aria-live="polite">
+                  <span className="font-display text-2xl tabular-nums text-white">
+                    {projectionSectorIds.length}
+                  </span>
+                  <span className="text-[9px] tracking-[0.18em] text-neutral-500">
+                    SECTOR{projectionSectorIds.length === 1 ? '' : 'S'} SELECTED
+                  </span>
+                </div>
                 <button
-                  key={sectorId}
                   type="button"
                   disabled={isUploading || placementDraft !== null}
-                  onClick={() => void toggleProjectionSector(sectorId)}
-                  className="border border-neutral-600 px-2 py-1.5 text-[10px] tracking-wider text-neutral-300 transition-colors hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
-                  aria-label={`Remove Sector ${sectorId} from projection`}
+                  onClick={clearProjectionSelection}
+                  className="text-[9px] tracking-[0.2em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
                 >
-                  {sectorLabel(sectorId)} ×
+                  CLEAR
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              disabled={isUploading || placementDraft !== null}
-              onClick={clearProjectionSelection}
-              className="mt-3 text-[9px] tracking-[0.2em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
-            >
-              CLEAR TARGETS
-            </button>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         <input
           ref={inputRef}
           type="file"
           accept="image/webp,image/jpeg,image/png"
           className="sr-only"
-          onChange={(event) => void chooseFile(event.target.files?.[0])}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            void chooseFile(file);
+          }}
         />
         <button
           type="button"
-          disabled={isPreparing || isUploading || placementDraft !== null}
+          disabled={
+            isPreparing ||
+            isUploading ||
+            placementDraft !== null ||
+            projectionSectorIds.length === 0
+          }
           onClick={() => inputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
@@ -333,7 +365,7 @@ export function ProjectionPanel() {
             <button
               type="button"
               disabled={isUploading}
-              onClick={endPlacement}
+              onClick={discardPreparedImage}
               className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500 hover:text-white disabled:opacity-50"
             >
               CANCEL PLACEMENT
@@ -370,19 +402,8 @@ export function ProjectionPanel() {
 
         <button
           type="button"
-          disabled={
-            placementDraft
-              ? isUploadDisabled
-              : isPreparing ||
-                isUploading ||
-                !uploadsEnabled ||
-                !prepared ||
-                projectionSectorIds.length === 0
-          }
-          onClick={() => {
-            if (!placementDraft && previewUrl) beginPlacement(previewUrl);
-            else void upload();
-          }}
+          disabled={isUploadDisabled}
+          onClick={() => void upload()}
           className="mt-4 w-full border border-white bg-white px-4 py-3 text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
         >
           {isImageServiceLoading
@@ -391,11 +412,11 @@ export function ProjectionPanel() {
               ? 'PUBLISHING PROJECTION…'
               : projectionSectorIds.length === 0
                 ? 'SELECT SECTORS'
-                : placementDraft
-                  ? placementDraft.placement
+                : !prepared
+                  ? 'CHOOSE IMAGE'
+                  : placementDraft?.placement
                     ? `PUBLISH ACROSS ${projectionSectorIds.length} SECTOR${projectionSectorIds.length === 1 ? '' : 'S'}`
-                    : 'LOCKING CAMERA…'
-                  : 'POSITION ON CORE'}
+                    : 'LOCKING CAMERA…'}
         </button>
 
         <div className="mt-4 border-t border-grid pt-3 text-[8px] leading-relaxed tracking-[0.11em] text-neutral-600">

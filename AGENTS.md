@@ -33,7 +33,9 @@ pnpm dev:web:sepolia
 ```
 
 Both commands load the Sepolia environment; `pnpm dev` also runs the web app
-against Sepolia. Open the game at `http://localhost:3000/?app=game`.
+against Sepolia. Unless explicitly overridden at process startup, the Sepolia
+environment sends API and image-service requests to the configured remote API.
+Open the game at `http://localhost:3000/?app=game`.
 
 Katana is reserved for isolated contract testing only. Start Katana or migrate a
 local Dojo World only when a contract test specifically requires it or the user
@@ -72,12 +74,32 @@ Do not bypass this launcher with `pnpm --filter @stakewars/api dev`. The
 launcher reads the current Sepolia RPC and Control System from
 `apps/web/.env.sepolia`, verifies the MinIO bucket, and passes the container's
 credentials only to the API process. Never print those credentials or write
-them into tracked files. After startup, require all of the following:
+them into tracked files.
+
+When the local API is needed by the web app, start or restart the frontend with
+an explicit local API override:
+
+```bash
+VITE_API_DOMAIN=http://127.0.0.1:8080 pnpm dev:web:sepolia
+```
+
+Vite captures this value at process startup, so an already-running frontend
+must be restarted after switching between the remote and local API. Do not edit
+`apps/web/.env.sepolia` for this temporary override. Always load the game from
+`http://localhost:3000/?app=game`, not `http://127.0.0.1:3000`, because the
+local API and MinIO browser CORS policies allow the `localhost` origin.
+
+After startup, require all of the following:
 
 - `GET http://127.0.0.1:8080/healthz` returns `{"status":"ok"}`.
 - `GET http://127.0.0.1:8080/readyz` returns `{"status":"ready"}`.
 - `GET http://127.0.0.1:8080/v1/config` reports `imageUploadsEnabled: true`
   and the expected Sepolia network.
+- The frontend's effective Vite environment reports
+  `VITE_API_DOMAIN: "http://127.0.0.1:8080"`; do not infer this merely from a
+  healthy API process.
+- `GET http://127.0.0.1:8080/v1/sector-artworks` succeeds from the frontend's
+  `http://localhost:3000` origin.
 - MinIO accepts the browser CORS preflight and the `stakewars-art` bucket is
   publicly readable.
 

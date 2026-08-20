@@ -1151,21 +1151,25 @@ export function Planet({
         />
       )}
 
-      <SectorLayer
-        sectorIds={standardActiveSectorIds}
-        color={SECTOR_COLORS.selected}
-        opacity={mode === 'projection' ? 0.62 : 0.2}
-        scale={1.01}
-        heights={mode === 'control' ? sectorHeights : undefined}
-      />
+      {placementDraft === null ? (
+        <>
+          <SectorLayer
+            sectorIds={standardActiveSectorIds}
+            color={SECTOR_COLORS.selected}
+            opacity={mode === 'projection' ? 0.62 : 0.2}
+            scale={1.01}
+            heights={mode === 'control' ? sectorHeights : undefined}
+          />
 
-      {standardActiveSectorIds.length > 0 ? (
-        <ThickSectorBorderLayer
-          sectorIds={standardActiveSectorIds}
-          color={SECTOR_COLORS.selected}
-          scale={1.014}
-          heights={mode === 'control' ? sectorHeights : undefined}
-        />
+          {standardActiveSectorIds.length > 0 ? (
+            <ThickSectorBorderLayer
+              sectorIds={standardActiveSectorIds}
+              color={SECTOR_COLORS.selected}
+              scale={1.014}
+              heights={mode === 'control' ? sectorHeights : undefined}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {mode === 'control' && contestedSectorIds.length > 0 ? (

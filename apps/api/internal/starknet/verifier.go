@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	primaryType       = "StakeWarsAuth"
-	validatedResponse = "0x56414c4944" // felt252 encoding of "VALID"
-	maxSignatureFelts = 64
+	primaryType        = "StakeWarsAuth"
+	challengeStatement = "Authorize artwork projection"
+	validatedResponse  = "0x56414c4944" // felt252 encoding of "VALID"
+	maxSignatureFelts  = 64
 )
 
 var hexFeltPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)
@@ -77,7 +78,7 @@ func (v *Verifier) TypedData(
 			Nonce:     nonce,
 			IssuedAt:  issuedAt.Unix(),
 			ExpiresAt: expiresAt.Unix(),
-			Statement: "Sign in to Stake Wars",
+			Statement: challengeStatement,
 		},
 	}
 
@@ -158,7 +159,7 @@ func messageHash(encoded json.RawMessage, wallet string) (string, error) {
 		value.Domain.Version != "1" ||
 		value.Domain.ChainID == "" ||
 		value.Domain.Revision != "1" ||
-		value.Message.Statement != "Sign in to Stake Wars" ||
+		value.Message.Statement != challengeStatement ||
 		!sameTypeParameters(value.Types["StarknetDomain"], expectedDomainTypes) ||
 		!sameTypeParameters(value.Types[primaryType], expectedMessageTypes) {
 		return "", fmt.Errorf("parse typed challenge: unsupported type or revision")
