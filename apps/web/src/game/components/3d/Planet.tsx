@@ -1153,20 +1153,18 @@ export function Planet({
 
       <SectorLayer
         sectorIds={standardActiveSectorIds}
-        color={
-          mode === 'control' ? SECTOR_COLORS.selected : SECTOR_COLORS.owned
-        }
+        color={SECTOR_COLORS.selected}
         opacity={mode === 'projection' ? 0.62 : 0.2}
         scale={1.01}
         heights={mode === 'control' ? sectorHeights : undefined}
       />
 
-      {mode === 'control' ? (
+      {standardActiveSectorIds.length > 0 ? (
         <ThickSectorBorderLayer
           sectorIds={standardActiveSectorIds}
           color={SECTOR_COLORS.selected}
           scale={1.014}
-          heights={sectorHeights}
+          heights={mode === 'control' ? sectorHeights : undefined}
         />
       ) : null}
 
