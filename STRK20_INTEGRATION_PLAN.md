@@ -4,7 +4,7 @@ Generated 2026-08-19 by the strk20-privacy-integration skill. This plan is inten
 
 ## 1. Project snapshot
 
-- Stack: React 19 + Vite frontend in `apps/web`; `starknet@^10.0.2`; `@starknet-start/react@1.0.8`; `@starknet-io/get-starknet-modal@^5.0.0`; Dojo/Cairo contracts; Go API. The app runs locally against the shared Sepolia deployment.
+- Stack: React 19 + Vite frontend in `apps/web`; `starknet@10.7.0`; `@starknetfoundation/starknet-start-react@^2.0.1`; `@starknet-io/get-starknet-modal@6.0.1`; Dojo/Cairo contracts; Go API. The app runs locally against the shared Sepolia deployment.
 - Wallet connection: `apps/web/src/game/contexts/WalletContext.tsx:16-29` and `apps/web/src/game/components/ui/WalletButton.tsx:27-164`. The wallet menu currently admits Ready/Argent only.
 - Provider and transaction layer: `apps/web/src/game/providers/StarknetProvider.tsx:8-23`; staking sends remain in `apps/web/src/game/contexts/YieldContext.tsx` and are out of scope for this balance-only change.
 - UI surface: `apps/web/src/game/pages/Staking.tsx:372-409` renders Live Position with active stake, available force, committed force, and spent force.
@@ -29,16 +29,17 @@ The read itself creates no transaction. The frontend must not log, persist, anal
 
 ## 4. Prerequisites and version gate
 
-Freshness was checked on 2026-08-19. The current relevant releases/dist-tags are:
+Freshness was checked on 2026-08-20. The current relevant releases/dist-tags are:
 
 - `starknet@10.7.0` (`WalletAccountV6`; STRK20 support requires at least 10.4.0)
 - `@starknet-io/get-starknet-modal@6.0.1`
-- `@starknet-io/get-starknet-discovery@6.0.4`
-- `@starknet-io/get-starknet-wallet-standard@6.0.5` through the v6 discovery/modal path; the direct `5.0.0` compatibility dependency remains for `@starknet-start/react@1.0.8`
+- `@starknet-io/get-starknet-core@6.0.1`
+- `@starknet-io/get-starknet-wallet-standard@6.0.5`
 - `@starknet-io/types-js@0.10.3` (stable Wallet API spec 0.10.3)
+- `@starknetfoundation/starknet-start-react@2.0.1`
 - Test wallet: current Ready extension on Sepolia
 
-`@starknet-start/react@1.0.8` still constructs `WalletAccountV5`, declares a get-starknet wallet-standard v5 peer, and does not publish a `useStrk20` hook. The focused adapter spike passed install, typecheck, build, lint, and existing tests without a peer warning: normal transactions remain on the wrapper, while its connected wallet is adapted to `WalletAccountV6` only for the consented STRK20 read.
+The maintained Starknet Foundation package line uses get-starknet v6 and removes Stake Wars' former direct v5 compatibility dependency. Stake Wars retains its focused `WalletAccountV6` adapter for the consented STRK20 read so this dependency migration does not change the privacy interaction or normal transaction paths.
 
 Capability detection must use `walletV6.supportedWalletApi(wallet)` (or `supportedSpecs`) and require Wallet API `>=0.10.3`. It must not call `strk20Balances` as a feature probe because balance reads trigger consent.
 
@@ -86,7 +87,7 @@ Execution stops after this phase for the wallet-backed manual check before any b
 
 - `WalletAccountV6.strk20Balances(tokens)` and the `STRK20_BALANCE_ENTRY.balance` field were confirmed against `starknet@10.7.0` and the stable Wallet API 0.10.3 schema.
 - Manual checkpoint pending: confirm Ready's Sepolia balance-read consent behavior and exact rejection text.
-- Future maintenance: adopt an upstream `@starknet-start/react` v6-compatible release or `useStrk20` hook when published, then remove the temporary dual-version wallet-standard dependency graph.
+- Maintenance completed 2026-08-20: adopted the maintained `@starknetfoundation/starknet-start-react` package and removed the temporary direct wallet-standard v5 compatibility dependency. Re-evaluate the native STRK20 hooks separately before changing the existing explicit-consent adapter.
 - Re-check package dist-tags before future STRK20 work because get-starknet v6 packages are still moving independently.
 
 ## 11. Links

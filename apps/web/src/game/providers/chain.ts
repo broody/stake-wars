@@ -1,4 +1,8 @@
-import { mainnet, sepolia, type Chain } from '@starknet-start/chains';
+import {
+  mainnet,
+  sepolia,
+  type Chain,
+} from '@starknetfoundation/starknet-start-chains';
 import { num, shortString } from 'starknet';
 import { config } from '../services/config';
 

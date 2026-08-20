@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { UseSignTypedDataArgs } from '@starknet-start/react';
+import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
 import { config } from './config';
 import type {
   ArtData,

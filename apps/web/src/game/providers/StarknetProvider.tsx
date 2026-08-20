@@ -1,7 +1,6 @@
 import type { PropsWithChildren } from 'react';
-import { jsonRpcProvider } from '@starknet-start/providers';
-import { StarknetConfig } from '@starknet-start/react';
-import { AutoConnect } from './useAutoConnect';
+import { jsonRpcProvider } from '@starknetfoundation/starknet-start-providers';
+import { StarknetConfig } from '@starknetfoundation/starknet-start-react';
 import { config } from '../services/config';
 import { stakeWarsChain } from './chain';
 
@@ -17,7 +16,6 @@ export function StakeWarsStarknetProvider({ children }: PropsWithChildren) {
       defaultChainId={stakeWarsChain.id}
       provider={provider}
     >
-      <AutoConnect />
       {children}
     </StarknetConfig>
   );

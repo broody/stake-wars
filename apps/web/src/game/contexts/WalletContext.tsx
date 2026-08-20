@@ -13,7 +13,7 @@ import {
   useConnect,
   useDisconnect,
   useProvider,
-} from '@starknet-start/react';
+} from '@starknetfoundation/starknet-start-react';
 import { WalletAccountV6, walletV6 } from 'starknet';
 import type { WalletState } from '../types';
 import { config } from '../services/config';

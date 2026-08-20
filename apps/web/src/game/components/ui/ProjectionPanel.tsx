@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSignTypedData } from '@starknet-start/react';
+import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { useWallet } from '../../contexts/WalletContext';

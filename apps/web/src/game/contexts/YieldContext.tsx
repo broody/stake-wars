@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
-import { useProvider, useSendTransaction } from '@starknet-start/react';
+import {
+  useProvider,
+  useSendTransaction,
+} from '@starknetfoundation/starknet-start-react';
 import { TransactionExecutionStatus } from 'starknet';
 import type { YieldSummary } from '../types';
 import { config } from '../services/config';

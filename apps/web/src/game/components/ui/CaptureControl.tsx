@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useProvider, useSendTransaction } from '@starknet-start/react';
+import {
+  useProvider,
+  useSendTransaction,
+} from '@starknetfoundation/starknet-start-react';
 import { Link } from 'react-router-dom';
 import { TransactionExecutionStatus } from 'starknet';
 import type {
