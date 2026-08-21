@@ -19,11 +19,15 @@ const CoreLab = lazy(() =>
   }))
 );
 
-function GameApp() {
+interface GameAppProps {
+  basename?: string;
+}
+
+function GameApp({ basename }: GameAppProps) {
   return (
     <StakeWarsStarknetProvider>
       <ErrorBoundary>
-        <Router>
+        <Router basename={basename}>
           <WalletProvider>
             <TransactionToastProvider>
               <SectorProvider>

@@ -188,7 +188,7 @@ flat so image projection remains an undistorted surface.
 - `pnpm format:check`
 - `git diff --check`
 - Run `pnpm dev:web:sepolia` with the approved local Torii launcher and visually
-  verify Control and Projection modes at `http://localhost:3000/?app=game`.
+  verify Control and Projection modes at `http://localhost:3000/play`.
 
 No Sepolia migration is part of implementation until it is separately approved.
 Before any approved migration, follow the repository's Sepolia test, build,

@@ -68,7 +68,7 @@ compatible Dojo toolchain in `.tool-versions`.
 
 The development frontend checks that the configured Stake Wars World is deployed
 before showing a green KATANA status in the navigation. Open the game locally at
-[http://localhost:3000/?app=game](http://localhost:3000/?app=game).
+[http://localhost:3000/play](http://localhost:3000/play).
 
 To run the frontend against the shared Sepolia deployment instead, use:
 

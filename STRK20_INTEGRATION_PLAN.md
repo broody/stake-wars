@@ -70,7 +70,7 @@ Capability detection must use `walletV6.supportedWalletApi(wallet)` (or `support
 ## 8. Testing and phase handoff
 
 - Headless: `pnpm --filter @stakewars/web test`, `pnpm --filter @stakewars/web build`, `pnpm --filter @stakewars/web lint`, `pnpm --filter @stakewars/web format:check`, and `git diff --check`.
-- Manual on `http://localhost:3000/?app=game` using `pnpm dev:web`: connect Ready on Sepolia; verify capability detection causes no consent prompt; click `READ [STRK]`; approve and compare the displayed balance with Ready; reject once and verify retry; switch account/network and verify the disclosed balance is cleared.
+- Manual on `http://localhost:3000/play` using `pnpm dev:web`: connect Ready on Sepolia; verify capability detection causes no consent prompt; click `READ [STRK]`; approve and compare the displayed balance with Ready; reject once and verify retry; switch account/network and verify the disclosed balance is cleared.
 - Regression: submit no transaction during the balance read; ensure normal public staking still uses public STRK and is unaffected by the `[STRK]` value.
 
 Execution stops after this phase for the wallet-backed manual check before any broader privacy feature is considered.

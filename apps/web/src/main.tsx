@@ -1,18 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Analytics } from '@vercel/analytics/react';
+import { selectApp } from './appSelection';
 import './index.css';
 
-// Determine which app to render based on hostname
-const hostname = window.location.hostname;
-const searchParams = new URLSearchParams(window.location.search);
-
-// Check if we're on the game subdomain or using ?app=game for local dev
-const isGameApp =
-  hostname === 'play.stakewars.gg' ||
-  hostname.startsWith('play.') ||
-  window.location.pathname === '/core-lab' ||
-  searchParams.get('app') === 'game';
+const { isGameApp, gameBasename } = selectApp(
+  window.location.hostname,
+  window.location.pathname
+);
 
 async function renderApp() {
   const root = createRoot(document.getElementById('root')!);
@@ -21,7 +16,7 @@ async function renderApp() {
     const { default: GameApp } = await import('./game/App');
     root.render(
       <StrictMode>
-        <GameApp />
+        <GameApp basename={gameBasename} />
         <Analytics />
       </StrictMode>
     );

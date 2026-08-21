@@ -35,7 +35,7 @@ pnpm dev:web:sepolia
 Both commands load the Sepolia environment; `pnpm dev` also runs the web app
 against Sepolia. Unless explicitly overridden at process startup, the Sepolia
 environment sends API and image-service requests to the configured remote API.
-Open the game at `http://localhost:3000/?app=game`.
+Open the game at `http://localhost:3000/play`.
 
 Katana is reserved for isolated contract testing only. Start Katana or migrate a
 local Dojo World only when a contract test specifically requires it or the user
@@ -86,7 +86,7 @@ VITE_API_DOMAIN=http://127.0.0.1:8080 pnpm dev:web:sepolia
 Vite captures this value at process startup, so an already-running frontend
 must be restarted after switching between the remote and local API. Do not edit
 `apps/web/.env.sepolia` for this temporary override. Always load the game from
-`http://localhost:3000/?app=game`, not `http://127.0.0.1:3000`, because the
+`http://localhost:3000/play`, not `http://127.0.0.1:3000`, because the
 local API and MinIO browser CORS policies allow the `localhost` origin.
 
 After startup, require all of the following:
