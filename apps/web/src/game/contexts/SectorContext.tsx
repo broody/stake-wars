@@ -236,8 +236,10 @@ export function SectorProvider({ children }: PropsWithChildren) {
       setProjectionError(null);
 
       try {
+        // This is a permission check, not a Sector refresh. Caching the result
+        // invalidates the ownership-derived artwork atlas and makes the image
+        // blink every time a projection Sector is selected.
         const status = await getSectorStatus(sectorId, controller.signal);
-        rememberSector(status);
 
         if (
           isZeroAddress(status.controller) ||
@@ -280,7 +282,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         }
       }
     },
-    [address, projectionSectorIds, rememberSector]
+    [address, projectionSectorIds]
   );
 
   const clearProjectionSelection = useCallback(() => {

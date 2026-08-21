@@ -32,6 +32,7 @@ import {
 import { artworkForSector } from '../../utils/sectorArtworkProjection';
 import {
   addSectorFlipAttributes,
+  addSectorLineFlipAttributes,
   randomOutsideSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
   sectorFlipWaveDelayForCount,
@@ -241,13 +242,49 @@ const STRIPE_FRAGMENT_SHADER = `
 `;
 
 const RELIEF_LINE_VERTEX_SHADER = `
+  attribute vec3 flipAxis;
+  attribute vec3 flipNormal;
+  attribute vec3 flipPivot;
   attribute vec3 reliefBasePosition;
   attribute vec3 reliefFlatPosition;
   attribute vec3 reliefStakedPosition;
+  attribute vec3 reliefBasePivot;
+  attribute vec3 reliefFlatPivot;
+  attribute vec3 reliefStakedPivot;
+  uniform float uFlipProgress;
+  uniform float uFlipDirection;
   uniform float uReliefMix;
   uniform float uReliefVisibility;
+  uniform vec3 uWaveOrigin;
+  uniform vec2 uWaveDistanceRange;
+  uniform float uWaveDelay;
 
   void main() {
+    float angularDistance = acos(clamp(
+      dot(normalize(flipPivot), normalize(uWaveOrigin)),
+      -1.0,
+      1.0
+    )) / 3.14159265359;
+    float normalizedDistance = clamp(
+      (angularDistance - uWaveDistanceRange.x)
+        / max(uWaveDistanceRange.y - uWaveDistanceRange.x, 0.000001),
+      0.0,
+      1.0
+    );
+    float waveDelay = normalizedDistance * uWaveDelay;
+    float waveProgress = uFlipDirection > 0.0
+      ? uFlipProgress
+      : 1.0 - uFlipProgress;
+    float localWaveProgress = clamp(
+      (waveProgress - waveDelay) / max(1.0 - uWaveDelay, 0.000001),
+      0.0,
+      1.0
+    );
+    float localProgress = uFlipDirection > 0.0
+      ? localWaveProgress
+      : 1.0 - localWaveProgress;
+    float easedProgress = localProgress * localProgress
+      * (3.0 - 2.0 * localProgress);
     float reliefProgress = uReliefMix * uReliefMix
       * (3.0 - 2.0 * uReliefMix);
     float reliefVisibility = uReliefVisibility * uReliefVisibility
@@ -262,7 +299,26 @@ const RELIEF_LINE_VERTEX_SHADER = `
       reliefViewPosition,
       reliefVisibility
     );
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(reliefPosition, 1.0);
+    vec3 reliefViewPivot = mix(
+      reliefFlatPivot,
+      reliefStakedPivot,
+      reliefProgress
+    );
+    vec3 reliefPivot = mix(
+      reliefBasePivot,
+      reliefViewPivot,
+      reliefVisibility
+    );
+    vec3 localPosition = reliefPosition - reliefPivot;
+    vec3 hingePosition = flipAxis * dot(localPosition, flipAxis);
+    vec3 panelWidth = localPosition - hingePosition;
+    float collapse = abs(cos(easedProgress * 3.14159265359));
+    float lift = sin(easedProgress * 3.14159265359) * 0.018;
+    vec3 flippedPosition = reliefPivot
+      + hingePosition
+      + panelWidth * collapse
+      + flipNormal * lift;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(flippedPosition, 1.0);
   }
 `;
 
@@ -285,6 +341,7 @@ interface SectorLayerProps {
   edges?: boolean;
   edgeOpacity?: number;
   heights?: ReadonlyMap<number, number>;
+  renderOrder?: number;
 }
 
 function SectorLayer({ sectorIds, ...props }: SectorLayerProps) {
@@ -303,6 +360,7 @@ function PopulatedSectorLayer({
   edges = false,
   edgeOpacity = 0.9,
   heights,
+  renderOrder,
 }: SectorLayerProps) {
   const geometry = useMemo(
     () =>
@@ -326,7 +384,11 @@ function PopulatedSectorLayer({
 
   return (
     <group scale={scale}>
-      <mesh geometry={geometry} raycast={() => undefined}>
+      <mesh
+        geometry={geometry}
+        raycast={() => undefined}
+        renderOrder={renderOrder}
+      >
         <meshBasicMaterial
           color={color}
           transparent
@@ -415,6 +477,10 @@ interface SectorGridLayerProps {
   flatHeights?: ReadonlyMap<number, number>;
   stakedHeights?: ReadonlyMap<number, number>;
   reliefAnimation?: ReliefAnimationRef;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
   opacity?: number;
   innerOpacity?: number;
 }
@@ -423,26 +489,64 @@ function AnimatedReliefLineMaterial({
   color,
   opacity,
   reliefAnimation,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
   cameraFade,
 }: {
   color: THREE.ColorRepresentation;
   opacity: number;
   reliefAnimation: ReliefAnimationRef;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
   cameraFade: boolean;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const progressRef = useRef(flipped ? 1 : 0);
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
   const uniforms = useMemo(
     () => ({
       uColor: { value: new THREE.Color(color) },
       uOpacity: { value: opacity },
+      uFlipProgress: { value: progressRef.current },
+      uFlipDirection: { value: flipped ? 1 : -1 },
       uReliefMix: { value: reliefAnimation.current.mix },
       uReliefVisibility: { value: reliefAnimation.current.visibility },
+      uWaveOrigin: { value: waveOrigin },
+      uWaveDistanceRange: { value: waveDistanceRange },
+      uWaveDelay: { value: waveDelay },
     }),
-    [color, opacity, reliefAnimation]
+    [
+      color,
+      flipped,
+      opacity,
+      reliefAnimation,
+      waveDelay,
+      waveDistanceRange,
+      waveOrigin,
+    ]
   );
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera }, delta) => {
+    const target = flipped ? 1 : 0;
+    const step = delta / SECTOR_FLIP_DURATION_SECONDS;
+    const distance = target - progressRef.current;
+    progressRef.current =
+      prefersReducedMotion || Math.abs(distance) <= step
+        ? target
+        : progressRef.current + Math.sign(distance) * step;
+
     if (!materialRef.current) return;
+    materialRef.current.uniforms.uFlipProgress.value = progressRef.current;
+    materialRef.current.uniforms.uFlipDirection.value = flipped ? 1 : -1;
     materialRef.current.uniforms.uReliefMix.value = reliefAnimation.current.mix;
     materialRef.current.uniforms.uReliefVisibility.value =
       reliefAnimation.current.visibility;
@@ -476,6 +580,10 @@ function SectorGridLayer({
   flatHeights = heights,
   stakedHeights = heights,
   reliefAnimation,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
   opacity = 0.86,
   innerOpacity = 0.42,
 }: SectorGridLayerProps) {
@@ -495,14 +603,60 @@ function SectorGridLayer({
     const base = createGeometries(FLAT_SECTOR_HEIGHTS);
     const flat = createGeometries(flatHeights);
     const staked = createGeometries(stakedHeights);
-    (['boundaries', 'interiors'] as const).forEach((part) =>
+    (['boundaries', 'interiors'] as const).forEach((part) => {
+      const sectorIds =
+        part === 'boundaries'
+          ? envelope.boundarySectorIds
+          : envelope.interiorSectorIds;
+      addSectorLineFlipAttributes(
+        envelope[part],
+        sectorIds,
+        extrusionHeights,
+        TENURE_SURFACE_RADIUS
+      );
+      addSectorLineFlipAttributes(
+        base[part],
+        sectorIds,
+        FLAT_SECTOR_HEIGHTS,
+        TENURE_SURFACE_RADIUS
+      );
+      addSectorLineFlipAttributes(
+        flat[part],
+        sectorIds,
+        flatHeights,
+        TENURE_SURFACE_RADIUS
+      );
+      addSectorLineFlipAttributes(
+        staked[part],
+        sectorIds,
+        stakedHeights,
+        TENURE_SURFACE_RADIUS
+      );
       addReliefPositionAttributes(
         envelope[part],
         base[part],
         flat[part],
         staked[part]
-      )
-    );
+      );
+      copyReliefVectorAttribute(
+        envelope[part],
+        'reliefBasePivot',
+        base[part],
+        'flipPivot'
+      );
+      copyReliefVectorAttribute(
+        envelope[part],
+        'reliefFlatPivot',
+        flat[part],
+        'flipPivot'
+      );
+      copyReliefVectorAttribute(
+        envelope[part],
+        'reliefStakedPivot',
+        staked[part],
+        'flipPivot'
+      );
+    });
     base.boundaries.dispose();
     base.interiors.dispose();
     flat.boundaries.dispose();
@@ -531,6 +685,10 @@ function SectorGridLayer({
           color={color}
           opacity={innerOpacity}
           reliefAnimation={activeReliefAnimation}
+          flipped={flipped}
+          waveOrigin={waveOrigin}
+          waveDistanceRange={waveDistanceRange}
+          waveDelay={waveDelay}
           cameraFade
         />
       </lineSegments>
@@ -539,6 +697,10 @@ function SectorGridLayer({
           color={color}
           opacity={opacity}
           reliefAnimation={activeReliefAnimation}
+          flipped={flipped}
+          waveOrigin={waveOrigin}
+          waveDistanceRange={waveDistanceRange}
+          waveDelay={waveDelay}
           cameraFade
         />
       </lineSegments>
@@ -1307,50 +1469,54 @@ export function SectorOwnershipLayers({
         onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
-      {!flipped ? (
-        <>
-          <SectorGridLayer
-            sectorGroups={opponentSectorGroups}
-            color={SECTOR_COLORS.opponentGrid}
-            heights={sectorHeights}
-            extrusionHeights={extrusionHeights}
-            flatHeights={flatHeights}
-            stakedHeights={stakedHeights}
-            reliefAnimation={reliefAnimation}
-          />
-          <SectorGridLayer
-            sectorGroups={ownedSectorGroups}
-            color={SECTOR_COLORS.ownedGrid}
-            heights={sectorHeights}
-            extrusionHeights={extrusionHeights}
-            flatHeights={flatHeights}
-            stakedHeights={stakedHeights}
-            reliefAnimation={reliefAnimation}
-            opacity={0.76}
-            innerOpacity={0.5}
-          />
-          <ReliefContourLayer
-            sectorIds={opponentSectorIds}
-            heights={sectorHeights}
-            extrusionHeights={extrusionHeights}
-            flatHeights={flatHeights}
-            stakedHeights={stakedHeights}
-            reliefAnimation={reliefAnimation}
-            rimColor={SECTOR_COLORS.opponentReliefRim}
-            showBaseShadow={opponentSectorsHaveRelief}
-          />
-          <ReliefContourLayer
-            sectorIds={ownedSectorIds}
-            heights={sectorHeights}
-            extrusionHeights={extrusionHeights}
-            flatHeights={flatHeights}
-            stakedHeights={stakedHeights}
-            reliefAnimation={reliefAnimation}
-            rimColor={SECTOR_COLORS.ownedReliefRim}
-            showBaseShadow={ownedSectorsHaveRelief}
-          />
-        </>
-      ) : null}
+      <SectorGridLayer
+        sectorGroups={opponentSectorGroups}
+        color={SECTOR_COLORS.opponentGrid}
+        heights={sectorHeights}
+        extrusionHeights={extrusionHeights}
+        flatHeights={flatHeights}
+        stakedHeights={stakedHeights}
+        reliefAnimation={reliefAnimation}
+        flipped={flipped}
+        waveOrigin={activeWaveOrigin}
+        waveDistanceRange={activeWaveDistanceRange}
+        waveDelay={activeWaveDelay}
+      />
+      <SectorGridLayer
+        sectorGroups={ownedSectorGroups}
+        color={SECTOR_COLORS.ownedGrid}
+        heights={sectorHeights}
+        extrusionHeights={extrusionHeights}
+        flatHeights={flatHeights}
+        stakedHeights={stakedHeights}
+        reliefAnimation={reliefAnimation}
+        flipped={flipped}
+        waveOrigin={activeWaveOrigin}
+        waveDistanceRange={activeWaveDistanceRange}
+        waveDelay={activeWaveDelay}
+        opacity={0.76}
+        innerOpacity={0.5}
+      />
+      <ReliefContourLayer
+        sectorIds={opponentSectorIds}
+        heights={sectorHeights}
+        extrusionHeights={extrusionHeights}
+        flatHeights={flatHeights}
+        stakedHeights={stakedHeights}
+        reliefAnimation={reliefAnimation}
+        rimColor={SECTOR_COLORS.opponentReliefRim}
+        showBaseShadow={opponentSectorsHaveRelief}
+      />
+      <ReliefContourLayer
+        sectorIds={ownedSectorIds}
+        heights={sectorHeights}
+        extrusionHeights={extrusionHeights}
+        flatHeights={flatHeights}
+        stakedHeights={stakedHeights}
+        reliefAnimation={reliefAnimation}
+        rimColor={SECTOR_COLORS.ownedReliefRim}
+        showBaseShadow={ownedSectorsHaveRelief}
+      />
     </>
   );
 }
@@ -1767,10 +1933,11 @@ export function Planet({
           sectorIds={hoveredSectorIds}
           color={SECTOR_COLORS.hover}
           opacity={0.12}
-          scale={1.007}
-          edges
+          scale={mode === 'projection' ? 1.0044 : 1.007}
+          edges={mode === 'control'}
           edgeOpacity={0.62}
           heights={mode === 'control' ? sectorHeights : undefined}
+          renderOrder={mode === 'projection' ? 10 : undefined}
         />
       )}
 
@@ -1780,16 +1947,17 @@ export function Planet({
             sectorIds={standardActiveSectorIds}
             color={SECTOR_COLORS.selected}
             opacity={mode === 'projection' ? 0.62 : 0.2}
-            scale={1.01}
+            scale={mode === 'projection' ? 1.0042 : 1.01}
             heights={mode === 'control' ? sectorHeights : undefined}
+            renderOrder={mode === 'projection' ? 9 : undefined}
           />
 
-          {standardActiveSectorIds.length > 0 ? (
+          {mode === 'control' && standardActiveSectorIds.length > 0 ? (
             <ThickSectorBorderLayer
               sectorIds={standardActiveSectorIds}
               color={SECTOR_COLORS.selected}
               scale={1.014}
-              heights={mode === 'control' ? sectorHeights : undefined}
+              heights={sectorHeights}
             />
           ) : null}
         </>
@@ -1843,8 +2011,8 @@ export function Planet({
           sectorIds={loadingSectorIds}
           color={SECTOR_COLORS.selected}
           opacity={0.5}
-          scale={1.009}
-          edges
+          scale={1.0046}
+          renderOrder={11}
         />
       )}
     </group>

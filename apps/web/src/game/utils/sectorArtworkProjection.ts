@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ArtworkPlacement, SectorArtwork } from '../types';
 import { CORE_RADIUS, extractSectorPositions } from './sectorGeometry';
 
-const IMAGE_SURFACE_RADIUS = CORE_RADIUS * 1.009;
+const IMAGE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
 const VALUES_PER_VERTEX = 3;
 
 export interface ArtworkAtlasSlot {

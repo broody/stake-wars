@@ -186,10 +186,20 @@ describe('canonical Sector geometry', () => {
     );
     expect(sharedOwnerGrid.boundaries.getAttribute('position').count).toBe(8);
     expect(sharedOwnerGrid.interiors.getAttribute('position').count).toBe(2);
+    expect(sharedOwnerGrid.boundarySectorIds).toHaveLength(4);
+    expect(sharedOwnerGrid.interiorSectorIds).toHaveLength(1);
+    expect(
+      new Set([
+        ...sharedOwnerGrid.boundarySectorIds,
+        ...sharedOwnerGrid.interiorSectorIds,
+      ])
+    ).toEqual(new Set(adjacentSectors!));
     expect(separateOwnerGrid.boundaries.getAttribute('position').count).toBe(
       12
     );
     expect(separateOwnerGrid.interiors.getAttribute('position').count).toBe(0);
+    expect(separateOwnerGrid.boundarySectorIds).toHaveLength(6);
+    expect(separateOwnerGrid.interiorSectorIds).toHaveLength(0);
 
     const heights = new Map(
       adjacentSectors!.map((sectorId) => [sectorId, 0.5])

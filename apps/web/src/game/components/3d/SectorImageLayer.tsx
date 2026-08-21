@@ -220,6 +220,9 @@ function ProjectedArtworkMesh({
         side: THREE.DoubleSide,
         transparent: opacity < 1,
         depthWrite: opacity >= 1,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
         toneMapped: false,
       }),
     [flipped, opacity, texture, waveDelay, waveDistanceRange, waveOrigin]

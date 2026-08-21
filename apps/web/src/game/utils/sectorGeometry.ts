@@ -207,6 +207,13 @@ export function createSectorSetGeometry(
 interface SectorEdgePositions {
   boundary: number[];
   internal: number[];
+  boundarySectorIds: number[];
+  internalSectorIds: number[];
+}
+
+interface SectorEdgeSegment {
+  positions: number[];
+  sectorId: number;
 }
 
 function sectorEdgePositions(
@@ -214,8 +221,8 @@ function sectorEdgePositions(
   heights?: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
 ): SectorEdgePositions {
-  const boundaryEdges = new Map<string, number[]>();
-  const internalEdges = new Map<string, number[]>();
+  const boundaryEdges = new Map<string, SectorEdgeSegment>();
+  const internalEdges = new Map<string, SectorEdgeSegment>();
 
   [...new Set(sectorIds)].forEach((sectorId) => {
     const { base, top } = raisedTrianglePositions(
@@ -250,17 +257,22 @@ function sectorEdgePositions(
 
       if (boundaryEdges.has(key)) {
         boundaryEdges.delete(key);
-        internalEdges.set(key, topEdge);
+        internalEdges.set(key, { positions: topEdge, sectorId });
         continue;
       }
 
-      boundaryEdges.set(key, topEdge);
+      boundaryEdges.set(key, { positions: topEdge, sectorId });
     }
   });
 
+  const boundaries = [...boundaryEdges.values()];
+  const interiors = [...internalEdges.values()];
+
   return {
-    boundary: [...boundaryEdges.values()].flat(),
-    internal: [...internalEdges.values()].flat(),
+    boundary: boundaries.flatMap(({ positions }) => positions),
+    internal: interiors.flatMap(({ positions }) => positions),
+    boundarySectorIds: boundaries.map(({ sectorId }) => sectorId),
+    internalSectorIds: interiors.map(({ sectorId }) => sectorId),
   };
 }
 
@@ -288,19 +300,30 @@ export function createSectorGroupGridGeometries(
   sectorGroups: readonly (readonly number[])[],
   heights?: ReadonlyMap<number, number>,
   radius = CORE_RADIUS
-): { boundaries: THREE.BufferGeometry; interiors: THREE.BufferGeometry } {
+): {
+  boundaries: THREE.BufferGeometry;
+  interiors: THREE.BufferGeometry;
+  boundarySectorIds: number[];
+  interiorSectorIds: number[];
+} {
   const boundaryPositions: number[] = [];
   const internalPositions: number[] = [];
+  const boundarySectorIds: number[] = [];
+  const interiorSectorIds: number[] = [];
 
   sectorGroups.forEach((sectorIds) => {
     const positions = sectorEdgePositions(sectorIds, heights, radius);
     boundaryPositions.push(...positions.boundary);
     internalPositions.push(...positions.internal);
+    boundarySectorIds.push(...positions.boundarySectorIds);
+    interiorSectorIds.push(...positions.internalSectorIds);
   });
 
   return {
     boundaries: createEdgeGeometry(boundaryPositions),
     interiors: createEdgeGeometry(internalPositions),
+    boundarySectorIds,
+    interiorSectorIds,
   };
 }
 

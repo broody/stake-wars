@@ -7,6 +7,7 @@ import {
 } from './sectorGeometry';
 import {
   addSectorFlipAttributes,
+  addSectorLineFlipAttributes,
   randomOutsideSectorWaveOrigin,
   randomSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
@@ -188,6 +189,34 @@ describe('sector flip parameters', () => {
     expect(normals.getX(0)).toBe(normals.getX(2));
     expect(normals.getY(0)).toBe(normals.getY(2));
     expect(normals.getZ(0)).toBe(normals.getZ(2));
+
+    geometry.dispose();
+  });
+
+  it('assigns panel transforms to ownership-grid line segments', () => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], 3)
+    );
+
+    addSectorLineFlipAttributes(
+      geometry,
+      [7, 8],
+      new Map<number, number>(),
+      CORE_RADIUS
+    );
+
+    const pivots = geometry.getAttribute('flipPivot');
+    expect(pivots.count).toBe(4);
+    expect(pivots.getX(0)).toBe(pivots.getX(1));
+    expect(pivots.getY(0)).toBe(pivots.getY(1));
+    expect(pivots.getZ(0)).toBe(pivots.getZ(1));
+    expect(
+      new THREE.Vector3()
+        .fromBufferAttribute(pivots, 0)
+        .equals(new THREE.Vector3().fromBufferAttribute(pivots, 2))
+    ).toBe(false);
 
     geometry.dispose();
   });

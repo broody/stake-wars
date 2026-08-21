@@ -184,16 +184,17 @@ export function sectorFlipParameters(
   };
 }
 
-export function addSectorFlipAttributes(
+function addPrimitiveFlipAttributes(
   geometry: THREE.BufferGeometry,
-  faceSectorIds: readonly number[],
+  primitiveSectorIds: readonly number[],
   heights: ReadonlyMap<number, number>,
-  radius: number
+  radius: number,
+  verticesPerPrimitive: number
 ): void {
   const vertexCount = geometry.getAttribute('position').count;
-  if (vertexCount !== faceSectorIds.length * 3) {
+  if (vertexCount !== primitiveSectorIds.length * verticesPerPrimitive) {
     throw new Error(
-      'Sector flip geometry must contain three vertices per face'
+      `Sector flip geometry must contain ${verticesPerPrimitive} vertices per primitive`
     );
   }
 
@@ -202,7 +203,7 @@ export function addSectorFlipAttributes(
   const pivots = new Float32Array(vertexCount * 3);
   const parameters = new Map<number, SectorFlipParameters>();
 
-  faceSectorIds.forEach((sectorId, faceIndex) => {
+  primitiveSectorIds.forEach((sectorId, primitiveIndex) => {
     let sectorParameters = parameters.get(sectorId);
     if (!sectorParameters) {
       sectorParameters = sectorFlipParameters(
@@ -213,8 +214,13 @@ export function addSectorFlipAttributes(
       parameters.set(sectorId, sectorParameters);
     }
 
-    for (let faceVertex = 0; faceVertex < 3; faceVertex += 1) {
-      const vertexIndex = faceIndex * 3 + faceVertex;
+    for (
+      let primitiveVertex = 0;
+      primitiveVertex < verticesPerPrimitive;
+      primitiveVertex += 1
+    ) {
+      const vertexIndex =
+        primitiveIndex * verticesPerPrimitive + primitiveVertex;
       sectorParameters.axis.toArray(axes, vertexIndex * 3);
       sectorParameters.normal.toArray(normals, vertexIndex * 3);
       sectorParameters.pivot.toArray(pivots, vertexIndex * 3);
@@ -224,4 +230,22 @@ export function addSectorFlipAttributes(
   geometry.setAttribute('flipAxis', new THREE.BufferAttribute(axes, 3));
   geometry.setAttribute('flipNormal', new THREE.BufferAttribute(normals, 3));
   geometry.setAttribute('flipPivot', new THREE.BufferAttribute(pivots, 3));
+}
+
+export function addSectorFlipAttributes(
+  geometry: THREE.BufferGeometry,
+  faceSectorIds: readonly number[],
+  heights: ReadonlyMap<number, number>,
+  radius: number
+): void {
+  addPrimitiveFlipAttributes(geometry, faceSectorIds, heights, radius, 3);
+}
+
+export function addSectorLineFlipAttributes(
+  geometry: THREE.BufferGeometry,
+  segmentSectorIds: readonly number[],
+  heights: ReadonlyMap<number, number>,
+  radius: number
+): void {
+  addPrimitiveFlipAttributes(geometry, segmentSectorIds, heights, radius, 2);
 }
