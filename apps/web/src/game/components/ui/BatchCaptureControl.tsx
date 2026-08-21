@@ -470,7 +470,7 @@ export function BatchCaptureControl({
         {deficit > 0n && !disabledReason ? (
           <Link
             to="/staking"
-            className="mt-2 block w-full border border-white bg-white px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
           >
             GENERATE {formatStrk(deficit, 18)} MORE FORCE
           </Link>

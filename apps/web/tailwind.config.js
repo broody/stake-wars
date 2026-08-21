@@ -9,6 +9,7 @@ export default {
         fg: '#ffffff',
         dim: '#444444',
         grid: '#1a1a1a',
+        alert: 'var(--color-alert)',
         // Accent colors for game elements
         primary: {
           50: '#f0f9ff',
