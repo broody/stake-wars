@@ -5,13 +5,13 @@ export function parseStrk(
   unit: 'STRK' | 'FORCE' = 'STRK'
 ): bigint {
   const normalized = value.trim();
-  const match = /^(\d+)(?:\.(\d{0,18}))?$/.exec(normalized);
+  const match = /^(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d{0,18}))?$/.exec(normalized);
 
   if (!match) {
     throw new Error(`Enter a valid ${unit} amount with up to 18 decimals.`);
   }
 
-  const whole = match[1];
+  const whole = match[1].replace(/,/g, '');
   const fraction = (match[2] ?? '').padEnd(STRK_DECIMALS, '0');
 
   return BigInt(whole) * 10n ** BigInt(STRK_DECIMALS) + BigInt(fraction);

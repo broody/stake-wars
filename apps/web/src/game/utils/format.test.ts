@@ -42,6 +42,9 @@ describe('Sector formatting', () => {
     expect(parseStrk('1')).toBe(1_000_000_000_000_000_000n);
     expect(parseStrk('0.011')).toBe(11_000_000_000_000_000n);
     expect(parseStrk(' 0.01 ')).toBe(10_000_000_000_000_000n);
+    expect(parseStrk('2,802.216121829412931569')).toBe(
+      2_802_216_121_829_412_931_569n
+    );
   });
 
   it('preserves all 18 supported decimals', () => {
@@ -58,6 +61,8 @@ describe('Sector formatting', () => {
     expect(() => parseStrk('')).toThrow('valid STRK amount');
     expect(() => parseStrk('', 'FORCE')).toThrow('valid FORCE amount');
     expect(() => parseStrk('-1')).toThrow('valid STRK amount');
+    expect(() => parseStrk('2,80.1')).toThrow('valid STRK amount');
+    expect(() => parseStrk('2,,802.1')).toThrow('valid STRK amount');
     expect(() => parseStrk('1.0000000000000000001')).toThrow(
       'valid STRK amount'
     );
