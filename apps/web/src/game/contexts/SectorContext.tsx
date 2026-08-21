@@ -15,7 +15,6 @@ import type {
   IndexedSector,
   OperatorStatus,
   ControlView,
-  StakeScale,
 } from '../types';
 import {
   canManageSectorImage,
@@ -33,7 +32,6 @@ import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
 interface SectorContextValue {
   mode: CoreMode;
   controlView: ControlView;
-  stakeScale: StakeScale;
   isSectorInteractionLocked: boolean;
   selectedSectorId: number | null;
   selectedSectorIds: number[];
@@ -59,7 +57,6 @@ interface SectorContextValue {
   projectionError: string | null;
   changeMode: (mode: CoreMode) => void;
   changeControlView: (view: ControlView) => void;
-  changeStakeScale: (scale: StakeScale) => void;
   selectSector: (sectorId: number | null, extendSelection?: boolean) => void;
   selectSectors: (sectorIds: number[]) => void;
   removeSelectedSectors: (sectorIds: readonly number[]) => void;
@@ -105,7 +102,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
   const [mode, setMode] = useState<CoreMode>('control');
   const [controlView, setControlView] = useState<ControlView>('flat');
-  const [stakeScale, setStakeScale] = useState<StakeScale>('logarithmic');
   const [isSectorInteractionLocked, setSectorInteractionLocked] =
     useState(false);
   const [selectedSectorIds, setSelectedSectorIds] = useState<number[]>([]);
@@ -169,10 +165,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
   const changeControlView = useCallback((view: ControlView) => {
     setControlView(view);
-  }, []);
-
-  const changeStakeScale = useCallback((scale: StakeScale) => {
-    setStakeScale(scale);
   }, []);
 
   const selectSector = useCallback(
@@ -642,7 +634,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
     () => ({
       mode,
       controlView,
-      stakeScale,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -668,7 +659,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
       projectionError,
       changeMode,
       changeControlView,
-      changeStakeScale,
       selectSector,
       selectSectors,
       removeSelectedSectors,
@@ -684,7 +674,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
     [
       mode,
       controlView,
-      stakeScale,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -710,7 +699,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
       projectionError,
       changeMode,
       changeControlView,
-      changeStakeScale,
       selectSector,
       selectSectors,
       removeSelectedSectors,

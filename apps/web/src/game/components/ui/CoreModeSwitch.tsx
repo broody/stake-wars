@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
-import type { ControlView, CoreMode, StakeScale } from '../../types';
+import type { ControlView, CoreMode } from '../../types';
 
 interface ModeButtonProps {
   label: string;
@@ -38,14 +38,7 @@ function ModeButton({
 
 export function CoreModeSwitch() {
   const { address } = useWallet();
-  const {
-    mode,
-    controlView,
-    stakeScale,
-    changeMode,
-    changeControlView,
-    changeStakeScale,
-  } = useSectors();
+  const { mode, controlView, changeMode, changeControlView } = useSectors();
   const [controlMenuOpen, setControlMenuOpen] = useState(false);
   const switchRef = useRef<HTMLDivElement>(null);
 
@@ -73,11 +66,6 @@ export function CoreModeSwitch() {
     changeControlView(view);
     if (mode !== 'control') changeMode('control');
   };
-
-  const scaleOptions: { label: string; value: StakeScale }[] = [
-    { label: 'ABSOLUTE', value: 'absolute' },
-    { label: 'LOG', value: 'logarithmic' },
-  ];
 
   return (
     <div
@@ -119,34 +107,6 @@ export function CoreModeSwitch() {
             </button>
           ))}
         </div>
-
-        {controlView === 'staked' ? (
-          <div className="mt-1 border-t border-neutral-800 px-2 pb-1.5 pt-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[8px] tracking-[0.16em] text-neutral-600">
-                HEIGHT SCALE
-              </span>
-              <div className="grid grid-cols-2 border border-neutral-700 p-0.5">
-                {scaleOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={stakeScale === option.value}
-                    tabIndex={controlMenuOpen ? 0 : -1}
-                    onClick={() => changeStakeScale(option.value)}
-                    className={`px-2 py-1 text-[8px] tracking-[0.12em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white ${
-                      stakeScale === option.value
-                        ? 'bg-neutral-200 text-black'
-                        : 'text-neutral-600 hover:text-white'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
 
       <div

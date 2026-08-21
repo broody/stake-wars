@@ -57,6 +57,7 @@ const SECTOR_FLIP_VERTEX_SHADER = `
   uniform vec2 uWaveDistanceRange;
   uniform float uWaveDelay;
   varying float vFlipProgress;
+  varying vec3 vViewNormal;
 
   void main() {
     float angularDistance = acos(clamp(
@@ -94,6 +95,7 @@ const SECTOR_FLIP_VERTEX_SHADER = `
       + panelWidth * collapse
       + flipNormal * lift;
     vFlipProgress = localProgress;
+    vViewNormal = normalize(normalMatrix * normal);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(flippedPosition, 1.0);
   }
 `;
@@ -103,6 +105,7 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uBackColor;
   uniform float uBackVisible;
   varying float vFlipProgress;
+  varying vec3 vViewNormal;
 
   void main() {
     vec3 panelColor = uColor;
@@ -119,10 +122,16 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
 const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   varying float vFlipProgress;
+  varying vec3 vViewNormal;
 
   void main() {
     if (vFlipProgress >= 0.999) discard;
-    gl_FragColor = vec4(uColor, 1.0);
+    vec3 viewNormal = normalize(vViewNormal);
+    if (!gl_FrontFacing) viewNormal = -viewNormal;
+    vec3 lightDirection = normalize(vec3(-0.45, 0.65, 0.60));
+    float directionalLight = max(dot(viewNormal, lightDirection), 0.0);
+    float shade = mix(0.36, 1.05, pow(directionalLight, 0.75));
+    gl_FragColor = vec4(uColor * shade, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -661,6 +670,136 @@ function ExtrudedSectorLayer({
   );
 }
 
+interface ReliefContourLayerProps {
+  sectorIds: number[];
+  heights: ReadonlyMap<number, number>;
+  rimColor: THREE.ColorRepresentation;
+  showBaseShadow: boolean;
+}
+
+function ReliefContourLayer(props: ReliefContourLayerProps) {
+  if (props.sectorIds.length === 0) return null;
+  return <PopulatedReliefContourLayer {...props} />;
+}
+
+function PopulatedReliefContourLayer({
+  sectorIds,
+  heights,
+  rimColor,
+  showBaseShadow,
+}: ReliefContourLayerProps) {
+  const topBoundaryGeometry = useMemo(
+    () =>
+      createSectorBoundaryGeometry(sectorIds, heights, TENURE_SURFACE_RADIUS),
+    [heights, sectorIds]
+  );
+  const baseBoundaryGeometry = useMemo(
+    () =>
+      createSectorBoundaryGeometry(sectorIds, undefined, TENURE_SURFACE_RADIUS),
+    [sectorIds]
+  );
+  const shadowLineGeometry = useMemo(
+    () =>
+      new LineSegmentsGeometry().setPositions(
+        baseBoundaryGeometry.getAttribute('position').array as Float32Array
+      ),
+    [baseBoundaryGeometry]
+  );
+  const topLineGeometry = useMemo(
+    () =>
+      new LineSegmentsGeometry().setPositions(
+        topBoundaryGeometry.getAttribute('position').array as Float32Array
+      ),
+    [topBoundaryGeometry]
+  );
+  const shadowMaterial = useMemo(
+    () =>
+      new LineMaterial({
+        color: SECTOR_COLORS.reliefShadow,
+        linewidth: 5,
+        transparent: true,
+        opacity: 0.86,
+        depthWrite: false,
+      }),
+    []
+  );
+  const topEdgeMaterial = useMemo(
+    () =>
+      new LineMaterial({
+        color: SECTOR_COLORS.reliefTopEdge,
+        linewidth: 4,
+        transparent: true,
+        opacity: 0.94,
+        depthWrite: false,
+      }),
+    []
+  );
+  const rimMaterial = useMemo(
+    () =>
+      new LineMaterial({
+        color: rimColor,
+        linewidth: 1.25,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+      }),
+    [rimColor]
+  );
+  const shadow = useMemo(
+    () => new LineSegments2(shadowLineGeometry, shadowMaterial),
+    [shadowLineGeometry, shadowMaterial]
+  );
+  const topEdge = useMemo(
+    () => new LineSegments2(topLineGeometry, topEdgeMaterial),
+    [topEdgeMaterial, topLineGeometry]
+  );
+  const rim = useMemo(
+    () => new LineSegments2(topLineGeometry, rimMaterial),
+    [rimMaterial, topLineGeometry]
+  );
+
+  useEffect(
+    () => () => {
+      topBoundaryGeometry.dispose();
+      baseBoundaryGeometry.dispose();
+      shadowLineGeometry.dispose();
+      topLineGeometry.dispose();
+      shadowMaterial.dispose();
+      topEdgeMaterial.dispose();
+      rimMaterial.dispose();
+    },
+    [
+      baseBoundaryGeometry,
+      shadowLineGeometry,
+      shadowMaterial,
+      topBoundaryGeometry,
+      topEdgeMaterial,
+      topLineGeometry,
+      rimMaterial,
+    ]
+  );
+
+  return (
+    <group raycast={() => undefined}>
+      {showBaseShadow ? (
+        <primitive object={shadow} scale={1.0004} raycast={() => undefined} />
+      ) : null}
+      <primitive
+        object={topEdge}
+        scale={1.0008}
+        renderOrder={12}
+        raycast={() => undefined}
+      />
+      <primitive
+        object={rim}
+        scale={1.0009}
+        renderOrder={13}
+        raycast={() => undefined}
+      />
+    </group>
+  );
+}
+
 interface SectorOwnershipLayersProps {
   ownedSectorIds: number[];
   opponentSectorIds: number[];
@@ -733,6 +872,12 @@ export function SectorOwnershipLayers({
       opponentSectorGroups: opponentGroups,
     };
   }, [sectorOwnerGroups, ownedSectorIds]);
+  const ownedSectorsHaveRelief = ownedSectorIds.some(
+    (sectorId) => (sectorHeights.get(sectorId) ?? 0) > 0
+  );
+  const opponentSectorsHaveRelief = opponentSectorIds.some(
+    (sectorId) => (sectorHeights.get(sectorId) ?? 0) > 0
+  );
 
   return (
     <>
@@ -779,8 +924,20 @@ export function SectorOwnershipLayers({
             sectorGroups={ownedSectorGroups}
             color={SECTOR_COLORS.ownedGrid}
             heights={sectorHeights}
-            opacity={0.42}
-            innerOpacity={0.2}
+            opacity={0.76}
+            innerOpacity={0.5}
+          />
+          <ReliefContourLayer
+            sectorIds={opponentSectorIds}
+            heights={sectorHeights}
+            rimColor={SECTOR_COLORS.opponentReliefRim}
+            showBaseShadow={opponentSectorsHaveRelief}
+          />
+          <ReliefContourLayer
+            sectorIds={ownedSectorIds}
+            heights={sectorHeights}
+            rimColor={SECTOR_COLORS.ownedReliefRim}
+            showBaseShadow={ownedSectorsHaveRelief}
           />
         </>
       ) : null}
@@ -801,7 +958,6 @@ export function Planet({
   const {
     mode,
     controlView,
-    stakeScale,
     isSectorInteractionLocked,
     selectedSectorIds,
     selectedSectorId,
@@ -892,7 +1048,7 @@ export function Planet({
         true,
         occupiedSectorIds,
         sectorCaptureForce,
-        stakeScale === 'logarithmic'
+        true
       );
     }
 
@@ -910,7 +1066,6 @@ export function Planet({
     sectorCaptureForce,
     sectorOwnerGroups,
     occupiedSectorIds,
-    stakeScale,
     tenureClock,
     tenureExtrusionEnabled,
   ]);

@@ -42,13 +42,11 @@ function formatOccupancy(scenario: OwnershipScenario): string {
 function OwnershipScenarioCard({
   scenario,
   reliefMode,
-  logarithmicScale,
   imageSectorIds,
   flipped,
 }: {
   scenario: OwnershipScenario;
   reliefMode: OwnershipReliefMode;
-  logarithmicScale: boolean;
   imageSectorIds: readonly number[];
   flipped: boolean;
 }) {
@@ -147,7 +145,6 @@ function OwnershipScenarioCard({
           scenario={scenario}
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
-          logarithmicScale={logarithmicScale}
           imageSectorIds={imageSectorIds}
           selectedDetailSectorId={activeSelectedDetailSectorId}
           flipped={flipped}
@@ -191,7 +188,6 @@ export function CoreLab() {
     () => OWNERSHIP_SCENARIOS[0]?.id ?? ''
   );
   const [reliefMode, setReliefMode] = useState<OwnershipReliefMode>('flat');
-  const [logarithmicScale, setLogarithmicScale] = useState(true);
   const [requestedImageCount, setRequestedImageCount] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const toastExampleId = useRef(0);
@@ -302,9 +298,7 @@ export function CoreLab() {
             {reliefMode === 'stake' ? (
               <>
                 <span className="text-neutral-600">SCALE</span>
-                <span className="text-right text-fg">
-                  {logarithmicScale ? 'LOGARITHMIC' : 'LINEAR'}
-                </span>
+                <span className="text-right text-fg">LOGARITHMIC</span>
                 <span className="text-neutral-600">HEIGHT CAP</span>
                 <span className="text-right text-fg">
                   {STAKE_RELIEF_CAP_STRK.toLocaleString()} STRK
@@ -428,26 +422,6 @@ export function CoreLab() {
                   <option value="stake">STAKED STRK · CAPPED</option>
                 </select>
               </label>
-
-              {reliefMode === 'stake' ? (
-                <label className="flex cursor-pointer items-center justify-end gap-3 border-t border-grid pt-3 text-[9px] tracking-[0.16em] text-neutral-400">
-                  <span>LOGARITHMIC SCALE</span>
-                  <input
-                    type="checkbox"
-                    checked={logarithmicScale}
-                    onChange={(event) =>
-                      setLogarithmicScale(event.target.checked)
-                    }
-                    className="peer sr-only"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="grid size-4 place-items-center border border-neutral-500 bg-black text-[10px] text-black peer-checked:border-amber-300 peer-checked:bg-amber-300 peer-focus-visible:outline peer-focus-visible:outline-1 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-white"
-                  >
-                    {logarithmicScale ? '✓' : ''}
-                  </span>
-                </label>
-              ) : null}
             </div>
 
             <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5 lg:grid-cols-1 lg:items-stretch">
@@ -481,7 +455,6 @@ export function CoreLab() {
             key={`${selectedScenario.id}-${reliefMode}`}
             scenario={selectedScenario}
             reliefMode={reliefMode}
-            logarithmicScale={logarithmicScale}
             imageSectorIds={imageSectorIds}
             flipped={flipped}
           />

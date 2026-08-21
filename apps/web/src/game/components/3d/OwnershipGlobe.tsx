@@ -55,7 +55,6 @@ function OwnershipSphere({
   scenario,
   markedOwner,
   reliefMode,
-  logarithmicScale,
   imageSectorIds,
   selectedDetailSectorId,
   flipped,
@@ -65,7 +64,6 @@ function OwnershipSphere({
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
-  logarithmicScale: boolean;
   imageSectorIds: readonly number[];
   selectedDetailSectorId: number | null;
   flipped: boolean;
@@ -99,16 +97,13 @@ function OwnershipSphere({
     if (reliefMode === 'flat') return heights;
 
     sectorOwnerGroups.forEach((sectorIds, owner) => {
-      const height = stakeReliefHeight(
-        scenario.stakedStrkByOwner[owner] ?? 0,
-        logarithmicScale
-      );
+      const height = stakeReliefHeight(scenario.stakedStrkByOwner[owner] ?? 0);
       sectorIds.forEach((sectorId) => {
         heights.set(sectorId, height);
       });
     });
     return heights;
-  }, [sectorOwnerGroups, logarithmicScale, reliefMode, scenario]);
+  }, [sectorOwnerGroups, reliefMode, scenario]);
   const contestedSectorIds = useMemo(
     () => [...scenario.contestedSectorIds],
     [scenario]
@@ -229,7 +224,6 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
   scenario,
   markedOwner,
   reliefMode,
-  logarithmicScale,
   imageSectorIds,
   selectedDetailSectorId,
   flipped = false,
@@ -240,7 +234,6 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
   scenario: OwnershipScenario;
   markedOwner: number;
   reliefMode: OwnershipReliefMode;
-  logarithmicScale: boolean;
   imageSectorIds: readonly number[];
   selectedDetailSectorId: number | null;
   flipped?: boolean;
@@ -255,7 +248,7 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
     <div
       className="h-full min-h-[320px] w-full"
       role="img"
-      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedSectorIds.length} unoccupied Sectors, ${scenario.contestedSectorIds.length} contested, ${imageSectorIds.length} example images, ${flipped ? 'projection' : 'control'} mode, and ${reliefMode === 'stake' ? `stake-based ${logarithmicScale ? 'logarithmic' : 'linear'} relief` : 'flat relief'}`}
+      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedSectorIds.length} unoccupied Sectors, ${scenario.contestedSectorIds.length} contested, ${imageSectorIds.length} example images, ${flipped ? 'projection' : 'control'} mode, and ${reliefMode === 'stake' ? 'stake-based logarithmic relief' : 'flat relief'}`}
     >
       <Canvas
         camera={{ position: [0, 0, 13], fov: 48 }}
@@ -267,7 +260,6 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
           scenario={scenario}
           markedOwner={validMarkedOwner}
           reliefMode={reliefMode}
-          logarithmicScale={logarithmicScale}
           imageSectorIds={imageSectorIds}
           selectedDetailSectorId={selectedDetailSectorId}
           flipped={flipped}
