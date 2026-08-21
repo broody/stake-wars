@@ -341,7 +341,8 @@ export function createExtrudedSectorGeometries(
   sectorIds: number[],
   heights: ReadonlyMap<number, number>,
   radius = CORE_RADIUS,
-  sectorGroups?: number[][]
+  sectorGroups?: number[][],
+  includeCollapsedSides = false
 ): {
   tops: THREE.BufferGeometry;
   sides: THREE.BufferGeometry;
@@ -374,7 +375,7 @@ export function createExtrudedSectorGeometries(
   sectorIds.forEach((sectorId) => {
     const height = heights.get(sectorId) ?? 0;
     const { base, top } = raisedTrianglePositions(sectorId, height, radius);
-    if (height === 0) return;
+    if (height === 0 && !includeCollapsedSides) return;
 
     for (let vertex = 0; vertex < VERTICES_PER_SECTOR; vertex += 1) {
       const nextVertex = (vertex + 1) % VERTICES_PER_SECTOR;

@@ -107,6 +107,22 @@ describe('canonical Sector geometry', () => {
     expect(sideSectorIds).toEqual([3, 3, 3, 3, 3, 3]);
   });
 
+  it('can retain collapsed walls for topology-stable relief animation', () => {
+    const { sides, sideSectorIds } = createExtrudedSectorGeometries(
+      [3, 21],
+      new Map([
+        [3, 0.25],
+        [21, 0],
+      ]),
+      5,
+      undefined,
+      true
+    );
+
+    expect(sides.getAttribute('position').count).toBe(36);
+    expect(sideSectorIds).toEqual([3, 3, 3, 3, 3, 3, 21, 21, 21, 21, 21, 21]);
+  });
+
   it('rejects negative or non-finite extrusion heights', () => {
     expect(() =>
       createExtrudedSectorGeometries([3], new Map([[3, -0.1]]))
