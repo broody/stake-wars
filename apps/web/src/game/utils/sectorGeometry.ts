@@ -7,7 +7,8 @@ export const CORE_RADIUS = 5;
 const VERTICES_PER_SECTOR = 3;
 const VALUES_PER_VERTEX = 3;
 const VALUES_PER_SECTOR = VERTICES_PER_SECTOR * VALUES_PER_VERTEX;
-const DISTINCT_OWNER_SEAM = 0.05;
+// Distinct owners leave a symmetric gutter around the shared boundary line.
+const DISTINCT_OWNER_SEAM = 0.0125;
 
 interface Triangle {
   key: string;

@@ -160,7 +160,7 @@ describe('canonical Sector geometry', () => {
     ).toThrow(RangeError);
   });
 
-  it('adds padding only where Sectors have distinct owners', () => {
+  it('leaves symmetric space around distinct owner boundary outlines', () => {
     const geometry = createSectorGeometry();
     const positions = geometry.getAttribute('position').array as Float32Array;
     const edgeOwners = new Map<string, number[]>();

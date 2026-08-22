@@ -1150,6 +1150,7 @@ function ExtrudedSectorLayer({
 
 interface ReliefContourLayerProps {
   sectorIds: number[];
+  sectorGroups?: number[][];
   heights: ReadonlyMap<number, number>;
   extrusionHeights?: ReadonlyMap<number, number>;
   flatHeights?: ReadonlyMap<number, number>;
@@ -1166,6 +1167,7 @@ function ReliefContourLayer(props: ReliefContourLayerProps) {
 
 function PopulatedReliefContourLayer({
   sectorIds,
+  sectorGroups,
   heights,
   extrusionHeights = heights,
   flatHeights = heights,
@@ -1180,24 +1182,47 @@ function PopulatedReliefContourLayer({
   });
   const activeReliefAnimation = reliefAnimation ?? staticReliefAnimation;
   const reliefGeometries = useMemo(() => {
-    const createGeometry = (reliefHeights: ReadonlyMap<number, number>) =>
-      createSectorBoundaryGeometry(
-        sectorIds,
+    const createGeometry = (reliefHeights: ReadonlyMap<number, number>) => {
+      if (!sectorGroups) {
+        return createSectorBoundaryGeometry(
+          sectorIds,
+          reliefHeights,
+          TENURE_SURFACE_RADIUS
+        );
+      }
+
+      const geometries = createSectorGroupGridGeometries(
+        sectorGroups,
         reliefHeights,
         TENURE_SURFACE_RADIUS
       );
+      geometries.interiors.dispose();
+      return geometries.boundaries;
+    };
     return {
       envelope: createGeometry(extrusionHeights),
       base: createGeometry(FLAT_SECTOR_HEIGHTS),
       flat: createGeometry(flatHeights),
       staked: createGeometry(stakedHeights),
     };
-  }, [extrusionHeights, flatHeights, sectorIds, stakedHeights]);
-  const baseBoundaryGeometry = useMemo(
-    () =>
-      createSectorBoundaryGeometry(sectorIds, undefined, TENURE_SURFACE_RADIUS),
-    [sectorIds]
-  );
+  }, [extrusionHeights, flatHeights, sectorGroups, sectorIds, stakedHeights]);
+  const baseBoundaryGeometry = useMemo(() => {
+    if (!sectorGroups) {
+      return createSectorBoundaryGeometry(
+        sectorIds,
+        undefined,
+        TENURE_SURFACE_RADIUS
+      );
+    }
+
+    const geometries = createSectorGroupGridGeometries(
+      sectorGroups,
+      undefined,
+      TENURE_SURFACE_RADIUS
+    );
+    geometries.interiors.dispose();
+    return geometries.boundaries;
+  }, [sectorGroups, sectorIds]);
   const shadowLineGeometry = useMemo(
     () =>
       new LineSegmentsGeometry().setPositions(
@@ -1543,6 +1568,7 @@ export function SectorOwnershipLayers({
       />
       <ReliefContourLayer
         sectorIds={opponentSectorIds}
+        sectorGroups={opponentSectorGroups}
         heights={sectorHeights}
         extrusionHeights={extrusionHeights}
         flatHeights={flatHeights}
@@ -1553,6 +1579,7 @@ export function SectorOwnershipLayers({
       />
       <ReliefContourLayer
         sectorIds={ownedSectorIds}
+        sectorGroups={ownedSectorGroups}
         heights={sectorHeights}
         extrusionHeights={extrusionHeights}
         flatHeights={flatHeights}
