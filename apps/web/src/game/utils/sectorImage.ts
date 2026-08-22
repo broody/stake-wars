@@ -16,6 +16,25 @@ export interface ImageCrop {
   sourceHeight: number;
 }
 
+export function clipboardImageFile(
+  clipboardData: DataTransfer | null
+): File | null {
+  if (!clipboardData) return null;
+
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) return file;
+    }
+  }
+
+  return (
+    Array.from(clipboardData.files).find((file) =>
+      file.type.startsWith('image/')
+    ) ?? null
+  );
+}
+
 export function centeredSquareCrop(width: number, height: number): ImageCrop {
   if (
     !Number.isFinite(width) ||

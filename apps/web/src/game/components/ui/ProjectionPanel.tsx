@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { api, type PreparedSectorImage } from '../../services/api';
-import { prepareSectorImage } from '../../utils/sectorImage';
+import {
+  clipboardImageFile,
+  prepareSectorImage,
+} from '../../utils/sectorImage';
 
 function sectorLabel(sectorId: number): string {
   return `SECTOR-${sectorId.toString().padStart(4, '0')}`;
@@ -78,9 +81,7 @@ export function ProjectionPanel() {
     if (mode !== 'projection' && placementDraft) endPlacement();
   }, [endPlacement, mode, placementDraft]);
 
-  if (mode !== 'projection') return null;
-
-  const discardPreparedImage = () => {
+  const discardPreparedImage = useCallback(() => {
     endPlacement();
     setPrepared(null);
     setFileName(null);
@@ -89,40 +90,92 @@ export function ProjectionPanel() {
       return null;
     });
     if (inputRef.current) inputRef.current.value = '';
-  };
+  }, [endPlacement]);
 
-  const chooseFile = async (file: File | undefined) => {
-    if (!file || projectionSectorIds.length === 0) return;
-    setPreparing(true);
-    setUploadError(null);
-    setUploadNotice(null);
-    try {
-      const next = await prepareSectorImage(file, maximumImageBytes);
-      const nextPreviewUrl = URL.createObjectURL(next.detail);
-      endPlacement();
-      setPrepared(next);
-      setFileName(file.name);
-      setPreviewUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return nextPreviewUrl;
-      });
-      beginPlacement(nextPreviewUrl);
-    } catch (failure) {
-      setPrepared(null);
-      setFileName(null);
-      setPreviewUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return null;
-      });
-      setUploadError(
-        failure instanceof Error
-          ? failure.message
-          : 'Unable to prepare this image.'
-      );
-    } finally {
-      setPreparing(false);
-    }
-  };
+  const chooseFile = useCallback(
+    async (file: File | undefined) => {
+      if (!file || projectionSectorIds.length === 0) return;
+      setPreparing(true);
+      setUploadError(null);
+      setUploadNotice(null);
+      try {
+        const next = await prepareSectorImage(file, maximumImageBytes);
+        const nextPreviewUrl = URL.createObjectURL(next.detail);
+        endPlacement();
+        setPrepared(next);
+        setFileName(file.name || 'PASTED IMAGE');
+        setPreviewUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return nextPreviewUrl;
+        });
+        beginPlacement(nextPreviewUrl);
+      } catch (failure) {
+        setPrepared(null);
+        setFileName(null);
+        setPreviewUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return null;
+        });
+        setUploadError(
+          failure instanceof Error
+            ? failure.message
+            : 'Unable to prepare this image.'
+        );
+      } finally {
+        setPreparing(false);
+      }
+    },
+    [
+      beginPlacement,
+      endPlacement,
+      maximumImageBytes,
+      projectionSectorIds.length,
+    ]
+  );
+
+  useEffect(() => {
+    if (mode !== 'projection') return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        isPreparing ||
+        isUploading ||
+        placementDraft !== null ||
+        projectionSectorIds.length === 0
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          'input, textarea, [contenteditable]:not([contenteditable="false"])'
+        )
+      ) {
+        return;
+      }
+
+      const file = clipboardImageFile(event.clipboardData);
+      if (!file) return;
+
+      event.preventDefault();
+      void chooseFile(file);
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [
+    chooseFile,
+    isPreparing,
+    isUploading,
+    mode,
+    placementDraft,
+    projectionSectorIds.length,
+  ]);
+
+  if (mode !== 'projection') return null;
 
   const upload = async () => {
     if (
@@ -309,10 +362,10 @@ export function ProjectionPanel() {
                 ? 'PREPARING IMAGE…'
                 : prepared
                   ? 'CHANGE IMAGE'
-                  : 'CHOOSE OR DROP IMAGE'}
+                  : 'CHOOSE, DROP, OR PASTE'}
             </span>
             <span className="mt-1 block break-all text-[9px] leading-relaxed tracking-[0.08em] text-neutral-600">
-              {fileName || 'WEBP · JPEG · PNG'}
+              {fileName || 'WEBP · JPEG · PNG · CTRL/⌘V'}
             </span>
             {prepared ? (
               <span className="mt-1 block text-[8px] tracking-[0.1em] text-neutral-500">
