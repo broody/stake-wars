@@ -2,30 +2,24 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import {
+  arbiterOrbitAngle,
+  arbiterOrbitPrecession,
+  positionOnArbiterOrbit,
+} from '../../utils/arbiterOrbit';
 
-const ORBIT_RADIUS = 17;
-const ORBIT_TILT = THREE.MathUtils.degToRad(56);
-const ORBIT_ROLL = THREE.MathUtils.degToRad(-14);
-const ORBIT_SPEED = 0.14;
-const ORBIT_PRECESSION_SPEED = 0.018;
-const START_ANGLE = THREE.MathUtils.degToRad(28);
 const ARBITER_RADIUS = 0.62;
 const ORBIT_HOVER_HOLD_MS = 3_000;
 const ORBIT_IDLE_COLOR = new THREE.Color(SECTOR_COLORS.neutralGrid);
 const ORBIT_HOVER_COLOR = new THREE.Color(SECTOR_COLORS.hover);
 
-function positionOnOrbit(angle: number, target: THREE.Vector3) {
-  const flatX = Math.cos(angle) * ORBIT_RADIUS;
-  const flatY = Math.sin(angle) * ORBIT_RADIUS * Math.cos(ORBIT_TILT);
-
-  target.set(
-    flatX * Math.cos(ORBIT_ROLL) - flatY * Math.sin(ORBIT_ROLL),
-    flatX * Math.sin(ORBIT_ROLL) + flatY * Math.cos(ORBIT_ROLL),
-    Math.sin(angle) * ORBIT_RADIUS * Math.sin(ORBIT_TILT)
-  );
-}
-
-export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
+export function OrbitalArbiter({
+  isTracking,
+  onInspect,
+}: {
+  isTracking: boolean;
+  onInspect: () => void;
+}) {
   const orbitSystemRef = useRef<THREE.Group>(null);
   const arbiterRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
@@ -37,7 +31,7 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
   const orbitGeometry = useMemo(() => {
     const points = Array.from({ length: 161 }, (_, index) => {
       const point = new THREE.Vector3();
-      positionOnOrbit((index / 160) * Math.PI * 2, point);
+      positionOnArbiterOrbit((index / 160) * Math.PI * 2, point);
       return point;
     });
     return new THREE.BufferGeometry().setFromPoints(points);
@@ -72,16 +66,17 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
 
   useFrame(({ clock }, delta) => {
     const elapsedTime = clock.getElapsedTime();
-    const angle = prefersReducedMotion
-      ? START_ANGLE
-      : START_ANGLE + elapsedTime * ORBIT_SPEED;
+    const angle = arbiterOrbitAngle(elapsedTime, prefersReducedMotion);
 
-    if (orbitSystemRef.current && !prefersReducedMotion) {
-      orbitSystemRef.current.rotation.y = elapsedTime * ORBIT_PRECESSION_SPEED;
+    if (orbitSystemRef.current) {
+      orbitSystemRef.current.rotation.y = arbiterOrbitPrecession(
+        elapsedTime,
+        prefersReducedMotion
+      );
     }
 
     if (arbiterRef.current) {
-      positionOnOrbit(angle, orbitPosition);
+      positionOnArbiterOrbit(angle, orbitPosition);
       arbiterRef.current.position.copy(orbitPosition);
     }
 
@@ -93,7 +88,9 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
 
     if (orbitMaterialRef.current) {
       const isOrbitHighlighted =
-        isHovered || performance.now() < orbitHighlightUntilRef.current;
+        isTracking ||
+        isHovered ||
+        performance.now() < orbitHighlightUntilRef.current;
       const response = 1 - Math.exp(-delta * 9);
       orbitMaterialRef.current.color.lerp(
         isOrbitHighlighted ? ORBIT_HOVER_COLOR : ORBIT_IDLE_COLOR,
@@ -101,7 +98,7 @@ export function OrbitalArbiter({ onInspect }: { onInspect: () => void }) {
       );
       orbitMaterialRef.current.opacity = THREE.MathUtils.damp(
         orbitMaterialRef.current.opacity,
-        isOrbitHighlighted ? 0.58 : 0.11,
+        isOrbitHighlighted ? 0.48 : 0.11,
         9,
         delta
       );

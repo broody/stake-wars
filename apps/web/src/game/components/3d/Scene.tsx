@@ -3,13 +3,22 @@ import { Stars } from './Stars';
 import { ShootingStars } from './ShootingStars';
 import { OrbitalArbiter } from './OrbitalArbiter';
 
-export function Scene({ onInspectArbiter }: { onInspectArbiter: () => void }) {
+export function Scene({
+  isArbiterTracking,
+  onInspectArbiter,
+}: {
+  isArbiterTracking: boolean;
+  onInspectArbiter: () => void;
+}) {
   return (
     <>
       <Stars />
       <ShootingStars />
       <Planet />
-      <OrbitalArbiter onInspect={onInspectArbiter} />
+      <OrbitalArbiter
+        isTracking={isArbiterTracking}
+        onInspect={onInspectArbiter}
+      />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1} />
     </>

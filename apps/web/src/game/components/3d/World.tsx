@@ -2,6 +2,7 @@ import {
   Suspense,
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -9,6 +10,7 @@ import {
 } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ArcballControls } from '@react-three/drei';
+import { useSearchParams } from 'react-router-dom';
 import * as THREE from 'three';
 import { Scene } from './Scene';
 import { IdleCameraRotation } from './IdleCameraRotation';
@@ -24,6 +26,7 @@ import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { ArbiterModal } from '../ui/ArbiterModal';
+import { ArbiterCameraTracker } from './ArbiterCameraTracker';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 const PLACEMENT_CORNERS = [
@@ -306,6 +309,7 @@ function marqueeBounds(
 }
 
 export function World() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     selectedSectorIds,
     projectionSectorIds,
@@ -317,15 +321,55 @@ export function World() {
   const { notifyWarning } = useTransactionToast();
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
+  const ignoreArbiterInspectRef = useRef(false);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
   );
-  const [isArbiterOpen, setIsArbiterOpen] = useState(false);
-  const openArbiterBriefing = useCallback(() => setIsArbiterOpen(true), []);
-  const closeArbiterBriefing = useCallback(() => setIsArbiterOpen(false), []);
+  const isArbiterOpen = searchParams.get('tracking') === 'arbiter';
+  const setArbiterTracking = useCallback(
+    (isTracking: boolean) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (isTracking) {
+            next.set('tracking', 'arbiter');
+          } else if (next.get('tracking') === 'arbiter') {
+            next.delete('tracking');
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+  const openArbiterBriefing = useCallback(() => {
+    if (ignoreArbiterInspectRef.current) return;
+    selectSectors([]);
+    setArbiterTracking(true);
+  }, [selectSectors, setArbiterTracking]);
+  const closeArbiterBriefing = useCallback(
+    () => setArbiterTracking(false),
+    [setArbiterTracking]
+  );
+
+  useEffect(() => {
+    if (!isArbiterOpen) return;
+
+    const stopTrackingOnClick = () => {
+      ignoreArbiterInspectRef.current = true;
+      setArbiterTracking(false);
+      queueMicrotask(() => {
+        ignoreArbiterInspectRef.current = false;
+      });
+    };
+
+    window.addEventListener('click', stopTrackingOnClick, true);
+    return () => window.removeEventListener('click', stopTrackingOnClick, true);
+  }, [isArbiterOpen, setArbiterTracking]);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
@@ -439,7 +483,10 @@ export function World() {
         style={{ width: '100%', height: '100%', background: '#000000' }}
       >
         <Suspense fallback={null}>
-          <Scene onInspectArbiter={openArbiterBriefing} />
+          <Scene
+            isArbiterTracking={isArbiterOpen}
+            onInspectArbiter={openArbiterBriefing}
+          />
         </Suspense>
 
         <MarqueeSelector
@@ -460,6 +507,7 @@ export function World() {
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
+        <ArbiterCameraTracker active={isArbiterOpen} />
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />
