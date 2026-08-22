@@ -11,7 +11,7 @@ interface IdleCameraRotationProps {
 export const IdleCameraRotation: React.FC<IdleCameraRotationProps> = ({
   disabled,
 }) => {
-  const { camera, gl } = useThree();
+  const { camera } = useThree();
   const lastInteractionTime = useRef(Date.now());
   const isIdle = useRef(false);
   const rotationAxis = useRef(new THREE.Vector3());
@@ -38,19 +38,20 @@ export const IdleCameraRotation: React.FC<IdleCameraRotationProps> = ({
       isIdle.current = false;
     };
 
-    // Listen only for click/touch interactions (not hover/move)
-    const interactionEvents = ['mousedown', 'wheel', 'touchstart'];
+    // The game controls are HTML overlays outside the WebGL canvas, so listen
+    // at the page level. Capture also catches interactions stopped by a control.
+    const interactionEvents = ['pointerdown', 'wheel', 'keydown', 'click'];
 
     interactionEvents.forEach((event) => {
-      gl.domElement.addEventListener(event, resetIdleTimer);
+      window.addEventListener(event, resetIdleTimer, true);
     });
 
     return () => {
       interactionEvents.forEach((event) => {
-        gl.domElement.removeEventListener(event, resetIdleTimer);
+        window.removeEventListener(event, resetIdleTimer, true);
       });
     };
-  }, [gl, idleRotationDirection]);
+  }, [idleRotationDirection]);
 
   useFrame((_state, delta) => {
     if (disabled) {
