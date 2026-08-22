@@ -41,6 +41,7 @@ export function ProjectionPanel() {
     publishArtwork,
   } = useSectorImages();
   const inputRef = useRef<HTMLInputElement>(null);
+  const preparationVersionRef = useRef(0);
   const [prepared, setPrepared] = useState<PreparedSectorImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -82,9 +83,13 @@ export function ProjectionPanel() {
   }, [endPlacement, mode, placementDraft]);
 
   const discardPreparedImage = useCallback(() => {
+    preparationVersionRef.current += 1;
     endPlacement();
     setPrepared(null);
     setFileName(null);
+    setPreparing(false);
+    setUploadError(null);
+    setUploadNotice(null);
     setPreviewUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return null;
@@ -95,11 +100,14 @@ export function ProjectionPanel() {
   const chooseFile = useCallback(
     async (file: File | undefined) => {
       if (!file || projectionSectorIds.length === 0) return;
+      const preparationVersion = ++preparationVersionRef.current;
       setPreparing(true);
       setUploadError(null);
       setUploadNotice(null);
       try {
         const next = await prepareSectorImage(file, maximumImageBytes);
+        if (preparationVersion !== preparationVersionRef.current) return;
+
         const nextPreviewUrl = URL.createObjectURL(next.detail);
         endPlacement();
         setPrepared(next);
@@ -110,19 +118,16 @@ export function ProjectionPanel() {
         });
         beginPlacement(nextPreviewUrl);
       } catch (failure) {
-        setPrepared(null);
-        setFileName(null);
-        setPreviewUrl((current) => {
-          if (current) URL.revokeObjectURL(current);
-          return null;
-        });
+        if (preparationVersion !== preparationVersionRef.current) return;
         setUploadError(
           failure instanceof Error
             ? failure.message
             : 'Unable to prepare this image.'
         );
       } finally {
-        setPreparing(false);
+        if (preparationVersion === preparationVersionRef.current) {
+          setPreparing(false);
+        }
       }
     },
     [
@@ -139,9 +144,7 @@ export function ProjectionPanel() {
     const handlePaste = (event: ClipboardEvent) => {
       if (
         event.defaultPrevented ||
-        isPreparing ||
         isUploading ||
-        placementDraft !== null ||
         projectionSectorIds.length === 0
       ) {
         return;
@@ -166,14 +169,26 @@ export function ProjectionPanel() {
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [
-    chooseFile,
-    isPreparing,
-    isUploading,
-    mode,
-    placementDraft,
-    projectionSectorIds.length,
-  ]);
+  }, [chooseFile, isUploading, mode, projectionSectorIds.length]);
+
+  useEffect(() => {
+    if (
+      mode !== 'projection' ||
+      isUploading ||
+      (!isPreparing && placementDraft === null)
+    ) {
+      return;
+    }
+
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      discardPreparedImage();
+    };
+
+    document.addEventListener('keydown', cancelOnEscape);
+    return () => document.removeEventListener('keydown', cancelOnEscape);
+  }, [discardPreparedImage, isPreparing, isUploading, mode, placementDraft]);
 
   if (mode !== 'projection') return null;
 
@@ -327,10 +342,7 @@ export function ProjectionPanel() {
         <button
           type="button"
           disabled={
-            isPreparing ||
-            isUploading ||
-            placementDraft !== null ||
-            projectionSectorIds.length === 0
+            isPreparing || isUploading || projectionSectorIds.length === 0
           }
           onClick={() => inputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
@@ -346,13 +358,11 @@ export function ProjectionPanel() {
                 src={previewUrl}
                 alt="Prepared Sector image preview"
                 className="h-[58px] w-[58px] object-cover"
-                style={{ clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }}
               />
             ) : (
               <span
                 aria-hidden="true"
                 className="block h-[48px] w-[48px] border border-neutral-700"
-                style={{ clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }}
               />
             )}
           </span>
@@ -387,7 +397,8 @@ export function ProjectionPanel() {
               Drag the square to move the image. Drag any corner or scroll over
               it to resize while preserving its proportions. Outside the square,
               orbit or zoom the Core to choose the projection angle. The live
-              surface preview is the published result.
+              surface preview is the published result. Paste again to replace
+              the image, or press Esc to cancel.
             </p>
             {placementDraft.placement ? (
               <label className="mt-3 block">
