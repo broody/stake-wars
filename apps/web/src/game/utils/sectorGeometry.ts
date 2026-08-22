@@ -296,6 +296,27 @@ export function createSectorBoundaryGeometry(
   );
 }
 
+export function updateInstancedLinePositions(
+  geometry: THREE.InstancedBufferGeometry,
+  positions: Float32Array
+): void {
+  const start = geometry.getAttribute('instanceStart');
+  const end = geometry.getAttribute('instanceEnd');
+  if (
+    !(start instanceof THREE.InterleavedBufferAttribute) ||
+    !(end instanceof THREE.InterleavedBufferAttribute) ||
+    start.data !== end.data
+  ) {
+    throw new Error('Line geometry must use one interleaved position buffer');
+  }
+  if (start.data.array.length !== positions.length) {
+    throw new Error('Line position count cannot change during animation');
+  }
+
+  start.data.array.set(positions);
+  start.data.needsUpdate = true;
+}
+
 export function createSectorGroupGridGeometries(
   sectorGroups: readonly (readonly number[])[],
   heights?: ReadonlyMap<number, number>,

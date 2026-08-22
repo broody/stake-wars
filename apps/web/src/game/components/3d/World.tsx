@@ -452,7 +452,7 @@ export function World() {
         <ArcballControls
           minDistance={8}
           maxDistance={30}
-          enablePan={mode === 'projection'}
+          enablePan={false}
           enabled={marqueeStart === null && !isArbiterOpen}
         />
 

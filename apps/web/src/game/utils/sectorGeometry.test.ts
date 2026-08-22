@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { InterleavedBufferAttribute } from 'three';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import {
   SECTOR_COUNT,
   adjacentSectorIds,
@@ -12,6 +14,7 @@ import {
   createSeparatedSectorSetGeometry,
   extractSectorPositions,
   isSectorId,
+  updateInstancedLinePositions,
 } from './sectorGeometry';
 
 describe('canonical Sector geometry', () => {
@@ -61,6 +64,31 @@ describe('canonical Sector geometry', () => {
 
     expect(singleBoundary.getAttribute('position').count).toBe(6);
     expect(combinedBoundary.getAttribute('position').count).toBe(8);
+  });
+
+  it('updates animated wide-line positions without replacing GPU buffers', () => {
+    const geometry = new LineSegmentsGeometry().setPositions([
+      0, 0, 0, 1, 0, 0,
+    ]);
+    const originalStart = geometry.getAttribute('instanceStart');
+    expect(originalStart).toBeInstanceOf(InterleavedBufferAttribute);
+    if (!(originalStart instanceof InterleavedBufferAttribute)) {
+      throw new Error('Expected an interleaved line buffer');
+    }
+    const originalBuffer = originalStart.data;
+
+    updateInstancedLinePositions(
+      geometry,
+      new Float32Array([0, 1, 0, 1, 1, 0])
+    );
+
+    const updatedStart = geometry.getAttribute('instanceStart');
+    expect(updatedStart).toBe(originalStart);
+    expect((updatedStart as InterleavedBufferAttribute).data).toBe(
+      originalBuffer
+    );
+    expect(Array.from(originalBuffer.array)).toEqual([0, 1, 0, 1, 1, 0]);
+    expect(originalBuffer.version).toBe(1);
   });
 
   it('raises each Sector to its configured absolute height', () => {

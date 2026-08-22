@@ -9,6 +9,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useSectorImages } from '../../contexts/SectorImageContext';
+import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import {
   CORE_RADIUS,
   createSectorBoundaryGeometry,
@@ -17,6 +18,7 @@ import {
   createSectorSetGeometry,
   createExtrudedSectorGeometries,
   createRaisedSectorSetGeometry,
+  updateInstancedLinePositions,
 } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import {
@@ -39,6 +41,11 @@ import {
   sectorWaveDistanceRange as createSectorWaveDistanceRange,
   SECTOR_FLIP_DURATION_SECONDS,
 } from '../../utils/sectorFlip';
+import {
+  combineSectorSelections,
+  contiguousSectorIds,
+} from '../../utils/sectorSelection';
+import { MAX_SECTOR_SELECTION } from '../../services/sectorLimits';
 
 const DRAG_SELECTION_THRESHOLD_PX = 5;
 const TENURE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
@@ -847,6 +854,10 @@ interface ExtrudedSectorLayerProps {
   topBackColor?: THREE.ColorRepresentation;
   sideColor: THREE.ColorRepresentation;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
+  onDoubleClickSector?: (
+    sectorId: number,
+    event: ThreeEvent<MouseEvent>
+  ) => void;
   onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
 }
@@ -952,6 +963,7 @@ function ExtrudedSectorLayer({
   topBackColor,
   sideColor,
   onClickSector,
+  onDoubleClickSector,
   onHoverSector,
   onPointerOut,
 }: ExtrudedSectorLayerProps) {
@@ -1065,6 +1077,16 @@ function ExtrudedSectorLayer({
                 sectorHandler(event, geometries.sideSectorIds, onClickSector)
             : undefined
         }
+        onDoubleClick={
+          interactive && onDoubleClickSector
+            ? (event) =>
+                sectorHandler(
+                  event,
+                  geometries.sideSectorIds,
+                  onDoubleClickSector
+                )
+            : undefined
+        }
         onPointerMove={
           interactive
             ? (event) =>
@@ -1090,6 +1112,16 @@ function ExtrudedSectorLayer({
           interactive
             ? (event) =>
                 sectorHandler(event, geometries.topSectorIds, onClickSector)
+            : undefined
+        }
+        onDoubleClick={
+          interactive && onDoubleClickSector
+            ? (event) =>
+                sectorHandler(
+                  event,
+                  geometries.topSectorIds,
+                  onDoubleClickSector
+                )
             : undefined
         }
         onPointerMove={
@@ -1285,7 +1317,7 @@ function PopulatedReliefContourLayer({
         easedVisibility
       );
     }
-    topLineGeometry.setPositions(reliefPositionArrays.current);
+    updateInstancedLinePositions(topLineGeometry, reliefPositionArrays.current);
     const viewShadowOpacity = THREE.MathUtils.lerp(
       flatHasRelief ? 1 : 0,
       stakedHasRelief ? 1 : 0,
@@ -1293,6 +1325,11 @@ function PopulatedReliefContourLayer({
     );
     shadowMaterial.opacity = 0.86 * viewShadowOpacity * easedVisibility;
   });
+
+  useEffect(() => {
+    renderedReliefMixRef.current = -1;
+    renderedReliefVisibilityRef.current = -1;
+  }, [topLineGeometry]);
 
   useEffect(
     () => () => {
@@ -1355,6 +1392,10 @@ interface SectorOwnershipLayersProps {
   waveDistanceRange?: THREE.Vector2;
   waveDelay?: number;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
+  onDoubleClickSector?: (
+    sectorId: number,
+    event: ThreeEvent<MouseEvent>
+  ) => void;
   onHoverSector: (sectorId: number, event: ThreeEvent<PointerEvent>) => void;
   onPointerOut: () => void;
 }
@@ -1375,6 +1416,7 @@ export function SectorOwnershipLayers({
   waveDistanceRange,
   waveDelay,
   onClickSector,
+  onDoubleClickSector,
   onHoverSector,
   onPointerOut,
 }: SectorOwnershipLayersProps) {
@@ -1447,6 +1489,7 @@ export function SectorOwnershipLayers({
         topBackColor={SECTOR_COLORS.opponent}
         sideColor={SECTOR_COLORS.opponentSide}
         onClickSector={onClickSector}
+        onDoubleClickSector={onDoubleClickSector}
         onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
@@ -1466,6 +1509,7 @@ export function SectorOwnershipLayers({
         topBackColor={SECTOR_COLORS.owned}
         sideColor={SECTOR_COLORS.ownedSide}
         onClickSector={onClickSector}
+        onDoubleClickSector={onDoubleClickSector}
         onHoverSector={onHoverSector}
         onPointerOut={onPointerOut}
       />
@@ -1530,6 +1574,7 @@ export function Planet({
 }: PlanetProps) {
   const { camera } = useThree();
   const { isConnected } = useWallet();
+  const { notifyWarning } = useTransactionToast();
   const { artworks, placementDraft, featuredArtworkId } = useSectorImages();
   const {
     mode,
@@ -1547,7 +1592,9 @@ export function Planet({
     projectionSectorIds,
     projectionLoadingId,
     selectSector,
+    selectSectors,
     toggleProjectionSector,
+    selectProjectionSectors,
   } = useSectors();
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const geometry = useMemo(() => createSectorGeometry(), []);
@@ -1775,6 +1822,65 @@ export function Planet({
     handleSectorClick(sectorId, event);
   };
 
+  const handleSectorDoubleClick = (
+    sectorId: number,
+    event: ThreeEvent<MouseEvent>
+  ) => {
+    event.stopPropagation();
+    if (
+      isSectorInteractionLocked ||
+      placementDraft !== null ||
+      event.delta > DRAG_SELECTION_THRESHOLD_PX
+    ) {
+      return;
+    }
+
+    if (mode === 'projection' && !ownedSectorIdSet.has(sectorId)) return;
+
+    const extendSelection = event.nativeEvent.shiftKey;
+    const ownerGroup = sectorOwnerGroups.find((group) =>
+      group.includes(sectorId)
+    );
+    if (mode === 'control' && !ownerGroup) {
+      selectSectors(
+        combineSectorSelections(selectedSectorIds, [sectorId], extendSelection)
+      );
+      return;
+    }
+
+    const candidateSectorIds =
+      mode === 'projection' ? ownedSectorIds : (ownerGroup ?? []);
+    const contiguous = contiguousSectorIds(sectorId, candidateSectorIds);
+    const currentSelection =
+      mode === 'projection' ? projectionSectorIds : selectedSectorIds;
+    const nextSelection = combineSectorSelections(
+      currentSelection,
+      contiguous,
+      extendSelection
+    );
+
+    if (nextSelection.length > MAX_SECTOR_SELECTION) {
+      notifyWarning(
+        `This selection would contain ${nextSelection.length} Sectors. Select no more than ${MAX_SECTOR_SELECTION} Sectors.`,
+        'SELECTION LIMIT'
+      );
+      return;
+    }
+
+    if (mode === 'projection') {
+      selectProjectionSectors(nextSelection);
+      return;
+    }
+
+    selectSectors(nextSelection);
+  };
+
+  const handleDoubleClick = (event: ThreeEvent<MouseEvent>) => {
+    const sectorId = getEventSectorId(event);
+    if (sectorId === null) return;
+    handleSectorDoubleClick(sectorId, event);
+  };
+
   const handleSectorHover = (
     sectorId: number,
     event: ThreeEvent<PointerEvent>
@@ -1854,6 +1960,9 @@ export function Planet({
       <mesh
         geometry={geometry}
         onClick={isSectorInteractionLocked ? undefined : handleClick}
+        onDoubleClick={
+          isSectorInteractionLocked ? undefined : handleDoubleClick
+        }
         onPointerMove={handlePointerMove}
         onPointerOut={() => setHoveredSectorId(null)}
       >
@@ -1924,6 +2033,7 @@ export function Planet({
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
         onClickSector={handleSectorClick}
+        onDoubleClickSector={handleSectorDoubleClick}
         onHoverSector={handleSectorHover}
         onPointerOut={() => setHoveredSectorId(null)}
       />

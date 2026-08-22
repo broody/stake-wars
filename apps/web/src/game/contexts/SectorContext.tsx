@@ -61,6 +61,7 @@ interface SectorContextValue {
   selectSectors: (sectorIds: number[]) => void;
   removeSelectedSectors: (sectorIds: readonly number[]) => void;
   toggleProjectionSector: (sectorId: number) => Promise<void>;
+  selectProjectionSectors: (sectorIds: number[]) => void;
   clearProjectionSelection: () => void;
   refreshSector: () => void;
   refreshOperator: () => void;
@@ -632,6 +633,35 @@ export function SectorProvider({ children }: PropsWithChildren) {
     };
   }, [activeSectors, address]);
 
+  const selectProjectionSectors = useCallback(
+    (sectorIds: number[]) => {
+      if (sectorIds.some((id) => !isSectorId(id))) {
+        throw new RangeError(
+          'Projection selection contains an invalid Sector ID'
+        );
+      }
+      const uniqueSectorIds = [...new Set(sectorIds)];
+      if (uniqueSectorIds.length > MAX_SECTOR_SELECTION) {
+        throw new RangeError(
+          `At most ${MAX_SECTOR_SELECTION} Sectors can be selected`
+        );
+      }
+
+      const ownedSectorIdSet = new Set(ownedSectorIds);
+      if (uniqueSectorIds.some((id) => !ownedSectorIdSet.has(id))) {
+        throw new RangeError('Projection selection must contain owned Sectors');
+      }
+
+      projectionRequest.current?.abort();
+      setProjectionLoadingId(null);
+      setProjectionError(null);
+      setProjectionSectorIds(
+        uniqueSectorIds.sort((left, right) => left - right)
+      );
+    },
+    [ownedSectorIds]
+  );
+
   const value = useMemo<SectorContextValue>(
     () => ({
       mode,
@@ -665,6 +695,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       selectSectors,
       removeSelectedSectors,
       toggleProjectionSector,
+      selectProjectionSectors,
       clearProjectionSelection,
       refreshSector,
       refreshOperator,
@@ -705,6 +736,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       selectSectors,
       removeSelectedSectors,
       toggleProjectionSector,
+      selectProjectionSectors,
       clearProjectionSelection,
       refreshSector,
       refreshOperator,

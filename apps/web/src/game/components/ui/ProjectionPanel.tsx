@@ -333,8 +333,8 @@ export function ProjectionPanel() {
             <p className="mt-2 leading-relaxed text-neutral-500">
               Drag the square to move the image. Drag any corner or scroll over
               it to resize while preserving its proportions. Outside the square,
-              orbit, pan, or zoom the Core to choose the projection angle. The
-              live surface preview is the published result.
+              orbit or zoom the Core to choose the projection angle. The live
+              surface preview is the published result.
             </p>
             {placementDraft.placement ? (
               <label className="mt-3 block">
