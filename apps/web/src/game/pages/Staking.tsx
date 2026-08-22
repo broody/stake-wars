@@ -13,30 +13,24 @@ const VOYAGER_VALIDATOR_URL =
   'https://voyager.online/staking?validator=0x026232d459668b7183dd54e7cddccd27e168882b597743e233645cefa61eb1eb';
 const VOYAGER_LOGO_URL = '/voyager-logo.svg';
 
-function ValidatorLink({ compact = false }: { compact?: boolean }) {
+function ValidatorLink() {
   return (
     <a
       href={VOYAGER_VALIDATOR_URL}
       target="_blank"
       rel="noreferrer"
-      className={`group flex border border-[#ff4a04]/60 bg-[#ff4a04]/[0.05] text-left transition-colors hover:border-[#ff4a04] hover:bg-[#ff4a04]/[0.1] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white ${
-        compact ? 'mt-6 items-center p-3' : 'w-full items-stretch sm:w-auto'
-      }`}
+      className="group flex w-full items-stretch border border-[#ff4a04]/60 bg-[#ff4a04]/[0.05] text-left transition-colors hover:border-[#ff4a04] hover:bg-[#ff4a04]/[0.1] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto"
       aria-label="View the Stake Wars validator on Voyager (opens in a new tab)"
     >
-      <div
-        className={`flex shrink-0 items-center justify-center border-[#ff4a04]/40 ${
-          compact ? 'mr-3' : 'border-r px-4'
-        }`}
-      >
+      <div className="flex shrink-0 items-center justify-center border-r border-[#ff4a04]/40 px-4">
         <img
           src={VOYAGER_LOGO_URL}
           alt=""
           aria-hidden="true"
-          className={compact ? 'h-7 w-auto' : 'h-9 w-auto'}
+          className="h-9 w-auto"
         />
       </div>
-      <div className={compact ? '' : 'px-5 py-4'}>
+      <div className="px-5 py-4">
         <div className="text-[8px] tracking-[0.2em] text-[#ff6a2f]">
           OFFICIAL STARKNET VALIDATOR
         </div>
@@ -317,7 +311,6 @@ export function Staking() {
           <div className="inline-block">
             <WalletButton />
           </div>
-          <ValidatorLink compact />
         </div>
       </div>
     );
