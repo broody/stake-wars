@@ -87,7 +87,7 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('CURRENT CONTROLLER');
   });
 
-  it('shows the development scenario controls with current control and bidding', () => {
+  it('shows the development scenario controls with current Influence and bidding', () => {
     const markup = renderToStaticMarkup(
       <ArbiterConsole
         isOpen
@@ -105,17 +105,19 @@ describe('ArbiterConsole', () => {
     );
 
     expect(markup).toContain('LOCAL SIGNAL');
-    expect(markup).toContain('AUCTION');
+    expect(markup).toContain('INFLUENCE');
     expect(markup).toContain('MOCK');
-    expect(markup).toContain('CURRENT BILLBOARD CONTROL');
-    expect(markup).toContain('CURRENT WINNER');
+    expect(markup).toContain('ACTIVE INFLUENCE');
+    expect(markup).toContain('FAVORED OPERATOR');
+    expect(markup).toContain('PERIOD OF INFLUENCE');
     expect(markup).toContain('17 / 64');
     expect(markup).toContain('LOCAL PREVIEW // NO TRANSACTIONS');
+    expect(markup).not.toContain('BILLBOARD');
   });
 });
 
 describe('ArbiterSummaryCard', () => {
-  it('keeps the in-world surface light and links to the full auction UI', () => {
+  it('keeps the in-world surface light and links to the Influence console', () => {
     const snapshot = createArbiterMockSnapshot(
       'bidding',
       Date.parse('2026-08-24T12:00:00Z')
@@ -134,9 +136,9 @@ describe('ArbiterSummaryCard', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain('GLOBAL CONTROL');
-    expect(markup).toContain('CURRENT CONTROLLER');
-    expect(markup).toContain('OPEN FULL AUCTION UI');
+    expect(markup).toContain('INFLUENCE STATUS');
+    expect(markup).toContain('FAVORED OPERATOR');
+    expect(markup).toContain('OPEN INFLUENCE CONSOLE');
     expect(markup).toContain(
       '/arbiter?arbiterMock=bidding&amp;tracking=arbiter'
     );
@@ -145,7 +147,7 @@ describe('ArbiterSummaryCard', () => {
     expect(markup).not.toContain('ACTIVE TRANSMISSION');
   });
 
-  it('shows the future upload affordance only to the current controller', () => {
+  it('shows the future projection affordance only to the favored Operator', () => {
     const snapshot = createArbiterMockSnapshot(
       'winner',
       Date.parse('2026-08-24T12:00:00Z')
@@ -165,7 +167,8 @@ describe('ArbiterSummaryCard', () => {
     );
 
     expect(markup).toContain('YOU');
-    expect(markup).toContain('UPLOAD IMAGE // COMING NEXT');
+    expect(markup).toContain('YOUR PERIOD OF INFLUENCE');
+    expect(markup).toContain('SET PROJECTION // COMING NEXT');
     expect(markup).toContain('disabled');
   });
 });

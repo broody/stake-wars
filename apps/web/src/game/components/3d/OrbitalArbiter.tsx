@@ -7,8 +7,12 @@ import {
   arbiterOrbitPrecession,
   positionOnArbiterOrbit,
 } from '../../utils/arbiterOrbit';
+import {
+  ARBITER_INITIAL_ROTATION,
+  ARBITER_RADIUS,
+  ARBITER_ROTATION_SPEED,
+} from '../../utils/arbiterVisuals';
 
-const ARBITER_RADIUS = 0.62;
 const ORBIT_HOVER_HOLD_MS = 3_000;
 const ORBIT_IDLE_COLOR = new THREE.Color(SECTOR_COLORS.neutralGrid);
 const ORBIT_HOVER_COLOR = new THREE.Color(SECTOR_COLORS.hover);
@@ -81,9 +85,9 @@ export function OrbitalArbiter({
     }
 
     if (bodyRef.current && !prefersReducedMotion) {
-      bodyRef.current.rotation.x += delta * 0.42;
-      bodyRef.current.rotation.y += delta * 0.68;
-      bodyRef.current.rotation.z -= delta * 0.18;
+      bodyRef.current.rotation.x += delta * ARBITER_ROTATION_SPEED.x;
+      bodyRef.current.rotation.y += delta * ARBITER_ROTATION_SPEED.y;
+      bodyRef.current.rotation.z += delta * ARBITER_ROTATION_SPEED.z;
     }
 
     if (orbitMaterialRef.current) {
@@ -143,7 +147,14 @@ export function OrbitalArbiter({
       </lineLoop>
 
       <group ref={arbiterRef}>
-        <group ref={bodyRef} rotation={[0.34, 0.18, -0.22]}>
+        <group
+          ref={bodyRef}
+          rotation={[
+            ARBITER_INITIAL_ROTATION.x,
+            ARBITER_INITIAL_ROTATION.y,
+            ARBITER_INITIAL_ROTATION.z,
+          ]}
+        >
           <mesh geometry={arbiterGeometry} raycast={() => undefined}>
             <meshBasicMaterial
               color={SECTOR_COLORS.neutral}

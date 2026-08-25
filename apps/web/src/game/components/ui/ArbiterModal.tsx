@@ -109,7 +109,7 @@ export function ArbiterSummaryCard({
             id="arbiter-summary-title"
             className="mt-1 text-sm tracking-[0.12em] text-white"
           >
-            GLOBAL CONTROL
+            INFLUENCE STATUS
           </h2>
         </div>
         <button
@@ -156,10 +156,10 @@ export function ArbiterSummaryCard({
         {snapshot && !round ? (
           <section className="border-l-2 border-neutral-500 pl-3">
             <div className="text-[9px] tracking-[0.2em] text-neutral-500">
-              NO AUCTION SCHEDULED
+              NO INFLUENCE SCHEDULED
             </div>
             <p className="mt-2 leading-5 text-neutral-300">
-              The projection surface is available. No sealed-bid round is
+              The Arbiter continues its watch. No sealed Influence round is
               active.
             </p>
           </section>
@@ -207,7 +207,7 @@ export function ArbiterSummaryCard({
           <section className="border-l-2 border-white bg-white/[0.04] px-3 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-                CURRENT CONTROLLER
+                FAVORED OPERATOR
               </div>
               {isCurrentController ? (
                 <span className="bg-white px-2 py-0.5 text-[8px] tracking-[0.16em] text-black">
@@ -221,7 +221,7 @@ export function ArbiterSummaryCard({
                 value={shortAddress(snapshot.controller.address)}
               />
               <MetricText
-                label="CONTROL WINDOW"
+                label="PERIOD OF INFLUENCE"
                 value={
                   snapshot.controller.expiresAt
                     ? arbiterCountdown(snapshot.controller.expiresAt, chainNow)
@@ -238,7 +238,7 @@ export function ArbiterSummaryCard({
         to={arbiterHref}
         className="flex items-center justify-between border-t border-neutral-600 px-4 py-3 text-[9px] tracking-[0.18em] text-white transition-colors hover:bg-white hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-white"
       >
-        <span>OPEN FULL AUCTION UI</span>
+        <span>OPEN INFLUENCE CONSOLE</span>
         <span aria-hidden="true">→</span>
       </Link>
     </aside>
@@ -304,11 +304,7 @@ export function ArbiterConsole({
             {title}
           </h2>
         </div>
-        {isPage ? (
-          <span className="border border-neutral-600 px-2 py-1 text-[9px] tracking-[0.14em] text-neutral-400">
-            PUBLIC UPLINK
-          </span>
-        ) : (
+        {!isPage ? (
           <button
             type="button"
             onClick={onClose}
@@ -317,7 +313,7 @@ export function ArbiterConsole({
           >
             ESC
           </button>
-        )}
+        ) : null}
       </header>
 
       {previewMode && onPreviewModeChange ? (
@@ -332,7 +328,7 @@ export function ArbiterConsole({
             {(
               [
                 ['LIVE', 'live'],
-                ['AUCTION', 'bidding'],
+                ['INFLUENCE', 'bidding'],
                 ['WINNER', 'winner'],
               ] as const
             ).map(([label, mode]) => (
@@ -396,20 +392,20 @@ export function ArbiterConsole({
               <ArbiterGlyph />
               <div>
                 <div className="text-[9px] tracking-[0.24em] text-neutral-500">
-                  SIGNAL AVAILABLE // NO AUCTION
+                  SIGNAL AVAILABLE // NO INFLUENCE
                 </div>
                 <p
                   id="arbiter-description"
                   className="mt-2 text-xs leading-5 text-neutral-300"
                 >
-                  The projection surface is online. A verified sealed-bid round
-                  has not been scheduled for this network.
+                  The Arbiter continues its watch. A verified sealed Influence
+                  round has not been scheduled for this network.
                 </p>
               </div>
             </div>
             <SignalNotice>
-              The Arbiter reveals no bidder identities or bid amounts while a
-              round is active. Only public contract counters appear here.
+              The Arbiter reveals no identities or bribe values while Influence
+              is active. Only public contract counters appear here.
             </SignalNotice>
           </section>
         ) : null}
@@ -461,15 +457,15 @@ export function ArbiterConsole({
             {snapshot.controller ? (
               <section className="border-l-2 border-white bg-white/[0.04] px-3 py-3">
                 <div className="text-[9px] tracking-[0.24em] text-neutral-500">
-                  CURRENT BILLBOARD CONTROL
+                  ACTIVE INFLUENCE
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-4">
                   <MetricText
-                    label="CURRENT WINNER"
+                    label="FAVORED OPERATOR"
                     value={shortAddress(snapshot.controller.address)}
                   />
                   <MetricText
-                    label="CONTROL WINDOW"
+                    label="PERIOD OF INFLUENCE"
                     value={
                       snapshot.controller.expiresAt
                         ? arbiterCountdown(
@@ -505,9 +501,9 @@ export function ArbiterConsole({
 
             {phase === 'bidding' || phase === 'acceptance' ? (
               <SignalNotice>
-                Bid values remain sealed from the public and other bidders. The
-                vault operator can inspect accepted deposits and controls the
-                refund path required for settlement.
+                Bribe values remain sealed from the public and other Operators.
+                The vault operator can inspect accepted deposits and controls
+                the refund path required for settlement.
               </SignalNotice>
             ) : null}
 
@@ -528,8 +524,8 @@ export function ArbiterConsole({
 
             {phase === 'aborted' ? (
               <SignalNotice>
-                This round was aborted without transferring billboard control.
-                The projection surface remains on its safe transmission.
+                This round was aborted without granting Influence. The Arbiter
+                remains on its safe projection.
               </SignalNotice>
             ) : null}
 
@@ -538,7 +534,7 @@ export function ArbiterConsole({
                 <div className="text-[9px] tracking-[0.24em] text-neutral-500">
                   {round.result.hasWinner
                     ? snapshot.controller
-                      ? 'CONTROL CLAIMED'
+                      ? 'INFLUENCE CLAIMED'
                       : 'WINNER VERIFIED // CLAIM PENDING'
                     : 'NO QUALIFYING BID'}
                 </div>
@@ -567,7 +563,7 @@ export function ArbiterConsole({
                   </>
                 ) : (
                   <p className="leading-5 text-neutral-300">
-                    The reserve was not cleared. No billboard control window was
+                    The reserve was not cleared. No Period of Influence was
                     created.
                   </p>
                 )}
@@ -581,7 +577,7 @@ export function ArbiterConsole({
               <dl className="mt-3 space-y-2 break-all">
                 <Detail label="NETWORK" value={snapshot.network} />
                 <Detail label="WHISPER" value={round.whisperAddress} />
-                <Detail label="AUCTION" value={String(round.auctionId)} />
+                <Detail label="INFLUENCE" value={String(round.auctionId)} />
                 <Detail label="CHAIN OBSERVED" value={snapshot.observedAt} />
               </dl>
             </details>
@@ -606,15 +602,15 @@ function UploadImagePlaceholder() {
   return (
     <div className="mt-3 border-t border-neutral-700 pt-3">
       <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-        YOUR CONTROL WINDOW
+        YOUR PERIOD OF INFLUENCE
       </div>
       <button
         type="button"
         disabled
         className="mt-2 w-full cursor-not-allowed border border-neutral-700 px-3 py-2 text-[9px] tracking-[0.16em] text-neutral-500"
-        title="Image uploads are planned for the next integration phase"
+        title="Projection changes are planned for the next integration phase"
       >
-        UPLOAD IMAGE // COMING NEXT
+        SET PROJECTION // COMING NEXT
       </button>
     </div>
   );

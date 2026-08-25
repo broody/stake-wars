@@ -103,7 +103,7 @@ function mockTransmissionURL(): string {
     </g>
     <path d="M28 88V28h60M552 28h60v60M612 272v60h-60M88 332H28v-60" fill="none" stroke="#f5f5f5" stroke-width="4"/>
     <text x="320" y="170" fill="#f5f5f5" font-family="monospace" font-size="31" font-weight="700" text-anchor="middle">CURRENT TRANSMISSION</text>
-    <text x="320" y="211" fill="#8a8a8a" font-family="monospace" font-size="17" text-anchor="middle">ROUND 0007 // CONTROL WINDOW ACTIVE</text>
+    <text x="320" y="211" fill="#8a8a8a" font-family="monospace" font-size="17" text-anchor="middle">ROUND 0007 // PERIOD OF INFLUENCE</text>
     <text x="44" y="58" fill="#8a8a8a" font-family="monospace" font-size="14">ARBITER MOCK</text>
     <text x="596" y="314" fill="#8a8a8a" font-family="monospace" font-size="14" text-anchor="end">16:9</text>
   </svg>`;

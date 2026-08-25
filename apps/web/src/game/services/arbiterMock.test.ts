@@ -4,7 +4,7 @@ import { createArbiterMockSnapshot, isArbiterMockMode } from './arbiterMock';
 const observedAt = Date.parse('2026-08-24T12:00:00Z');
 
 describe('Arbiter mock snapshots', () => {
-  it('creates a live auction preview with existing billboard control', () => {
+  it('creates a live Influence preview with an existing projection', () => {
     const snapshot = createArbiterMockSnapshot('bidding', observedAt);
 
     expect(snapshot.phase).toBe('bidding');
