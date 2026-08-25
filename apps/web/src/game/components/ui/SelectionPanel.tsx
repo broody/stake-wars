@@ -12,24 +12,63 @@ import { CaptureControl } from './CaptureControl';
 import { BatchCaptureControl } from './BatchCaptureControl';
 import { groupBatchSectors } from '../../services/sectorBatch';
 
+function ImageUploadAction({
+  sectorCount,
+  onSelect,
+}: {
+  sectorCount: number;
+  onSelect: () => void;
+}) {
+  return (
+    <div className="mt-4">
+      <div
+        className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-[8px] tracking-[0.2em] text-neutral-600"
+        aria-hidden="true"
+      >
+        <span className="border-t border-neutral-800" />
+        <span>OR</span>
+        <span className="border-t border-neutral-800" />
+      </div>
+      <section className="mt-3 border border-amber-300/50 bg-amber-300/[0.04] px-3 py-3">
+        <header className="flex items-center justify-between gap-3 text-[10px] tracking-[0.18em] text-amber-200">
+          <span>DISPLAY ARTWORK</span>
+          <span className="text-[8px] text-amber-300/60">IMAGE ACTION</span>
+        </header>
+        <p className="mt-2 text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+          Publish one image across {sectorCount} selected Sector
+          {sectorCount === 1 ? '' : 's'}.
+        </p>
+        <button
+          type="button"
+          onClick={onSelect}
+          className="mt-3 w-full border border-amber-300 bg-amber-300 px-4 py-3 text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:border-amber-200 hover:bg-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          UPLOAD IMAGE{sectorCount === 1 ? '' : ` TO ${sectorCount} SECTORS`}
+        </button>
+      </section>
+    </div>
+  );
+}
+
 export function SelectionPanel() {
   const { address } = useWallet();
   const {
     selectedSectorId,
     selectedSectorIds,
-    mode,
+    isImageUploadMode,
     selectedSector,
     selectedSectors,
     isSectorInteractionLocked,
     sectorError,
+    beginImageUpload,
     selectSector,
     refreshSector,
   } = useSectors();
 
   useEffect(() => {
     if (
-      mode !== 'control' ||
       selectedSectorId === null ||
+      isImageUploadMode ||
       isSectorInteractionLocked
     ) {
       return;
@@ -44,9 +83,14 @@ export function SelectionPanel() {
 
     window.addEventListener('keydown', cancelSelection);
     return () => window.removeEventListener('keydown', cancelSelection);
-  }, [isSectorInteractionLocked, mode, selectSector, selectedSectorId]);
+  }, [
+    isImageUploadMode,
+    isSectorInteractionLocked,
+    selectSector,
+    selectedSectorId,
+  ]);
 
-  if (mode !== 'control' || selectedSectorId === null) {
+  if (isImageUploadMode || selectedSectorId === null) {
     return null;
   }
 
@@ -62,7 +106,7 @@ export function SelectionPanel() {
     selectedSectors.length === selectedSectorIds.length;
 
   return (
-    <aside className="pointer-events-auto absolute left-3 right-3 top-20 border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:left-auto sm:right-4 sm:w-[22rem]">
+    <aside className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[22rem]">
       <header className="flex items-center justify-between border-b border-neutral-600 px-4 py-3">
         <div>
           <div className="text-[9px] tracking-[0.24em] text-dim">
@@ -164,6 +208,15 @@ export function SelectionPanel() {
                 intent={controlledByOperator ? 'fortify' : 'capture'}
               />
             ) : null}
+            {!isMultiSelection &&
+            controlledByOperator &&
+            !selectedSector.stale &&
+            !selectedSector.needsSync ? (
+              <ImageUploadAction
+                sectorCount={1}
+                onSelect={() => beginImageUpload([selectedSector.id])}
+              />
+            ) : null}
             {isMultiSelection && hasLoadedFullSelection ? (
               <>
                 {batchGroups.neutral.length > 0 && (
@@ -174,11 +227,21 @@ export function SelectionPanel() {
                   />
                 )}
                 {batchGroups.owned.length > 0 && (
-                  <BatchCaptureControl
-                    key={`batch-fortify-${batchGroups.owned.map(({ id }) => id).join('-')}`}
-                    sectors={batchGroups.owned}
-                    intent="fortify"
-                  />
+                  <>
+                    <BatchCaptureControl
+                      key={`batch-fortify-${batchGroups.owned.map(({ id }) => id).join('-')}`}
+                      sectors={batchGroups.owned}
+                      intent="fortify"
+                    />
+                    <ImageUploadAction
+                      sectorCount={batchGroups.owned.length}
+                      onSelect={() =>
+                        beginImageUpload(
+                          batchGroups.owned.map((sector) => sector.id)
+                        )
+                      }
+                    />
+                  </>
                 )}
                 {batchGroups.individualOnly.length > 0 && (
                   <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">

@@ -4,24 +4,17 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
 import type {
   SectorOwnership,
   SectorStatus,
-  CoreMode,
   IndexedSector,
   OperatorStatus,
   ControlView,
 } from '../types';
-import {
-  canManageSectorImage,
-  getSectorStatus,
-  getSectorStatuses,
-  getOperatorStatus,
-} from '../services/starknet';
+import { getSectorStatuses, getOperatorStatus } from '../services/starknet';
 import { useWallet } from './WalletContext';
 import { isSectorId } from '../utils/sectorGeometry';
 import { addressesMatch, isZeroAddress } from '../utils/format';
@@ -30,8 +23,11 @@ import { updateSectorSelection } from '../utils/sectorSelection';
 import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
 
 interface SectorContextValue {
-  mode: CoreMode;
   controlView: ControlView;
+  isProjectionVisible: boolean;
+  isCoreWaveFlipped: boolean;
+  isImageUploadMode: boolean;
+  imageUploadSectorIds: number[];
   isSectorInteractionLocked: boolean;
   selectedSectorId: number | null;
   selectedSectorIds: number[];
@@ -46,23 +42,20 @@ interface SectorContextValue {
   sectorControlledSince: ReadonlyMap<number, number>;
   sectorCaptureForce: ReadonlyMap<number, bigint>;
   sectorOwnershipById: ReadonlyMap<number, SectorOwnership>;
-  projectionSectorIds: number[];
-  projectionLoadingId: number | null;
   isSectorLoading: boolean;
   isOperatorLoading: boolean;
   sectorError: string | null;
   operatorError: string | null;
   isSectorIndexLoading: boolean;
   sectorIndexError: string | null;
-  projectionError: string | null;
-  changeMode: (mode: CoreMode) => void;
   changeControlView: (view: ControlView) => void;
+  setProjectionVisible: (visible: boolean) => void;
+  setCoreWaveFlipped: (flipped: boolean) => void;
+  beginImageUpload: (sectorIds: number[]) => void;
+  endImageUpload: () => void;
   selectSector: (sectorId: number | null, extendSelection?: boolean) => void;
   selectSectors: (sectorIds: number[]) => void;
   removeSelectedSectors: (sectorIds: readonly number[]) => void;
-  toggleProjectionSector: (sectorId: number) => Promise<void>;
-  selectProjectionSectors: (sectorIds: number[]) => void;
-  clearProjectionSelection: () => void;
   refreshSector: () => void;
   refreshOperator: () => void;
   refreshSectorIndex: () => void;
@@ -81,28 +74,15 @@ interface SectorContextValue {
 
 const SectorContext = createContext<SectorContextValue | undefined>(undefined);
 
-function projectionErrorFor(
-  status: SectorStatus,
-  operatorAddress: string
-): string {
-  const label = `SECTOR-${status.id.toString().padStart(4, '0')}`;
-
-  if (isZeroAddress(status.controller)) {
-    return `${label} is neutral. Capture it in Core mode before projecting.`;
-  }
-  if (!addressesMatch(status.controller, operatorAddress)) {
-    return `${label} is owned by another Operator.`;
-  }
-  if (status.stale || status.needsSync) {
-    return `${label} has stale ownership and must be synced first.`;
-  }
-  return `${label} is not eligible for image projection.`;
-}
-
 export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
-  const [mode, setMode] = useState<CoreMode>('control');
   const [controlView, setControlView] = useState<ControlView>('flat');
+  const [isProjectionVisible, setProjectionVisible] = useState(false);
+  const [isCoreWaveFlipped, setCoreWaveFlipState] = useState(false);
+  const [isImageUploadMode, setImageUploadMode] = useState(false);
+  const [imageUploadSectorIds, setImageUploadSectorIds] = useState<number[]>(
+    []
+  );
   const [isSectorInteractionLocked, setSectorInteractionLocked] =
     useState(false);
   const [selectedSectorIds, setSelectedSectorIds] = useState<number[]>([]);
@@ -113,10 +93,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [indexedSectors, setIndexedSectors] = useState<
     Map<number, IndexedSector>
   >(() => new Map());
-  const [projectionSectorIds, setProjectionSectorIds] = useState<number[]>([]);
-  const [projectionLoadingId, setProjectionLoadingId] = useState<number | null>(
-    null
-  );
   const [operatorStatus, setOperatorStatus] = useState<OperatorStatus | null>(
     null
   );
@@ -126,11 +102,9 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [operatorError, setOperatorError] = useState<string | null>(null);
   const [isSectorIndexLoading, setSectorIndexLoading] = useState(false);
   const [sectorIndexError, setSectorIndexError] = useState<string | null>(null);
-  const [projectionError, setProjectionError] = useState<string | null>(null);
   const [sectorRevision, setSectorRevision] = useState(0);
   const [operatorRevision, setOperatorRevision] = useState(0);
   const [sectorIndexRevision, setSectorIndexRevision] = useState(0);
-  const projectionRequest = useRef<AbortController | null>(null);
 
   const rememberSector = useCallback((status: SectorStatus) => {
     setKnownSectors((current) => {
@@ -140,32 +114,14 @@ export function SectorProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const changeMode = useCallback(
-    (nextMode: CoreMode) => {
-      if (nextMode === 'projection' && !address) {
-        setProjectionError(
-          'Connect an Operator wallet to use Projection mode.'
-        );
-        return;
-      }
-
-      projectionRequest.current?.abort();
-      setMode(nextMode);
-      setSelectedSectorIds([]);
-      setSelectedSectors([]);
-      setSectorError(null);
-      setProjectionError(null);
-      setProjectionLoadingId(null);
-
-      if (nextMode === 'control') {
-        setProjectionSectorIds([]);
-      }
-    },
-    [address]
-  );
-
   const changeControlView = useCallback((view: ControlView) => {
     setControlView(view);
+  }, []);
+
+  // This visual state is intentionally independent of the normal Core view.
+  // It is retained as an effect hook for a future Arbiter ability.
+  const setCoreWaveFlipped = useCallback((flipped: boolean) => {
+    setCoreWaveFlipState(flipped);
   }, []);
 
   const selectSector = useCallback(
@@ -209,86 +165,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
     setSelectedSectors((current) =>
       current.filter((sector) => !removed.has(sector.id))
     );
-  }, []);
-
-  const toggleProjectionSector = useCallback(
-    async (sectorId: number) => {
-      if (!isSectorId(sectorId)) {
-        throw new RangeError(`Invalid Sector ID: ${sectorId}`);
-      }
-
-      if (projectionSectorIds.includes(sectorId)) {
-        setProjectionSectorIds((current) =>
-          current.filter((id) => id !== sectorId)
-        );
-        setProjectionError(null);
-        return;
-      }
-
-      if (!address) {
-        setProjectionError('Connect an Operator wallet to select projections.');
-        return;
-      }
-
-      projectionRequest.current?.abort();
-      const controller = new AbortController();
-      projectionRequest.current = controller;
-      setProjectionLoadingId(sectorId);
-      setProjectionError(null);
-
-      try {
-        // This is a permission check, not a Sector refresh. Caching the result
-        // invalidates the ownership-derived artwork atlas and makes the image
-        // blink every time a projection Sector is selected.
-        const status = await getSectorStatus(sectorId, controller.signal);
-
-        if (
-          isZeroAddress(status.controller) ||
-          !addressesMatch(status.controller, address) ||
-          status.stale ||
-          status.needsSync
-        ) {
-          setProjectionError(projectionErrorFor(status, address));
-          return;
-        }
-
-        const canManageImage = await canManageSectorImage(
-          status.id,
-          address,
-          status.ownershipGeneration,
-          controller.signal
-        );
-
-        if (!canManageImage) {
-          setProjectionError(projectionErrorFor(status, address));
-          return;
-        }
-
-        setProjectionSectorIds((current) =>
-          current.includes(sectorId)
-            ? current
-            : [...current, sectorId].sort((left, right) => left - right)
-        );
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setProjectionError(
-            error instanceof Error
-              ? error.message
-              : 'Unable to verify Sector ownership.'
-          );
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setProjectionLoadingId(null);
-        }
-      }
-    },
-    [address, projectionSectorIds]
-  );
-
-  const clearProjectionSelection = useCallback(() => {
-    setProjectionSectorIds([]);
-    setProjectionError(null);
   }, []);
 
   const refreshSector = useCallback(() => {
@@ -428,7 +304,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const controller = new AbortController();
 
-    if (selectedSectorIds.length === 0 || mode !== 'control') {
+    if (selectedSectorIds.length === 0) {
       setSelectedSectors([]);
       setSectorError(null);
       setSectorLoading(false);
@@ -460,7 +336,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       });
 
     return () => controller.abort();
-  }, [sectorRevision, mode, rememberSector, selectedSectorIds]);
+  }, [sectorRevision, rememberSector, selectedSectorIds]);
 
   const selectedSectorId =
     selectedSectorIds[selectedSectorIds.length - 1] ?? null;
@@ -503,20 +379,9 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (address) return;
-
-    projectionRequest.current?.abort();
-    setMode('control');
-    setProjectionSectorIds([]);
-    setProjectionLoadingId(null);
-    setProjectionError(null);
+    setImageUploadMode(false);
+    setImageUploadSectorIds([]);
   }, [address]);
-
-  useEffect(
-    () => () => {
-      projectionRequest.current?.abort();
-    },
-    []
-  );
 
   const activeSectors = useMemo(() => {
     const sectors = new Map<
@@ -633,14 +498,15 @@ export function SectorProvider({ children }: PropsWithChildren) {
     };
   }, [activeSectors, address]);
 
-  const selectProjectionSectors = useCallback(
+  const beginImageUpload = useCallback(
     (sectorIds: number[]) => {
       if (sectorIds.some((id) => !isSectorId(id))) {
-        throw new RangeError(
-          'Projection selection contains an invalid Sector ID'
-        );
+        throw new RangeError('Image upload contains an invalid Sector ID');
       }
       const uniqueSectorIds = [...new Set(sectorIds)];
+      if (uniqueSectorIds.length === 0) {
+        throw new RangeError('Choose at least one Sector for image upload');
+      }
       if (uniqueSectorIds.length > MAX_SECTOR_SELECTION) {
         throw new RangeError(
           `At most ${MAX_SECTOR_SELECTION} Sectors can be selected`
@@ -649,23 +515,29 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
       const ownedSectorIdSet = new Set(ownedSectorIds);
       if (uniqueSectorIds.some((id) => !ownedSectorIdSet.has(id))) {
-        throw new RangeError('Projection selection must contain owned Sectors');
+        throw new RangeError('Image upload must contain owned Sectors');
       }
 
-      projectionRequest.current?.abort();
-      setProjectionLoadingId(null);
-      setProjectionError(null);
-      setProjectionSectorIds(
+      setImageUploadSectorIds(
         uniqueSectorIds.sort((left, right) => left - right)
       );
+      setImageUploadMode(true);
     },
     [ownedSectorIds]
   );
 
+  const endImageUpload = useCallback(() => {
+    setImageUploadMode(false);
+    setImageUploadSectorIds([]);
+  }, []);
+
   const value = useMemo<SectorContextValue>(
     () => ({
-      mode,
       controlView,
+      isProjectionVisible,
+      isCoreWaveFlipped,
+      isImageUploadMode,
+      imageUploadSectorIds,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -680,23 +552,20 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorControlledSince,
       sectorCaptureForce,
       sectorOwnershipById,
-      projectionSectorIds,
-      projectionLoadingId,
       isSectorLoading,
       isOperatorLoading,
       sectorError,
       operatorError,
       isSectorIndexLoading,
       sectorIndexError,
-      projectionError,
-      changeMode,
       changeControlView,
+      setProjectionVisible,
+      setCoreWaveFlipped,
+      beginImageUpload,
+      endImageUpload,
       selectSector,
       selectSectors,
       removeSelectedSectors,
-      toggleProjectionSector,
-      selectProjectionSectors,
-      clearProjectionSelection,
       refreshSector,
       refreshOperator,
       refreshSectorIndex,
@@ -705,8 +574,11 @@ export function SectorProvider({ children }: PropsWithChildren) {
       confirmReinforcedSectors,
     }),
     [
-      mode,
       controlView,
+      isProjectionVisible,
+      isCoreWaveFlipped,
+      isImageUploadMode,
+      imageUploadSectorIds,
       isSectorInteractionLocked,
       selectedSectorId,
       selectedSectorIds,
@@ -721,23 +593,20 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorControlledSince,
       sectorCaptureForce,
       sectorOwnershipById,
-      projectionSectorIds,
-      projectionLoadingId,
       isSectorLoading,
       isOperatorLoading,
       sectorError,
       operatorError,
       isSectorIndexLoading,
       sectorIndexError,
-      projectionError,
-      changeMode,
       changeControlView,
+      setProjectionVisible,
+      setCoreWaveFlipped,
+      beginImageUpload,
+      endImageUpload,
       selectSector,
       selectSectors,
       removeSelectedSectors,
-      toggleProjectionSector,
-      selectProjectionSectors,
-      clearProjectionSelection,
       refreshSector,
       refreshOperator,
       refreshSectorIndex,

@@ -430,32 +430,38 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
         ? challenged
           ? 'TAKE THE LEAD'
           : 'INITIATE CHALLENGE'
-        : action.toUpperCase();
+        : action === 'reinforce'
+          ? 'FORTIFY'
+          : action.toUpperCase();
   const label =
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
-        : primaryDisabledReason ||
-          (action === 'settle'
+        : primaryDisabledReason
+          ? `${actionLabel} · ${primaryDisabledReason}`
+          : action === 'settle'
             ? actionLabel
             : `${actionLabel} WITH ${formatStrk(
                 selectedAllocation ?? 0n,
                 18
-              )} FORCE`);
+              )} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
-      <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
-        {challenged
-          ? owned
-            ? 'DEFEND SECTOR'
-            : 'CONTEST SECTOR'
-          : neutral
-            ? 'CAPTURE SECTOR'
-            : owned
-              ? 'FORTIFY SECTOR'
-              : 'CHALLENGE SECTOR'}
+      <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
+        <span>
+          {challenged
+            ? owned
+              ? 'DEFEND SECTOR'
+              : 'CONTEST SECTOR'
+            : neutral
+              ? 'CAPTURE SECTOR'
+              : owned
+                ? 'FORTIFY SECTOR'
+                : 'CHALLENGE SECTOR'}
+        </span>
+        <span className="text-[8px] text-dim">FORCE ACTION</span>
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         {challenged && challenge && (
@@ -560,42 +566,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           >
             {label}
           </button>
-        )}
-        {action === 'challenge' && !currentLeader && (
-          <div className="border-t border-grid pt-3">
-            <label
-              className="block text-dim"
-              htmlFor={`collateral-${sector.id}`}
-            >
-              SACRIFICE OWNED CP ID
-            </label>
-            <div className="mt-2 flex gap-2">
-              <input
-                id={`collateral-${sector.id}`}
-                value={collateralId}
-                onChange={(event) => setCollateralId(event.target.value)}
-                inputMode="numeric"
-                placeholder="e.g. 0042"
-                className="min-w-0 flex-1 border border-neutral-700 bg-black px-2 py-2 text-fg outline-none focus:border-white"
-              />
-              <button
-                type="button"
-                onClick={() => void submit(true)}
-                disabled={
-                  Boolean(collateralCommonDisabledReason) ||
-                  !collateralId.trim() ||
-                  phase !== 'idle'
-                }
-                className="border border-neutral-500 px-3 py-2 text-[9px] tracking-[0.14em] text-neutral-300 hover:border-white hover:text-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
-              >
-                SACRIFICE + CHALLENGE
-              </button>
-            </div>
-            <p className="mt-2 leading-relaxed text-dim">
-              The sacrificed sector becomes neutral immediately and its garrison
-              becomes available for this challenge.
-            </p>
-          </div>
         )}
       </div>
     </section>

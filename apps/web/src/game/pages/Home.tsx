@@ -1,20 +1,18 @@
 import { World } from '../components/3d/World';
 import { SelectionPanel } from '../components/ui/SelectionPanel';
-import { OperatorStatusPanel } from '../components/ui/OperatorStatusPanel';
-import { CoreModeSwitch } from '../components/ui/CoreModeSwitch';
-import { ProjectionPanel } from '../components/ui/ProjectionPanel';
+import { CoreViewSwitch } from '../components/ui/CoreViewSwitch';
+import { ImageUploadPanel } from '../components/ui/ImageUploadPanel';
 import { SectorLegend } from '../components/ui/SectorLegend';
 
 export function Home() {
   return (
     <div className="relative w-full h-full">
       <World />
-      <OperatorStatusPanel />
-      <CoreModeSwitch />
+      <CoreViewSwitch />
       <SectorLegend />
 
       <SelectionPanel />
-      <ProjectionPanel />
+      <ImageUploadPanel />
     </div>
   );
 }

@@ -406,14 +406,18 @@ export function BatchCaptureControl({
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING ON SEPOLIA…'
-        : disabledReason ||
-          `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
+        : disabledReason
+          ? `${isFortifying ? 'FORTIFY' : 'CAPTURE'} · ${disabledReason}`
+          : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
-      <header className="border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-dim">
-        {isFortifying ? 'FORTIFY' : 'CAPTURE'} {sectors.length} SELECTED POINT
-        {sectors.length === 1 ? '' : 'S'}
+      <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
+        <span>
+          {isFortifying ? 'FORTIFY' : 'CAPTURE'} {sectors.length} SELECTED POINT
+          {sectors.length === 1 ? '' : 'S'}
+        </span>
+        <span className="text-[8px] text-dim">FORCE ACTION</span>
       </header>
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
         <div className="flex justify-between gap-4">

@@ -58,7 +58,7 @@ const PLACEMENT_CORNERS = [
 
 function PlacementCameraCapture() {
   const { camera, size } = useThree();
-  const { projectionSectorIds } = useSectors();
+  const { imageUploadSectorIds } = useSectors();
   const { placementDraft, capturePlacement, updatePlacement } =
     useSectorImages();
   const lastProjectorRef = useRef<{ matrix: number[]; aspect: number } | null>(
@@ -66,7 +66,7 @@ function PlacementCameraCapture() {
   );
 
   useFrame(() => {
-    if (!placementDraft || projectionSectorIds.length === 0) {
+    if (!placementDraft || imageUploadSectorIds.length === 0) {
       lastProjectorRef.current = null;
       return;
     }
@@ -89,7 +89,9 @@ function PlacementCameraCapture() {
 
     lastProjectorRef.current = { matrix, aspect };
     if (!placementDraft.placement) {
-      capturePlacement(suggestedPlacement(matrix, aspect, projectionSectorIds));
+      capturePlacement(
+        suggestedPlacement(matrix, aspect, imageUploadSectorIds)
+      );
       return;
     }
     updatePlacement({ projectorMatrix: matrix, viewportAspect: aspect });
@@ -312,10 +314,10 @@ export function World() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     selectedSectorIds,
-    projectionSectorIds,
+    imageUploadSectorIds,
     opponentSectorIds,
     isSectorInteractionLocked,
-    mode,
+    isImageUploadMode,
     selectSectors,
   } = useSectors();
   const { notifyWarning } = useTransactionToast();
@@ -383,7 +385,7 @@ export function World() {
   );
   const disableIdleRotation =
     selectedSectorIds.length > 0 ||
-    projectionSectorIds.length > 0 ||
+    imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
     isArbiterOpen ||
     marqueeStart !== null;
@@ -458,12 +460,12 @@ export function World() {
       ref={worldRef}
       className="relative h-full w-full"
       onContextMenu={(event) => {
-        if (mode === 'control') event.preventDefault();
+        if (!isImageUploadMode) event.preventDefault();
       }}
       onPointerDownCapture={(event) => {
         if (
           event.button !== 2 ||
-          mode !== 'control' ||
+          isImageUploadMode ||
           isSectorInteractionLocked
         ) {
           return;

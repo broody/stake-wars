@@ -31,7 +31,7 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
 export function SectorLegend() {
   const { isConnected } = useWallet();
   const {
-    mode,
+    isImageUploadMode,
     occupiedSectorIds,
     ownedSectorIds,
     opponentSectorIds,
@@ -48,14 +48,14 @@ export function SectorLegend() {
     (sectorId) => !contestedSectorIdSet.has(sectorId)
   ).length;
 
-  if (!isConnected || mode !== 'control') return null;
+  if (!isConnected || isImageUploadMode) return null;
 
   const neutralCount = SECTOR_COUNT - occupiedSectorIds.length;
 
   return (
     <section
       aria-label="Sector map legend"
-      className="pointer-events-auto absolute bottom-24 left-4 w-48 border border-neutral-800 bg-black/80 px-3 py-2.5 font-mono text-[9px] tracking-[0.14em] text-neutral-500 backdrop-blur-sm sm:bottom-5"
+      className="pointer-events-auto absolute left-4 top-20 w-48 border border-neutral-800 bg-black/80 px-3 py-2.5 font-mono text-[9px] tracking-[0.14em] text-neutral-500 backdrop-blur-sm"
     >
       <header className="mb-2 flex items-center justify-between border-b border-neutral-800 pb-2">
         <span className="text-neutral-300">SECTORS</span>

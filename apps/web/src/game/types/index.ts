@@ -176,7 +176,6 @@ export interface YieldSummary {
   claims: YieldClaim[];
 }
 
-export type CoreMode = 'control' | 'projection';
 export type ControlView = 'flat' | 'staked';
 
 export interface WalletState {

@@ -54,7 +54,8 @@ const SECTOR_GRID_FULL_DISTANCE = 10;
 const SECTOR_GRID_FADE_DISTANCE = 22;
 const DETAIL_IMAGE_CAMERA_DISTANCE = 10.5;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
-const MODE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
+const EMPTY_SECTOR_IDS: number[] = [];
+const CORE_WAVE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
 const RELIEF_TRANSITION_SECONDS = 0.55;
 const RELIEF_TRANSITION_MS = RELIEF_TRANSITION_SECONDS * 1_000;
 
@@ -1604,8 +1605,11 @@ export function Planet({
   const { notifyWarning } = useTransactionToast();
   const { artworks, placementDraft, featuredArtworkId } = useSectorImages();
   const {
-    mode,
     controlView,
+    isProjectionVisible,
+    isCoreWaveFlipped,
+    isImageUploadMode,
+    imageUploadSectorIds,
     isSectorInteractionLocked,
     selectedSectorIds,
     selectedSectorId,
@@ -1616,19 +1620,11 @@ export function Planet({
     sectorOwnerGroups,
     sectorControlledSince,
     sectorCaptureForce,
-    projectionSectorIds,
-    projectionLoadingId,
     selectSector,
     selectSectors,
-    toggleProjectionSector,
-    selectProjectionSectors,
   } = useSectors();
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
-  const geometry = useMemo(() => createSectorGeometry(), []);
-  const ownedSectorIdSet = useMemo(
-    () => new Set(ownedSectorIds),
-    [ownedSectorIds]
-  );
+  const fullSphereGeometry = useMemo(() => createSectorGeometry(), []);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
@@ -1637,6 +1633,46 @@ export function Planet({
     () => new Set(contestedSectorIds),
     [contestedSectorIds]
   );
+  const visibleOwnedSectorIds = isImageUploadMode
+    ? imageUploadSectorIds
+    : ownedSectorIds;
+  const visibleOpponentSectorIds = isImageUploadMode
+    ? EMPTY_SECTOR_IDS
+    : opponentSectorIds;
+  const visibleOccupiedSectorIds = isImageUploadMode
+    ? imageUploadSectorIds
+    : occupiedSectorIds;
+  const visibleContestedSectorIds = useMemo(
+    () =>
+      isImageUploadMode
+        ? imageUploadSectorIds.filter((sectorId) =>
+            contestedSectorIdSet.has(sectorId)
+          )
+        : contestedSectorIds,
+    [
+      contestedSectorIdSet,
+      contestedSectorIds,
+      imageUploadSectorIds,
+      isImageUploadMode,
+    ]
+  );
+  const visibleSectorOwnerGroups = useMemo(
+    () => (isImageUploadMode ? [imageUploadSectorIds] : sectorOwnerGroups),
+    [imageUploadSectorIds, isImageUploadMode, sectorOwnerGroups]
+  );
+  const visibleArtworks = useMemo(() => {
+    if (!isImageUploadMode) return artworks;
+    const visibleSectorIdSet = new Set(imageUploadSectorIds);
+    return artworks
+      .map((artwork) => ({
+        ...artwork,
+        targets: artwork.targets.filter((target) =>
+          visibleSectorIdSet.has(target.sectorId)
+        ),
+      }))
+      .filter((artwork) => artwork.targets.length > 0);
+  }, [artworks, imageUploadSectorIds, isImageUploadMode]);
+  const shouldShowProjection = isProjectionVisible || isImageUploadMode;
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
   const prefersReducedMotion = useMemo(
     () =>
@@ -1644,34 +1680,35 @@ export function Planet({
       false,
     []
   );
-  const [projectionSurfaceVisible, setProjectionSurfaceVisible] = useState(
-    mode === 'projection'
-  );
-  const [projectionFlipActive, setProjectionFlipActive] = useState(
-    mode === 'projection'
-  );
-  const [reliefSurfaceVisible, setReliefSurfaceVisible] = useState(
-    mode === 'control'
-  );
-  const previousModeRef = useRef(mode);
+  const [waveFlipActive, setWaveFlipActive] = useState(isCoreWaveFlipped);
+  const [reliefSurfaceVisible, setReliefSurfaceVisible] =
+    useState(!isCoreWaveFlipped);
+  const previousWaveFlipRef = useRef(isCoreWaveFlipped);
   const flipWaveOrigin = useMemo(() => {
-    void mode;
     return randomVisibleOutsideSectorWaveOrigin(
-      occupiedSectorIds,
+      visibleOccupiedSectorIds,
       camera,
       TENURE_SURFACE_RADIUS
     );
-  }, [camera, mode, occupiedSectorIds]);
+  }, [camera, visibleOccupiedSectorIds]);
   const flipWaveDistanceRange = useMemo(
     () =>
       createSectorWaveDistanceRange(
-        occupiedSectorIds,
+        visibleOccupiedSectorIds,
         flipWaveOrigin,
         TENURE_SURFACE_RADIUS
       ),
-    [flipWaveOrigin, occupiedSectorIds]
+    [flipWaveOrigin, visibleOccupiedSectorIds]
   );
-  const flipWaveDelay = sectorFlipWaveDelayForCount(occupiedSectorIds.length);
+  const flipWaveDelay = sectorFlipWaveDelayForCount(
+    visibleOccupiedSectorIds.length
+  );
+
+  useEffect(() => () => fullSphereGeometry.dispose(), [fullSphereGeometry]);
+
+  useEffect(() => {
+    if (isImageUploadMode) setHoveredSectorId(null);
+  }, [isImageUploadMode]);
 
   useEffect(() => {
     if (!tenureExtrusionEnabled) return;
@@ -1683,56 +1720,40 @@ export function Planet({
   }, [tenureExtrusionEnabled]);
 
   useEffect(() => {
-    if (mode === 'projection') {
-      setProjectionSurfaceVisible(true);
-      return;
-    }
-    if (prefersReducedMotion) {
-      setProjectionSurfaceVisible(false);
-      return;
-    }
-    const timeout = window.setTimeout(
-      () => setProjectionSurfaceVisible(false),
-      MODE_FLIP_DURATION_MS
-    );
-    return () => window.clearTimeout(timeout);
-  }, [mode, prefersReducedMotion]);
-
-  useEffect(() => {
-    const previousMode = previousModeRef.current;
-    previousModeRef.current = mode;
+    const previousFlip = previousWaveFlipRef.current;
+    previousWaveFlipRef.current = isCoreWaveFlipped;
 
     if (prefersReducedMotion) {
-      setReliefSurfaceVisible(mode === 'control');
-      setProjectionFlipActive(mode === 'projection');
+      setReliefSurfaceVisible(!isCoreWaveFlipped);
+      setWaveFlipActive(isCoreWaveFlipped);
       return;
     }
 
-    if (mode === 'projection') {
+    if (isCoreWaveFlipped) {
       setReliefSurfaceVisible(false);
-      if (previousMode === 'control' && controlView === 'staked') {
-        setProjectionFlipActive(false);
+      if (!previousFlip && controlView === 'staked') {
+        setWaveFlipActive(false);
         const timeout = window.setTimeout(
-          () => setProjectionFlipActive(true),
+          () => setWaveFlipActive(true),
           RELIEF_TRANSITION_MS
         );
         return () => window.clearTimeout(timeout);
       }
-      setProjectionFlipActive(true);
+      setWaveFlipActive(true);
       return;
     }
 
-    setProjectionFlipActive(false);
-    if (previousMode === 'projection' && controlView === 'staked') {
+    setWaveFlipActive(false);
+    if (previousFlip && controlView === 'staked') {
       setReliefSurfaceVisible(false);
       const timeout = window.setTimeout(
         () => setReliefSurfaceVisible(true),
-        MODE_FLIP_DURATION_MS
+        CORE_WAVE_FLIP_DURATION_MS
       );
       return () => window.clearTimeout(timeout);
     }
     setReliefSurfaceVisible(true);
-  }, [controlView, mode, prefersReducedMotion]);
+  }, [controlView, isCoreWaveFlipped, prefersReducedMotion]);
 
   const flatSectorHeights = useMemo(
     () =>
@@ -1769,44 +1790,45 @@ export function Planet({
     return heights;
   }, [flatSectorHeights, occupiedSectorIds, stakedSectorHeights]);
   const sectorHeights = useMemo(() => {
-    if (mode !== 'control') return FLAT_SECTOR_HEIGHTS;
     return controlView === 'staked' ? stakedSectorHeights : flatSectorHeights;
-  }, [controlView, flatSectorHeights, mode, stakedSectorHeights]);
+  }, [controlView, flatSectorHeights, stakedSectorHeights]);
   const detailArtwork = useMemo(() => {
-    if (mode === 'projection' && featuredArtworkId) {
-      const featured = artworks.find(
+    if (!shouldShowProjection) return null;
+    if (isImageUploadMode && featuredArtworkId) {
+      const featured = visibleArtworks.find(
         (artwork) => artwork.id === featuredArtworkId
       );
       if (featured) return featured;
     }
     const selectedArtwork =
-      mode === 'control' && selectedSectorId !== null
-        ? artworkForSector(artworks, selectedSectorId)
+      selectedSectorId !== null
+        ? artworkForSector(visibleArtworks, selectedSectorId)
         : null;
     if (selectedArtwork) return selectedArtwork;
     if (
       hoveredSectorId !== null &&
       camera.position.length() <= DETAIL_IMAGE_CAMERA_DISTANCE
     ) {
-      return artworkForSector(artworks, hoveredSectorId);
+      return artworkForSector(visibleArtworks, hoveredSectorId);
     }
     return null;
   }, [
     camera,
     hoveredSectorId,
-    artworks,
+    visibleArtworks,
     featuredArtworkId,
-    mode,
+    isImageUploadMode,
     selectedSectorId,
+    shouldShowProjection,
   ]);
-  const imageHeights = FLAT_SECTOR_HEIGHTS;
+  const imageHeights = sectorHeights;
   const placementArtwork = useMemo(() => {
     if (!placementDraft?.placement) return null;
     return {
       id: 'placement-preview',
       network: 'preview',
       ownerAddress: '',
-      targets: projectionSectorIds.map((sectorId) => ({
+      targets: imageUploadSectorIds.map((sectorId) => ({
         sectorId,
         ownershipGeneration: 1,
       })),
@@ -1816,7 +1838,7 @@ export function Planet({
       contentHash: '',
       updatedAt: '',
     };
-  }, [placementDraft, projectionSectorIds]);
+  }, [imageUploadSectorIds, placementDraft]);
 
   const getEventSectorId = (event: ThreeEvent<PointerEvent | MouseEvent>) =>
     event.faceIndex ?? null;
@@ -1834,11 +1856,7 @@ export function Planet({
       return;
     }
 
-    if (mode === 'projection') {
-      if (!ownedSectorIdSet.has(sectorId)) return;
-      void toggleProjectionSector(sectorId);
-      return;
-    }
+    if (isImageUploadMode) return;
 
     selectSector(sectorId, event.nativeEvent.shiftKey);
   };
@@ -1862,26 +1880,23 @@ export function Planet({
       return;
     }
 
-    if (mode === 'projection' && !ownedSectorIdSet.has(sectorId)) return;
+    if (isImageUploadMode) return;
 
     const extendSelection = event.nativeEvent.shiftKey;
     const ownerGroup = sectorOwnerGroups.find((group) =>
       group.includes(sectorId)
     );
-    if (mode === 'control' && !ownerGroup) {
+    if (!ownerGroup) {
       selectSectors(
         combineSectorSelections(selectedSectorIds, [sectorId], extendSelection)
       );
       return;
     }
 
-    const candidateSectorIds =
-      mode === 'projection' ? ownedSectorIds : (ownerGroup ?? []);
+    const candidateSectorIds = ownerGroup;
     const contiguous = contiguousSectorIds(sectorId, candidateSectorIds);
-    const currentSelection =
-      mode === 'projection' ? projectionSectorIds : selectedSectorIds;
     const nextSelection = combineSectorSelections(
-      currentSelection,
+      selectedSectorIds,
       contiguous,
       extendSelection
     );
@@ -1891,11 +1906,6 @@ export function Planet({
         `This selection would contain ${nextSelection.length} Sectors. Select no more than ${MAX_SECTOR_SELECTION} Sectors.`,
         'SELECTION LIMIT'
       );
-      return;
-    }
-
-    if (mode === 'projection') {
-      selectProjectionSectors(nextSelection);
       return;
     }
 
@@ -1917,12 +1927,7 @@ export function Planet({
       setHoveredSectorId(null);
       return;
     }
-    setHoveredSectorId(
-      mode === 'projection' &&
-        (sectorId === null || !ownedSectorIdSet.has(sectorId))
-        ? null
-        : sectorId
-    );
+    setHoveredSectorId(isImageUploadMode ? null : sectorId);
   };
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
@@ -1932,26 +1937,18 @@ export function Planet({
   };
 
   const activeSectorIds = useMemo(
-    () => (mode === 'projection' ? projectionSectorIds : selectedSectorIds),
-    [mode, projectionSectorIds, selectedSectorIds]
+    () => (isImageUploadMode ? imageUploadSectorIds : selectedSectorIds),
+    [imageUploadSectorIds, isImageUploadMode, selectedSectorIds]
   );
   const selectedContestedSectorIds = useMemo(
     () =>
-      mode === 'control'
-        ? selectedSectorIds.filter((sectorId) =>
-            contestedSectorIdSet.has(sectorId)
-          )
-        : [],
-    [contestedSectorIdSet, mode, selectedSectorIds]
+      activeSectorIds.filter((sectorId) => contestedSectorIdSet.has(sectorId)),
+    [activeSectorIds, contestedSectorIdSet]
   );
   const standardActiveSectorIds = useMemo(
     () =>
-      mode === 'control'
-        ? selectedSectorIds.filter(
-            (sectorId) => !contestedSectorIdSet.has(sectorId)
-          )
-        : projectionSectorIds,
-    [contestedSectorIdSet, mode, projectionSectorIds, selectedSectorIds]
+      activeSectorIds.filter((sectorId) => !contestedSectorIdSet.has(sectorId)),
+    [activeSectorIds, contestedSectorIdSet]
   );
   const pendingChallengeSectorIds = useMemo(
     () =>
@@ -1975,22 +1972,24 @@ export function Planet({
     () => (hoveredSectorId === null ? [] : [hoveredSectorId]),
     [hoveredSectorId]
   );
-  const loadingSectorIds = useMemo(
-    () => (projectionLoadingId === null ? [] : [projectionLoadingId]),
-    [projectionLoadingId]
-  );
   const isHoveredSectorActive =
     hoveredSectorId !== null && activeSectorIds.includes(hoveredSectorId);
 
   return (
     <group>
       <mesh
-        geometry={geometry}
-        onClick={isSectorInteractionLocked ? undefined : handleClick}
-        onDoubleClick={
-          isSectorInteractionLocked ? undefined : handleDoubleClick
+        geometry={fullSphereGeometry}
+        onClick={
+          isSectorInteractionLocked || isImageUploadMode
+            ? undefined
+            : handleClick
         }
-        onPointerMove={handlePointerMove}
+        onDoubleClick={
+          isSectorInteractionLocked || isImageUploadMode
+            ? undefined
+            : handleDoubleClick
+        }
+        onPointerMove={isImageUploadMode ? undefined : handlePointerMove}
         onPointerOut={() => setHoveredSectorId(null)}
       >
         <meshBasicMaterial
@@ -1999,63 +1998,64 @@ export function Planet({
         />
       </mesh>
 
-      <mesh geometry={geometry} scale={1.002}>
+      <mesh geometry={fullSphereGeometry} scale={1.002}>
         <meshBasicMaterial
           color={SECTOR_COLORS.neutralGrid}
           wireframe
           side={THREE.DoubleSide}
           transparent
-          opacity={mode === 'projection' ? 0.24 : 0.42}
+          opacity={isImageUploadMode ? 0.24 : 0.42}
         />
       </mesh>
 
-      {projectionSurfaceVisible ? (
-        <>
-          <SectorImageLayer
-            artworks={artworks}
-            heights={imageHeights}
-            flipped={projectionFlipActive}
-            waveOrigin={flipWaveOrigin}
-            waveDistanceRange={flipWaveDistanceRange}
-            waveDelay={flipWaveDelay}
-          />
+      {shouldShowProjection ? (
+        <SectorImageLayer
+          artworks={visibleArtworks}
+          heights={imageHeights}
+          flipped={waveFlipActive}
+          visibleOnBothFaces
+          waveOrigin={flipWaveOrigin}
+          waveDistanceRange={flipWaveDistanceRange}
+          waveDelay={flipWaveDelay}
+        />
+      ) : null}
 
-          {mode === 'projection' && detailArtwork ? (
-            <SectorDetailImageLayer
-              artwork={detailArtwork}
-              heights={imageHeights}
-              flipped={projectionFlipActive}
-              waveOrigin={flipWaveOrigin}
-              waveDistanceRange={flipWaveDistanceRange}
-              waveDelay={flipWaveDelay}
-            />
-          ) : null}
+      {shouldShowProjection && detailArtwork ? (
+        <SectorDetailImageLayer
+          artwork={detailArtwork}
+          heights={imageHeights}
+          flipped={waveFlipActive}
+          visibleOnBothFaces
+          waveOrigin={flipWaveOrigin}
+          waveDistanceRange={flipWaveDistanceRange}
+          waveDelay={flipWaveDelay}
+        />
+      ) : null}
 
-          {mode === 'projection' && placementArtwork ? (
-            <PlacementPreviewLayer
-              artwork={placementArtwork}
-              heights={imageHeights}
-              flipped={projectionFlipActive}
-              waveOrigin={flipWaveOrigin}
-              waveDistanceRange={flipWaveDistanceRange}
-              waveDelay={flipWaveDelay}
-            />
-          ) : null}
-        </>
+      {isImageUploadMode && placementArtwork ? (
+        <PlacementPreviewLayer
+          artwork={placementArtwork}
+          heights={imageHeights}
+          flipped={waveFlipActive}
+          visibleOnBothFaces
+          waveOrigin={flipWaveOrigin}
+          waveDistanceRange={flipWaveDistanceRange}
+          waveDelay={flipWaveDelay}
+        />
       ) : null}
 
       <SectorOwnershipLayers
-        ownedSectorIds={ownedSectorIds}
-        opponentSectorIds={opponentSectorIds}
-        sectorOwnerGroups={sectorOwnerGroups}
+        ownedSectorIds={visibleOwnedSectorIds}
+        opponentSectorIds={visibleOpponentSectorIds}
+        sectorOwnerGroups={visibleSectorOwnerGroups}
         sectorHeights={sectorHeights}
         extrusionHeights={extrusionHeights}
         flatHeights={flatSectorHeights}
         stakedHeights={stakedSectorHeights}
         reliefTarget={controlView === 'staked' ? 1 : 0}
         reliefVisible={reliefSurfaceVisible}
-        flipped={projectionFlipActive}
-        interactive={mode === 'control'}
+        flipped={waveFlipActive}
+        interactive={!isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
@@ -2070,11 +2070,10 @@ export function Planet({
           sectorIds={hoveredSectorIds}
           color={SECTOR_COLORS.hover}
           opacity={0.12}
-          scale={mode === 'projection' ? 1.0044 : 1.007}
-          edges={mode === 'control'}
+          scale={1.007}
+          edges
           edgeOpacity={0.62}
-          heights={mode === 'control' ? sectorHeights : undefined}
-          renderOrder={mode === 'projection' ? 10 : undefined}
+          heights={sectorHeights}
         />
       )}
 
@@ -2083,13 +2082,13 @@ export function Planet({
           <SectorLayer
             sectorIds={standardActiveSectorIds}
             color={SECTOR_COLORS.selected}
-            opacity={mode === 'projection' ? 0.62 : 0.2}
-            scale={mode === 'projection' ? 1.0042 : 1.01}
-            heights={mode === 'control' ? sectorHeights : undefined}
-            renderOrder={mode === 'projection' ? 9 : undefined}
+            opacity={isImageUploadMode ? 0.28 : 0.2}
+            scale={isImageUploadMode ? 1.006 : 1.01}
+            heights={sectorHeights}
+            renderOrder={isImageUploadMode ? 9 : undefined}
           />
 
-          {mode === 'control' && standardActiveSectorIds.length > 0 ? (
+          {standardActiveSectorIds.length > 0 ? (
             <ThickSectorBorderLayer
               sectorIds={standardActiveSectorIds}
               color={SECTOR_COLORS.selected}
@@ -2100,9 +2099,9 @@ export function Planet({
         </>
       ) : null}
 
-      {mode === 'control' && contestedSectorIds.length > 0 ? (
+      {visibleContestedSectorIds.length > 0 ? (
         <SectorContestLayer
-          sectorIds={contestedSectorIds}
+          sectorIds={visibleContestedSectorIds}
           heights={sectorHeights}
           color={
             isConnected ? SECTOR_COLORS.contested : SECTOR_COLORS.neutralGrid
@@ -2142,16 +2141,6 @@ export function Planet({
           scale={1.016}
         />
       ) : null}
-
-      {projectionLoadingId !== null && (
-        <SectorLayer
-          sectorIds={loadingSectorIds}
-          color={SECTOR_COLORS.selected}
-          opacity={0.5}
-          scale={1.0046}
-          renderOrder={11}
-        />
-      )}
     </group>
   );
 }

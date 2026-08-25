@@ -9,24 +9,18 @@ import {
   prepareSectorImage,
 } from '../../utils/sectorImage';
 
-function sectorLabel(sectorId: number): string {
-  return `SECTOR-${sectorId.toString().padStart(4, '0')}`;
-}
-
 function formatMebibytes(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-export function ProjectionPanel() {
+export function ImageUploadPanel() {
   const { address } = useWallet();
   const { signTypedDataAsync } = useSignTypedData({});
   const {
-    mode,
-    projectionSectorIds,
-    projectionLoadingId,
-    projectionError,
+    isImageUploadMode,
+    imageUploadSectorIds,
     sectorOwnershipById,
-    clearProjectionSelection,
+    endImageUpload,
   } = useSectors();
   const {
     artworks,
@@ -52,11 +46,11 @@ export function ProjectionPanel() {
 
   const selectedOwnerships = useMemo(
     () =>
-      projectionSectorIds.map((sectorId) => ({
+      imageUploadSectorIds.map((sectorId) => ({
         sectorId,
         ownership: sectorOwnershipById.get(sectorId),
       })),
-    [sectorOwnershipById, projectionSectorIds]
+    [imageUploadSectorIds, sectorOwnershipById]
   );
   const imagedSectorIds = useMemo(
     () =>
@@ -67,7 +61,7 @@ export function ProjectionPanel() {
       ),
     [artworks]
   );
-  const replacementCount = projectionSectorIds.filter((sectorId) =>
+  const replacementCount = imageUploadSectorIds.filter((sectorId) =>
     imagedSectorIds.has(sectorId)
   ).length;
 
@@ -79,8 +73,8 @@ export function ProjectionPanel() {
   );
 
   useEffect(() => {
-    if (mode !== 'projection' && placementDraft) endPlacement();
-  }, [endPlacement, mode, placementDraft]);
+    if (!isImageUploadMode && placementDraft) endPlacement();
+  }, [endPlacement, isImageUploadMode, placementDraft]);
 
   const discardPreparedImage = useCallback(() => {
     preparationVersionRef.current += 1;
@@ -99,7 +93,7 @@ export function ProjectionPanel() {
 
   const chooseFile = useCallback(
     async (file: File | undefined) => {
-      if (!file || projectionSectorIds.length === 0) return;
+      if (!file || imageUploadSectorIds.length === 0) return;
       const preparationVersion = ++preparationVersionRef.current;
       setPreparing(true);
       setUploadError(null);
@@ -134,18 +128,18 @@ export function ProjectionPanel() {
       beginPlacement,
       endPlacement,
       maximumImageBytes,
-      projectionSectorIds.length,
+      imageUploadSectorIds.length,
     ]
   );
 
   useEffect(() => {
-    if (mode !== 'projection') return;
+    if (!isImageUploadMode) return;
 
     const handlePaste = (event: ClipboardEvent) => {
       if (
         event.defaultPrevented ||
         isUploading ||
-        projectionSectorIds.length === 0
+        imageUploadSectorIds.length === 0
       ) {
         return;
       }
@@ -169,28 +163,33 @@ export function ProjectionPanel() {
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [chooseFile, isUploading, mode, projectionSectorIds.length]);
+  }, [chooseFile, imageUploadSectorIds.length, isImageUploadMode, isUploading]);
 
   useEffect(() => {
-    if (
-      mode !== 'projection' ||
-      isUploading ||
-      (!isPreparing && placementDraft === null)
-    ) {
-      return;
-    }
+    if (!isImageUploadMode || isUploading) return;
 
     const cancelOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      discardPreparedImage();
+      if (isPreparing || placementDraft) {
+        discardPreparedImage();
+      } else {
+        endImageUpload();
+      }
     };
 
     document.addEventListener('keydown', cancelOnEscape);
     return () => document.removeEventListener('keydown', cancelOnEscape);
-  }, [discardPreparedImage, isPreparing, isUploading, mode, placementDraft]);
+  }, [
+    discardPreparedImage,
+    endImageUpload,
+    isImageUploadMode,
+    isPreparing,
+    isUploading,
+    placementDraft,
+  ]);
 
-  if (mode !== 'projection') return null;
+  if (!isImageUploadMode) return null;
 
   const upload = async () => {
     if (
@@ -201,7 +200,7 @@ export function ProjectionPanel() {
     )
       return;
     if (selectedOwnerships.some(({ ownership }) => !ownership)) {
-      setUploadError('Refresh ownership before projecting this image.');
+      setUploadError('Refresh ownership before uploading this image.');
       return;
     }
 
@@ -221,12 +220,12 @@ export function ProjectionPanel() {
       });
       publishArtwork(published);
       setUploadNotice(
-        `Image projected to ${selectedOwnerships.length} Sector${
+        `Image published to ${selectedOwnerships.length} Sector${
           selectedOwnerships.length === 1 ? '' : 's'
         }.`
       );
       discardPreparedImage();
-      clearProjectionSelection();
+      endImageUpload();
     } catch (failure) {
       setUploadError(
         failure instanceof Error ? failure.message : 'Image upload failed.'
@@ -242,51 +241,44 @@ export function ProjectionPanel() {
     !uploadsEnabled ||
     !prepared ||
     !placementDraft?.placement ||
-    projectionSectorIds.length === 0;
+    imageUploadSectorIds.length === 0;
+
+  const exitImageUpload = () => {
+    if (isUploading) return;
+    discardPreparedImage();
+    endImageUpload();
+  };
 
   return (
     <aside className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[24rem]">
-      <header className="border-b border-neutral-600 px-4 py-3">
-        <div className="text-[9px] tracking-[0.24em] text-dim">
-          IMAGE PROJECTION
+      <header className="flex items-center justify-between gap-4 border-b border-neutral-600 px-4 py-3">
+        <div>
+          <div className="text-[9px] tracking-[0.24em] text-amber-300">
+            IMAGE UPLOAD
+          </div>
+          <div className="mt-1 text-base tracking-[0.12em]">
+            ASSIGN SECTOR ART
+          </div>
         </div>
-        <div className="mt-1 flex items-baseline justify-between gap-4">
-          <span className="text-base tracking-[0.12em]">ASSIGN SECTOR ART</span>
-          <span
-            className="grid h-3 w-3 place-items-center"
-            role="status"
-            aria-live="polite"
-          >
-            {projectionLoadingId !== null ? (
-              <span
-                className="h-2.5 w-2.5 animate-spin rounded-full border border-neutral-700 border-t-amber-400"
-                aria-hidden
-              />
-            ) : null}
-            {projectionLoadingId !== null ? (
-              <span className="sr-only">
-                Verifying {sectorLabel(projectionLoadingId)}
-              </span>
-            ) : null}
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={exitImageUpload}
+          disabled={isUploading}
+          className="border border-grid px-2 py-1 text-[9px] tracking-[0.16em] text-dim transition-colors hover:border-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
+        >
+          RETURN TO CORE
+        </button>
       </header>
 
       <div className="px-4 py-3">
         <p className="leading-relaxed text-neutral-400">
-          Select the surface you own, choose one image, then position its
-          projection from your current view of the Core.
+          The selected surface is isolated on the Core. Choose one image, then
+          position it from your current view.
         </p>
-
-        {projectionError ? (
-          <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-            {projectionError}
-          </div>
-        ) : null}
 
         <div className="mt-4">
           <div className="mb-2 flex justify-between text-[9px] tracking-[0.2em] text-dim">
-            <span>PROJECTION TARGETS</span>
+            <span>UPLOAD TARGETS</span>
             {replacementCount > 0 ? (
               <span className="text-neutral-500">
                 {replacementCount} REPLACEMENT
@@ -294,37 +286,16 @@ export function ProjectionPanel() {
               </span>
             ) : null}
           </div>
-          <div
-            className={`flex h-[54px] items-center px-3 ${
-              projectionSectorIds.length === 0
-                ? 'justify-center border border-dashed border-neutral-800 text-center'
-                : 'justify-between border border-neutral-800'
-            }`}
-          >
-            {projectionSectorIds.length === 0 ? (
-              <span className="text-[10px] tracking-[0.16em] text-neutral-600">
-                SELECT YOUR SECTORS ON THE CORE
+          <div className="flex h-[54px] items-center justify-between border border-neutral-800 px-3">
+            <div className="flex items-center gap-2" aria-live="polite">
+              <span className="font-display text-2xl tabular-nums text-white">
+                {imageUploadSectorIds.length}
               </span>
-            ) : (
-              <>
-                <div className="flex items-center gap-2" aria-live="polite">
-                  <span className="font-display text-2xl tabular-nums text-white">
-                    {projectionSectorIds.length}
-                  </span>
-                  <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                    SECTOR{projectionSectorIds.length === 1 ? '' : 'S'} SELECTED
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  disabled={isUploading || placementDraft !== null}
-                  onClick={clearProjectionSelection}
-                  className="text-[9px] tracking-[0.2em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
-                >
-                  CLEAR
-                </button>
-              </>
-            )}
+              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
+                SECTOR{imageUploadSectorIds.length === 1 ? '' : 'S'} ISOLATED
+              </span>
+            </div>
+            <span className="h-2 w-2 bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.65)]" />
           </div>
         </div>
 
@@ -341,9 +312,7 @@ export function ProjectionPanel() {
         />
         <button
           type="button"
-          disabled={
-            isPreparing || isUploading || projectionSectorIds.length === 0
-          }
+          disabled={isPreparing || isUploading}
           onClick={() => inputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
@@ -396,9 +365,9 @@ export function ProjectionPanel() {
             <p className="mt-2 leading-relaxed text-neutral-500">
               Drag the square to move the image. Drag any corner or scroll over
               it to resize while preserving its proportions. Outside the square,
-              orbit or zoom the Core to choose the projection angle. The live
-              surface preview is the published result. Paste again to replace
-              the image, or press Esc to cancel.
+              orbit or zoom the Core to choose the image angle. The live surface
+              preview is the published result. Paste again to replace the image,
+              or press Esc to cancel.
             </p>
             {placementDraft.placement ? (
               <label className="mt-3 block">
@@ -473,19 +442,19 @@ export function ProjectionPanel() {
           {isImageServiceLoading
             ? 'CHECKING IMAGE SERVICE…'
             : isUploading
-              ? 'PUBLISHING PROJECTION…'
-              : projectionSectorIds.length === 0
+              ? 'PUBLISHING IMAGE…'
+              : imageUploadSectorIds.length === 0
                 ? 'SELECT SECTORS'
                 : !prepared
                   ? 'CHOOSE IMAGE'
                   : placementDraft?.placement
-                    ? `PUBLISH ACROSS ${projectionSectorIds.length} SECTOR${projectionSectorIds.length === 1 ? '' : 'S'}`
+                    ? `PUBLISH ACROSS ${imageUploadSectorIds.length} SECTOR${imageUploadSectorIds.length === 1 ? '' : 'S'}`
                     : 'LOCKING CAMERA…'}
         </button>
 
         <div className="mt-4 border-t border-grid pt-3 text-[8px] leading-relaxed tracking-[0.11em] text-neutral-600">
-          ONE ARTWORK IS PROJECTED CONTINUOUSLY ACROSS THE SELECTED SURFACE.
-          LOSING A SECTOR HIDES THAT PORTION OF THE ARTWORK.
+          ONE IMAGE RUNS CONTINUOUSLY ACROSS THE SELECTED SURFACE. LOSING A
+          SECTOR HIDES THAT PORTION OF THE ARTWORK.
         </div>
       </div>
     </aside>
