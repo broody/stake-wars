@@ -427,9 +427,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     action === 'settle'
       ? 'SETTLE CONTEST'
       : action === 'challenge'
-        ? challenged
-          ? 'TAKE THE LEAD'
-          : 'INITIATE CHALLENGE'
+        ? 'CHALLENGE'
         : action === 'reinforce'
           ? 'FORTIFY'
           : action.toUpperCase();
@@ -440,12 +438,12 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
         ? 'CONFIRMING ON SEPOLIA…'
         : primaryDisabledReason
           ? `${actionLabel} · ${primaryDisabledReason}`
-          : action === 'settle'
-            ? actionLabel
-            : `${actionLabel} WITH ${formatStrk(
+          : action === 'reinforce'
+            ? `${actionLabel} WITH ${formatStrk(
                 selectedAllocation ?? 0n,
                 18
-              )} FORCE`;
+              )} FORCE`
+            : actionLabel;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
@@ -473,12 +471,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
                   {shortAddress(challenge.leader)}
                 </span>
                 {currentLeader && <span className="text-amber-300">(YOU)</span>}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>LEADING FORCE</span>
-              <span className="text-fg">
-                {formatStrk(challenge.leadingForce, 18)} FORCE
               </span>
             </div>
             {sector.challengeDeadline && (
@@ -537,12 +529,6 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
                 </div>
               </>
             )}
-            {action === 'challenge' && personalCommitment > 0n && (
-              <div className="flex justify-between gap-4">
-                <span>YOUR COMMITMENT</span>
-                <span>{formatStrk(personalCommitment, 18)} FORCE</span>
-              </div>
-            )}
           </>
         )}
         {error && (
@@ -550,23 +536,24 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             ACTION FAILED · {error}
           </div>
         )}
-        {deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
-          <Link
-            to="/staking"
-            className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
-          >
-            GENERATE {formatStrk(deficit, 18)} MORE FORCE
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
-            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
-          >
-            {label}
-          </button>
-        )}
+        {!(action === 'challenge' && currentLeader) &&
+          (deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
+            <Link
+              to="/staking"
+              className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
+            >
+              GENERATE {formatStrk(deficit, 18)} MORE FORCE
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
+              className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+            >
+              {label}
+            </button>
+          ))}
       </div>
     </section>
   );
