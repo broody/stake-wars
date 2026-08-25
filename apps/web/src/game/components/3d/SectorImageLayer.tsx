@@ -320,6 +320,7 @@ export function SectorImageLayer({
   artworks,
   heights,
   flipped,
+  visible = true,
   waveOrigin,
   waveDistanceRange,
   waveDelay,
@@ -328,6 +329,7 @@ export function SectorImageLayer({
   artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
   flipped: boolean;
+  visible?: boolean;
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
@@ -345,18 +347,22 @@ export function SectorImageLayer({
     return result;
   }, [artworks]);
 
-  return pages.map((page) => (
-    <ArtworkAtlasPage
-      key={page[0].id}
-      artworks={page}
-      heights={heights}
-      flipped={flipped}
-      waveOrigin={waveOrigin}
-      waveDistanceRange={waveDistanceRange}
-      waveDelay={waveDelay}
-      visibleOnBothFaces={visibleOnBothFaces}
-    />
-  ));
+  return (
+    <group visible={visible}>
+      {pages.map((page) => (
+        <ArtworkAtlasPage
+          key={page[0].id}
+          artworks={page}
+          heights={heights}
+          flipped={flipped}
+          waveOrigin={waveOrigin}
+          waveDistanceRange={waveDistanceRange}
+          waveDelay={waveDelay}
+          visibleOnBothFaces={visibleOnBothFaces}
+        />
+      ))}
+    </group>
+  );
 }
 
 export function SectorDetailImageLayer({

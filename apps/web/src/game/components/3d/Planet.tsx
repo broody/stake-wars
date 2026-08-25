@@ -2008,17 +2008,16 @@ export function Planet({
         />
       </mesh>
 
-      {shouldShowProjection ? (
-        <SectorImageLayer
-          artworks={visibleArtworks}
-          heights={imageHeights}
-          flipped={waveFlipActive}
-          visibleOnBothFaces
-          waveOrigin={flipWaveOrigin}
-          waveDistanceRange={flipWaveDistanceRange}
-          waveDelay={flipWaveDelay}
-        />
-      ) : null}
+      <SectorImageLayer
+        artworks={visibleArtworks}
+        heights={imageHeights}
+        flipped={waveFlipActive}
+        visible={shouldShowProjection}
+        visibleOnBothFaces
+        waveOrigin={flipWaveOrigin}
+        waveDistanceRange={flipWaveDistanceRange}
+        waveDelay={flipWaveDelay}
+      />
 
       {shouldShowProjection && detailArtwork ? (
         <SectorDetailImageLayer
