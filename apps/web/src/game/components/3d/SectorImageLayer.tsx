@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
@@ -112,20 +112,27 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 function useArtworkAtlas(
   slots: readonly ArtworkAtlasSlot[],
   columns: number,
-  rows: number
+  rows: number,
+  pageId: string,
+  onLoadingChange?: (pageId: string, loading: boolean) => void
 ) {
   const [texture, setTexture] = useState<THREE.CanvasTexture | null>(null);
   useEffect(() => {
     if (slots.length === 0) {
       setTexture(null);
+      onLoadingChange?.(pageId, false);
       return;
     }
+    onLoadingChange?.(pageId, true);
     let active = true;
     const canvas = document.createElement('canvas');
     canvas.width = columns * ATLAS_CELL_SIZE;
     canvas.height = rows * ATLAS_CELL_SIZE;
     const context = canvas.getContext('2d');
-    if (!context) return;
+    if (!context) {
+      onLoadingChange?.(pageId, false);
+      return;
+    }
     const atlas = new THREE.CanvasTexture(canvas);
     atlas.colorSpace = THREE.SRGBColorSpace;
     atlas.generateMipmaps = false;
@@ -157,12 +164,15 @@ function useArtworkAtlas(
         { length: Math.min(IMAGE_LOAD_CONCURRENCY, slots.length) },
         worker
       )
-    );
+    ).finally(() => {
+      if (active) onLoadingChange?.(pageId, false);
+    });
     return () => {
       active = false;
+      onLoadingChange?.(pageId, false);
       atlas.dispose();
     };
-  }, [columns, rows, slots]);
+  }, [columns, onLoadingChange, pageId, rows, slots]);
   return texture;
 }
 
@@ -275,6 +285,7 @@ function ArtworkAtlasPage({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces,
+  onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
@@ -283,7 +294,9 @@ function ArtworkAtlasPage({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces: boolean;
+  onLoadingChange?: (pageId: string, loading: boolean) => void;
 }) {
+  const pageId = artworks[0].id;
   const columns = Math.min(
     ATLAS_MAX_COLUMNS,
     Math.max(1, Math.ceil(Math.sqrt(artworks.length)))
@@ -298,7 +311,13 @@ function ArtworkAtlasPage({
       })),
     [artworks, columns]
   );
-  const texture = useArtworkAtlas(slots, columns, rows);
+  const texture = useArtworkAtlas(
+    slots,
+    columns,
+    rows,
+    pageId,
+    onLoadingChange
+  );
   if (!texture || slots.length === 0) return null;
   return (
     <ProjectedArtworkMesh
@@ -325,6 +344,7 @@ export function SectorImageLayer({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces = false,
+  onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
   heights: ReadonlyMap<number, number>;
@@ -334,7 +354,9 @@ export function SectorImageLayer({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces?: boolean;
+  onLoadingChange?: (loading: boolean) => void;
 }) {
+  const loadingPageIdsRef = useRef(new Set<string>());
   const pages = useMemo(() => {
     const result: SectorArtwork[][] = [];
     for (
@@ -346,6 +368,18 @@ export function SectorImageLayer({
     }
     return result;
   }, [artworks]);
+  const reportPageLoading = useCallback(
+    (pageId: string, loading: boolean) => {
+      if (loading) loadingPageIdsRef.current.add(pageId);
+      else loadingPageIdsRef.current.delete(pageId);
+      onLoadingChange?.(loadingPageIdsRef.current.size > 0);
+    },
+    [onLoadingChange]
+  );
+
+  useEffect(() => {
+    if (pages.length === 0) onLoadingChange?.(false);
+  }, [onLoadingChange, pages.length]);
 
   return (
     <group visible={visible}>
@@ -359,6 +393,7 @@ export function SectorImageLayer({
           waveDistanceRange={waveDistanceRange}
           waveDelay={waveDelay}
           visibleOnBothFaces={visibleOnBothFaces}
+          onLoadingChange={reportPageLoading}
         />
       ))}
     </group>

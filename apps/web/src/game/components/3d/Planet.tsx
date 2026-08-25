@@ -1603,7 +1603,12 @@ export function Planet({
   const { camera } = useThree();
   const { isConnected } = useWallet();
   const { notifyWarning } = useTransactionToast();
-  const { artworks, placementDraft, featuredArtworkId } = useSectorImages();
+  const {
+    artworks,
+    placementDraft,
+    featuredArtworkId,
+    setThumbnailAtlasLoading,
+  } = useSectorImages();
   const {
     controlView,
     isProjectionVisible,
@@ -1680,17 +1685,20 @@ export function Planet({
       false,
     []
   );
+  const [projectionSurfaceVisible, setProjectionSurfaceVisible] =
+    useState(shouldShowProjection);
   const [waveFlipActive, setWaveFlipActive] = useState(isCoreWaveFlipped);
   const [reliefSurfaceVisible, setReliefSurfaceVisible] =
     useState(!isCoreWaveFlipped);
   const previousWaveFlipRef = useRef(isCoreWaveFlipped);
   const flipWaveOrigin = useMemo(() => {
+    void isCoreWaveFlipped;
     return randomVisibleOutsideSectorWaveOrigin(
       visibleOccupiedSectorIds,
       camera,
       TENURE_SURFACE_RADIUS
     );
-  }, [camera, visibleOccupiedSectorIds]);
+  }, [camera, isCoreWaveFlipped, visibleOccupiedSectorIds]);
   const flipWaveDistanceRange = useMemo(
     () =>
       createSectorWaveDistanceRange(
@@ -1709,6 +1717,22 @@ export function Planet({
   useEffect(() => {
     if (isImageUploadMode) setHoveredSectorId(null);
   }, [isImageUploadMode]);
+
+  useEffect(() => {
+    if (shouldShowProjection) {
+      setProjectionSurfaceVisible(true);
+      return;
+    }
+    if (prefersReducedMotion) {
+      setProjectionSurfaceVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setProjectionSurfaceVisible(false),
+      CORE_WAVE_FLIP_DURATION_MS
+    );
+    return () => window.clearTimeout(timeout);
+  }, [prefersReducedMotion, shouldShowProjection]);
 
   useEffect(() => {
     if (!tenureExtrusionEnabled) return;
@@ -2012,19 +2036,20 @@ export function Planet({
         artworks={visibleArtworks}
         heights={imageHeights}
         flipped={waveFlipActive}
-        visible={shouldShowProjection}
-        visibleOnBothFaces
+        visible={projectionSurfaceVisible}
+        visibleOnBothFaces={isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
+        onLoadingChange={setThumbnailAtlasLoading}
       />
 
-      {shouldShowProjection && detailArtwork ? (
+      {projectionSurfaceVisible && detailArtwork ? (
         <SectorDetailImageLayer
           artwork={detailArtwork}
           heights={imageHeights}
           flipped={waveFlipActive}
-          visibleOnBothFaces
+          visibleOnBothFaces={isImageUploadMode}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
           waveDelay={flipWaveDelay}

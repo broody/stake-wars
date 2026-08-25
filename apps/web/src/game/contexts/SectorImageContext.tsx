@@ -20,6 +20,7 @@ export interface PlacementDraft {
 interface SectorImageContextValue {
   artworks: SectorArtwork[];
   isLoading: boolean;
+  isThumbnailAtlasLoading: boolean;
   error: string | null;
   uploadsEnabled: boolean;
   maximumImageBytes: number;
@@ -31,6 +32,7 @@ interface SectorImageContextValue {
   endPlacement: () => void;
   refreshImages: () => void;
   publishArtwork: (artwork: SectorArtwork) => void;
+  setThumbnailAtlasLoading: (loading: boolean) => void;
 }
 
 const DEFAULT_MAXIMUM_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -54,6 +56,7 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
     DEFAULT_MAXIMUM_IMAGE_BYTES
   );
   const [isLoading, setLoading] = useState(true);
+  const [isThumbnailAtlasLoading, setThumbnailAtlasLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
 
@@ -163,6 +166,7 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
     () => ({
       artworks,
       isLoading,
+      isThumbnailAtlasLoading,
       error,
       uploadsEnabled,
       maximumImageBytes,
@@ -174,6 +178,7 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
       endPlacement,
       refreshImages,
       publishArtwork,
+      setThumbnailAtlasLoading,
     }),
     [
       artworks,
@@ -183,6 +188,7 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
       error,
       featuredArtworkId,
       isLoading,
+      isThumbnailAtlasLoading,
       maximumImageBytes,
       placementDraft,
       publishArtwork,

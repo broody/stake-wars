@@ -364,7 +364,7 @@ export function Staking() {
                 emphasis
               />
             </div>
-            <div className="p-5 text-[10px] leading-5 text-neutral-500">
+            <div className="p-5 text-[10.5px] leading-5 text-neutral-500">
               Staked STRK generates FORCE 1:1. FORCE is allocation accounting,
               not a separate token, and remains ready for captures,
               reinforcements, and challenges.
