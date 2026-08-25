@@ -80,7 +80,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
 *   Stake Wars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
 *   **Public Deployment:** Operator identities, direct delegation, cumulative commitments, incremental additions, Challenge timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
-*   **Shielded Reserve:** A future STRK20 integration may let an Operator keep undeployed STRK in a shielded balance before mobilizing it. Shield and unshield amounts are public legs, and STRK cannot back Stake Wars until it is unshielded and directly delegated, so the game must not claim that deployed strength is private.
+*   **STRK20 Scope:** Stake Wars uses STRK20 only through Whisper's sealed-bid auction flow. Direct delegation, FORCE commitments, Challenge activity, and Sector control remain public onchain.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
 *   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from Stake Wars. Its ownership generation is invalidated, its Sectors become neutral, and it may never capture, reinforce, or challenge again.
@@ -246,9 +246,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
-*   **Phase 2: Strategic Reserve Privacy and Arbiter Auctions**
-    *   Evaluate a wallet-mediated STRK20 flow for shielding undeployed reserves without changing the direct-delegation requirement.
-    *   Clearly disclose that shield/unshield legs and all deployed Stake Wars Challenge commitments remain public, and require a reviewed integration plan before implementation.
+*   **Phase 2: Whisper-Powered Arbiter Auctions**
     *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, and vault operator, while Stake Wars owns the game UX, canonical round, winner claim, and billboard fulfillment.
     *   Gate Stake Wars bidding, claim, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
 *   **Phase 3: The Command Expansion**

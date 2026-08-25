@@ -1,120 +1,19 @@
-# STRK20 Privacy Integration Plan — Stake Wars shielded balance
+# STRK20 Privacy Integration Plan — Stake Wars + Whisper sealed bidding
 
-Generated 2026-08-19 by the strk20-privacy-integration skill. This plan is intentionally limited to a consented shielded STRK balance read in the existing staking UI; it does not make staking private.
-
-## 1. Project snapshot
-
-- Stack: React 19 + Vite frontend in `apps/web`; `starknet@10.7.0`; `@starknetfoundation/starknet-start-react@^2.0.1`; `@starknet-io/get-starknet-modal@6.0.1`; Dojo/Cairo contracts; Go API. The app runs locally against the shared Sepolia deployment.
-- Wallet connection: `apps/web/src/game/contexts/WalletContext.tsx:16-29` and `apps/web/src/game/components/ui/WalletButton.tsx:27-164`. The wallet menu currently admits Ready/Argent only.
-- Provider and transaction layer: `apps/web/src/game/providers/StarknetProvider.tsx:8-23`; staking sends remain in `apps/web/src/game/contexts/YieldContext.tsx` and are out of scope for this balance-only change.
-- UI surface: `apps/web/src/game/pages/Staking.tsx:372-409` renders Live Position with active stake, available force, committed force, and spent force.
-- Token: `apps/web/.env.sepolia` already configures the canonical STRK token address through `config.strkTokenAddress`.
-- Privacy goal: remove committed and spent force from Live Position, then display the connected wallet's consented shielded STRK balance there using the `[STRK]` unit convention. Do not add shield, transfer, unshield, or private-staking actions.
-- Environment and wallet: Sepolia first; Ready is the app's current supported wallet.
-
-## 2. Chosen route: Privacy Wallet API through starknet.js `WalletAccountV6`
-
-This is a normal dapp relying on the user's wallet, so the balance read must go through the connected privacy-enabled wallet. The app will call `WalletAccountV6.strk20Balances([config.strkTokenAddress])`; the wallet owns the private state and asks the user for balance-read consent.
-
-**The rule this follows:** Stake Wars never touches a viewing key, encrypted notes, or proofs. It receives only the balance value the user explicitly authorizes the wallet to disclose.
-
-## 3. What this delivers — hidden vs visible
-
-| Private / not disclosed to Stake Wars                                                                     | Disclosed or public                                                                                                             |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Viewing key, notes, nullifiers, private transfer history, and balances for tokens the app did not request | The shielded STRK aggregate balance is disclosed to the frontend after wallet consent                                           |
-| Sender, receiver, amount, and token type of transfers inside the pool remain private onchain              | Deposit and withdrawal amounts, the fact that an address interacted with the pool, and interaction timing remain public onchain |
-
-The read itself creates no transaction. The frontend must not log, persist, analyze, or send the returned shielded balance to the API.
-
-## 4. Prerequisites and version gate
-
-Freshness was checked on 2026-08-20. The current relevant releases/dist-tags are:
-
-- `starknet@10.7.0` (`WalletAccountV6`; STRK20 support requires at least 10.4.0)
-- `@starknet-io/get-starknet-modal@6.0.1`
-- `@starknet-io/get-starknet-core@6.0.1`
-- `@starknet-io/get-starknet-wallet-standard@6.0.5`
-- `@starknet-io/types-js@0.10.3` (stable Wallet API spec 0.10.3)
-- `@starknetfoundation/starknet-start-react@2.0.1`
-- Test wallet: current Ready extension on Sepolia
-
-The maintained Starknet Foundation package line uses get-starknet v6 and removes Stake Wars' former direct v5 compatibility dependency. Stake Wars retains its focused `WalletAccountV6` adapter for the consented STRK20 read so this dependency migration does not change the privacy interaction or normal transaction paths.
-
-Capability detection must use `walletV6.supportedWalletApi(wallet)` (or `supportedSpecs`) and require Wallet API `>=0.10.3`. It must not call `strk20Balances` as a feature probe because balance reads trigger consent.
-
-## 5. Phase 1 — wallet-mediated shielded balance read ✅ done 2026-08-19
-
-1. Update the wallet packages in `apps/web/package.json` and `pnpm-lock.yaml` to the exact compatible v6 versions above; keep the existing public staking flow working.
-2. In `apps/web/src/game/contexts/WalletContext.tsx`, retain the connected wallet object, create/recreate a `WalletAccountV6` for the configured RPC when wallet/account/network changes, and expose privacy capability plus an explicit `readShieldedStrkBalance()` action.
-3. Implement the action with `strk20Balances([config.strkTokenAddress])`, normalize token addresses with `BigInt(a) === BigInt(b)`, parse the returned smallest-unit balance as `bigint`, and discard it on disconnect, account change, or network change.
-4. Treat unsupported API versions distinctly from rejected consent and operational wallet errors. Do not query on page load merely to detect support.
-5. Add focused unit tests for supported/unsupported wallets, approved/rejected reads, missing STRK entries, address normalization, and stale account responses.
-6. Verify existing connect, stake, claim, unstake, capture, and typed-data signing flows still build and test after the wallet-stack change.
-
-## 6. Phase 2 — Live Position UI ✅ included in the Phase 1 wallet checkpoint 2026-08-19
-
-1. In `apps/web/src/game/pages/Staking.tsx:378-405`, remove the COMMITTED and SPENT metrics.
-2. Add a SHIELDED metric whose displayed unit is `[STRK]`; do not label public wallet STRK or active stake with brackets.
-3. Before consent, show a deliberate `READ [STRK]` affordance instead of triggering a balance prompt on page load. After consent, show the formatted balance and allow a manual refresh.
-4. For a wallet without Wallet API 0.10.3 support, show `UNAVAILABLE` without requesting balance data. For rejected consent, keep the value hidden and allow retry without treating rejection as a staking failure.
-5. Keep the remaining FORCE explanation accurate after removing committed/spent language.
-6. Add component coverage for disconnected, unsupported, consent-pending, disclosed, rejected, and error states.
-
-## 7. Out of scope / future entry criteria
-
-- Shield, private transfer, and unshield buttons are not part of this request.
-- Staking shielded STRK is not implied by displaying `[STRK]`. A private staking path would be a separate design using the protocol's current shadow-account or audited helper route, with explicit privacy-leak analysis and contract review.
-- Xverse can be added to the wallet selector only after a separate product decision and manual verification of its current dapp-facing Wallet API behavior.
-
-## 8. Testing and phase handoff
-
-- Headless: `pnpm --filter @stakewars/web test`, `pnpm --filter @stakewars/web build`, `pnpm --filter @stakewars/web lint`, `pnpm --filter @stakewars/web format:check`, and `git diff --check`.
-- Manual on `http://localhost:3000/play` using `pnpm dev:web`: connect Ready on Sepolia; verify capability detection causes no consent prompt; click `READ [STRK]`; approve and compare the displayed balance with Ready; reject once and verify retry; switch account/network and verify the disclosed balance is cleared.
-- Regression: submit no transaction during the balance read; ensure normal public staking still uses public STRK and is unaffected by the `[STRK]` value.
-
-Execution stops after this phase for the wallet-backed manual check before any broader privacy feature is considered.
-
-## 9. Privacy and security notes
-
-- Request only the STRK token balance, not an empty token array (which requests all shielded token balances).
-- Never read or store viewing keys, notes, or proofs.
-- Never log, persist, or send the disclosed balance to the Stake Wars API or analytics.
-- Deposit screening is enforced onchain by the protocol; this read-only feature does not deposit.
-- Selective disclosure exists for legitimate regulatory requests; it is not automatic compliance or regulator endorsement, and Stake Wars owns its legal/compliance decisions.
-
-## 10. Open items to re-verify at execution
-
-- `WalletAccountV6.strk20Balances(tokens)` and the `STRK20_BALANCE_ENTRY.balance` field were confirmed against `starknet@10.7.0` and the stable Wallet API 0.10.3 schema.
-- Manual checkpoint pending: confirm Ready's Sepolia balance-read consent behavior and exact rejection text.
-- Maintenance completed 2026-08-20: adopted the maintained `@starknetfoundation/starknet-start-react` package and removed the temporary direct wallet-standard v5 compatibility dependency. Re-evaluate the native STRK20 hooks separately before changing the existing explicit-consent adapter.
-- Re-check package dist-tags before future STRK20 work because get-starknet v6 packages are still moving independently.
-
-## 11. Links
-
-- Wallet API overview: https://strk20-by-example.org/starknet-wallet-api/overview
-- React route: https://strk20-by-example.org/starknet-wallet-api/starknet-start-hook
-- starknet.js / `WalletAccountV6`: https://strk20-by-example.org/starknet-wallet-api/starknet-js
-- Current WalletAccount guide: https://starknet-js.com/docs/next/guides/account/walletAccount/#with-get-starknet-v6
-- Wallet API spec v0.10.3: https://github.com/starkware-libs/starknet-specs/releases/tag/v0.10.3
-- Wallet test dapp: https://starknet-wallet-account.vercel.app/
-
----
-
-## 12. Workstream B — Whisper library + Stake Wars Arbiter application
+Updated 2026-08-24 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Arbiter billboard.
 
 **Status:** Phase A completed on 2026-08-24. Whisper is linked at
 `vendor/whisper` as a pinned Git submodule. Later phases remain proposed and
 require separate developer approval; this planning update does not approve
 Phase B, a deployment, or a transaction.
 
-This workstream supersedes the broader gameplay-edict exploration for the first
+This plan supersedes the broader gameplay-edict exploration for the first
 Arbiter release. Winning a recurring Whisper auction grants one bounded,
 off-chain privilege: control of the image displayed on a floating billboard in
 front of the orbiting Arbiter. It does not alter FORCE, Sector rules, staking,
 the Dojo World, or administrative configuration.
 
-### 12.1 Combined hackathon product boundary
+## 1 Combined hackathon product boundary
 
 For the STRK20 Private Sprint, **Stake Wars is the registered product and demo
 repository, and Whisper is its reusable privacy engine**. The two repositories
@@ -141,7 +40,7 @@ until at least three successful **Mainnet** transactions touching the live
 STRK20 pool have been executed with explicit approval and independently
 verified. Sepolia hashes must not be presented as qualifying Mainnet evidence.
 
-### 12.2 Project and dependency snapshot
+## 2 Project and dependency snapshot
 
 - Stake Wars already uses React 19, Vite, `starknet@10.7.0`, Wallet API
   `0.10.3`, the maintained Starknet Start React stack, and Ready-only wallet
@@ -170,14 +69,13 @@ verified. Sepolia hashes must not be presented as qualifying Mainnet evidence.
   semantics, but the interactive Ready handoff and additive top-up flow remain
   unverified. Whisper is experimental, custodial, and unaudited.
 
-### 12.3 Chosen integration route
+## 3 Chosen integration route
 
 Use the normal-dapp Wallet API path through Stake Wars' existing
 `WalletAccountV6`. The browser imports only Whisper's headless bidder builders,
 creates and encrypts the bid opening, uploads the ciphertext capsule, and asks
-Ready to execute the returned action array. The browser and Stake Wars API
-never receive the user's viewing key, selected notes, proof, or private balance
-without a separate explicit balance-read consent.
+Ready to execute the returned action array. The bid flow never requests or
+receives the user's viewing key, selected notes, proofs, or private balances.
 
 No new Cairo consumer contract is required for the first billboard because the
 prize is entirely off-chain. The Go API can verify the canonical Whisper result
@@ -185,7 +83,7 @@ and an authenticated winner-commitment opening before authorizing the existing
 object-storage flow. Reconsider an on-chain Arbiter registry only if the prize
 later controls on-chain gameplay.
 
-### 12.4 Privacy boundary
+## 4 Privacy boundary
 
 | Hidden before settlement                                                                         | Public before settlement                                                                                                            |
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -198,11 +96,11 @@ later controls on-chain gameplay.
 Whisper's 1-of-1 operator can decrypt bid capsules and controls the escrow vault;
 the auction is sealed from the public and competing bidders, not from that
 operator. Claiming the billboard intentionally discloses the winning wallet to
-Stake Wars and, once displayed as the controller, to the public. Shielding STRK
-immediately before bidding creates public timing and amount-correlation risk;
-the UI should direct bidders to use an already-mature shielded balance.
+Stake Wars and, once displayed as the controller, to the public. A public
+STRK20 deposit immediately before bidding creates timing and amount-correlation
+risk; the UI should direct bidders to use already-mature private notes.
 
-### 12.5 `/play` and Arbiter product shape
+## 5 `/play` and Arbiter product shape
 
 Use `Core | Force | Arbiter | Operator` as the primary navigation. Clicking the
 in-world Arbiter keeps camera tracking in `/play` and opens a compact summary in
@@ -259,7 +157,7 @@ The console has explicit lifecycle states:
 7. **Aborted/recovery:** explain that no billboard changed and that private
    refunds still depend on the current operator recovery process.
 
-### 12.6 Canonical round read model
+## 6 Canonical round read model
 
 Whisper permits anyone to create auctions and does not define a canonical
 Stake Wars round. The frontend must therefore not select an auction merely by
@@ -289,7 +187,7 @@ explicit operator/admin procedure. A recurring scheduler and automatic auction
 creation are a later operational phase; do not put a mutable current auction ID
 in the Vite environment or require a frontend deployment for every round.
 
-### 12.7 Winner claim design
+## 7 Winner claim design
 
 At initial bid creation, generate a cryptographically random claim secret and
 commit to:
@@ -319,7 +217,7 @@ canonical on-chain `get_result`, atomically records the first valid claim, and
 never returns the secret. This prevents address-dictionary attacks during
 bidding while making the controller public only after voluntary claim.
 
-### 12.8 Billboard storage and rendering
+## 8 Billboard storage and rendering
 
 - Add Arbiter-specific authorization and completion endpoints; do not weaken
   the existing Sector `CanManageImage` checks or pretend an auction winner owns
@@ -340,7 +238,7 @@ bidding while making the controller public only after voluntary claim.
   a restrained `SIGNAL AVAILABLE` wireframe rather than a broken image or a
   generic loading skeleton.
 
-### 12.9 Coupled milestone map
+## 9 Coupled milestone map
 
 A Whisper milestone is complete for this submission only when Stake Wars has
 consumed and verified it at the corresponding boundary. Whisper can remain a
@@ -356,9 +254,9 @@ acceptance gate passes.
 | M3 — Mainnet hackathon release  | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal                                 | Deploy the public product, complete a real auction/claim/display flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo | Pending; requires explicit Mainnet approval      |
 | M4 — post-sprint hardening      | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible                                 | Recurring round operations, incident UX, monitoring, moderation, and a policy for upgrading the pinned Whisper version                                                                              | Post-sprint                                      |
 
-### 12.10 Stake Wars delivery phases
+## 10 Stake Wars delivery phases
 
-#### Phase A — read-only Arbiter surfaces — ✅ done 2026-08-24
+### Phase A — read-only Arbiter surfaces — ✅ done 2026-08-24
 
 1. Add typed Arbiter round/result models and `api.getArbiter()` in
    `apps/web/src/game/services/api.ts`.
@@ -375,7 +273,7 @@ acceptance gate passes.
 6. Verify desktop and mobile layouts on `http://localhost:3000/play`; no bidding,
    claim, upload, deployment, or external transaction is part of Phase A.
 
-#### Phase B — Ready Wallet private bid submission
+### Phase B — Ready Wallet private bid submission
 
 1. Establish a deployable SDK dependency. Publish a tagged, reviewed
    `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
@@ -401,7 +299,7 @@ acceptance gate passes.
 7. Keep additive top-ups out of the first UI until the interactive Ready initial
    bid and top-up paths have both passed live Sepolia testing.
 
-#### Phase C — claim and billboard publishing
+### Phase C — claim and billboard publishing
 
 1. Refactor the existing frontend wallet-session helper so Sector and Arbiter
    uploads share authentication without sharing authorization rules.
@@ -415,7 +313,7 @@ acceptance gate passes.
 5. Manually verify a complete Sepolia round using Ready before enabling any
    Mainnet auction or meaningful bid amount.
 
-#### Phase D — Mainnet hackathon release, recurring operations, and hardening
+### Phase D — Mainnet hackathon release, recurring operations, and hardening
 
 1. Define round cadence, reserve, capacity, bidding/grace/settlement windows,
    proceeds recipient, no-sale behavior, and who is authorized to register the
@@ -435,7 +333,7 @@ acceptance gate passes.
    Stake Wars bidder, settlement, claim, and billboard flow; keep the public
    demo URL rooted in Stake Wars.
 
-### 12.11 Verification matrix
+## 11 Verification matrix
 
 - Web: disconnected, unsupported wallet, bidding, grace, settling, settled with
   and without winner, unclaimed winner, claimed non-winner, claimed winner,
@@ -450,12 +348,12 @@ acceptance gate passes.
 - Stake Wars: run `pnpm --filter @stakewars/web test`, build, lint, format check,
   `pnpm --filter @stakewars/api test`, API build, and `git diff --check`.
 - Manual Sepolia: use the shared Sepolia Stake Wars environment, Ready Wallet,
-  an already-mature shielded STRK balance, the configured Whisper operator, and
-  the real `/play` view. Verify the capsule arrives, the tranche becomes funded,
+  already-mature private STRK notes, the configured Whisper operator, and the
+  real `/play` view. Verify the capsule arrives, the tranche becomes funded,
   settlement publishes the correct result, only the winner can claim, and only
   the claimed winner can publish the visible billboard.
 
-### 12.12 Decisions still required before Phase B
+## 12 Decisions still required before Phase B
 
 1. Confirm whether every Ready wallet may bid or bidding requires an active
    Stake Wars Operator.
@@ -470,16 +368,13 @@ acceptance gate passes.
    for the Whisper operator. The current public Sepolia prover/discovery setup
    has no published production availability commitment.
 
-### 12.13 Freshness and references
+## 13 Freshness and references
 
 Freshness was rechecked on 2026-08-24. Stake Wars' current wallet packages are
 already at or above the required STRK20-capable versions. The stable Wallet API
 remains `0.10.3`; a `0.10.4` release candidate is in flight. The get-starknet
-`next` tags have moved since the original balance plan, but no dependency
-upgrade is required for this workstream without a demonstrated compatibility
-need. The upstream SDK monorepo also renamed its sub-account anonymizer package
-to `packages/shadow_account_anonymizer`; this workstream does not consume that
-package, so the rename creates no Whisper or Stake Wars implementation task.
+`next` tags have moved, but no dependency upgrade is required for the Whisper
+integration without a demonstrated compatibility need.
 
 - Wallet API overview: https://strk20-by-example.org/starknet-wallet-api/overview
 - Private DeFi composition: https://strk20-by-example.org/starknet-wallet-api/private-defi

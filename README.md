@@ -6,14 +6,11 @@ delegated STRK as FORCE to capture and defend Sectors on the Core, challenge
 rivals, and decide how much strength to reveal—all without creating a separate
 game token or moving custody away from Starknet's staking system.
 
-A planned STRK20 integration will let players shield undeployed STRK reserves,
-adding uncertainty, bluffing, and strategic mind games when challenges begin.
-Stake Wars also uses [Whisper](https://github.com/broody/whisper), a standalone
-library for private STRK20 Vickrey auctions, to sell temporary control of the
-Arbiter billboard without publishing bids before settlement. Once shadow
-accounts are fully supported for connected wallets, Stake Wars plans to use
-them to unlink players' public wallet identities from the accounts acting in
-the game; onchain gameplay itself will remain visible.
+Stake Wars' STRK20 integration is focused exclusively on
+[Whisper](https://github.com/broody/whisper), a standalone library for private
+Vickrey auctions. Whisper provides the sealed-bidding mechanics used to sell
+temporary control of the Arbiter billboard without publishing bids before
+settlement; normal Stake Wars delegation and territory gameplay remain public.
 
 For the STRK20 Private Sprint, the two projects are one submission with a clear
 boundary: Whisper owns the reusable Cairo contract, headless TypeScript SDK,
