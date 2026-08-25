@@ -259,6 +259,12 @@ func normalizeContractAddress(value string) (string, error) {
 	return normalized, nil
 }
 
+// NormalizeAddress validates and canonicalizes a non-zero Starknet address.
+func NormalizeAddress(value string) (string, error) { return normalizeAddress(value) }
+
+// NormalizeFelt validates and canonicalizes a Starknet felt.
+func NormalizeFelt(value string) (string, error) { return normalizeFelt(value) }
+
 func parseUintString(value string, bits int) (string, error) {
 	number, err := parseUintBig(value, bits)
 	if err != nil {

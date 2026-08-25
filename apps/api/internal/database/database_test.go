@@ -22,8 +22,17 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 2 {
-		t.Fatalf("expected two migrations, got %d", migrations)
+	if migrations != 3 {
+		t.Fatalf("expected three migrations, got %d", migrations)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO arbiter_rounds(
+			network, round_id, whisper_address, auction_id, expected_creator,
+			payment_token, metadata_hash, winner_payload_domain, vault_address
+		) VALUES ('SN_SEPOLIA', 1, '0x1', 7, '0x2', '0x3', '0x4', '0x5', '0x6')
+	`); err != nil {
+		t.Fatalf("insert Arbiter round: %v", err)
 	}
 
 	if _, err := db.Exec(`

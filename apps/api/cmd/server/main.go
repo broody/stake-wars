@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"stakewars.com/api/internal/api"
+	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
@@ -95,6 +96,11 @@ func run() error {
 			Auth:   authService,
 			Torii:  toriiGateway,
 			Images: imageService,
+			Arbiter: arbiter.NewService(
+				arbiter.NewStore(db),
+				starknet.NewWhisperReader(configuration.StarknetRPCURL),
+				configuration.StarknetChainID,
+			),
 			Config: api.PublicConfig{
 				Network:             configuration.StarknetChainID,
 				MaxImageBytes:       configuration.MaxImageBytes,

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/images"
 )
@@ -33,6 +34,11 @@ type Dependencies struct {
 	AllowedOrigins []string
 	Torii          *ToriiGateway
 	Images         *images.Service
+	Arbiter        arbiterReader
+}
+
+type arbiterReader interface {
+	Current(ctx context.Context) (arbiter.Snapshot, error)
 }
 
 // NewHandler returns the API's HTTP routes.
@@ -42,6 +48,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
+	mux.HandleFunc("GET /v1/arbiter", server.arbiterState)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
 	mux.HandleFunc("GET /v1/sector-artworks", server.listSectorImages)
@@ -53,6 +60,31 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	}
 
 	return securityHeaders(cors(dependencies.AllowedOrigins, mux))
+}
+
+func (s *server) arbiterState(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Arbiter == nil {
+		w.Header().Set("Cache-Control", "public, max-age=5")
+		writeJSON(w, http.StatusOK, arbiter.Snapshot{
+			Network:    s.dependencies.Config.Network,
+			Phase:      arbiter.PhaseNone,
+			ObservedAt: time.Now().UTC(),
+		})
+		return
+	}
+	snapshot, err := s.dependencies.Arbiter.Current(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "read Arbiter state", "error", err)
+		writeProblem(
+			w,
+			http.StatusBadGateway,
+			"Arbiter unavailable",
+			"could not verify the current Arbiter round",
+		)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=5")
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 type server struct {

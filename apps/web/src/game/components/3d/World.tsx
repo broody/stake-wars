@@ -359,7 +359,14 @@ export function World() {
   useEffect(() => {
     if (!isArbiterOpen) return;
 
-    const stopTrackingOnClick = () => {
+    const stopTrackingOnClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('[data-arbiter-console]')
+      ) {
+        return;
+      }
       ignoreArbiterInspectRef.current = true;
       setArbiterTracking(false);
       queueMicrotask(() => {

@@ -56,6 +56,32 @@ func TestReadinessAndPublicConfig(t *testing.T) {
 	}
 }
 
+func TestArbiterHasStableNoRoundResponse(t *testing.T) {
+	handler := NewHandler(testDependencies(t))
+	request := httptest.NewRequest(http.MethodGet, "/v1/arbiter", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected Arbiter status, got %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Network string          `json:"network"`
+		Phase   string          `json:"phase"`
+		Round   json.RawMessage `json:"round"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Network != "SN_MAIN" || payload.Phase != "none" || string(payload.Round) != "null" {
+		t.Fatalf("unexpected no-round response: %+v", payload)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "public, max-age=5" {
+		t.Fatalf("unexpected Cache-Control %q", got)
+	}
+}
+
 func TestChallengeAndSessionFlow(t *testing.T) {
 	handler := NewHandler(testDependencies(t))
 

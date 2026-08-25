@@ -16,6 +16,58 @@ export interface StakeWarsApiConfig {
   supportedImageTypes: string[];
 }
 
+export type ArbiterPhase =
+  | 'none'
+  | 'bidding'
+  | 'acceptance'
+  | 'settling'
+  | 'recovery'
+  | 'settled'
+  | 'aborted';
+
+export interface ArbiterRoundResult {
+  hasWinner: boolean;
+  winnerCommitment: string;
+  winningBid: string;
+  secondHighestBid: string;
+  clearingPrice: string;
+  settledAt: string;
+}
+
+export interface ArbiterRound {
+  id: number;
+  whisperAddress: string;
+  auctionId: number;
+  paymentToken: string;
+  reservePrice: string;
+  maxBids: number;
+  biddingDeadline: string;
+  forceRevealAfter: string;
+  abortAfter: string;
+  submissionCount: number;
+  fundedTrancheCount: number;
+  status: 'bidding' | 'settled' | 'aborted';
+  result: ArbiterRoundResult | null;
+}
+
+export interface ArbiterSnapshot {
+  network: string;
+  phase: ArbiterPhase;
+  observedAt: string;
+  round: ArbiterRound | null;
+  controller: {
+    address: string;
+    claimedAt: string;
+    startsAt: string | null;
+    expiresAt: string | null;
+  } | null;
+  billboard: {
+    imageUrl: string;
+    thumbnailUrl: string;
+    updatedAt: string;
+  } | null;
+}
+
 export interface PreparedSectorImage {
   contentType: string;
   detail: Blob;
@@ -118,6 +170,10 @@ async function putObject(target: UploadTarget, body: Blob): Promise<void> {
 export const api = {
   getConfig(signal?: AbortSignal): Promise<StakeWarsApiConfig> {
     return requestJSON('/v1/config', { signal });
+  },
+
+  getArbiter(signal?: AbortSignal): Promise<ArbiterSnapshot> {
+    return requestJSON('/v1/arbiter', { signal });
   },
 
   async getSectorArtworks(signal?: AbortSignal): Promise<SectorArtwork[]> {
