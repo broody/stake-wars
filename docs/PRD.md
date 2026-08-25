@@ -246,9 +246,11 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
-*   **Phase 2: Strategic Reserve Privacy**
+*   **Phase 2: Strategic Reserve Privacy and Arbiter Auctions**
     *   Evaluate a wallet-mediated STRK20 flow for shielding undeployed reserves without changing the direct-delegation requirement.
     *   Clearly disclose that shield/unshield legs and all deployed Stake Wars Challenge commitments remain public, and require a reviewed integration plan before implementation.
+    *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, and vault operator, while Stake Wars owns the game UX, canonical round, winner claim, and billboard fulfillment.
+    *   Gate Stake Wars bidding, claim, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.
     *   Live capture ticker, searchable gallery, and Operator profiles.

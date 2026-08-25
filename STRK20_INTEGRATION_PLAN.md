@@ -20,10 +20,10 @@ This is a normal dapp relying on the user's wallet, so the balance read must go 
 
 ## 3. What this delivers — hidden vs visible
 
-| Private / not disclosed to Stake Wars | Disclosed or public |
-|---|---|
-| Viewing key, notes, nullifiers, private transfer history, and balances for tokens the app did not request | The shielded STRK aggregate balance is disclosed to the frontend after wallet consent |
-| Sender, receiver, amount, and token type of transfers inside the pool remain private onchain | Deposit and withdrawal amounts, the fact that an address interacted with the pool, and interaction timing remain public onchain |
+| Private / not disclosed to Stake Wars                                                                     | Disclosed or public                                                                                                             |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Viewing key, notes, nullifiers, private transfer history, and balances for tokens the app did not request | The shielded STRK aggregate balance is disclosed to the frontend after wallet consent                                           |
+| Sender, receiver, amount, and token type of transfers inside the pool remain private onchain              | Deposit and withdrawal amounts, the fact that an address interacted with the pool, and interaction timing remain public onchain |
 
 The read itself creates no transaction. The frontend must not log, persist, analyze, or send the returned shielded balance to the API.
 
@@ -101,10 +101,12 @@ Execution stops after this phase for the wallet-backed manual check before any b
 
 ---
 
-## 12. Workstream B — Whisper-powered Arbiter billboard
+## 12. Workstream B — Whisper library + Stake Wars Arbiter application
 
-**Status:** Phase A completed on 2026-08-24. Later phases remain proposed and
-require separate developer approval.
+**Status:** Phase A completed on 2026-08-24. Whisper is linked at
+`vendor/whisper` as a pinned Git submodule. Later phases remain proposed and
+require separate developer approval; this planning update does not approve
+Phase B, a deployment, or a transaction.
 
 This workstream supersedes the broader gameplay-edict exploration for the first
 Arbiter release. Winning a recurring Whisper auction grants one bounded,
@@ -112,7 +114,34 @@ off-chain privilege: control of the image displayed on a floating billboard in
 front of the orbiting Arbiter. It does not alter FORCE, Sector rules, staking,
 the Dojo World, or administrative configuration.
 
-### 12.1 Project and dependency snapshot
+### 12.1 Combined hackathon product boundary
+
+For the STRK20 Private Sprint, **Stake Wars is the registered product and demo
+repository, and Whisper is its reusable privacy engine**. The two repositories
+form one submission without collapsing their ownership boundaries:
+
+| Whisper — standalone library                                          | Stake Wars — consuming dapp                                                                   |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Cairo Vickrey auction and STRK20 callbacks                            | Arbiter auction and billboard UX                                                              |
+| Headless bidder SDK and encrypted reveal capsule                      | Ready Wallet connection, consent, and action submission                                       |
+| Vault operator, discovery, acceptance, settlement, and recovery       | Canonical round registry, public read model, winner claim, artwork authorization, and display |
+| Reusable off-chain/ERC-20/ERC-721/ERC-1155 fulfillment primitives     | Stake Wars-specific off-chain controller entitlement                                          |
+| Independent releases, security review, deployments, and documentation | Public game deployment, demo, and root `strk20.json` submission evidence                      |
+
+`vendor/whisper` pins the exact Whisper source reviewed by Stake Wars. It is the
+source and cross-repository verification boundary, not an implicit production
+package release or co-location of the Whisper operator on the Stake Wars API
+Machine. Production frontend code should consume an exact tagged
+`@whisper-trade/sdk` release built from that pinned source, and the operator
+must remain a separately deployed service with its own database and secrets.
+
+The root `strk20.json` is the single hackathon manifest. It may list the current
+Whisper Sepolia contract as progress evidence, but `transactions` remain empty
+until at least three successful **Mainnet** transactions touching the live
+STRK20 pool have been executed with explicit approval and independently
+verified. Sepolia hashes must not be presented as qualifying Mainnet evidence.
+
+### 12.2 Project and dependency snapshot
 
 - Stake Wars already uses React 19, Vite, `starknet@10.7.0`, Wallet API
   `0.10.3`, the maintained Starknet Start React stack, and Ready-only wallet
@@ -127,6 +156,11 @@ the Dojo World, or administrative configuration.
   validation, moderation state, and public image delivery. Its authorization is
   currently tied specifically to Sector ownership and must not be reused
   without a separate Arbiter-winner verifier.
+- `vendor/whisper` pins Whisper commit
+  `ce6426d5ce00f1b1a64d67a02a15d0cc65e2fffb`, whose active experimental
+  Sepolia v0.4 contract is recorded in
+  `vendor/whisper/deployments/sepolia.json`. Updating the gitlink is an explicit
+  compatibility decision and requires both repositories' checks.
 - Whisper's `@whisper-trade/sdk@0.3.0` builds the standard private
   `transfer + invoke` bid actions and encrypted reveal capsule. The Whisper
   operator exposes public configuration and idempotent capsule upload. The
@@ -136,7 +170,7 @@ the Dojo World, or administrative configuration.
   semantics, but the interactive Ready handoff and additive top-up flow remain
   unverified. Whisper is experimental, custodial, and unaudited.
 
-### 12.2 Chosen integration route
+### 12.3 Chosen integration route
 
 Use the normal-dapp Wallet API path through Stake Wars' existing
 `WalletAccountV6`. The browser imports only Whisper's headless bidder builders,
@@ -151,14 +185,14 @@ and an authenticated winner-commitment opening before authorizing the existing
 object-storage flow. Reconsider an on-chain Arbiter registry only if the prize
 later controls on-chain gameplay.
 
-### 12.3 Privacy boundary
+### 12.4 Privacy boundary
 
-| Hidden before settlement | Public before settlement |
-|---|---|
+| Hidden before settlement                                                                         | Public before settlement                                                                                                            |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Bid amount, bidder wallet relationship, refund destination, bid salt, and billboard claim secret | Auction token, reserve, deadlines, capacity, group/tranche handles, submission count, funded-tranche count, commitments, and timing |
 
-| Still private after settlement | Newly public after settlement |
-|---|---|
+| Still private after settlement                                                                                                     | Newly public after settlement                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Viewing keys, notes, proofs, private refund/change/proceeds recipients, and the wallet-to-bid relationship until the winner claims | Every accepted tranche amount and salt, aggregate winning bid, second-highest bid, clearing price, winner commitment, and settlement time |
 
 Whisper's 1-of-1 operator can decrypt bid capsules and controls the escrow vault;
@@ -168,7 +202,7 @@ Stake Wars and, once displayed as the controller, to the public. Shielding STRK
 immediately before bidding creates public timing and amount-correlation risk;
 the UI should direct bidders to use an already-mature shielded balance.
 
-### 12.4 `/play` and Arbiter product shape
+### 12.5 `/play` and Arbiter product shape
 
 Use `Core | Force | Arbiter | Operator` as the primary navigation. Clicking the
 in-world Arbiter keeps camera tracking in `/play` and opens a compact summary in
@@ -225,7 +259,7 @@ The console has explicit lifecycle states:
 7. **Aborted/recovery:** explain that no billboard changed and that private
    refunds still depend on the current operator recovery process.
 
-### 12.5 Canonical round read model
+### 12.6 Canonical round read model
 
 Whisper permits anyone to create auctions and does not define a canonical
 Stake Wars round. The frontend must therefore not select an auction merely by
@@ -255,7 +289,7 @@ explicit operator/admin procedure. A recurring scheduler and automatic auction
 creation are a later operational phase; do not put a mutable current auction ID
 in the Vite environment or require a frontend deployment for every round.
 
-### 12.6 Winner claim design
+### 12.7 Winner claim design
 
 At initial bid creation, generate a cryptographically random claim secret and
 commit to:
@@ -285,7 +319,7 @@ canonical on-chain `get_result`, atomically records the first valid claim, and
 never returns the secret. This prevents address-dictionary attacks during
 bidding while making the controller public only after voluntary claim.
 
-### 12.7 Billboard storage and rendering
+### 12.8 Billboard storage and rendering
 
 - Add Arbiter-specific authorization and completion endpoints; do not weaken
   the existing Sector `CanManageImage` checks or pretend an auction winner owns
@@ -306,7 +340,23 @@ bidding while making the controller public only after voluntary claim.
   a restrained `SIGNAL AVAILABLE` wireframe rather than a broken image or a
   generic loading skeleton.
 
-### 12.8 Delivery phases
+### 12.9 Coupled milestone map
+
+A Whisper milestone is complete for this submission only when Stake Wars has
+consumed and verified it at the corresponding boundary. Whisper can remain a
+standalone product and reach additional library milestones independently, but
+those do not advance the Stake Wars hackathon product until the paired
+acceptance gate passes.
+
+| Milestone                       | Whisper deliverable and gate                                                                                                                           | Stake Wars deliverable and acceptance                                                                                                                                                               | Status                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| M0 — integration foundation     | Pin the v0.4 contract/ABI, SDK, operator, public Sepolia deployment metadata, and successful private bid lifecycle                                     | Pin Whisper under `vendor/whisper`; strictly decode the ABI; expose the canonical read-only Arbiter round and lifecycle UI                                                                          | Whisper complete; Stake Wars Phase A complete    |
+| M1 — wallet bidder              | Pass live Sepolia Ready tests for initial bid and additive top-up; publish a reviewed SDK tag from the pinned source with browser-compatible packaging | Pin that SDK release; submit least-privileged `transfer + invoke` actions; store claim tickets locally; show submitted versus funded state                                                          | Pending; gates Phase B                           |
+| M2 — end-to-end Sepolia product | Run a separately deployed operator with capsule controls, replay-note inventory, settlement, abort, and recovery monitoring                            | Register a canonical off-chain round; bid from `/play/arbiter`; settle; claim the winner commitment; publish and render the billboard                                                               | Pending; gates Phase C and is the demo rehearsal |
+| M3 — Mainnet hackathon release  | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal                                 | Deploy the public product, complete a real auction/claim/display flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo | Pending; requires explicit Mainnet approval      |
+| M4 — post-sprint hardening      | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible                                 | Recurring round operations, incident UX, monitoring, moderation, and a policy for upgrading the pinned Whisper version                                                                              | Post-sprint                                      |
+
+### 12.10 Stake Wars delivery phases
 
 #### Phase A — read-only Arbiter surfaces — ✅ done 2026-08-24
 
@@ -327,10 +377,10 @@ bidding while making the controller public only after voluntary claim.
 
 #### Phase B — Ready Wallet private bid submission
 
-1. Establish a deployable SDK dependency. Recommended: publish a tagged,
-   reviewed `@whisper-trade/sdk` release and pin it exactly. Do not use
-   `link:../whisper/sdk` because Vercel's `apps/web` build cannot rely on a
-   sibling repository.
+1. Establish a deployable SDK dependency. Publish a tagged, reviewed
+   `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
+   exactly. Keep the vendor gitlink for review and verification; do not use a
+   local `link:` dependency for the Vercel application.
 2. Before publishing, confirm browser support for the SDK's ES2024 output,
    reconsider its Node `>=24` package engine for a browser-consumed package,
    and align its `starknet@10.7.1` dependency with Stake Wars' `10.7.0` pin or
@@ -365,7 +415,7 @@ bidding while making the controller public only after voluntary claim.
 5. Manually verify a complete Sepolia round using Ready before enabling any
    Mainnet auction or meaningful bid amount.
 
-#### Phase D — recurring operations and hardening
+#### Phase D — Mainnet hackathon release, recurring operations, and hardening
 
 1. Define round cadence, reserve, capacity, bidding/grace/settlement windows,
    proceeds recipient, no-sale behavior, and who is authorized to register the
@@ -378,8 +428,14 @@ bidding while making the controller public only after voluntary claim.
 4. Obtain independent Cairo, capsule-format, and operator-custody review before
    Mainnet or meaningful funds. Whisper currently has no bidder-side reclaim
    path and its operator can inspect bids early or withhold/misdirect refunds.
+5. After explicit Mainnet approval, run the combined low-value lifecycle and
+   independently verify every qualifying pool transaction before adding at
+   least three hashes to the root `strk20.json`.
+6. Publish a three-minute demo showing Whisper's reusable mechanics through the
+   Stake Wars bidder, settlement, claim, and billboard flow; keep the public
+   demo URL rooted in Stake Wars.
 
-### 12.9 Verification matrix
+### 12.11 Verification matrix
 
 - Web: disconnected, unsupported wallet, bidding, grace, settling, settled with
   and without winner, unclaimed winner, claimed non-winner, claimed winner,
@@ -388,8 +444,9 @@ bidding while making the controller public only after voluntary claim.
   chain time rather than browser time, settlement result validation, claim
   atomicity, authorization at both upload stages, MIME/signature/dimension
   checks, moderation, and expiry/supersession tests.
-- Whisper: run contract, SDK, operator, docs, deployment JSON, and whitespace
-  checks from the Whisper repository before pinning a release.
+- Whisper: verify the `vendor/whisper` gitlink matches the intended reviewed
+  commit, then run contract, SDK, operator, docs, deployment JSON, and
+  whitespace checks from the submodule before pinning a release.
 - Stake Wars: run `pnpm --filter @stakewars/web test`, build, lint, format check,
   `pnpm --filter @stakewars/api test`, API build, and `git diff --check`.
 - Manual Sepolia: use the shared Sepolia Stake Wars environment, Ready Wallet,
@@ -398,7 +455,7 @@ bidding while making the controller public only after voluntary claim.
   settlement publishes the correct result, only the winner can claim, and only
   the claimed winner can publish the visible billboard.
 
-### 12.10 Decisions still required before Phase B
+### 12.12 Decisions still required before Phase B
 
 1. Confirm whether every Ready wallet may bid or bidding requires an active
    Stake Wars Operator.
@@ -413,17 +470,20 @@ bidding while making the controller public only after voluntary claim.
    for the Whisper operator. The current public Sepolia prover/discovery setup
    has no published production availability commitment.
 
-### 12.11 Freshness and references
+### 12.13 Freshness and references
 
 Freshness was rechecked on 2026-08-24. Stake Wars' current wallet packages are
 already at or above the required STRK20-capable versions. The stable Wallet API
 remains `0.10.3`; a `0.10.4` release candidate is in flight. The get-starknet
 `next` tags have moved since the original balance plan, but no dependency
 upgrade is required for this workstream without a demonstrated compatibility
-need.
+need. The upstream SDK monorepo also renamed its sub-account anonymizer package
+to `packages/shadow_account_anonymizer`; this workstream does not consume that
+package, so the rename creates no Whisper or Stake Wars implementation task.
 
 - Wallet API overview: https://strk20-by-example.org/starknet-wallet-api/overview
 - Private DeFi composition: https://strk20-by-example.org/starknet-wallet-api/private-defi
 - starknet.js wiring: https://strk20-by-example.org/starknet-wallet-api/starknet-js
 - Whisper repository: https://github.com/broody/whisper
-- Whisper protocol: `/Users/broody/development/whisper/docs/PROTOCOL.md`
+- Vendored Whisper protocol: `vendor/whisper/docs/PROTOCOL.md`
+- STRK20 Private Sprint submission rules: https://github.com/starkience/strk20-hackathon#strk20json

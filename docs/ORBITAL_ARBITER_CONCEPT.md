@@ -1,14 +1,15 @@
 # Orbital Arbiter Concept
 
-**Status:** Exploratory design; not approved for implementation
-**Last updated:** 2026-08-18
+**Status:** Superseded for the first Arbiter release by the billboard workstream in `STRK20_INTEGRATION_PLAN.md`
+**Last updated:** 2026-08-24
 
 ## Summary
 
-The Arbiter is a visible object orbiting the Core. Recurring rounds use a
-STRK20 sealed-bid auction to determine temporary influence over bounded global
-game rules. Bids should remain hidden during the bidding phase, while the
-result, active rules, activation time, and expiry remain public.
+The Arbiter is a visible object orbiting the Core. This document preserves the
+earlier exploration of auctions for bounded global game rules, but the first
+approved product shape is narrower: a Whisper-powered STRK20 sealed-bid auction
+sells temporary control of an off-chain billboard. Whisper is the standalone
+auction library; Stake Wars is the dapp and fulfillment layer that consumes it.
 
 The feature is intended as an optional strategic layer over the existing
 delegation-backed Sector game. It must not replace native staking as the
@@ -81,14 +82,15 @@ All values must be bounded by the contract and expire automatically.
 ## Sealed-Bid Auction Boundary
 
 The linked STRK20 sealed-bid auction page is a request-for-startups design
-brief, not a production package. Its proposed protocol has listing, bidding,
-and reveal phases; bids use escrowed encrypted notes; revealed amounts must
-match those notes; and a force-reveal path is required when a bidder does not
-cooperate.
+brief, not a production package. The implementation selected for the first
+Stake Wars integration is the separately maintained and vendored
+[Whisper](https://github.com/broody/whisper) library. Its current protocol has
+listing, bidding, force-reveal, settlement, and recovery phases; bids use
+escrowed encrypted notes and commitment openings.
 
-A Stake Wars implementation would therefore require a separately designed,
-reviewed, audited, and deployed auction protocol. Decisions still required
-include:
+The broader game-rule design below remains exploratory. It would require a
+separate Stake Wars authority contract in addition to Whisper, plus review,
+audit, and deployment. Decisions still required include:
 
 - First-price versus second-price/Vickrey settlement.
 - Bid asset and minimum bid.
@@ -156,4 +158,6 @@ maintenance.
 
 - [STRK20 sealed-bid auction RFP](https://strk20.starknet.io/rfp/sealed-bid-auctions)
 - [STRK20 private DeFi through the Wallet API](https://strk20-by-example.org/starknet-wallet-api/private-defi)
+- [Whisper standalone library](https://github.com/broody/whisper)
+- [Stake Wars STRK20 integration plan](../STRK20_INTEGRATION_PLAN.md)
 - [Stake Wars product requirements](./PRD.md)

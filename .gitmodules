@@ -1,3 +1,6 @@
 [submodule "vendor/starknet-staking"]
 	path = vendor/starknet-staking
 	url = https://github.com/starkware-libs/starknet-staking.git
+[submodule "vendor/whisper"]
+	path = vendor/whisper
+	url = https://github.com/broody/whisper.git

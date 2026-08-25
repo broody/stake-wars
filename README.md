@@ -8,9 +8,19 @@ game token or moving custody away from Starknet's staking system.
 
 A planned STRK20 integration will let players shield undeployed STRK reserves,
 adding uncertainty, bluffing, and strategic mind games when challenges begin.
-Once shadow accounts are fully supported for connected wallets, Stake Wars plans
-to use them to unlink players' public wallet identities from the accounts acting
-in the game; onchain gameplay itself will remain visible.
+Stake Wars also uses [Whisper](https://github.com/broody/whisper), a standalone
+library for private STRK20 Vickrey auctions, to sell temporary control of the
+Arbiter billboard without publishing bids before settlement. Once shadow
+accounts are fully supported for connected wallets, Stake Wars plans to use
+them to unlink players' public wallet identities from the accounts acting in
+the game; onchain gameplay itself will remain visible.
+
+For the STRK20 Private Sprint, the two projects are one submission with a clear
+boundary: Whisper owns the reusable Cairo contract, headless TypeScript SDK,
+encrypted bid capsule, and vault operator; Stake Wars is the dapp, product UX,
+canonical-round registry, winner claim, and billboard fulfillment layer. The
+Whisper repository is pinned here as [`vendor/whisper`](vendor/whisper), while
+remaining usable by applications other than Stake Wars.
 
 This repository contains the web application, game API, and Dojo contracts.
 
@@ -22,7 +32,17 @@ apps/
 └── web/   # React, TypeScript, and Vite frontend
 contracts/ # Cairo contracts and Dojo World configuration
 docs/      # Product and architecture documentation
+vendor/    # Pinned third-party and companion repositories, including Whisper
 ```
+
+Clone the pinned vendor repositories with:
+
+```bash
+git submodule update --init --recursive
+```
+
+The coupled Whisper/Stake Wars delivery gates and hackathon evidence checklist
+are tracked in [`STRK20_INTEGRATION_PLAN.md`](STRK20_INTEGRATION_PLAN.md).
 
 ## Tech stack
 
