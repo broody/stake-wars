@@ -2,29 +2,7 @@ import { WalletButton } from '../components/ui/WalletButton';
 import { OperatorActivityTable } from '../components/ui/OperatorActivityTable';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
-import { formatStrk, shortAddress } from '../utils/format';
-
-function OperatorMetric({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <div className="border-b border-r border-grid px-4 py-4 sm:px-5 sm:py-5">
-      <div className="text-[9px] tracking-[0.2em] text-neutral-500">
-        {label}
-      </div>
-      <div className="mt-2 text-lg tabular-nums text-white">
-        {value}
-        {unit ? ` ${unit}` : ''}
-      </div>
-    </div>
-  );
-}
+import { shortAddress } from '../utils/format';
 
 export function Operator() {
   const { isConnected, address, walletName } = useWallet();
@@ -99,28 +77,12 @@ export function Operator() {
             </div>
           ) : null}
 
-          {operatorStatus ? (
-            <>
-              <div className="grid grid-cols-2 border-l border-t border-grid">
-                <OperatorMetric
-                  label="CONTROL FORCE"
-                  value={formatStrk(operatorStatus.liveDelegatedAmount, 6)}
-                  unit="FORCE"
-                />
-                <OperatorMetric
-                  label="OWNED SECTORS"
-                  value={operatorStatus.controlledSectorCount.toString()}
-                />
-              </div>
-
-              {operatorStatus.needsSync ? (
-                <div className="mt-6 border-l-2 border-amber-400 pl-4 text-[10px] leading-5 text-amber-400">
-                  OPERATOR SYNC REQUIRED · Live stake is below the Force backing
-                  your Sectors. Syncing invalidates the current ownership
-                  generation.
-                </div>
-              ) : null}
-            </>
+          {operatorStatus?.needsSync ? (
+            <div className="border-l-2 border-amber-400 pl-4 text-[10px] leading-5 text-amber-400">
+              OPERATOR SYNC REQUIRED · Live stake is below the Force backing
+              your Sectors. Syncing invalidates the current ownership
+              generation.
+            </div>
           ) : null}
         </section>
 
