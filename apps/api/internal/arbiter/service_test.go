@@ -70,6 +70,25 @@ func TestServiceRejectsCanonicalMismatch(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsOnchainFulfillment(t *testing.T) {
+	round := canonicalRoundFixture()
+	reader := &fakeWhisperReader{
+		auction:        whisperAuctionFixture(starknet.WhisperStatusBidding),
+		chainTimestamp: 50,
+	}
+	reader.auction.FulfillmentKind = starknet.WhisperFulfillmentERC721
+	reader.auction.FulfillmentStatus = starknet.WhisperFulfillmentStatusEscrowed
+	reader.auction.AssetToken = "0x999"
+	reader.auction.AssetTokenID = "7"
+	reader.auction.AssetAmount = "1"
+	service := NewService(fakeRoundStore{round: round}, reader, "SN_SEPOLIA")
+
+	_, err := service.Current(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "fulfillment must be offchain") {
+		t.Fatalf("expected offchain fulfillment rejection, got %v", err)
+	}
+}
+
 func TestLifecyclePhaseUsesChainTime(t *testing.T) {
 	auction := whisperAuctionFixture(starknet.WhisperStatusBidding)
 	tests := []struct {
@@ -143,6 +162,11 @@ func canonicalRoundFixture() CanonicalRound {
 func whisperAuctionFixture(status starknet.WhisperStatus) starknet.WhisperAuction {
 	return starknet.WhisperAuction{
 		ID: 7, Creator: "0x111", PaymentToken: "0x222", MetadataHash: "0x333",
+		FulfillmentKind:     starknet.WhisperFulfillmentOffchain,
+		FulfillmentStatus:   starknet.WhisperFulfillmentStatusOffchain,
+		AssetToken:          "0x0",
+		AssetTokenID:        "0",
+		AssetAmount:         "0",
 		WinnerPayloadDomain: "0x444", ReservePrice: "100", MaxBids: 16,
 		BiddingDeadline: 100, ForceRevealAfter: 110, AbortAfter: 120,
 		VaultAddress: "0x555", SubmissionCount: 3, BidCount: 2,

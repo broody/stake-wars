@@ -5,7 +5,7 @@ export type ArbiterMockMode = 'bidding' | 'winner';
 export type ArbiterPreviewMode = 'live' | ArbiterMockMode;
 
 const WHISPER_ADDRESS =
-  '0x05fc7856d6f64428e001fdf126a17d3b303695d04342195aa9e0c3500de3ee5c';
+  '0x03db9a75d8f90384e300b32bc4f08e3ac273325fbd18d0ef037a31795cfbb586';
 const MOCK_CONTROLLER =
   '0x04cafe9817db154e2a7bb6e2cf4083d6293a324c2199b91f8c921f7f4180beef';
 const MOCK_WINNER_COMMITMENT =

@@ -10,8 +10,9 @@ import (
 
 func TestWhisperReaderDecodesAuctionResultAndChainTime(t *testing.T) {
 	auctionResponse := []string{
-		"0x7", "0x111", "0x222", "0x333", "0x444", "0x555",
-		"0xde0b6b3a7640000", "0x20", "0x64", "0x6e", "0x78",
+		"0x7", "0x111", "0x222", "0x333", "0x444",
+		"0x0", "0x0", "0x0", "0x0", "0x0", "0x0", "0x0",
+		"0x555", "0xde0b6b3a7640000", "0x20", "0x64", "0x6e", "0x78",
 		"0x666", "0x777", "0x888", "0x999", "0xaaa", "0x3",
 		"0x2", "0x2", "0xabc", "0x0",
 	}
@@ -62,6 +63,10 @@ func TestWhisperReaderDecodesAuctionResultAndChainTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if auction.ID != 7 || auction.Creator != "0x111" ||
+		auction.FulfillmentKind != WhisperFulfillmentOffchain ||
+		auction.FulfillmentStatus != WhisperFulfillmentStatusOffchain ||
+		auction.AssetToken != "0x0" || auction.AssetTokenID != "0" ||
+		auction.AssetAmount != "0" ||
 		auction.ReservePrice != "1000000000000000000" || auction.MaxBids != 32 ||
 		auction.SubmissionCount != 3 || auction.BidCount != 2 ||
 		auction.Status != WhisperStatusSettled {
@@ -88,9 +93,10 @@ func TestWhisperReaderDecodesAuctionResultAndChainTime(t *testing.T) {
 
 func TestWhisperReaderRejectsUnsetAuction(t *testing.T) {
 	response := []string{
-		"0x7", "0x111", "0x222", "0x333", "0x444", "0x555", "0x1",
-		"0x2", "0x64", "0x6e", "0x78", "0x666", "0x777", "0x888",
-		"0x999", "0xaaa", "0x0", "0x0", "0x0", "0x0", "0x0",
+		"0x7", "0x111", "0x222", "0x333", "0x444",
+		"0x0", "0x0", "0x0", "0x0", "0x0", "0x0", "0x0",
+		"0x555", "0x1", "0x2", "0x64", "0x6e", "0x78", "0x666", "0x777",
+		"0x888", "0x999", "0xaaa", "0x0", "0x0", "0x0", "0x0", "0x0",
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

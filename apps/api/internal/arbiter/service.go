@@ -213,6 +213,12 @@ func validateCanonicalRound(round CanonicalRound, auction starknet.WhisperAuctio
 		auction.ForceRevealAfter >= auction.AbortAfter {
 		return fmt.Errorf("validate canonical Arbiter round: invalid auction deadlines")
 	}
+	if auction.FulfillmentKind != starknet.WhisperFulfillmentOffchain ||
+		auction.FulfillmentStatus != starknet.WhisperFulfillmentStatusOffchain ||
+		auction.AssetToken != "0x0" || auction.AssetTokenID != "0" ||
+		auction.AssetAmount != "0" {
+		return fmt.Errorf("validate canonical Arbiter round: fulfillment must be offchain")
+	}
 	checks := []struct {
 		name     string
 		expected string
