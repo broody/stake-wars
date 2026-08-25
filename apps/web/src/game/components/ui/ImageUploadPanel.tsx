@@ -30,7 +30,6 @@ export function ImageUploadPanel() {
     maximumImageBytes,
     placementDraft,
     beginPlacement,
-    updatePlacement,
     endPlacement,
     publishArtwork,
   } = useSectorImages();
@@ -355,55 +354,14 @@ export function ImageUploadPanel() {
         </button>
 
         {placementDraft ? (
-          <div className="mt-4 border border-neutral-700 bg-neutral-950 px-3 py-3">
-            <div className="flex items-center justify-between gap-3 text-[9px] tracking-[0.18em]">
-              <span className="text-neutral-300">POSITION ON CORE</span>
-              <span className="text-amber-300">
-                {placementDraft.placement ? 'LIVE VIEW' : 'STARTING VIEW…'}
-              </span>
-            </div>
-            <p className="mt-2 leading-relaxed text-neutral-500">
-              Drag the square to move the image. Drag any corner or scroll over
-              it to resize while preserving its proportions. Outside the square,
-              orbit or zoom the Core to choose the image angle. The live surface
-              preview is the published result. Paste again to replace the image,
-              or press Esc to cancel.
-            </p>
-            {placementDraft.placement ? (
-              <label className="mt-3 block">
-                <span className="mb-2 flex justify-between text-[9px] tracking-[0.16em] text-neutral-500">
-                  <span>ROTATION</span>
-                  <span>
-                    {Math.round(
-                      (placementDraft.placement.rotation * 180) / Math.PI
-                    )}
-                    °
-                  </span>
-                </span>
-                <input
-                  type="range"
-                  min="-180"
-                  max="180"
-                  step="1"
-                  value={(placementDraft.placement.rotation * 180) / Math.PI}
-                  onChange={(event) =>
-                    updatePlacement({
-                      rotation: (Number(event.target.value) * Math.PI) / 180,
-                    })
-                  }
-                  className="w-full accent-amber-300"
-                />
-              </label>
-            ) : null}
-            <button
-              type="button"
-              disabled={isUploading}
-              onClick={discardPreparedImage}
-              className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500 hover:text-white disabled:opacity-50"
-            >
-              CANCEL PLACEMENT
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={discardPreparedImage}
+            className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500 hover:text-white disabled:opacity-50"
+          >
+            CANCEL PLACEMENT
+          </button>
         ) : null}
 
         {imageServiceError ? (
