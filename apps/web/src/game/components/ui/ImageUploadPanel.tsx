@@ -13,7 +13,7 @@ function formatMebibytes(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-export function ImageUploadPanel() {
+export function ImageUploadPanel({ active = true }: { active?: boolean }) {
   const { address } = useWallet();
   const { signTypedDataAsync } = useSignTypedData({});
   const {
@@ -132,7 +132,7 @@ export function ImageUploadPanel() {
   );
 
   useEffect(() => {
-    if (!isImageUploadMode) return;
+    if (!active || !isImageUploadMode) return;
 
     const handlePaste = (event: ClipboardEvent) => {
       if (
@@ -162,10 +162,16 @@ export function ImageUploadPanel() {
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [chooseFile, imageUploadSectorIds.length, isImageUploadMode, isUploading]);
+  }, [
+    active,
+    chooseFile,
+    imageUploadSectorIds.length,
+    isImageUploadMode,
+    isUploading,
+  ]);
 
   useEffect(() => {
-    if (!isImageUploadMode || isUploading) return;
+    if (!active || !isImageUploadMode || isUploading) return;
 
     const cancelOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -180,6 +186,7 @@ export function ImageUploadPanel() {
     document.addEventListener('keydown', cancelOnEscape);
     return () => document.removeEventListener('keydown', cancelOnEscape);
   }, [
+    active,
     discardPreparedImage,
     endImageUpload,
     isImageUploadMode,

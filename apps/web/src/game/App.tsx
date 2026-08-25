@@ -1,5 +1,10 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import { SectorProvider } from './contexts/SectorContext';
 import { WalletProvider } from './contexts/WalletContext';
 import { Layout } from './components/layout/Layout';
@@ -25,6 +30,44 @@ interface GameAppProps {
   basename?: string;
 }
 
+function GamePages() {
+  const location = useLocation();
+  const isCoreActive = location.pathname === '/';
+
+  return (
+    <div className="relative h-full w-full">
+      <div
+        className={`absolute inset-0 ${
+          isCoreActive ? 'visible' : 'invisible pointer-events-none'
+        }`}
+        aria-hidden={!isCoreActive}
+        inert={!isCoreActive}
+      >
+        <Home active={isCoreActive} />
+      </div>
+
+      {isCoreActive ? null : (
+        <div className="absolute inset-0 z-[1]">
+          <Routes>
+            <Route path="/gallery" element={<Gallery />} />
+            <Route path="/staking" element={<Staking />} />
+            <Route path="/arbiter" element={<Arbiter />} />
+            <Route path="/operator" element={<Operator />} />
+            <Route
+              path="/core-lab"
+              element={
+                <Suspense fallback={null}>
+                  <CoreLab />
+                </Suspense>
+              }
+            />
+          </Routes>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GameApp({ basename }: GameAppProps) {
   return (
     <StakeWarsStarknetProvider>
@@ -37,21 +80,7 @@ function GameApp({ basename }: GameAppProps) {
                   <ArbiterProvider>
                     <YieldProvider>
                       <Layout>
-                        <Routes>
-                          <Route path="/" element={<Home />} />
-                          <Route path="/gallery" element={<Gallery />} />
-                          <Route path="/staking" element={<Staking />} />
-                          <Route path="/arbiter" element={<Arbiter />} />
-                          <Route path="/operator" element={<Operator />} />
-                          <Route
-                            path="/core-lab"
-                            element={
-                              <Suspense fallback={null}>
-                                <CoreLab />
-                              </Suspense>
-                            }
-                          />
-                        </Routes>
+                        <GamePages />
                       </Layout>
                     </YieldProvider>
                   </ArbiterProvider>

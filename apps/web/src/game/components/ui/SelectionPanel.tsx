@@ -50,7 +50,7 @@ function ImageUploadAction({
   );
 }
 
-export function SelectionPanel() {
+export function SelectionPanel({ active = true }: { active?: boolean }) {
   const { address } = useWallet();
   const {
     selectedSectorId,
@@ -67,6 +67,7 @@ export function SelectionPanel() {
 
   useEffect(() => {
     if (
+      !active ||
       selectedSectorId === null ||
       isImageUploadMode ||
       isSectorInteractionLocked
@@ -84,6 +85,7 @@ export function SelectionPanel() {
     window.addEventListener('keydown', cancelSelection);
     return () => window.removeEventListener('keydown', cancelSelection);
   }, [
+    active,
     isImageUploadMode,
     isSectorInteractionLocked,
     selectSector,

@@ -82,10 +82,15 @@ export function ArbiterSummaryCard({
       snapshot?.controller &&
       addressesMatch(viewerAddress, snapshot.controller.address)
   );
-  const arbiterHref =
-    previewMode && previewMode !== 'live'
-      ? `/arbiter?arbiterMock=${previewMode}`
-      : '/arbiter';
+  const arbiterSearch = new URLSearchParams();
+  if (previewMode && previewMode !== 'live') {
+    arbiterSearch.set('arbiterMock', previewMode);
+  }
+  arbiterSearch.set('tracking', 'arbiter');
+  const arbiterHref = {
+    pathname: '/arbiter',
+    search: `?${arbiterSearch.toString()}`,
+  };
 
   return (
     <aside

@@ -310,7 +310,7 @@ function marqueeBounds(
   };
 }
 
-export function World() {
+export function World({ active = true }: { active?: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     selectedSectorIds,
@@ -359,13 +359,13 @@ export function World() {
   );
 
   useEffect(() => {
-    if (!isArbiterOpen) return;
+    if (!active || !isArbiterOpen) return;
 
     const stopTrackingOnClick = (event: MouseEvent) => {
       const target = event.target;
       if (
         target instanceof Element &&
-        target.closest('[data-arbiter-console]')
+        target.closest('[data-arbiter-console], [data-preserve-core-tracking]')
       ) {
         return;
       }
@@ -378,12 +378,13 @@ export function World() {
 
     window.addEventListener('click', stopTrackingOnClick, true);
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
-  }, [isArbiterOpen, setArbiterTracking]);
+  }, [active, isArbiterOpen, setArbiterTracking]);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
   );
   const disableIdleRotation =
+    !active ||
     selectedSectorIds.length > 0 ||
     imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
@@ -509,14 +510,14 @@ export function World() {
           minDistance={8}
           maxDistance={30}
           enablePan={false}
-          enabled={marqueeStart === null && !isArbiterOpen}
+          enabled={active && marqueeStart === null && !isArbiterOpen}
         />
 
-        <CameraArrival />
+        <CameraArrival active={active} />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
-        <ArbiterCameraTracker active={isArbiterOpen} />
+        <ArbiterCameraTracker active={active && isArbiterOpen} />
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />

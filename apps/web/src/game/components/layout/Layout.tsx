@@ -9,6 +9,14 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const coreTrackingSearch =
+    new URLSearchParams(location.search).get('tracking') === 'arbiter'
+      ? '?tracking=arbiter'
+      : '';
+  const coreAwareTarget = (path: string) => ({
+    pathname: path,
+    search: coreTrackingSearch,
+  });
 
   const navLinks = [
     { path: '/', label: 'CORE' },
@@ -24,7 +32,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="px-4">
           <div className="grid h-16 grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[auto_1fr_auto] sm:gap-3">
             {/* Logo */}
-            <Link to="/" className="hidden items-center space-x-2 sm:flex">
+            <Link
+              to={coreAwareTarget('/')}
+              data-preserve-core-tracking
+              className="hidden items-center space-x-2 sm:flex"
+            >
               <span className="text-sm font-bold tracking-wider text-fg sm:text-xl">
                 STAKE<span className="text-dim">//</span>WARS
               </span>
@@ -35,7 +47,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
-                  to={link.path}
+                  to={coreAwareTarget(link.path)}
+                  data-preserve-core-tracking
                   className={cn(
                     'border-b border-transparent py-1 text-[8px] tracking-[0.08em] text-dim transition-colors hover:text-fg sm:text-xs sm:tracking-widest md:text-sm',
                     location.pathname === link.path &&

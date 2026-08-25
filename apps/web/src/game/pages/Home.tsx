@@ -4,15 +4,15 @@ import { CoreViewSwitch } from '../components/ui/CoreViewSwitch';
 import { ImageUploadPanel } from '../components/ui/ImageUploadPanel';
 import { SectorLegend } from '../components/ui/SectorLegend';
 
-export function Home() {
+export function Home({ active = true }: { active?: boolean }) {
   return (
     <div className="relative w-full h-full">
-      <World />
+      <World active={active} />
       <CoreViewSwitch />
       <SectorLegend />
 
-      <SelectionPanel />
-      <ImageUploadPanel />
+      <SelectionPanel active={active} />
+      <ImageUploadPanel active={active} />
     </div>
   );
 }

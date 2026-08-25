@@ -137,7 +137,9 @@ describe('ArbiterSummaryCard', () => {
     expect(markup).toContain('GLOBAL CONTROL');
     expect(markup).toContain('CURRENT CONTROLLER');
     expect(markup).toContain('OPEN FULL AUCTION UI');
-    expect(markup).toContain('/arbiter?arbiterMock=bidding');
+    expect(markup).toContain(
+      '/arbiter?arbiterMock=bidding&amp;tracking=arbiter'
+    );
     expect(markup).not.toContain('PUBLIC SIGNAL POLICY');
     expect(markup).not.toContain('CANONICAL ROUND DETAILS');
     expect(markup).not.toContain('ACTIVE TRANSMISSION');

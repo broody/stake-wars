@@ -18,7 +18,7 @@ function applyCameraSample(camera: THREE.Camera, sample: CameraArrivalSample) {
   camera.updateMatrixWorld(true);
 }
 
-export function CameraArrival() {
+export function CameraArrival({ active = true }: { active?: boolean }) {
   const { camera, gl } = useThree();
   const path = useRef(createCameraArrivalPath());
   const sample = useRef<CameraArrivalSample>({
@@ -54,7 +54,7 @@ export function CameraArrival() {
   }, [gl]);
 
   useFrame((_state, delta) => {
-    if (!isAnimating.current) return;
+    if (!active || !isAnimating.current) return;
 
     // Background tabs can resume with a very large delta. Capping it keeps the
     // arrival smooth and prevents it from teleporting to the end on return.
