@@ -16,6 +16,13 @@ const biddingSnapshot: ArbiterSnapshot = {
     paymentToken: '0x456',
     reservePrice: '1500000000000000000',
     maxBids: 16,
+    schedule: {
+      kind: 'start-on-bid',
+      biddingDurationSeconds: 259200,
+      acceptanceDurationSeconds: 600,
+      settlementDurationSeconds: 1800,
+    },
+    startedAt: '2026-08-21T11:00:00Z',
     biddingDeadline: '2026-08-24T11:00:00Z',
     forceRevealAfter: '2026-08-24T11:10:00Z',
     abortAfter: '2026-08-24T11:20:00Z',
@@ -41,15 +48,35 @@ describe('ArbiterConsole', () => {
       />
     );
 
-    expect(markup).toContain('SEALED BIDDING');
-    expect(markup).toContain('BIDDING CLOSES // CHAIN TIME');
-    expect(markup).toContain('01:00:00');
-    expect(markup).toContain('FUNDED TRANCHES');
+    expect(markup).toContain('BIDDING OPEN');
+    expect(markup).toContain('BIDDING CLOSES IN');
+    expect(markup).toContain('1H 00M');
+    expect(markup).toContain('ACCEPTED BIDS');
     expect(markup).toContain('2 / 16');
-    expect(markup).toContain('SUBMISSIONS');
-    expect(markup).toContain('vault operator can inspect accepted deposits');
+    expect(markup).toContain('PLACE SEALED BID');
+    expect(markup).toContain('disabled');
     expect(markup).not.toContain('WINNING BID');
-    expect(markup).not.toContain('CURRENT CONTROLLER');
+  });
+
+  it('explains that the first bid starts the pending auction', () => {
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={createArbiterMockSnapshot(
+          'pending',
+          Date.parse('2026-08-24T12:00:00Z')
+        )}
+        isLoading={false}
+        error={null}
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('WAITING FOR FIRST BID');
+    expect(markup).toContain('STARTS ON BID');
+    expect(markup).toContain('first sealed bid opens a three-day auction');
+    expect(markup).toContain('CONTROL CONTINUES UNTIL THE NEXT WINNER');
   });
 
   it('reveals the public settlement result without inventing a winner address', () => {
@@ -80,11 +107,10 @@ describe('ArbiterConsole', () => {
       />
     );
 
-    expect(markup).toContain('WINNER VERIFIED // CLAIM PENDING');
+    expect(markup).toContain('Winner confirmed');
     expect(markup).toContain('CLEARING PRICE');
     expect(markup).toContain('2 [STRK]');
-    expect(markup).toContain('COMMITMENT');
-    expect(markup).not.toContain('CURRENT CONTROLLER');
+    expect(markup).toContain('WINNER COMMITMENT');
   });
 
   it('shows the development scenario controls with current Influence and bidding', () => {
@@ -105,14 +131,11 @@ describe('ArbiterConsole', () => {
     );
 
     expect(markup).toContain('LOCAL SIGNAL');
-    expect(markup).toContain('INFLUENCE');
-    expect(markup).toContain('MOCK');
-    expect(markup).toContain('ACTIVE INFLUENCE');
-    expect(markup).toContain('FAVORED OPERATOR');
-    expect(markup).toContain('PERIOD OF INFLUENCE');
+    expect(markup).toContain('BIDDING');
+    expect(markup).toContain('CURRENT CONTROLLER');
+    expect(markup).toContain('CONTROL CONTINUES UNTIL THE NEXT WINNER');
     expect(markup).toContain('17 / 64');
-    expect(markup).toContain('LOCAL PREVIEW // NO TRANSACTIONS');
-    expect(markup).not.toContain('BILLBOARD');
+    expect(markup).toContain('LOCAL PREVIEW');
   });
 });
 
@@ -136,15 +159,13 @@ describe('ArbiterSummaryCard', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain('INFLUENCE STATUS');
-    expect(markup).toContain('FAVORED OPERATOR');
-    expect(markup).toContain('OPEN INFLUENCE CONSOLE');
+    expect(markup).toContain('BIDDING OPEN');
+    expect(markup).toContain('CURRENT CONTROLLER');
+    expect(markup).toContain('VIEW AUCTION');
     expect(markup).toContain(
       '/arbiter?arbiterMock=bidding&amp;tracking=arbiter'
     );
-    expect(markup).not.toContain('PUBLIC SIGNAL POLICY');
-    expect(markup).not.toContain('CANONICAL ROUND DETAILS');
-    expect(markup).not.toContain('ACTIVE TRANSMISSION');
+    expect(markup).not.toContain('AUCTION DETAILS');
   });
 
   it('shows the future projection affordance only to the favored Operator', () => {
@@ -167,8 +188,7 @@ describe('ArbiterSummaryCard', () => {
     );
 
     expect(markup).toContain('YOU');
-    expect(markup).toContain('YOUR PERIOD OF INFLUENCE');
-    expect(markup).toContain('SET PROJECTION // COMING NEXT');
+    expect(markup).toContain('SET SIGNAL // SOON');
     expect(markup).toContain('disabled');
   });
 });

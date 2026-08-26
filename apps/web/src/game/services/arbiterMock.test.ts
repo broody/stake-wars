@@ -13,9 +13,19 @@ describe('Arbiter mock snapshots', () => {
     expect(snapshot.round?.result).toBeNull();
     expect(snapshot.controller?.address).toMatch(/^0x/);
     expect(snapshot.billboard?.thumbnailUrl).toMatch(/^data:image\/svg\+xml/);
-    expect(Date.parse(snapshot.round!.biddingDeadline) - observedAt).toBe(
-      6_139_000
+    expect(Date.parse(snapshot.round!.biddingDeadline!) - observedAt).toBe(
+      180_000_000
     );
+  });
+
+  it('keeps a pending auction open without resolved deadlines', () => {
+    const snapshot = createArbiterMockSnapshot('pending', observedAt);
+
+    expect(snapshot.phase).toBe('pending');
+    expect(snapshot.round?.status).toBe('pending');
+    expect(snapshot.round?.biddingDeadline).toBeNull();
+    expect(snapshot.round?.schedule.biddingDurationSeconds).toBe(259200);
+    expect(snapshot.controller).not.toBeNull();
   });
 
   it('creates a claimed winner preview', () => {
@@ -29,6 +39,8 @@ describe('Arbiter mock snapshots', () => {
 
   it('accepts only supported query modes', () => {
     expect(isArbiterMockMode('bidding')).toBe(true);
+    expect(isArbiterMockMode('pending')).toBe(true);
+    expect(isArbiterMockMode('resolving')).toBe(true);
     expect(isArbiterMockMode('winner')).toBe(true);
     expect(isArbiterMockMode('live')).toBe(false);
     expect(isArbiterMockMode(null)).toBe(false);

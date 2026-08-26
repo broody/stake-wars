@@ -63,6 +63,7 @@ func TestWhisperReaderDecodesAuctionResultAndChainTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if auction.ID != 7 || auction.Creator != "0x111" ||
+		auction.Schedule.Kind != WhisperScheduleAbsolute ||
 		auction.FulfillmentKind != WhisperFulfillmentOffchain ||
 		auction.FulfillmentStatus != WhisperFulfillmentStatusOffchain ||
 		auction.AssetToken != "0x0" || auction.AssetTokenID != "0" ||
@@ -88,6 +89,38 @@ func TestWhisperReaderDecodesAuctionResultAndChainTime(t *testing.T) {
 	}
 	if timestamp != 123 {
 		t.Fatalf("expected chain timestamp 123, got %d", timestamp)
+	}
+}
+
+func TestWhisperReaderDecodesPendingStartOnBidAuction(t *testing.T) {
+	response := []string{
+		"0x8", "0x111", "0x222", "0x333", "0x444",
+		"0x0", "0x0", "0x0", "0x0", "0x0", "0x0", "0x0",
+		"0x555", "0xde0b6b3a7640000", "0x20",
+		"0x1", "0x3f480", "0x258", "0x708",
+		"0x0", "0x0", "0x0", "0x0",
+		"0x666", "0x777", "0x888", "0x999", "0xaaa",
+		"0x0", "0x0", "0x1", "0x0", "0x0",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0", "id": 1, "result": response,
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	auction, err := NewWhisperReader(server.URL).Auction(context.Background(), "0x123", 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auction.Status != WhisperStatusPending ||
+		auction.Schedule.Kind != WhisperScheduleStartOnBid ||
+		auction.Schedule.BiddingDuration != 259200 ||
+		auction.Schedule.AcceptanceDuration != 600 ||
+		auction.Schedule.SettlementDuration != 1800 ||
+		auction.StartedAt != 0 || auction.BiddingDeadline != 0 {
+		t.Fatalf("unexpected pending auction: %+v", auction)
 	}
 }
 

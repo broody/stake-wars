@@ -1,7 +1,7 @@
 import type { ArbiterSnapshot } from './api';
 import { config } from './config';
 
-export type ArbiterMockMode = 'bidding' | 'winner';
+export type ArbiterMockMode = 'pending' | 'bidding' | 'resolving' | 'winner';
 export type ArbiterPreviewMode = 'live' | ArbiterMockMode;
 
 const WHISPER_ADDRESS =
@@ -12,22 +12,28 @@ const MOCK_WINNER_COMMITMENT =
   '0x0616e7302d85bb2ac0a5f8fcd19214a9a5ce533f0b2538c47652186f8c33aa21';
 const FALLBACK_STRK_ADDRESS =
   '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+const THREE_DAYS_SECONDS = 3 * 24 * 60 * 60;
 
 export function isArbiterMockMode(
   value: string | null
 ): value is ArbiterMockMode {
-  return value === 'bidding' || value === 'winner';
+  return (
+    value === 'pending' ||
+    value === 'bidding' ||
+    value === 'resolving' ||
+    value === 'winner'
+  );
 }
 
 export function createArbiterMockSnapshot(
   mode: ArbiterMockMode,
   observedAt = Date.now()
 ): ArbiterSnapshot {
-  const activeControl = {
+  const controller = {
     address: MOCK_CONTROLLER,
-    claimedAt: iso(observedAt - 45 * 60_000),
-    startsAt: iso(observedAt - 60 * 60_000),
-    expiresAt: iso(observedAt + 23 * 60 * 60_000),
+    claimedAt: iso(observedAt - 8 * 24 * 60 * 60_000),
+    startsAt: iso(observedAt - 8 * 24 * 60 * 60_000),
+    expiresAt: null,
   };
   const billboard = {
     imageUrl: mockTransmissionURL(),
@@ -37,28 +43,83 @@ export function createArbiterMockSnapshot(
   const sharedRound = {
     whisperAddress: WHISPER_ADDRESS,
     paymentToken: config.strkTokenAddress || FALLBACK_STRK_ADDRESS,
+    reservePrice: '10000000000000000000',
     maxBids: 64,
-    submissionCount: 23,
-    fundedTrancheCount: 17,
-  } as const;
+    schedule: {
+      kind: 'start-on-bid' as const,
+      biddingDurationSeconds: THREE_DAYS_SECONDS,
+      acceptanceDurationSeconds: 10 * 60,
+      settlementDurationSeconds: 30 * 60,
+    },
+  };
+
+  if (mode === 'pending') {
+    return {
+      network: 'SN_SEPOLIA',
+      phase: 'pending',
+      observedAt: iso(observedAt),
+      round: {
+        ...sharedRound,
+        id: 9,
+        auctionId: 44,
+        startedAt: null,
+        biddingDeadline: null,
+        forceRevealAfter: null,
+        abortAfter: null,
+        submissionCount: 0,
+        fundedTrancheCount: 0,
+        status: 'pending',
+        result: null,
+      },
+      controller,
+      billboard,
+    };
+  }
 
   if (mode === 'bidding') {
+    const startedAt = observedAt - 22 * 60 * 60_000;
+    const biddingDeadline = startedAt + THREE_DAYS_SECONDS * 1000;
     return {
       network: 'SN_SEPOLIA',
       phase: 'bidding',
       observedAt: iso(observedAt),
       round: {
         ...sharedRound,
-        id: 8,
-        auctionId: 43,
-        reservePrice: '10000000000000000000',
-        biddingDeadline: iso(observedAt + 102 * 60_000 + 19_000),
-        forceRevealAfter: iso(observedAt + 2 * 60 * 60_000),
-        abortAfter: iso(observedAt + 2.5 * 60 * 60_000),
+        id: 9,
+        auctionId: 44,
+        startedAt: iso(startedAt),
+        biddingDeadline: iso(biddingDeadline),
+        forceRevealAfter: iso(biddingDeadline + 10 * 60_000),
+        abortAfter: iso(biddingDeadline + 40 * 60_000),
+        submissionCount: 23,
+        fundedTrancheCount: 17,
         status: 'bidding',
         result: null,
       },
-      controller: activeControl,
+      controller,
+      billboard,
+    };
+  }
+
+  if (mode === 'resolving') {
+    return {
+      network: 'SN_SEPOLIA',
+      phase: 'settling',
+      observedAt: iso(observedAt),
+      round: {
+        ...sharedRound,
+        id: 9,
+        auctionId: 44,
+        startedAt: iso(observedAt - THREE_DAYS_SECONDS * 1000 - 12 * 60_000),
+        biddingDeadline: iso(observedAt - 12 * 60_000),
+        forceRevealAfter: iso(observedAt - 2 * 60_000),
+        abortAfter: iso(observedAt + 28 * 60_000),
+        submissionCount: 28,
+        fundedTrancheCount: 22,
+        status: 'bidding',
+        result: null,
+      },
+      controller,
       billboard,
     };
   }
@@ -69,12 +130,14 @@ export function createArbiterMockSnapshot(
     observedAt: iso(observedAt),
     round: {
       ...sharedRound,
-      id: 7,
-      auctionId: 42,
-      reservePrice: '10000000000000000000',
-      biddingDeadline: iso(observedAt - 90 * 60_000),
-      forceRevealAfter: iso(observedAt - 75 * 60_000),
-      abortAfter: iso(observedAt - 65 * 60_000),
+      id: 8,
+      auctionId: 43,
+      startedAt: iso(observedAt - THREE_DAYS_SECONDS * 1000 - 60 * 60_000),
+      biddingDeadline: iso(observedAt - 60 * 60_000),
+      forceRevealAfter: iso(observedAt - 50 * 60_000),
+      abortAfter: iso(observedAt - 20 * 60_000),
+      submissionCount: 28,
+      fundedTrancheCount: 22,
       status: 'settled',
       result: {
         hasWinner: true,
@@ -82,10 +145,10 @@ export function createArbiterMockSnapshot(
         winningBid: '41750000000000000000',
         secondHighestBid: '37100000000000000000',
         clearingPrice: '37100000000000000000',
-        settledAt: iso(observedAt - 60 * 60_000),
+        settledAt: iso(observedAt - 45 * 60_000),
       },
     },
-    controller: activeControl,
+    controller,
     billboard,
   };
 }
@@ -96,16 +159,11 @@ function iso(timestamp: number): string {
 
 function mockTransmissionURL(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
-    <rect width="640" height="360" fill="#050505"/>
-    <g fill="none" stroke="#333" stroke-width="1">
-      <path d="M0 60h640M0 120h640M0 180h640M0 240h640M0 300h640"/>
-      <path d="M80 0v360M160 0v360M240 0v360M320 0v360M400 0v360M480 0v360M560 0v360"/>
-    </g>
-    <path d="M28 88V28h60M552 28h60v60M612 272v60h-60M88 332H28v-60" fill="none" stroke="#f5f5f5" stroke-width="4"/>
-    <text x="320" y="170" fill="#f5f5f5" font-family="monospace" font-size="31" font-weight="700" text-anchor="middle">CURRENT TRANSMISSION</text>
-    <text x="320" y="211" fill="#8a8a8a" font-family="monospace" font-size="17" text-anchor="middle">ROUND 0007 // PERIOD OF INFLUENCE</text>
-    <text x="44" y="58" fill="#8a8a8a" font-family="monospace" font-size="14">ARBITER MOCK</text>
-    <text x="596" y="314" fill="#8a8a8a" font-family="monospace" font-size="14" text-anchor="end">16:9</text>
+    <defs><radialGradient id="g"><stop stop-color="#1a1a1a"/><stop offset="1" stop-color="#000000"/></radialGradient></defs>
+    <rect width="640" height="360" fill="url(#g)"/>
+    <g fill="none" stroke="#ffffff" opacity=".18"><circle cx="320" cy="180" r="118"/><circle cx="320" cy="180" r="158"/><path d="M0 180h640M320 0v360"/></g>
+    <path d="M320 80 406 230 320 266 234 230 320 80Z" fill="none" stroke="#ffffff" stroke-width="3"/>
+    <text x="320" y="320" fill="#ffffff" font-family="monospace" font-size="13" letter-spacing="4" text-anchor="middle">CURRENT ARBITER SIGNAL</text>
   </svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

@@ -43,9 +43,28 @@ func TestStoreReturnsLatestRoundForNetwork(t *testing.T) {
 	if round.RoundID != 2 || round.AuctionID != 2 || round.Network != "SN_SEPOLIA" {
 		t.Fatalf("unexpected current round: %+v", round)
 	}
+	if _, err := db.Exec(`
+		UPDATE arbiter_rounds
+		SET claimed_controller = '0x777', claimed_at = 100, billboard_starts_at = 101
+		WHERE network = 'SN_SEPOLIA' AND round_id = 1
+	`); err != nil {
+		t.Fatal(err)
+	}
+	controller, err := store.Controller(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if controller.Address != "0x777" || controller.ClaimedAt.Unix() != 100 ||
+		controller.StartsAt == nil || controller.StartsAt.Unix() != 101 {
+		t.Fatalf("unexpected current controller: %+v", controller)
+	}
 
 	_, err = store.Current(context.Background(), "SN_INTEGRATION")
 	if !errors.Is(err, ErrNoRound) {
 		t.Fatalf("expected ErrNoRound, got %v", err)
+	}
+	_, err = store.Controller(context.Background(), "SN_INTEGRATION")
+	if !errors.Is(err, ErrNoController) {
+		t.Fatalf("expected ErrNoController, got %v", err)
 	}
 }

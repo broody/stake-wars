@@ -70,6 +70,39 @@ func TestServiceRejectsCanonicalMismatch(t *testing.T) {
 	}
 }
 
+func TestServiceReturnsPendingRoundWithContinuousController(t *testing.T) {
+	round := canonicalRoundFixture()
+	claimedAt := time.Unix(80, 0).UTC()
+	round.ClaimedController = "0x777"
+	round.ClaimedAt = &claimedAt
+	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
+	auction.Schedule = starknet.WhisperSchedule{
+		Kind:               starknet.WhisperScheduleStartOnBid,
+		BiddingDuration:    3 * 24 * 60 * 60,
+		AcceptanceDuration: 10 * 60,
+		SettlementDuration: 30 * 60,
+	}
+	auction.BiddingDeadline = 0
+	auction.ForceRevealAfter = 0
+	auction.AbortAfter = 0
+	service := NewService(
+		fakeRoundStore{round: round},
+		&fakeWhisperReader{auction: auction, chainTimestamp: 100},
+		"SN_SEPOLIA",
+	)
+
+	snapshot, err := service.Current(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Phase != PhasePending || snapshot.Round == nil ||
+		snapshot.Round.StartedAt != nil || snapshot.Round.BiddingDeadline != nil ||
+		snapshot.Round.Schedule.BiddingDurationSeconds != 259200 ||
+		snapshot.Controller == nil || snapshot.Controller.Address != "0x777" {
+		t.Fatalf("unexpected pending snapshot: %+v", snapshot)
+	}
+}
+
 func TestServiceRejectsOnchainFulfillment(t *testing.T) {
 	round := canonicalRoundFixture()
 	reader := &fakeWhisperReader{
@@ -122,6 +155,16 @@ func (s fakeRoundStore) Current(context.Context, string) (CanonicalRound, error)
 	return s.round, s.err
 }
 
+func (s fakeRoundStore) Controller(context.Context, string) (ControllerRecord, error) {
+	if s.round.ClaimedController == "" || s.round.ClaimedAt == nil {
+		return ControllerRecord{}, ErrNoController
+	}
+	return ControllerRecord{
+		Address: s.round.ClaimedController, ClaimedAt: *s.round.ClaimedAt,
+		StartsAt: s.round.BillboardStartsAt,
+	}, nil
+}
+
 type fakeWhisperReader struct {
 	auction        starknet.WhisperAuction
 	result         starknet.WhisperResult
@@ -168,6 +211,11 @@ func whisperAuctionFixture(status starknet.WhisperStatus) starknet.WhisperAuctio
 		AssetTokenID:        "0",
 		AssetAmount:         "0",
 		WinnerPayloadDomain: "0x444", ReservePrice: "100", MaxBids: 16,
+		Schedule: starknet.WhisperSchedule{
+			Kind:                    starknet.WhisperScheduleAbsolute,
+			AbsoluteBiddingDeadline: 100, AbsoluteForceRevealAfter: 110,
+			AbsoluteAbortAfter: 120,
+		},
 		BiddingDeadline: 100, ForceRevealAfter: 110, AbortAfter: 120,
 		VaultAddress: "0x555", SubmissionCount: 3, BidCount: 2,
 		Status: status, SettlementHash: "0x999",

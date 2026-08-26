@@ -248,6 +248,8 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Minimum viable image reporting and administrative removal.
 *   **Phase 2: Whisper-Powered Arbiter Auctions**
     *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, and vault operator, while Stake Wars owns the game UX, canonical round, winner claim, and billboard fulfillment.
+    *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and claimed, the current Arbiter controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.
+    *   Run auction cycling as an idempotent duty of the backend Arbiter worker. After a terminal round, it creates and registers the next pending auction without changing controller state; the authorized onchain transaction builder remains isolated from the worker's other permissionless maintenance duties.
     *   Gate Stake Wars bidding, claim, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.

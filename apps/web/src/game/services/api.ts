@@ -18,6 +18,7 @@ export interface StakeWarsApiConfig {
 
 export type ArbiterPhase =
   | 'none'
+  | 'pending'
   | 'bidding'
   | 'acceptance'
   | 'settling'
@@ -41,12 +42,19 @@ export interface ArbiterRound {
   paymentToken: string;
   reservePrice: string;
   maxBids: number;
-  biddingDeadline: string;
-  forceRevealAfter: string;
-  abortAfter: string;
+  schedule: {
+    kind: 'absolute' | 'start-on-bid';
+    biddingDurationSeconds: number;
+    acceptanceDurationSeconds: number;
+    settlementDurationSeconds: number;
+  };
+  startedAt: string | null;
+  biddingDeadline: string | null;
+  forceRevealAfter: string | null;
+  abortAfter: string | null;
   submissionCount: number;
   fundedTrancheCount: number;
-  status: 'bidding' | 'settled' | 'aborted';
+  status: 'pending' | 'bidding' | 'settled' | 'aborted';
   result: ArbiterRoundResult | null;
 }
 

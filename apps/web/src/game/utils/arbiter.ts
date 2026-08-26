@@ -3,12 +3,13 @@ import { formatCountdown, formatStrk } from './format';
 
 const PHASE_LABELS: Record<ArbiterPhase, string> = {
   none: 'NO ROUND',
-  bidding: 'SEALED BIDDING',
-  acceptance: 'ACCEPTANCE GRACE',
-  settling: 'SETTLEMENT WINDOW',
-  recovery: 'RECOVERY AVAILABLE',
-  settled: 'SETTLED',
-  aborted: 'ABORTED',
+  pending: 'WAITING FOR FIRST BID',
+  bidding: 'BIDDING OPEN',
+  acceptance: 'RESOLVING',
+  settling: 'RESOLVING',
+  recovery: 'RECOVERY',
+  settled: 'ROUND COMPLETE',
+  aborted: 'ROUND ENDED',
 };
 
 export function arbiterPhaseLabel(phase: ArbiterPhase): string {
@@ -21,11 +22,17 @@ export function arbiterDeadline(
 ): { label: string; at: string } | null {
   switch (phase) {
     case 'bidding':
-      return { label: 'BIDDING CLOSES', at: round.biddingDeadline };
+      return round.biddingDeadline
+        ? { label: 'BIDDING CLOSES', at: round.biddingDeadline }
+        : null;
     case 'acceptance':
-      return { label: 'FORCE REVEAL OPENS', at: round.forceRevealAfter };
+      return round.forceRevealAfter
+        ? { label: 'FORCE REVEAL OPENS', at: round.forceRevealAfter }
+        : null;
     case 'settling':
-      return { label: 'RECOVERY OPENS', at: round.abortAfter };
+      return round.abortAfter
+        ? { label: 'RECOVERY OPENS', at: round.abortAfter }
+        : null;
     default:
       return null;
   }

@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-var ErrNoRound = errors.New("no Arbiter round")
+var (
+	ErrNoRound      = errors.New("no Arbiter round")
+	ErrNoController = errors.New("no Arbiter controller")
+)
 
 type CanonicalRound struct {
 	Network             string
@@ -25,6 +28,12 @@ type CanonicalRound struct {
 	ClaimedController   string
 	ClaimedAt           *time.Time
 	ActiveArtworkID     string
+}
+
+type ControllerRecord struct {
+	Address   string
+	ClaimedAt time.Time
+	StartsAt  *time.Time
 }
 
 type Store struct{ db *sql.DB }
@@ -76,4 +85,32 @@ func (s *Store) Current(ctx context.Context, network string) (CanonicalRound, er
 		round.ActiveArtworkID = activeArtworkID.String
 	}
 	return round, nil
+}
+
+// Controller returns the newest claimed controller independently from the
+// newest auction round. This keeps control continuous while a later round is
+// pending, resolving, aborted, or settled without a qualifying bid.
+func (s *Store) Controller(ctx context.Context, network string) (ControllerRecord, error) {
+	var controller ControllerRecord
+	var claimedAt int64
+	var startsAt sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT claimed_controller, claimed_at, billboard_starts_at
+		FROM arbiter_rounds
+		WHERE network = ? AND claimed_controller IS NOT NULL AND claimed_at IS NOT NULL
+		ORDER BY claimed_at DESC, round_id DESC
+		LIMIT 1
+	`, network).Scan(&controller.Address, &claimedAt, &startsAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ControllerRecord{}, ErrNoController
+	}
+	if err != nil {
+		return ControllerRecord{}, fmt.Errorf("read current Arbiter controller: %w", err)
+	}
+	controller.ClaimedAt = time.Unix(claimedAt, 0).UTC()
+	if startsAt.Valid {
+		value := time.Unix(startsAt.Int64, 0).UTC()
+		controller.StartsAt = &value
+	}
+	return controller, nil
 }

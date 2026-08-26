@@ -7,13 +7,20 @@ import (
 )
 
 type WhisperStatus string
+type WhisperScheduleKind string
 type WhisperFulfillmentKind string
 type WhisperFulfillmentStatus string
 
 const (
+	WhisperStatusPending WhisperStatus = "pending"
 	WhisperStatusBidding WhisperStatus = "bidding"
 	WhisperStatusSettled WhisperStatus = "settled"
 	WhisperStatusAborted WhisperStatus = "aborted"
+)
+
+const (
+	WhisperScheduleAbsolute   WhisperScheduleKind = "absolute"
+	WhisperScheduleStartOnBid WhisperScheduleKind = "start-on-bid"
 )
 
 const (
@@ -44,6 +51,8 @@ type WhisperAuction struct {
 	WinnerPayloadDomain         string
 	ReservePrice                string
 	MaxBids                     uint32
+	Schedule                    WhisperSchedule
+	StartedAt                   uint64
 	BiddingDeadline             uint64
 	ForceRevealAfter            uint64
 	AbortAfter                  uint64
@@ -57,6 +66,16 @@ type WhisperAuction struct {
 	Status                      WhisperStatus
 	SettlementHash              string
 	RecoveryHash                string
+}
+
+type WhisperSchedule struct {
+	Kind                     WhisperScheduleKind
+	BiddingDuration          uint64
+	AcceptanceDuration       uint64
+	SettlementDuration       uint64
+	AbsoluteBiddingDeadline  uint64
+	AbsoluteForceRevealAfter uint64
+	AbsoluteAbortAfter       uint64
 }
 
 type WhisperResult struct {
@@ -99,9 +118,10 @@ func (r *RPCWhisperReader) Auction(
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	if len(result) != 28 {
+	if len(result) != 28 && len(result) != 33 {
 		return WhisperAuction{}, fmt.Errorf("unexpected Whisper auction length %d", len(result))
 	}
+	legacyLayout := len(result) == 28
 
 	id, err := parseUint(result[0], 64)
 	if err != nil {
@@ -155,55 +175,100 @@ func (r *RPCWhisperReader) Auction(
 	if err != nil {
 		return WhisperAuction{}, fieldError("max_bids", err)
 	}
-	biddingDeadline, err := parseUint(result[15], 64)
+	schedule := WhisperSchedule{}
+	startedAt := uint64(0)
+	biddingDeadlineIndex := 15
+	forceRevealAfterIndex := 16
+	abortAfterIndex := 17
+	vaultAddressIndex := 18
+	vaultPublicKeyIndex := 19
+	revealPublicKeyIndex := 20
+	operatorIdentityCommitmentIndex := 21
+	acceptedBidsHashIndex := 22
+	submissionCountIndex := 23
+	bidCountIndex := 24
+	statusIndex := 25
+	settlementHashIndex := 26
+	recoveryHashIndex := 27
+	if legacyLayout {
+		schedule.Kind = WhisperScheduleAbsolute
+	} else {
+		schedule, err = parseWhisperSchedule(result[15], result[16], result[17], result[18])
+		if err != nil {
+			return WhisperAuction{}, fieldError("schedule", err)
+		}
+		startedAt, err = parseUint(result[19], 64)
+		if err != nil {
+			return WhisperAuction{}, fieldError("started_at", err)
+		}
+		biddingDeadlineIndex = 20
+		forceRevealAfterIndex = 21
+		abortAfterIndex = 22
+		vaultAddressIndex = 23
+		vaultPublicKeyIndex = 24
+		revealPublicKeyIndex = 25
+		operatorIdentityCommitmentIndex = 26
+		acceptedBidsHashIndex = 27
+		submissionCountIndex = 28
+		bidCountIndex = 29
+		statusIndex = 30
+		settlementHashIndex = 31
+		recoveryHashIndex = 32
+	}
+	biddingDeadline, err := parseUint(result[biddingDeadlineIndex], 64)
 	if err != nil {
 		return WhisperAuction{}, fieldError("bidding_deadline", err)
 	}
-	forceRevealAfter, err := parseUint(result[16], 64)
+	forceRevealAfter, err := parseUint(result[forceRevealAfterIndex], 64)
 	if err != nil {
 		return WhisperAuction{}, fieldError("force_reveal_after", err)
 	}
-	abortAfter, err := parseUint(result[17], 64)
+	abortAfter, err := parseUint(result[abortAfterIndex], 64)
 	if err != nil {
 		return WhisperAuction{}, fieldError("abort_after", err)
 	}
-	vaultAddress, err := normalizeContractAddress(result[18])
+	if legacyLayout {
+		schedule.AbsoluteBiddingDeadline = biddingDeadline
+		schedule.AbsoluteForceRevealAfter = forceRevealAfter
+		schedule.AbsoluteAbortAfter = abortAfter
+	}
+	vaultAddress, err := normalizeContractAddress(result[vaultAddressIndex])
 	if err != nil {
 		return WhisperAuction{}, fieldError("vault_address", err)
 	}
-	vaultPublicKey, err := normalizedResponseFelt(result[19], "vault_public_key")
+	vaultPublicKey, err := normalizedResponseFelt(result[vaultPublicKeyIndex], "vault_public_key")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	revealPublicKey, err := normalizedResponseFelt(result[20], "reveal_public_key")
+	revealPublicKey, err := normalizedResponseFelt(result[revealPublicKeyIndex], "reveal_public_key")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	operatorIdentityCommitment, err := normalizedResponseFelt(result[21], "operator_identity_commitment")
+	operatorIdentityCommitment, err := normalizedResponseFelt(result[operatorIdentityCommitmentIndex], "operator_identity_commitment")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	acceptedBidsHash, err := normalizedResponseFelt(result[22], "accepted_bids_hash")
+	acceptedBidsHash, err := normalizedResponseFelt(result[acceptedBidsHashIndex], "accepted_bids_hash")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	submissionCount, err := parseUint(result[23], 32)
+	submissionCount, err := parseUint(result[submissionCountIndex], 32)
 	if err != nil {
 		return WhisperAuction{}, fieldError("submission_count", err)
 	}
-	bidCount, err := parseUint(result[24], 32)
+	bidCount, err := parseUint(result[bidCountIndex], 32)
 	if err != nil {
 		return WhisperAuction{}, fieldError("bid_count", err)
 	}
-	status, err := parseWhisperStatus(result[25])
+	status, err := parseWhisperStatus(result[statusIndex], legacyLayout)
 	if err != nil {
 		return WhisperAuction{}, fieldError("status", err)
 	}
-	settlementHash, err := normalizedResponseFelt(result[26], "settlement_hash")
+	settlementHash, err := normalizedResponseFelt(result[settlementHashIndex], "settlement_hash")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
-	recoveryHash, err := normalizedResponseFelt(result[27], "recovery_hash")
+	recoveryHash, err := normalizedResponseFelt(result[recoveryHashIndex], "recovery_hash")
 	if err != nil {
 		return WhisperAuction{}, err
 	}
@@ -219,6 +284,7 @@ func (r *RPCWhisperReader) Auction(
 		FulfillmentStatus:           fulfillmentStatus,
 		WinnerPayloadDomain:         winnerPayloadDomain,
 		ReservePrice:                reservePrice, MaxBids: uint32(maxBids),
+		Schedule: schedule, StartedAt: startedAt,
 		BiddingDeadline: biddingDeadline, ForceRevealAfter: forceRevealAfter,
 		AbortAfter: abortAfter, VaultAddress: vaultAddress,
 		VaultPublicKey: vaultPublicKey, RevealPublicKey: revealPublicKey,
@@ -307,17 +373,66 @@ func normalizedResponseFelt(value, field string) (string, error) {
 	return normalized, nil
 }
 
-func parseWhisperStatus(value string) (WhisperStatus, error) {
+func parseWhisperSchedule(
+	kindValue, firstValue, secondValue, thirdValue string,
+) (WhisperSchedule, error) {
+	kind, err := parseUint(kindValue, 8)
+	if err != nil {
+		return WhisperSchedule{}, err
+	}
+	first, err := parseUint(firstValue, 64)
+	if err != nil {
+		return WhisperSchedule{}, fmt.Errorf("first value: %w", err)
+	}
+	second, err := parseUint(secondValue, 64)
+	if err != nil {
+		return WhisperSchedule{}, fmt.Errorf("second value: %w", err)
+	}
+	third, err := parseUint(thirdValue, 64)
+	if err != nil {
+		return WhisperSchedule{}, fmt.Errorf("third value: %w", err)
+	}
+	switch kind {
+	case 0:
+		return WhisperSchedule{
+			Kind: WhisperScheduleAbsolute, AbsoluteBiddingDeadline: first,
+			AbsoluteForceRevealAfter: second, AbsoluteAbortAfter: third,
+		}, nil
+	case 1:
+		return WhisperSchedule{
+			Kind: WhisperScheduleStartOnBid, BiddingDuration: first,
+			AcceptanceDuration: second, SettlementDuration: third,
+		}, nil
+	default:
+		return WhisperSchedule{}, fmt.Errorf("unexpected AuctionSchedule variant %d", kind)
+	}
+}
+
+func parseWhisperStatus(value string, legacyLayout bool) (WhisperStatus, error) {
 	status, err := parseUint(value, 8)
 	if err != nil {
 		return "", err
 	}
+	if legacyLayout {
+		switch status {
+		case 1:
+			return WhisperStatusBidding, nil
+		case 2:
+			return WhisperStatusSettled, nil
+		case 3:
+			return WhisperStatusAborted, nil
+		default:
+			return "", fmt.Errorf("unexpected legacy AuctionStatus variant %d", status)
+		}
+	}
 	switch status {
 	case 1:
-		return WhisperStatusBidding, nil
+		return WhisperStatusPending, nil
 	case 2:
-		return WhisperStatusSettled, nil
+		return WhisperStatusBidding, nil
 	case 3:
+		return WhisperStatusSettled, nil
+	case 4:
 		return WhisperStatusAborted, nil
 	default:
 		return "", fmt.Errorf("unexpected AuctionStatus variant %d", status)

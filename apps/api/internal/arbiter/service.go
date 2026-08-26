@@ -10,10 +10,13 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
+const canonicalBiddingDurationSeconds = 3 * 24 * 60 * 60
+
 type Phase string
 
 const (
 	PhaseNone       Phase = "none"
+	PhasePending    Phase = "pending"
 	PhaseBidding    Phase = "bidding"
 	PhaseAcceptance Phase = "acceptance"
 	PhaseSettling   Phase = "settling"
@@ -38,13 +41,22 @@ type RoundView struct {
 	PaymentToken       string                 `json:"paymentToken"`
 	ReservePrice       string                 `json:"reservePrice"`
 	MaxBids            uint32                 `json:"maxBids"`
-	BiddingDeadline    time.Time              `json:"biddingDeadline"`
-	ForceRevealAfter   time.Time              `json:"forceRevealAfter"`
-	AbortAfter         time.Time              `json:"abortAfter"`
+	Schedule           ScheduleView           `json:"schedule"`
+	StartedAt          *time.Time             `json:"startedAt"`
+	BiddingDeadline    *time.Time             `json:"biddingDeadline"`
+	ForceRevealAfter   *time.Time             `json:"forceRevealAfter"`
+	AbortAfter         *time.Time             `json:"abortAfter"`
 	SubmissionCount    uint32                 `json:"submissionCount"`
 	FundedTrancheCount uint32                 `json:"fundedTrancheCount"`
 	Status             starknet.WhisperStatus `json:"status"`
 	Result             *ResultView            `json:"result"`
+}
+
+type ScheduleView struct {
+	Kind                      starknet.WhisperScheduleKind `json:"kind"`
+	BiddingDurationSeconds    uint64                       `json:"biddingDurationSeconds"`
+	AcceptanceDurationSeconds uint64                       `json:"acceptanceDurationSeconds"`
+	SettlementDurationSeconds uint64                       `json:"settlementDurationSeconds"`
 }
 
 type ResultView struct {
@@ -71,6 +83,7 @@ type BillboardView struct {
 
 type roundStore interface {
 	Current(ctx context.Context, network string) (CanonicalRound, error)
+	Controller(ctx context.Context, network string) (ControllerRecord, error)
 }
 
 type Service struct {
@@ -110,15 +123,19 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("read Starknet chain time: %w", err)
 	}
-	biddingDeadline, err := unixTime(auction.BiddingDeadline)
+	startedAt, err := optionalUnixTime(auction.StartedAt)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("decode auction start: %w", err)
+	}
+	biddingDeadline, err := optionalUnixTime(auction.BiddingDeadline)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("decode bidding deadline: %w", err)
 	}
-	forceRevealAfter, err := unixTime(auction.ForceRevealAfter)
+	forceRevealAfter, err := optionalUnixTime(auction.ForceRevealAfter)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("decode force reveal deadline: %w", err)
 	}
-	abortAfter, err := unixTime(auction.AbortAfter)
+	abortAfter, err := optionalUnixTime(auction.AbortAfter)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("decode abort deadline: %w", err)
 	}
@@ -131,6 +148,13 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 		ID: round.RoundID, WhisperAddress: whisperAddress,
 		AuctionID: round.AuctionID, PaymentToken: auction.PaymentToken,
 		ReservePrice: auction.ReservePrice, MaxBids: auction.MaxBids,
+		Schedule: ScheduleView{
+			Kind:                      auction.Schedule.Kind,
+			BiddingDurationSeconds:    auction.Schedule.BiddingDuration,
+			AcceptanceDurationSeconds: auction.Schedule.AcceptanceDuration,
+			SettlementDurationSeconds: auction.Schedule.SettlementDuration,
+		},
+		StartedAt:       startedAt,
 		BiddingDeadline: biddingDeadline, ForceRevealAfter: forceRevealAfter,
 		AbortAfter:         abortAfter,
 		SubmissionCount:    auction.SubmissionCount,
@@ -169,14 +193,18 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 		ObservedAt: observedAt,
 		Round:      view,
 	}
-	if round.ClaimedController != "" && round.ClaimedAt != nil {
-		controller, err := starknet.NormalizeAddress(round.ClaimedController)
+	controllerRecord, err := s.store.Controller(ctx, s.network)
+	if err != nil && !errors.Is(err, ErrNoController) {
+		return Snapshot{}, err
+	}
+	if err == nil {
+		controller, err := starknet.NormalizeAddress(controllerRecord.Address)
 		if err != nil {
 			return Snapshot{}, fmt.Errorf("validate claimed Arbiter controller: %w", err)
 		}
 		snapshot.Controller = &ControllerView{
-			Address: controller, ClaimedAt: *round.ClaimedAt,
-			StartsAt: round.BillboardStartsAt, ExpiresAt: round.BillboardExpiresAt,
+			Address: controller, ClaimedAt: controllerRecord.ClaimedAt,
+			StartsAt: controllerRecord.StartsAt,
 		}
 	}
 	return snapshot, nil
@@ -184,6 +212,8 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 
 func lifecyclePhase(auction starknet.WhisperAuction, chainTimestamp uint64) Phase {
 	switch auction.Status {
+	case starknet.WhisperStatusPending:
+		return PhasePending
 	case starknet.WhisperStatusSettled:
 		return PhaseSettled
 	case starknet.WhisperStatusAborted:
@@ -209,9 +239,43 @@ func validateCanonicalRound(round CanonicalRound, auction starknet.WhisperAuctio
 			round.AuctionID,
 		)
 	}
-	if auction.BiddingDeadline >= auction.ForceRevealAfter ||
+	if auction.Status == starknet.WhisperStatusPending {
+		if auction.Schedule.Kind != starknet.WhisperScheduleStartOnBid ||
+			auction.StartedAt != 0 || auction.BiddingDeadline != 0 ||
+			auction.ForceRevealAfter != 0 || auction.AbortAfter != 0 {
+			return fmt.Errorf("validate canonical Arbiter round: invalid pending schedule")
+		}
+	} else if auction.BiddingDeadline >= auction.ForceRevealAfter ||
 		auction.ForceRevealAfter >= auction.AbortAfter {
 		return fmt.Errorf("validate canonical Arbiter round: invalid auction deadlines")
+	}
+	if auction.Schedule.Kind == starknet.WhisperScheduleStartOnBid &&
+		(auction.Schedule.BiddingDuration == 0 ||
+			auction.Schedule.AcceptanceDuration == 0 ||
+			auction.Schedule.SettlementDuration == 0) {
+		return fmt.Errorf("validate canonical Arbiter round: invalid start-on-bid durations")
+	}
+	if auction.Schedule.Kind == starknet.WhisperScheduleStartOnBid &&
+		auction.Schedule.BiddingDuration != canonicalBiddingDurationSeconds {
+		return fmt.Errorf("validate canonical Arbiter round: bidding window must be three days")
+	}
+	if auction.Schedule.Kind != starknet.WhisperScheduleAbsolute &&
+		auction.Schedule.Kind != starknet.WhisperScheduleStartOnBid {
+		return fmt.Errorf("validate canonical Arbiter round: unsupported auction schedule")
+	}
+	if auction.Schedule.Kind == starknet.WhisperScheduleAbsolute &&
+		(auction.Schedule.AbsoluteBiddingDeadline != auction.BiddingDeadline ||
+			auction.Schedule.AbsoluteForceRevealAfter != auction.ForceRevealAfter ||
+			auction.Schedule.AbsoluteAbortAfter != auction.AbortAfter) {
+		return fmt.Errorf("validate canonical Arbiter round: absolute schedule mismatch")
+	}
+	if auction.Schedule.Kind == starknet.WhisperScheduleStartOnBid &&
+		auction.Status != starknet.WhisperStatusPending &&
+		(auction.StartedAt == 0 || auction.StartedAt >= auction.BiddingDeadline ||
+			auction.BiddingDeadline-auction.StartedAt != auction.Schedule.BiddingDuration ||
+			auction.ForceRevealAfter-auction.BiddingDeadline != auction.Schedule.AcceptanceDuration ||
+			auction.AbortAfter-auction.ForceRevealAfter != auction.Schedule.SettlementDuration) {
+		return fmt.Errorf("validate canonical Arbiter round: resolved schedule mismatch")
 	}
 	if auction.FulfillmentKind != starknet.WhisperFulfillmentOffchain ||
 		auction.FulfillmentStatus != starknet.WhisperFulfillmentStatusOffchain ||
@@ -256,4 +320,15 @@ func unixTime(value uint64) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("timestamp exceeds signed Unix range")
 	}
 	return time.Unix(int64(value), 0).UTC(), nil
+}
+
+func optionalUnixTime(value uint64) (*time.Time, error) {
+	if value == 0 {
+		return nil, nil
+	}
+	decoded, err := unixTime(value)
+	if err != nil {
+		return nil, err
+	}
+	return &decoded, nil
 }
