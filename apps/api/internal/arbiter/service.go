@@ -10,7 +10,7 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
-const canonicalBiddingDurationSeconds = 3 * 24 * 60 * 60
+const defaultBiddingDurationSeconds = 3 * 24 * 60 * 60
 
 type Phase string
 
@@ -35,21 +35,24 @@ type Snapshot struct {
 }
 
 type RoundView struct {
-	ID                 uint64                 `json:"id"`
-	WhisperAddress     string                 `json:"whisperAddress"`
-	AuctionID          uint64                 `json:"auctionId"`
-	PaymentToken       string                 `json:"paymentToken"`
-	ReservePrice       string                 `json:"reservePrice"`
-	MaxBids            uint32                 `json:"maxBids"`
-	Schedule           ScheduleView           `json:"schedule"`
-	StartedAt          *time.Time             `json:"startedAt"`
-	BiddingDeadline    *time.Time             `json:"biddingDeadline"`
-	ForceRevealAfter   *time.Time             `json:"forceRevealAfter"`
-	AbortAfter         *time.Time             `json:"abortAfter"`
-	SubmissionCount    uint32                 `json:"submissionCount"`
-	FundedTrancheCount uint32                 `json:"fundedTrancheCount"`
-	Status             starknet.WhisperStatus `json:"status"`
-	Result             *ResultView            `json:"result"`
+	ID                  uint64                 `json:"id"`
+	WhisperAddress      string                 `json:"whisperAddress"`
+	AuctionID           uint64                 `json:"auctionId"`
+	PaymentToken        string                 `json:"paymentToken"`
+	WinnerPayloadDomain string                 `json:"winnerPayloadDomain"`
+	ReservePrice        string                 `json:"reservePrice"`
+	MaxBids             uint32                 `json:"maxBids"`
+	VaultAddress        string                 `json:"vaultAddress"`
+	RevealPublicKey     string                 `json:"revealPublicKey"`
+	Schedule            ScheduleView           `json:"schedule"`
+	StartedAt           *time.Time             `json:"startedAt"`
+	BiddingDeadline     *time.Time             `json:"biddingDeadline"`
+	ForceRevealAfter    *time.Time             `json:"forceRevealAfter"`
+	AbortAfter          *time.Time             `json:"abortAfter"`
+	SubmissionCount     uint32                 `json:"submissionCount"`
+	FundedTrancheCount  uint32                 `json:"fundedTrancheCount"`
+	Status              starknet.WhisperStatus `json:"status"`
+	Result              *ResultView            `json:"result"`
 }
 
 type ScheduleView struct {
@@ -87,14 +90,23 @@ type roundStore interface {
 }
 
 type Service struct {
-	store   roundStore
-	reader  starknet.WhisperReader
-	network string
-	now     func() time.Time
+	store                  roundStore
+	reader                 starknet.WhisperReader
+	network                string
+	biddingDurationSeconds uint64
+	now                    func() time.Time
 }
 
-func NewService(store roundStore, reader starknet.WhisperReader, network string) *Service {
-	return &Service{store: store, reader: reader, network: network, now: time.Now}
+func NewService(
+	store roundStore,
+	reader starknet.WhisperReader,
+	network string,
+	biddingDurationSeconds uint64,
+) *Service {
+	return &Service{
+		store: store, reader: reader, network: network,
+		biddingDurationSeconds: biddingDurationSeconds, now: time.Now,
+	}
 }
 
 func (s *Service) Current(ctx context.Context) (Snapshot, error) {
@@ -116,7 +128,7 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("read Whisper auction: %w", err)
 	}
-	if err := validateCanonicalRound(round, auction); err != nil {
+	if err := validateCanonicalRound(round, auction, s.biddingDurationSeconds); err != nil {
 		return Snapshot{}, err
 	}
 	chainTimestamp, err := s.reader.ChainTimestamp(ctx)
@@ -147,7 +159,9 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 	view := &RoundView{
 		ID: round.RoundID, WhisperAddress: whisperAddress,
 		AuctionID: round.AuctionID, PaymentToken: auction.PaymentToken,
-		ReservePrice: auction.ReservePrice, MaxBids: auction.MaxBids,
+		WinnerPayloadDomain: auction.WinnerPayloadDomain,
+		ReservePrice:        auction.ReservePrice, MaxBids: auction.MaxBids,
+		VaultAddress: auction.VaultAddress, RevealPublicKey: auction.RevealPublicKey,
 		Schedule: ScheduleView{
 			Kind:                      auction.Schedule.Kind,
 			BiddingDurationSeconds:    auction.Schedule.BiddingDuration,
@@ -231,7 +245,11 @@ func lifecyclePhase(auction starknet.WhisperAuction, chainTimestamp uint64) Phas
 	return PhaseRecovery
 }
 
-func validateCanonicalRound(round CanonicalRound, auction starknet.WhisperAuction) error {
+func validateCanonicalRound(
+	round CanonicalRound,
+	auction starknet.WhisperAuction,
+	expectedBiddingDurationSeconds uint64,
+) error {
 	if auction.ID != round.AuctionID {
 		return fmt.Errorf(
 			"validate canonical Arbiter round: auction id is %d, expected %d",
@@ -256,8 +274,12 @@ func validateCanonicalRound(round CanonicalRound, auction starknet.WhisperAuctio
 		return fmt.Errorf("validate canonical Arbiter round: invalid start-on-bid durations")
 	}
 	if auction.Schedule.Kind == starknet.WhisperScheduleStartOnBid &&
-		auction.Schedule.BiddingDuration != canonicalBiddingDurationSeconds {
-		return fmt.Errorf("validate canonical Arbiter round: bidding window must be three days")
+		auction.Schedule.BiddingDuration != expectedBiddingDurationSeconds {
+		return fmt.Errorf(
+			"validate canonical Arbiter round: bidding window is %d seconds, expected %d",
+			auction.Schedule.BiddingDuration,
+			expectedBiddingDurationSeconds,
+		)
 	}
 	if auction.Schedule.Kind != starknet.WhisperScheduleAbsolute &&
 		auction.Schedule.Kind != starknet.WhisperScheduleStartOnBid {

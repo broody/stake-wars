@@ -40,8 +40,11 @@ export interface ArbiterRound {
   whisperAddress: string;
   auctionId: number;
   paymentToken: string;
+  winnerPayloadDomain: string;
   reservePrice: string;
   maxBids: number;
+  vaultAddress: string;
+  revealPublicKey: string;
   schedule: {
     kind: 'absolute' | 'start-on-bid';
     biddingDurationSeconds: number;
@@ -79,8 +82,13 @@ export interface ArbiterSnapshot {
 export interface ArbiterHistoryEntry {
   roundId: number;
   winnerAddress: string | null;
-  bidderCount: number;
+  bidCount: number;
   winningBid: string;
+}
+
+export interface ArbiterHistoryPage {
+  entries: ArbiterHistoryEntry[];
+  nextCursor: string | null;
 }
 
 export interface PreparedSectorImage {
@@ -189,6 +197,10 @@ export const api = {
 
   getArbiter(signal?: AbortSignal): Promise<ArbiterSnapshot> {
     return requestJSON('/v1/arbiter', { signal });
+  },
+
+  getArbiterHistory(signal?: AbortSignal): Promise<ArbiterHistoryPage> {
+    return requestJSON('/v1/arbiter/history?limit=100', { signal });
   },
 
   async getSectorArtworks(signal?: AbortSignal): Promise<SectorArtwork[]> {

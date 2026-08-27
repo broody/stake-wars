@@ -12,8 +12,11 @@ const round: ArbiterRound = {
   whisperAddress: '0x123',
   auctionId: 7,
   paymentToken: '0x456',
+  winnerPayloadDomain: '0x789',
   reservePrice: '1500000000000000000',
   maxBids: 16,
+  vaultAddress: '0xabc',
+  revealPublicKey: '0xdef',
   schedule: {
     kind: 'start-on-bid',
     biddingDurationSeconds: 259200,

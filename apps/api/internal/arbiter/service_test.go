@@ -11,7 +11,9 @@ import (
 
 func TestServiceReturnsNoRoundWithoutReadingRPC(t *testing.T) {
 	reader := &fakeWhisperReader{}
-	service := NewService(fakeRoundStore{err: ErrNoRound}, reader, "SN_SEPOLIA")
+	service := NewService(
+		fakeRoundStore{err: ErrNoRound}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
+	)
 	service.now = func() time.Time { return time.Unix(25, 0) }
 
 	snapshot, err := service.Current(context.Background())
@@ -41,7 +43,9 @@ func TestServiceReturnsVerifiedSettledRound(t *testing.T) {
 		},
 		chainTimestamp: 140,
 	}
-	service := NewService(fakeRoundStore{round: round}, reader, "SN_SEPOLIA")
+	service := NewService(
+		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
+	)
 
 	snapshot, err := service.Current(context.Background())
 	if err != nil {
@@ -62,7 +66,9 @@ func TestServiceRejectsCanonicalMismatch(t *testing.T) {
 		chainTimestamp: 50,
 	}
 	reader.auction.MetadataHash = "0xdead"
-	service := NewService(fakeRoundStore{round: round}, reader, "SN_SEPOLIA")
+	service := NewService(
+		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
+	)
 
 	_, err := service.Current(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "metadata hash mismatch") {
@@ -89,6 +95,7 @@ func TestServiceReturnsPendingRoundWithContinuousController(t *testing.T) {
 		fakeRoundStore{round: round},
 		&fakeWhisperReader{auction: auction, chainTimestamp: 100},
 		"SN_SEPOLIA",
+		defaultBiddingDurationSeconds,
 	)
 
 	snapshot, err := service.Current(context.Background())
@@ -98,6 +105,9 @@ func TestServiceReturnsPendingRoundWithContinuousController(t *testing.T) {
 	if snapshot.Phase != PhasePending || snapshot.Round == nil ||
 		snapshot.Round.StartedAt != nil || snapshot.Round.BiddingDeadline != nil ||
 		snapshot.Round.Schedule.BiddingDurationSeconds != 259200 ||
+		snapshot.Round.WinnerPayloadDomain != "0x444" ||
+		snapshot.Round.VaultAddress != "0x555" ||
+		snapshot.Round.RevealPublicKey != "0x777" ||
 		snapshot.Controller == nil || snapshot.Controller.Address != "0x777" {
 		t.Fatalf("unexpected pending snapshot: %+v", snapshot)
 	}
@@ -114,11 +124,41 @@ func TestServiceRejectsOnchainFulfillment(t *testing.T) {
 	reader.auction.AssetToken = "0x999"
 	reader.auction.AssetTokenID = "7"
 	reader.auction.AssetAmount = "1"
-	service := NewService(fakeRoundStore{round: round}, reader, "SN_SEPOLIA")
+	service := NewService(
+		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
+	)
 
 	_, err := service.Current(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "fulfillment must be offchain") {
 		t.Fatalf("expected offchain fulfillment rejection, got %v", err)
+	}
+}
+
+func TestServiceAcceptsConfiguredFiveMinuteBiddingWindow(t *testing.T) {
+	round := canonicalRoundFixture()
+	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
+	auction.Schedule = starknet.WhisperSchedule{
+		Kind:               starknet.WhisperScheduleStartOnBid,
+		BiddingDuration:    5 * 60,
+		AcceptanceDuration: 10 * 60,
+		SettlementDuration: 30 * 60,
+	}
+	auction.BiddingDeadline = 0
+	auction.ForceRevealAfter = 0
+	auction.AbortAfter = 0
+	service := NewService(
+		fakeRoundStore{round: round},
+		&fakeWhisperReader{auction: auction, chainTimestamp: 100},
+		"SN_SEPOLIA",
+		5*60,
+	)
+
+	snapshot, err := service.Current(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Round == nil || snapshot.Round.Schedule.BiddingDurationSeconds != 5*60 {
+		t.Fatalf("unexpected five-minute snapshot: %+v", snapshot)
 	}
 }
 
@@ -217,7 +257,8 @@ func whisperAuctionFixture(status starknet.WhisperStatus) starknet.WhisperAuctio
 			AbsoluteAbortAfter: 120,
 		},
 		BiddingDeadline: 100, ForceRevealAfter: 110, AbortAfter: 120,
-		VaultAddress: "0x555", SubmissionCount: 3, BidCount: 2,
+		VaultAddress: "0x555", RevealPublicKey: "0x777",
+		SubmissionCount: 3, BidCount: 2,
 		Status: status, SettlementHash: "0x999",
 	}
 }

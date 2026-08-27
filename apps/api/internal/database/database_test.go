@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 3 {
-		t.Fatalf("expected three migrations, got %d", migrations)
+	if migrations != 4 {
+		t.Fatalf("expected four migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`
@@ -40,6 +40,28 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 		VALUES ('report', 'missing', 'test', 1)
 	`); err == nil {
 		t.Fatal("expected foreign key constraint")
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO arbiter_round_outcomes(
+			network, round_id, whisper_address, auction_id, terminal_status,
+			has_winner, winner_group_handle, winner_commitment, winning_bid,
+			second_highest_bid, clearing_price, funded_bid_count,
+			settlement_hash, settlement_transaction_hash, settled_at
+		) VALUES (
+			'SN_SEPOLIA', 1, '0x1', 7, 'settled', 1, '0x7', '0x8',
+			'100', '80', '80', 2, '0x9', '0xa', 100
+		)
+	`); err != nil {
+		t.Fatalf("insert Arbiter outcome: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO arbiter_cycle_jobs(
+			network, predecessor_round_id, predecessor_whisper_address,
+			predecessor_auction_id, successor_round_id, expected_metadata_hash
+		) VALUES ('SN_SEPOLIA', 1, '0x1', 7, 2, '0xb')
+	`); err != nil {
+		t.Fatalf("insert Arbiter cycle job: %v", err)
 	}
 }
 

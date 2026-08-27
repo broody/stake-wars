@@ -6,15 +6,15 @@ import type {
   ArbiterRound,
   ArbiterSnapshot,
 } from '../../services/api';
-import type { ArbiterPreviewMode } from '../../services/arbiterMock';
-import { useArbiterPreview } from '../../contexts/useArbiterPreview';
+import type { ArbiterBidReceipt } from '../../services/whisperBid';
+import { useArbiter } from '../../contexts/useArbiter';
 import { useWallet } from '../../contexts/WalletContext';
 import {
   arbiterDeadline,
   arbiterPhaseLabel,
   formatArbiterAmount,
 } from '../../utils/arbiter';
-import { addressesMatch, shortAddress } from '../../utils/format';
+import { addressesMatch, formatStrk, shortAddress } from '../../utils/format';
 
 interface ArbiterModalProps {
   isOpen: boolean;
@@ -26,9 +26,8 @@ interface ArbiterConsoleProps extends ArbiterModalProps {
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onPlaceBid?: (amount: string) => void;
-  previewMode?: ArbiterPreviewMode;
-  onPreviewModeChange?: (mode: ArbiterPreviewMode) => void;
+  onPlaceBid?: (amount: string) => Promise<ArbiterBidReceipt>;
+  bidStatusLabel?: string;
   presentation?: 'hud' | 'page';
   title?: string;
   view?: 'auction' | 'history';
@@ -40,13 +39,11 @@ interface ArbiterSummaryCardProps extends ArbiterModalProps {
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
-  previewMode?: ArbiterPreviewMode;
   viewerAddress?: string | null;
 }
 
 export function ArbiterModal({ isOpen, onClose }: ArbiterModalProps) {
-  const { snapshot, isLoading, error, refresh, previewMode } =
-    useArbiterPreview();
+  const { snapshot, isLoading, error, refresh } = useArbiter();
   const { address } = useWallet();
 
   return (
@@ -57,7 +54,6 @@ export function ArbiterModal({ isOpen, onClose }: ArbiterModalProps) {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
-      previewMode={previewMode}
       viewerAddress={address}
     />
   );
@@ -70,7 +66,6 @@ export function ArbiterSummaryCard({
   isLoading,
   error,
   onRefresh,
-  previewMode,
   viewerAddress,
 }: ArbiterSummaryCardProps) {
   const chainNow = useArbiterChainNow(isOpen, snapshot?.observedAt);
@@ -87,9 +82,6 @@ export function ArbiterSummaryCard({
       addressesMatch(viewerAddress, snapshot.controller.address)
   );
   const search = new URLSearchParams();
-  if (previewMode && previewMode !== 'live') {
-    search.set('arbiterMock', previewMode);
-  }
   search.set('tracking', 'arbiter');
 
   return (
@@ -162,12 +154,14 @@ export function ArbiterSummaryCard({
                 {summaryAuctionValue(phase, deadline, chainNow)}
               </span>
               <span className="text-[8px] tracking-[0.14em] text-fg">
-                {previewMode && previewMode !== 'live' ? 'MOCK' : 'VERIFIED'}
+                VERIFIED
               </span>
             </div>
             {phase === 'pending' ? (
               <p className="mt-2 text-[10px] leading-4 text-neutral-400">
-                First sealed bid starts three days.
+                First sealed bid starts a{' '}
+                {formatAuctionWindow(round.schedule.biddingDurationSeconds)}{' '}
+                auction.
               </p>
             ) : null}
           </section>
@@ -207,8 +201,7 @@ export function ArbiterConsole({
   error,
   onRefresh,
   onPlaceBid,
-  previewMode,
-  onPreviewModeChange,
+  bidStatusLabel,
   presentation = 'hud',
   title = 'THE ARBITER',
   view = 'auction',
@@ -221,7 +214,6 @@ export function ArbiterConsole({
   const phase = snapshot?.phase ?? 'none';
   const round = snapshot?.round ?? null;
   const isPage = presentation === 'page';
-  const isMock = previewMode !== undefined && previewMode !== 'live';
   const Container = isPage ? 'section' : 'aside';
 
   return (
@@ -258,17 +250,18 @@ export function ArbiterConsole({
         ) : null}
       </header>
 
-      {previewMode && onPreviewModeChange ? (
-        <PreviewControls current={previewMode} onChange={onPreviewModeChange} />
-      ) : null}
-
       {error ? (
         <div className="px-4 pt-4 sm:px-6">
-          <ErrorNotice hasSnapshot={Boolean(snapshot)} onRefresh={onRefresh} />
+          <ErrorNotice
+            hasSnapshot={
+              view === 'history' ? history.length > 0 : Boolean(snapshot)
+            }
+            onRefresh={onRefresh}
+          />
         </div>
       ) : null}
 
-      {isLoading && !snapshot ? (
+      {isLoading && (view === 'history' || !snapshot) ? (
         <div className="grid min-h-[28rem] place-items-center">
           <div className="text-center">
             <div className="mx-auto h-px w-20 animate-pulse bg-fg motion-reduce:animate-none" />
@@ -285,12 +278,12 @@ export function ArbiterConsole({
           round={round}
           chainNow={chainNow}
           onPlaceBid={onPlaceBid}
-          isMock={isMock}
+          bidStatusLabel={bidStatusLabel}
         />
       ) : null}
 
       {view === 'history' && !isLoading ? (
-        <HistoryPanel entries={history} isMock={isMock} />
+        <HistoryPanel entries={history} />
       ) : null}
 
       {view === 'auction' && snapshot && !round ? (
@@ -314,7 +307,7 @@ export function ArbiterConsole({
       ) : null}
 
       <footer className="flex items-center justify-between border-t border-grid px-4 py-3 text-[8px] tracking-[0.18em] text-dim sm:px-6">
-        <span>{isMock ? 'LOCAL PREVIEW' : 'VERIFIED ONCHAIN'}</span>
+        <span>VERIFIED ONCHAIN</span>
         <span>SEALED VICKREY AUCTION</span>
       </footer>
     </Container>
@@ -326,25 +319,44 @@ function AuctionPanel({
   round,
   chainNow,
   onPlaceBid,
-  isMock,
+  bidStatusLabel,
 }: {
   phase: ArbiterPhase;
   round: ArbiterRound;
   chainNow: number;
-  onPlaceBid?: (amount: string) => void;
-  isMock: boolean;
+  onPlaceBid?: (amount: string) => Promise<ArbiterBidReceipt>;
+  bidStatusLabel?: string;
 }) {
-  const [bidAmount, setBidAmount] = useState('12.00');
-  const [submittedAmount, setSubmittedAmount] = useState<string | null>(null);
+  const reserveBid = formatStrk(BigInt(round.reservePrice), 18);
+  const [bidAmount, setBidAmount] = useState(reserveBid);
+  const [isSubmitting, setSubmitting] = useState(false);
+  const [bidError, setBidError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ArbiterBidReceipt | null>(null);
   const state = auctionState(phase, round);
   const canBid = phase === 'pending' || phase === 'bidding';
   const bidIsValid = Number(bidAmount) > 0;
 
-  const submitBid = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    setBidAmount(reserveBid);
+    setBidError(null);
+    setReceipt(null);
+  }, [reserveBid, round.id]);
+
+  const submitBid = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!onPlaceBid || !bidIsValid) return;
-    onPlaceBid(bidAmount);
-    setSubmittedAmount(bidAmount);
+    if (!onPlaceBid || !bidIsValid || isSubmitting) return;
+    setBidError(null);
+    setReceipt(null);
+    setSubmitting(true);
+    try {
+      setReceipt(await onPlaceBid(bidAmount));
+    } catch (reason) {
+      setBidError(
+        reason instanceof Error ? reason.message : 'Private bid failed.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -372,10 +384,7 @@ function AuctionPanel({
               label="RESERVE"
               value={formatArbiterAmount(round.reservePrice)}
             />
-            <CompactDetail
-              label="BIDS"
-              value={String(round.fundedTrancheCount)}
-            />
+            <CompactDetail label="BIDS" value={String(round.submissionCount)} />
             <CompactDetail
               label="WINDOW"
               value={formatDuration(round.schedule.biddingDurationSeconds)}
@@ -392,24 +401,24 @@ function AuctionPanel({
                   YOUR SEALED BID
                 </label>
                 <span className={onPlaceBid ? 'text-fg' : 'text-neutral-600'}>
-                  {onPlaceBid
-                    ? isMock
-                      ? 'MOCK WALLET // CONNECTED'
-                      : 'WALLET // CONNECTED'
-                    : 'WALLET BIDDER UNAVAILABLE'}
+                  {bidStatusLabel ||
+                    (onPlaceBid
+                      ? 'READY WALLET // PRIVATE'
+                      : 'READY WALLET REQUIRED')}
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] border border-neutral-600 focus-within:border-fg">
                 <input
                   id="arbiter-bid-amount"
                   type="number"
-                  min="0"
+                  min={reserveBid}
                   step="0.01"
                   inputMode="decimal"
                   value={bidAmount}
                   onChange={(event) => {
                     setBidAmount(event.target.value);
-                    setSubmittedAmount(null);
+                    setReceipt(null);
+                    setBidError(null);
                   }}
                   className="min-w-0 bg-black px-4 py-4 text-2xl font-bold tabular-nums tracking-[-0.04em] text-fg outline-none"
                 />
@@ -419,22 +428,35 @@ function AuctionPanel({
               </div>
               <button
                 type="submit"
-                disabled={!onPlaceBid || !bidIsValid}
+                disabled={!onPlaceBid || !bidIsValid || isSubmitting}
                 title={
                   onPlaceBid
                     ? 'Place a sealed bid'
-                    : 'Private wallet bidding is not connected yet'
+                    : bidStatusLabel || 'Private wallet bidding is unavailable'
                 }
                 className="mt-3 w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
-                {submittedAmount ? 'MOCK BID READY' : 'PLACE SEALED BID'}
+                {isSubmitting
+                  ? 'CONFIRM IN READY…'
+                  : receipt
+                    ? 'BID SUBMITTED'
+                    : 'PLACE SEALED BID'}
               </button>
-              {submittedAmount ? (
+              {receipt ? (
                 <p
                   className="mt-2 text-[8px] tracking-[0.16em] text-fg"
                   role="status"
                 >
-                  {submittedAmount} STRK // READY FOR WALLET CONFIRMATION
+                  TRANSACTION {shortAddress(receipt.transactionHash)} // CLAIM
+                  TICKET SAVED ON THIS DEVICE
+                </p>
+              ) : null}
+              {bidError ? (
+                <p
+                  className="mt-2 text-[9px] leading-4 text-red-400"
+                  role="alert"
+                >
+                  {bidError}
                 </p>
               ) : null}
             </form>
@@ -445,13 +467,7 @@ function AuctionPanel({
   );
 }
 
-function HistoryPanel({
-  entries,
-  isMock,
-}: {
-  entries: ArbiterHistoryEntry[];
-  isMock: boolean;
-}) {
+function HistoryPanel({ entries }: { entries: ArbiterHistoryEntry[] }) {
   return (
     <section className="min-h-[30rem] bg-black">
       <div className="flex items-center justify-between border-b border-grid px-5 py-5 sm:px-7">
@@ -464,7 +480,7 @@ function HistoryPanel({
           </h3>
         </div>
         <span className="text-[8px] tracking-[0.18em] text-neutral-500">
-          {isMock ? 'MOCK DATA' : 'VERIFIED'}
+          VERIFIED
         </span>
       </div>
 
@@ -492,7 +508,7 @@ function HistoryPanel({
               WINNER
             </div>
             <div role="columnheader" className="px-5 py-4 text-right">
-              BIDDERS
+              BIDS
             </div>
             <div role="columnheader" className="px-7 py-4 text-right">
               WINNING BID
@@ -528,11 +544,11 @@ function HistoryPanel({
                 </span>
               </HistoryCell>
               <HistoryCell
-                label="BIDDERS"
+                label="BIDS"
                 className="border-t border-grid px-5 py-4 sm:border-t-0 sm:py-5 sm:text-right"
               >
                 <span className="text-sm tabular-nums text-neutral-300">
-                  {entry.bidderCount}
+                  {entry.bidCount}
                 </span>
               </HistoryCell>
               <HistoryCell
@@ -656,47 +672,6 @@ function AuctionOrbit({
   );
 }
 
-function PreviewControls({
-  current,
-  onChange,
-}: {
-  current: ArbiterPreviewMode;
-  onChange: (mode: ArbiterPreviewMode) => void;
-}) {
-  const options: Array<[string, ArbiterPreviewMode]> = [
-    ['LIVE', 'live'],
-    ['WAITING', 'pending'],
-    ['BIDDING', 'bidding'],
-    ['RESOLVING', 'resolving'],
-    ['WINNER', 'winner'],
-  ];
-  return (
-    <nav
-      aria-label="Arbiter preview scenario"
-      className="flex flex-wrap items-center justify-between gap-2 border-b border-grid bg-black px-4 py-2 sm:px-6"
-    >
-      <span className="text-[8px] tracking-[0.18em] text-neutral-600">
-        LOCAL SIGNAL
-      </span>
-      <div className="flex flex-wrap justify-end gap-1">
-        {options.map(([label, mode]) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={current === mode}
-            onClick={() => onChange(mode)}
-            className={`px-2 py-1 text-[7px] tracking-[0.12em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-fg sm:text-[8px] ${
-              current === mode ? 'bg-fg text-bg' : 'text-dim hover:text-fg'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 function ErrorNotice({
   hasSnapshot,
   onRefresh,
@@ -708,8 +683,8 @@ function ErrorNotice({
     <section className="flex items-center justify-between gap-3 border-l border-fg bg-white/[0.04] px-3 py-3">
       <span className="text-[9px] leading-4 text-neutral-400">
         {hasSnapshot
-          ? 'Showing the last verified state.'
-          : 'State unavailable.'}
+          ? 'Showing the last verified data.'
+          : 'Verified data unavailable.'}
       </span>
       <button
         type="button"
@@ -753,7 +728,7 @@ function auctionState(phase: ArbiterPhase, round: ArbiterRound) {
     case 'pending':
       return {
         title: 'Start the clock',
-        body: 'The first sealed bid opens a three-day auction.',
+        body: `The first sealed bid opens a ${formatAuctionWindow(round.schedule.biddingDurationSeconds)} auction.`,
       };
     case 'bidding':
       return {
@@ -864,6 +839,19 @@ function formatDuration(seconds: number) {
   }
   if (seconds % 3600 === 0) return `${seconds / 3600} HOURS`;
   return `${Math.round(seconds / 60)} MINUTES`;
+}
+
+function formatAuctionWindow(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return 'fixed-window';
+  if (seconds % 86400 === 0) {
+    const days = seconds / 86400;
+    return `${days}-day`;
+  }
+  if (seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours}-hour`;
+  }
+  return `${Math.round(seconds / 60)}-minute`;
 }
 
 function compactAuctionCountdown(at: string, now: number) {

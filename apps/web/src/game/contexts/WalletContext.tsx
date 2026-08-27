@@ -15,6 +15,7 @@ import {
   useProvider,
 } from '@starknetfoundation/starknet-start-react';
 import { WalletAccountV6, walletV6 } from 'starknet';
+import type { STRK20_ACTION } from 'starknet';
 import type { WalletState } from '../types';
 import { config } from '../services/config';
 import {
@@ -36,6 +37,10 @@ type PrivacyWallet = Parameters<typeof walletV6.supportedWalletApi>[0];
 interface WalletContextType extends WalletState {
   connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  invokePrivateActions: (
+    actions: STRK20_ACTION[]
+  ) => Promise<{ transactionHash: string }>;
+  isPrivacyWalletSupported: boolean;
   readShieldedStrkBalance: () => Promise<void>;
   shieldedStrkBalance: bigint | null;
   shieldedStrkError: string | null;
@@ -108,6 +113,35 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     await disconnection.disconnectAsync();
   }, [disconnection]);
 
+  const isPrivacyWalletSupported =
+    shieldedStrkStatus === 'available' ||
+    shieldedStrkStatus === 'reading' ||
+    shieldedStrkStatus === 'ready' ||
+    shieldedStrkStatus === 'error';
+
+  const invokePrivateActions = useCallback(
+    async (actions: STRK20_ACTION[]) => {
+      if (!account.address || !privacyWallet) {
+        throw new Error('Connect Ready before placing a private bid.');
+      }
+      if (!isPrivacyWalletSupported) {
+        throw new Error('This wallet does not support private STRK actions.');
+      }
+      if (actions.length === 0) {
+        throw new Error('Private transaction requires at least one action.');
+      }
+
+      const walletAccount = new WalletAccountV6({
+        address: account.address,
+        provider,
+        walletProvider: privacyWallet,
+      });
+      const result = await walletAccount.strk20InvokeTransaction(actions);
+      return { transactionHash: result.transaction_hash };
+    },
+    [account.address, isPrivacyWalletSupported, privacyWallet, provider]
+  );
+
   const readShieldedStrkBalance = useCallback(async () => {
     if (
       !account.address ||
@@ -165,6 +199,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       isConnecting: Boolean(
         account.isConnecting || connection.isPending || disconnection.isPending
       ),
+      invokePrivateActions,
+      isPrivacyWalletSupported,
       readShieldedStrkBalance,
       shieldedStrkBalance,
       shieldedStrkError,
@@ -182,6 +218,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     disconnect,
     disconnection.error,
     disconnection.isPending,
+    invokePrivateActions,
+    isPrivacyWalletSupported,
     account.connector?.name,
     readShieldedStrkBalance,
     shieldedStrkBalance,

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,10 +36,15 @@ type Dependencies struct {
 	Torii          *ToriiGateway
 	Images         *images.Service
 	Arbiter        arbiterReader
+	ArbiterHistory arbiterHistoryReader
 }
 
 type arbiterReader interface {
 	Current(ctx context.Context) (arbiter.Snapshot, error)
+}
+
+type arbiterHistoryReader interface {
+	List(ctx context.Context, limit int, cursor string) (arbiter.HistoryPage, error)
 }
 
 // NewHandler returns the API's HTTP routes.
@@ -49,6 +55,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("GET /v1/arbiter", server.arbiterState)
+	mux.HandleFunc("GET /v1/arbiter/history", server.arbiterHistory)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
 	mux.HandleFunc("GET /v1/sector-artworks", server.listSectorImages)
@@ -60,6 +67,44 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	}
 
 	return securityHeaders(cors(dependencies.AllowedOrigins, mux))
+}
+
+func (s *server) arbiterHistory(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.ArbiterHistory == nil {
+		w.Header().Set("Cache-Control", "public, max-age=10")
+		writeJSON(w, http.StatusOK, arbiter.HistoryPage{Entries: []arbiter.HistoryEntry{}})
+		return
+	}
+	limit := 0
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, "invalid request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	page, err := s.dependencies.ArbiterHistory.List(
+		r.Context(),
+		limit,
+		r.URL.Query().Get("cursor"),
+	)
+	if errors.Is(err, arbiter.ErrInvalidHistoryQuery) {
+		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(r.Context(), "read Arbiter history", "error", err)
+		writeProblem(
+			w,
+			http.StatusInternalServerError,
+			"Arbiter history unavailable",
+			"could not read verified Arbiter history",
+		)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=10")
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (s *server) arbiterState(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestLoadUsesConfigurableImageLimit(t *testing.T) {
 	t.Setenv("MAX_IMAGE_BYTES", "4194304")
@@ -16,6 +19,60 @@ func TestLoadUsesConfigurableImageLimit(t *testing.T) {
 	}
 	if len(configuration.AllowedOrigins) != 2 {
 		t.Fatalf("expected production origins only, got %v", configuration.AllowedOrigins)
+	}
+}
+
+func TestLoadUsesConfigurableArbiterBiddingDuration(t *testing.T) {
+	t.Setenv("ARBITER_BIDDING_DURATION", "5m")
+
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configuration.ArbiterBiddingDuration != 5*time.Minute {
+		t.Fatalf("expected five minutes, got %s", configuration.ArbiterBiddingDuration)
+	}
+}
+
+func TestLoadDefaultsArbiterBiddingDurationToThreeDays(t *testing.T) {
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configuration.ArbiterBiddingDuration != 72*time.Hour {
+		t.Fatalf("expected three days, got %s", configuration.ArbiterBiddingDuration)
+	}
+}
+
+func TestLoadRejectsInvalidArbiterBiddingDuration(t *testing.T) {
+	t.Setenv("ARBITER_BIDDING_DURATION", "500ms")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected sub-second bidding duration to fail")
+	}
+}
+
+func TestLoadConfiguresArbiterCoordinator(t *testing.T) {
+	t.Setenv("ARBITER_COORDINATOR_URL", "http://127.0.0.1:8082")
+	t.Setenv("ARBITER_COORDINATOR_TOKEN", "0123456789abcdef0123456789abcdef")
+	t.Setenv("ARBITER_PAYMENT_TOKEN", "0x123")
+	t.Setenv("ARBITER_ACCEPTANCE_DURATION", "3m")
+	t.Setenv("ARBITER_SETTLEMENT_DURATION", "22m")
+
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configuration.ArbiterCoordinatorEnabled() ||
+		configuration.ArbiterAcceptanceDuration != 3*time.Minute ||
+		configuration.ArbiterSettlementDuration != 22*time.Minute {
+		t.Fatalf("unexpected Arbiter coordinator config: %+v", configuration)
+	}
+}
+
+func TestLoadRejectsPartialArbiterCoordinator(t *testing.T) {
+	t.Setenv("ARBITER_COORDINATOR_URL", "http://127.0.0.1:8082")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected partial Arbiter coordinator config to fail")
 	}
 }
 

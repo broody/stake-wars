@@ -48,6 +48,38 @@ func run() error {
 	defer db.Close()
 
 	verifier := starknet.NewVerifier(configuration.StarknetRPCURL, configuration.StarknetChainID)
+	whisperReader := starknet.NewWhisperReader(configuration.StarknetRPCURL)
+	arbiterStore := arbiter.NewStore(db)
+	arbiterBiddingDurationSeconds := uint64(configuration.ArbiterBiddingDuration / time.Second)
+	var arbiterWorker *arbiter.Worker
+	arbiterDuties := make([]arbiter.Duty, 0, 2)
+	if configuration.ToriiURL != "" {
+		settlementSource, err := arbiter.NewToriiSettlementSource(configuration.ToriiURL)
+		if err != nil {
+			return err
+		}
+		arbiterDuties = append(arbiterDuties,
+			arbiter.NewSettlementProjector(
+				arbiterStore,
+				settlementSource,
+				whisperReader,
+				configuration.StarknetChainID,
+				arbiterBiddingDurationSeconds,
+			),
+		)
+	}
+	if configuration.ArbiterCoordinatorEnabled() {
+		restarter, err := newArbiterRestarter(configuration, arbiterStore, whisperReader)
+		if err != nil {
+			return err
+		}
+		arbiterDuties = append(arbiterDuties, arbiter.NewAuctionCycleDuty(
+			arbiterStore, whisperReader, restarter, configuration.StarknetChainID,
+		))
+	}
+	if len(arbiterDuties) > 0 {
+		arbiterWorker = arbiter.NewWorker(20*time.Second, arbiterDuties...)
+	}
 	if configuration.StarknetRPCURL == "" {
 		slog.Warn("STARKNET_RPC_URL is not configured; session creation is disabled")
 	}
@@ -97,8 +129,13 @@ func run() error {
 			Torii:  toriiGateway,
 			Images: imageService,
 			Arbiter: arbiter.NewService(
-				arbiter.NewStore(db),
-				starknet.NewWhisperReader(configuration.StarknetRPCURL),
+				arbiterStore,
+				whisperReader,
+				configuration.StarknetChainID,
+				arbiterBiddingDurationSeconds,
+			),
+			ArbiterHistory: arbiter.NewHistoryService(
+				arbiterStore,
 				configuration.StarknetChainID,
 			),
 			Config: api.PublicConfig{
@@ -122,6 +159,13 @@ func run() error {
 		syscall.SIGTERM,
 	)
 	defer stop()
+	if arbiterWorker != nil {
+		go func() {
+			if err := arbiterWorker.Run(ctx); err != nil {
+				slog.ErrorContext(ctx, "Arbiter worker stopped", "error", err)
+			}
+		}()
+	}
 	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("API listening", "address", server.Addr)
@@ -141,6 +185,31 @@ func run() error {
 	defer cancel()
 
 	return server.Shutdown(shutdownCtx)
+}
+
+func newArbiterRestarter(
+	configuration config.Config,
+	store *arbiter.Store,
+	reader starknet.WhisperReader,
+) (*arbiter.OperatorRoundRestarter, error) {
+	return arbiter.NewOperatorRoundRestarter(
+		store,
+		reader,
+		arbiter.NewOperatorCoordinatorClient(
+			configuration.ArbiterCoordinatorURL,
+			configuration.ArbiterCoordinatorToken,
+		),
+		arbiter.CoordinatorConfig{
+			Network:                   configuration.StarknetChainID,
+			PaymentToken:              configuration.ArbiterPaymentToken,
+			ReservePrice:              configuration.ArbiterReservePrice,
+			MaxBids:                   configuration.ArbiterMaxBids,
+			WinnerPayloadDomain:       configuration.ArbiterWinnerPayloadDomain,
+			BiddingDurationSeconds:    uint64(configuration.ArbiterBiddingDuration / time.Second),
+			AcceptanceDurationSeconds: uint64(configuration.ArbiterAcceptanceDuration / time.Second),
+			SettlementDurationSeconds: uint64(configuration.ArbiterSettlementDuration / time.Second),
+		},
+	)
 }
 
 func publicToriiURL(gateway *api.ToriiGateway) string {

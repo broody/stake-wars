@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"stakewars.com/api/internal/starknet"
@@ -16,21 +17,20 @@ type Duty interface {
 
 // Worker runs Arbiter duties immediately and then at a fixed interval.
 type Worker struct {
-	interval time.Duration
-	duties   []Duty
+	interval    time.Duration
+	dutyTimeout time.Duration
+	duties      []Duty
 }
 
 func NewWorker(interval time.Duration, duties ...Duty) *Worker {
-	return &Worker{interval: interval, duties: duties}
+	return &Worker{interval: interval, dutyTimeout: 2 * time.Minute, duties: duties}
 }
 
 func (w *Worker) Run(ctx context.Context) error {
 	if w.interval <= 0 {
 		return fmt.Errorf("Arbiter worker interval must be positive")
 	}
-	if err := w.reconcile(ctx); err != nil {
-		return err
-	}
+	w.reconcileAndReport(ctx)
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 	for {
@@ -38,17 +38,24 @@ func (w *Worker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := w.reconcile(ctx); err != nil {
-				return err
-			}
+			w.reconcileAndReport(ctx)
 		}
+	}
+}
+
+func (w *Worker) reconcileAndReport(ctx context.Context) {
+	if err := w.reconcile(ctx); err != nil && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "Arbiter worker reconciliation failed", "error", err)
 	}
 }
 
 func (w *Worker) reconcile(ctx context.Context) error {
 	var result error
 	for _, duty := range w.duties {
-		if err := duty.Reconcile(ctx); err != nil {
+		dutyContext, cancel := context.WithTimeout(ctx, w.dutyTimeout)
+		err := duty.Reconcile(dutyContext)
+		cancel()
+		if err != nil {
 			result = errors.Join(result, err)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/database"
 )
@@ -79,6 +80,45 @@ func TestArbiterHasStableNoRoundResponse(t *testing.T) {
 	}
 	if got := response.Header().Get("Cache-Control"); got != "public, max-age=5" {
 		t.Fatalf("unexpected Cache-Control %q", got)
+	}
+}
+
+func TestArbiterHistoryIsPaginatedAndPublic(t *testing.T) {
+	dependencies := testDependencies(t)
+	winner := "0x777"
+	dependencies.ArbiterHistory = apiTestArbiterHistory{
+		page: arbiter.HistoryPage{
+			Entries: []arbiter.HistoryEntry{{
+				RoundID: 4, WinnerAddress: &winner, BidCount: 3, WinningBid: "100",
+			}},
+		},
+	}
+	handler := NewHandler(dependencies)
+	request := httptest.NewRequest(http.MethodGet, "/v1/arbiter/history?limit=25", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected history status, got %d: %s", response.Code, response.Body.String())
+	}
+	var payload arbiter.HistoryPage
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Entries) != 1 || payload.Entries[0].RoundID != 4 ||
+		payload.Entries[0].WinnerAddress == nil || payload.Entries[0].BidCount != 3 {
+		t.Fatalf("unexpected history response: %+v", payload)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "public, max-age=10" {
+		t.Fatalf("unexpected Cache-Control %q", got)
+	}
+
+	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/arbiter/history?limit=nope", nil)
+	invalidResponse := httptest.NewRecorder()
+	handler.ServeHTTP(invalidResponse, invalidRequest)
+	if invalidResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid limit rejection, got %d", invalidResponse.Code)
 	}
 }
 
@@ -205,6 +245,19 @@ func testDependencies(t *testing.T) Dependencies {
 }
 
 type apiTestVerifier struct{}
+
+type apiTestArbiterHistory struct {
+	page arbiter.HistoryPage
+	err  error
+}
+
+func (h apiTestArbiterHistory) List(
+	context.Context,
+	int,
+	string,
+) (arbiter.HistoryPage, error) {
+	return h.page, h.err
+}
 
 func (apiTestVerifier) NormalizeWallet(value string) (string, error) {
 	return value, nil

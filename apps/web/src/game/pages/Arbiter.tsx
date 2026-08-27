@@ -1,24 +1,69 @@
+import { useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArbiterLogo } from '../components/3d/ArbiterLogo';
 import { ArbiterConsole } from '../components/ui/ArbiterModal';
-import { useArbiterPreview } from '../contexts/useArbiterPreview';
-import { createArbiterMockHistory } from '../services/arbiterMock';
+import { useArbiterHistory } from '../contexts/useArbiterHistory';
+import { useArbiter } from '../contexts/useArbiter';
+import { useWallet } from '../contexts/WalletContext';
+import { config } from '../services/config';
+import { submitArbiterBid } from '../services/whisperBid';
 
 export function Arbiter() {
   const location = useLocation();
+  const { snapshot, isLoading, error, refresh } = useArbiter();
   const {
-    snapshot,
-    isLoading,
-    error,
-    refresh,
-    previewMode,
-    onPreviewModeChange,
-  } = useArbiterPreview();
+    address,
+    chainId,
+    invokePrivateActions,
+    isConnected,
+    isPrivacyWalletSupported,
+    shieldedStrkStatus,
+  } = useWallet();
   const view = location.pathname.endsWith('/history') ? 'history' : 'auction';
-  const mockMode =
-    previewMode && previewMode !== 'live' ? previewMode : undefined;
-  const history = mockMode ? createArbiterMockHistory(mockMode) : [];
-  const mockBid = mockMode ? () => undefined : undefined;
+  const historyState = useArbiterHistory(view === 'history');
+  const consoleLoading =
+    view === 'history' ? historyState.isLoading : isLoading;
+  const consoleError = view === 'history' ? historyState.error : error;
+  const consoleRefresh = view === 'history' ? historyState.refresh : refresh;
+
+  const bidStatusLabel = !isConnected
+    ? 'CONNECT READY TO BID'
+    : shieldedStrkStatus === 'checking'
+      ? 'CHECKING READY PRIVACY'
+      : !isPrivacyWalletSupported
+        ? 'READY PRIVACY REQUIRED'
+        : !config.whisperOperatorUrl
+          ? 'CAPSULE OPERATOR NOT CONFIGURED'
+          : 'READY WALLET // PRIVATE';
+  const canSubmitBid = Boolean(
+    isConnected &&
+      address &&
+      chainId &&
+      isPrivacyWalletSupported &&
+      config.whisperOperatorUrl &&
+      snapshot?.round
+  );
+  const placeBid = useCallback(
+    async (amount: string) => {
+      if (!snapshot?.round || !address || !chainId) {
+        throw new Error('Live auction or wallet state is unavailable.');
+      }
+      const receipt = await submitArbiterBid({
+        amount,
+        network: snapshot.network,
+        round: snapshot.round,
+        walletAddress: address,
+        walletChainId: chainId,
+        expectedPaymentToken: config.strkTokenAddress,
+        expectedPoolAddress: config.strk20PoolAddress,
+        operatorUrl: config.whisperOperatorUrl,
+        invokePrivateActions,
+      });
+      refresh();
+      return receipt;
+    },
+    [address, chainId, invokePrivateActions, refresh, snapshot]
+  );
 
   return (
     <div className="h-full w-full overflow-y-auto bg-bg font-mono">
@@ -71,16 +116,15 @@ export function Arbiter() {
           isOpen
           onClose={() => undefined}
           snapshot={snapshot}
-          isLoading={isLoading}
-          error={error}
-          onRefresh={refresh}
-          onPlaceBid={mockBid}
-          previewMode={previewMode}
-          onPreviewModeChange={onPreviewModeChange}
+          isLoading={consoleLoading}
+          error={consoleError}
+          onRefresh={consoleRefresh}
+          onPlaceBid={canSubmitBid ? placeBid : undefined}
+          bidStatusLabel={bidStatusLabel}
           presentation="page"
           title={view === 'history' ? 'WINNER HISTORY' : 'CONTROL AUCTION'}
           view={view}
-          history={history}
+          history={historyState.entries}
         />
       </div>
     </div>

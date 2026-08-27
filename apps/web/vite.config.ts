@@ -10,6 +10,16 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@whisper-sdk': path.resolve(__dirname, '../../vendor/whisper/sdk/src'),
+      starknet: path.resolve(
+        __dirname,
+        './node_modules/starknet/dist/index.mjs'
+      ),
+    },
+  },
+  esbuild: {
+    tsconfigRaw: {
+      compilerOptions: { target: 'ES2020' },
     },
   },
   server: {

@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { ArbiterSnapshot } from '../../services/api';
-import { createArbiterMockSnapshot } from '../../services/arbiterMock';
 import { ArbiterConsole, ArbiterSummaryCard } from './ArbiterModal';
 
 const biddingSnapshot: ArbiterSnapshot = {
@@ -14,8 +13,11 @@ const biddingSnapshot: ArbiterSnapshot = {
     whisperAddress: '0x123',
     auctionId: 7,
     paymentToken: '0x456',
+    winnerPayloadDomain: '0x789',
     reservePrice: '1500000000000000000',
     maxBids: 16,
+    vaultAddress: '0xabc',
+    revealPublicKey: '0xdef',
     schedule: {
       kind: 'start-on-bid',
       biddingDurationSeconds: 259200,
@@ -35,6 +37,26 @@ const biddingSnapshot: ArbiterSnapshot = {
   billboard: null,
 };
 
+const pendingSnapshot: ArbiterSnapshot = {
+  ...biddingSnapshot,
+  phase: 'pending',
+  observedAt: '2026-08-24T12:00:00Z',
+  round: {
+    ...biddingSnapshot.round!,
+    schedule: {
+      ...biddingSnapshot.round!.schedule,
+      biddingDurationSeconds: 300,
+    },
+    startedAt: null,
+    biddingDeadline: null,
+    forceRevealAfter: null,
+    abortAfter: null,
+    submissionCount: 0,
+    fundedTrancheCount: 0,
+    status: 'pending',
+  },
+};
+
 describe('ArbiterConsole', () => {
   it('shows only safe public counters during sealed bidding', () => {
     const markup = renderToStaticMarkup(
@@ -45,8 +67,11 @@ describe('ArbiterConsole', () => {
         error={null}
         onClose={() => undefined}
         onRefresh={() => undefined}
-        onPlaceBid={() => undefined}
-        previewMode="bidding"
+        onPlaceBid={async () => ({
+          transactionHash: '0x123',
+          groupHandle: '0x456',
+          bidHandle: '0x789',
+        })}
       />
     );
 
@@ -57,7 +82,7 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('FUNDED BIDS');
     expect(markup).not.toContain('ACCEPTED BIDS');
     expect(markup).toContain('PLACE SEALED BID');
-    expect(markup).toContain('MOCK WALLET // CONNECTED');
+    expect(markup).toContain('READY WALLET // PRIVATE');
     expect(markup).not.toContain(' disabled=""');
     expect(markup).not.toContain('WINNING BID');
   });
@@ -66,10 +91,7 @@ describe('ArbiterConsole', () => {
     const markup = renderToStaticMarkup(
       <ArbiterConsole
         isOpen
-        snapshot={createArbiterMockSnapshot(
-          'pending',
-          Date.parse('2026-08-24T12:00:00Z')
-        )}
+        snapshot={pendingSnapshot}
         isLoading={false}
         error={null}
         onClose={() => undefined}
@@ -79,7 +101,7 @@ describe('ArbiterConsole', () => {
 
     expect(markup).toContain('WAITING FOR FIRST BID');
     expect(markup).toContain('STARTS ON BID');
-    expect(markup).toContain('first sealed bid opens a three-day auction');
+    expect(markup).toContain('first sealed bid opens a 5-minute auction');
     expect(markup).not.toContain('CURRENT WINNER');
     expect(markup).not.toContain('CURRENT CONTROLLER');
     expect(markup).not.toContain('UNCLAIMED');
@@ -119,32 +141,29 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('WINNER COMMITMENT');
   });
 
-  it('shows the development scenario controls with current Influence and bidding', () => {
+  it('shows verified live state without development scenario controls', () => {
     const markup = renderToStaticMarkup(
       <ArbiterConsole
         isOpen
-        snapshot={createArbiterMockSnapshot(
-          'bidding',
-          Date.parse('2026-08-24T12:00:00Z')
-        )}
+        snapshot={biddingSnapshot}
         isLoading={false}
         error={null}
-        previewMode="bidding"
         onClose={() => undefined}
         onRefresh={() => undefined}
-        onPreviewModeChange={() => undefined}
       />
     );
 
-    expect(markup).toContain('LOCAL SIGNAL');
+    expect(markup).not.toContain('LOCAL SIGNAL');
     expect(markup).toContain('BIDDING');
     expect(markup).not.toContain('CURRENT WINNER');
     expect(markup).not.toContain('CURRENT CONTROLLER');
     expect(markup).not.toContain('UNCLAIMED');
     expect(markup).toContain('BIDS');
-    expect(markup).toContain('>17</div>');
-    expect(markup).not.toContain('17 / 64');
-    expect(markup).toContain('LOCAL PREVIEW');
+    expect(markup).toContain('>3</div>');
+    expect(markup).not.toContain('>2</div>');
+    expect(markup).not.toContain('2 / 16');
+    expect(markup).toContain('VERIFIED ONCHAIN');
+    expect(markup).not.toContain('LOCAL PREVIEW');
   });
 
   it('shows only winner, bidder count, and winning bid in history', () => {
@@ -159,11 +178,10 @@ describe('ArbiterConsole', () => {
           {
             roundId: 8,
             winnerAddress: '0x071a45e03bcb8ba82cf693acd5a2409f',
-            bidderCount: 22,
+            bidCount: 22,
             winningBid: '41750000000000000000',
           },
         ]}
-        previewMode="bidding"
         onClose={() => undefined}
         onRefresh={() => undefined}
       />
@@ -171,7 +189,8 @@ describe('ArbiterConsole', () => {
 
     expect(markup).toContain('Winner history');
     expect(markup).toContain('WINNER');
-    expect(markup).toContain('BIDDERS');
+    expect(markup).toContain('BIDS');
+    expect(markup).not.toContain('BIDDERS');
     expect(markup).toContain('WINNING BID');
     expect(markup).toContain('22');
     expect(markup).toContain('41.75 [STRK]');
@@ -190,7 +209,7 @@ describe('ArbiterConsole', () => {
           {
             roundId: 9,
             winnerAddress: null,
-            bidderCount: 1,
+            bidCount: 1,
             winningBid: '100000000000000000',
           },
         ]}
@@ -207,10 +226,7 @@ describe('ArbiterConsole', () => {
 
 describe('ArbiterSummaryCard', () => {
   it('keeps the in-world surface light and links to the auction page', () => {
-    const snapshot = createArbiterMockSnapshot(
-      'bidding',
-      Date.parse('2026-08-24T12:00:00Z')
-    );
+    const snapshot = biddingSnapshot;
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <ArbiterSummaryCard
@@ -218,7 +234,6 @@ describe('ArbiterSummaryCard', () => {
           snapshot={snapshot}
           isLoading={false}
           error={null}
-          previewMode="bidding"
           onClose={() => undefined}
           onRefresh={() => undefined}
         />
@@ -228,17 +243,33 @@ describe('ArbiterSummaryCard', () => {
     expect(markup).toContain('BIDDING OPEN');
     expect(markup).not.toContain('CURRENT CONTROLLER');
     expect(markup).toContain('VIEW AUCTION');
-    expect(markup).toContain(
-      '/arbiter?arbiterMock=bidding&amp;tracking=arbiter'
-    );
+    expect(markup).toContain('/arbiter?tracking=arbiter');
     expect(markup).not.toContain('AUCTION DETAILS');
   });
 
   it('shows the future projection affordance only to the favored Operator', () => {
-    const snapshot = createArbiterMockSnapshot(
-      'winner',
-      Date.parse('2026-08-24T12:00:00Z')
-    );
+    const snapshot: ArbiterSnapshot = {
+      ...biddingSnapshot,
+      phase: 'settled',
+      controller: {
+        address: '0x777',
+        claimedAt: '2026-08-24T11:00:00Z',
+        startsAt: '2026-08-24T11:00:00Z',
+        expiresAt: null,
+      },
+      round: {
+        ...biddingSnapshot.round!,
+        status: 'settled',
+        result: {
+          hasWinner: true,
+          winnerCommitment: '0x999',
+          winningBid: '2000000000000000000',
+          secondHighestBid: '1000000000000000000',
+          clearingPrice: '1000000000000000000',
+          settledAt: '2026-08-24T11:00:00Z',
+        },
+      },
+    };
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <ArbiterSummaryCard

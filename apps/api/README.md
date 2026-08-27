@@ -13,6 +13,24 @@ From the repository root:
 pnpm dev:api
 ```
 
+For the complete local Sepolia Arbiter rehearsal, keep Torii and the Whisper
+operator running, bootstrap the first round explicitly, and launch the web app
+with its local API/operator overrides:
+
+```bash
+pnpm dev:torii
+pnpm dev:whisper
+pnpm dev:api
+pnpm arbiter:bootstrap
+pnpm dev:web:e2e
+```
+
+The API and operator launchers read the same coordinator token from
+`~/.starknet_accounts/whisper/coordinator_token`. It must be a regular
+owner-only (`0600`) file containing at least 32 characters. Signing and viewing
+keys remain in the Whisper operator's existing owner-only manifests and are
+never loaded by the Go API.
+
 The service defaults to `http://localhost:8080` and stores local data in
 `./stakewars.db` relative to `apps/api`. The repository launcher reads the
 shared Sepolia RPC and Control System from `apps/web/.env.sepolia` and connects
@@ -47,6 +65,15 @@ history.
 | `TORII_URL` | unset | Internal Torii HTTP origin. Production uses `http://127.0.0.1:8081`. |
 | `TORII_WHISPER_ADDRESS` | unset | Whisper contract whose raw auction lifecycle events Torii indexes. |
 | `TORII_WHISPER_BLOCK` | unset | Whisper deployment block used as the event-indexing start. |
+| `ARBITER_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Arbiter rounds. Sepolia rehearsal environments currently set this to `5m`. |
+| `ARBITER_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
+| `ARBITER_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
+| `ARBITER_COORDINATOR_URL` | unset | Private Whisper operator origin used only by the recurring auction coordinator. |
+| `ARBITER_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation endpoint. |
+| `ARBITER_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Arbiter rounds. |
+| `ARBITER_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
+| `ARBITER_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |
+| `ARBITER_WINNER_PAYLOAD_DOMAIN` | Stake Wars v1 felt | Fixed application domain for winner claim commitments. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
@@ -68,6 +95,8 @@ the repository.
 GET  /healthz
 GET  /readyz
 GET  /v1/config
+GET  /v1/arbiter
+GET  /v1/arbiter/history
 GET  /torii/health
 POST /torii/graphql
 POST /v1/auth/challenges
