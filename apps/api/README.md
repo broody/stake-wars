@@ -30,7 +30,10 @@ pnpm dev:torii
 Torii listens on `127.0.0.1:8081`, persists its rebuildable index under
 `contracts/.torii/sepolia`, and starts at the World deployment block. The
 launcher enables debug output and mirrors timestamped logs under
-`contracts/.torii/logs/`.
+`contracts/.torii/logs/`. In addition to the Stake Wars World, the Sepolia
+configuration indexes raw events from the staking pool and the active Whisper
+deployment. Whisper's keyed lifecycle events are the source for Arbiter winner
+history.
 
 ## Configuration
 
@@ -42,6 +45,8 @@ launcher enables debug output and mirrors timestamped logs under
 | `STARKNET_RPC_URL` | unset | Starknet JSON-RPC endpoint used for wallet signature verification and authoritative reads. |
 | `STARKNET_CHAIN_ID` | `SN_MAIN` | SNIP-12 authentication domain and public network identifier. |
 | `TORII_URL` | unset | Internal Torii HTTP origin. Production uses `http://127.0.0.1:8081`. |
+| `TORII_WHISPER_ADDRESS` | unset | Whisper contract whose raw auction lifecycle events Torii indexes. |
+| `TORII_WHISPER_BLOCK` | unset | Whisper deployment block used as the event-indexing start. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |

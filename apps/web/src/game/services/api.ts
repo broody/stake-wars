@@ -78,7 +78,7 @@ export interface ArbiterSnapshot {
 
 export interface ArbiterHistoryEntry {
   roundId: number;
-  winnerAddress: string;
+  winnerAddress: string | null;
   bidderCount: number;
   winningBid: string;
 }

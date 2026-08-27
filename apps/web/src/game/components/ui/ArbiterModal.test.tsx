@@ -177,6 +177,32 @@ describe('ArbiterConsole', () => {
     expect(markup).toContain('41.75 [STRK]');
     expect(markup).not.toContain('AUCTION DETAILS');
   });
+
+  it('shows an unclaimed label instead of a winner commitment', () => {
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={biddingSnapshot}
+        isLoading={false}
+        error={null}
+        view="history"
+        history={[
+          {
+            roundId: 9,
+            winnerAddress: null,
+            bidderCount: 1,
+            winningBid: '100000000000000000',
+          },
+        ]}
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('UNCLAIMED');
+    expect(markup).toContain('The winning wallet has not claimed control yet');
+    expect(markup).not.toContain('WINNER COMMITMENT');
+  });
 });
 
 describe('ArbiterSummaryCard', () => {

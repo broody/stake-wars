@@ -512,10 +512,19 @@ function HistoryPanel({
               <HistoryCell
                 label="WINNER"
                 className="px-5 py-4 sm:py-5"
-                title={entry.winnerAddress}
+                title={
+                  entry.winnerAddress ??
+                  'The winning wallet has not claimed control yet'
+                }
               >
-                <span className="text-sm font-bold tracking-[-0.03em] text-fg">
-                  {shortAddress(entry.winnerAddress)}
+                <span
+                  className={`text-sm font-bold tracking-[-0.03em] ${
+                    entry.winnerAddress ? 'text-fg' : 'text-neutral-500'
+                  }`}
+                >
+                  {entry.winnerAddress
+                    ? shortAddress(entry.winnerAddress)
+                    : 'UNCLAIMED'}
                 </span>
               </HistoryCell>
               <HistoryCell

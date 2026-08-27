@@ -5,6 +5,8 @@ set -Eeuo pipefail
 : "${TORII_WORLD_BLOCK:?TORII_WORLD_BLOCK is required}"
 : "${TORII_STAKING_POOL_ADDRESS:?TORII_STAKING_POOL_ADDRESS is required}"
 : "${TORII_STAKING_POOL_BLOCK:?TORII_STAKING_POOL_BLOCK is required}"
+: "${TORII_WHISPER_ADDRESS:?TORII_WHISPER_ADDRESS is required}"
+: "${TORII_WHISPER_BLOCK:?TORII_WHISPER_BLOCK is required}"
 
 torii_rpc_url="${TORII_RPC_URL:-${STARKNET_RPC_URL:-}}"
 if [[ -z "$torii_rpc_url" ]]; then
@@ -27,6 +29,7 @@ torii \
   --db-dir "$torii_db_dir" \
   --indexing.world_block "$TORII_WORLD_BLOCK" \
   --indexing.contracts "other:$TORII_STAKING_POOL_ADDRESS:$TORII_STAKING_POOL_BLOCK" \
+  --indexing.contracts "other:$TORII_WHISPER_ADDRESS:$TORII_WHISPER_BLOCK" \
   --indexing.namespaces stakewars \
   --indexing.events_chunk_size 256 \
   --indexing.blocks_chunk_size 512 \

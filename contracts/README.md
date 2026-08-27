@@ -25,6 +25,22 @@ The upstream Starknet staking implementation is pinned at
 `../vendor/starknet-staking` as an ABI reference. It is not linked as a direct
 Scarb dependency because its Cairo toolchain is older than this Dojo package.
 
+## Torii indexing
+
+Run `pnpm dev:torii` from the repository root to index the shared Sepolia
+World. [`torii_sepolia.toml`](torii_sepolia.toml) also registers the staking
+pool and active Whisper deployment as explicit `OTHER` contracts with raw
+event indexing enabled. The Whisper address and deployment block mirror
+`vendor/whisper/deployments/sepolia.json`.
+
+Arbiter history should read keyed `AuctionSettled` events from the configured
+Whisper contract and filter them to canonical Stake Wars auction IDs. The
+active deployment's event supplies the final logical-bid count, winning bid,
+clearing price, and winner commitment. Settlements emitted by previous Whisper
+deployments use legacy layouts and are intentionally outside the active
+contract's indexed history. The frontend history query is intentionally
+separate from this indexer configuration.
+
 ## Control System
 
 The Control System exposes authoritative `get_operator_status`,
