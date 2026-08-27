@@ -51,7 +51,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   data-preserve-core-tracking
                   className={cn(
                     'border-b border-transparent py-1 text-[8px] tracking-[0.08em] text-dim transition-colors hover:text-fg sm:text-xs sm:tracking-widest md:text-sm',
-                    location.pathname === link.path &&
+                    (location.pathname === link.path ||
+                      (link.path !== '/' &&
+                        location.pathname.startsWith(`${link.path}/`))) &&
                       'text-fg border-b border-fg'
                   )}
                 >

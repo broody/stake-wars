@@ -52,6 +52,7 @@ function GamePages() {
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/staking" element={<Staking />} />
             <Route path="/arbiter" element={<Arbiter />} />
+            <Route path="/arbiter/history" element={<Arbiter />} />
             <Route path="/operator" element={<Operator />} />
             <Route
               path="/core-lab"

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type {
+  ArbiterHistoryEntry,
   ArbiterPhase,
   ArbiterRound,
   ArbiterSnapshot,
@@ -25,12 +26,13 @@ interface ArbiterConsoleProps extends ArbiterModalProps {
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onPlaceBid?: () => void;
+  onPlaceBid?: (amount: string) => void;
   previewMode?: ArbiterPreviewMode;
   onPreviewModeChange?: (mode: ArbiterPreviewMode) => void;
   presentation?: 'hud' | 'page';
-  viewerAddress?: string | null;
   title?: string;
+  view?: 'auction' | 'history';
+  history?: ArbiterHistoryEntry[];
 }
 
 interface ArbiterSummaryCardProps extends ArbiterModalProps {
@@ -208,8 +210,9 @@ export function ArbiterConsole({
   previewMode,
   onPreviewModeChange,
   presentation = 'hud',
-  viewerAddress,
   title = 'THE ARBITER',
+  view = 'auction',
+  history = [],
 }: ArbiterConsoleProps) {
   const chainNow = useArbiterChainNow(isOpen, snapshot?.observedAt);
   useCloseOnEscape(isOpen && presentation === 'hud', onClose);
@@ -219,11 +222,6 @@ export function ArbiterConsole({
   const round = snapshot?.round ?? null;
   const isPage = presentation === 'page';
   const isMock = previewMode !== undefined && previewMode !== 'live';
-  const isCurrentController = Boolean(
-    viewerAddress &&
-      snapshot?.controller &&
-      addressesMatch(viewerAddress, snapshot.controller.address)
-  );
   const Container = isPage ? 'section' : 'aside';
 
   return (
@@ -233,7 +231,7 @@ export function ArbiterConsole({
       data-arbiter-console
       className={
         isPage
-          ? 'relative w-full overflow-hidden border border-grid bg-black/85 font-mono text-fg shadow-[14px_14px_0_rgba(255,255,255,0.06)]'
+          ? 'relative w-full overflow-hidden border border-grid bg-black/85 font-mono text-fg'
           : 'activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100%-6rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:left-auto sm:right-4 sm:w-[28rem]'
       }
     >
@@ -281,32 +279,24 @@ export function ArbiterConsole({
         </div>
       ) : null}
 
-      {snapshot && round ? (
-        <>
-          <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
-            <CurrentControlPanel
-              snapshot={snapshot}
-              isCurrentController={isCurrentController}
-            />
-            <AuctionPanel
-              phase={phase}
-              round={round}
-              chainNow={chainNow}
-              onPlaceBid={onPlaceBid}
-            />
-          </div>
-
-          <PhaseRail phase={phase} />
-
-          <AuctionDetails snapshot={snapshot} round={round} isMock={isMock} />
-        </>
+      {view === 'auction' && snapshot && round ? (
+        <AuctionPanel
+          phase={phase}
+          round={round}
+          chainNow={chainNow}
+          onPlaceBid={onPlaceBid}
+          isMock={isMock}
+        />
       ) : null}
 
-      {snapshot && !round ? (
+      {view === 'history' && !isLoading ? (
+        <HistoryPanel entries={history} isMock={isMock} />
+      ) : null}
+
+      {view === 'auction' && snapshot && !round ? (
         <div className="grid min-h-[28rem] place-items-center px-6 text-center">
           <div className="max-w-sm">
-            <ArbiterGlyph className="mx-auto h-20 w-20 text-fg" />
-            <h3 className="mt-6 text-2xl font-bold tracking-[-0.05em]">
+            <h3 className="text-2xl font-bold tracking-[-0.05em]">
               No auction registered
             </h3>
             <p className="mt-3 text-xs leading-5 text-neutral-400">
@@ -317,7 +307,7 @@ export function ArbiterConsole({
         </div>
       ) : null}
 
-      {!isLoading && !snapshot && !error ? (
+      {view === 'auction' && !isLoading && !snapshot && !error ? (
         <div className="grid min-h-[24rem] place-items-center text-xs text-neutral-500">
           No Arbiter state is available.
         </div>
@@ -331,107 +321,256 @@ export function ArbiterConsole({
   );
 }
 
-function CurrentControlPanel({
-  snapshot,
-  isCurrentController,
+function AuctionPanel({
+  phase,
+  round,
+  chainNow,
+  onPlaceBid,
+  isMock,
 }: {
-  snapshot: ArbiterSnapshot;
-  isCurrentController: boolean;
+  phase: ArbiterPhase;
+  round: ArbiterRound;
+  chainNow: number;
+  onPlaceBid?: (amount: string) => void;
+  isMock: boolean;
 }) {
+  const [bidAmount, setBidAmount] = useState('12.00');
+  const [submittedAmount, setSubmittedAmount] = useState<string | null>(null);
+  const state = auctionState(phase, round);
+  const canBid = phase === 'pending' || phase === 'bidding';
+  const bidIsValid = Number(bidAmount) > 0;
+
+  const submitBid = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onPlaceBid || !bidIsValid) return;
+    onPlaceBid(bidAmount);
+    setSubmittedAmount(bidAmount);
+  };
+
   return (
-    <section className="relative min-h-[17rem] overflow-hidden border-b border-grid sm:min-h-[27rem] lg:border-b-0 lg:border-r">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,255,255,0.09),transparent_42%)]" />
-      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:64px_64px]" />
+    <section className="bg-black px-5 py-6 sm:px-7 sm:py-8">
+      <div className="flex items-center justify-between text-[8px] tracking-[0.2em]">
+        <span className="text-fg">BIDDING DETAILS</span>
+        <span className="text-neutral-500">
+          ROUND {String(round.id).padStart(4, '0')}
+        </span>
+      </div>
 
-      {snapshot.billboard ? (
-        <img
-          src={snapshot.billboard.imageUrl}
-          alt="Current Arbiter signal"
-          className="absolute inset-0 h-full w-full object-cover opacity-70 mix-blend-screen"
-        />
-      ) : (
-        <div className="absolute inset-0 grid place-items-center">
-          <ArbiterGlyph className="h-28 w-28 text-fg/80 sm:h-44 sm:w-44" />
-        </div>
-      )}
+      <div className="mt-4 grid items-center gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
+        <AuctionOrbit phase={phase} round={round} chainNow={chainNow} />
 
-      <div className="relative flex min-h-[17rem] flex-col justify-between p-5 sm:min-h-[27rem] sm:p-7">
-        <div className="flex items-center justify-between text-[8px] tracking-[0.2em]">
-          <span className="text-fg">CURRENT SIGNAL</span>
-          <span className="text-neutral-500">LIVE</span>
-        </div>
+        <div className="min-w-0">
+          <h3 className="text-3xl font-bold tracking-[-0.06em] sm:text-4xl">
+            {state.title}
+          </h3>
+          <p className="mt-2 max-w-xl text-xs leading-5 text-neutral-400">
+            {state.body}
+          </p>
 
-        <div className="max-w-md border-l border-fg bg-black/80 px-4 py-4 backdrop-blur-sm">
-          <div className="flex items-center gap-2 text-[8px] tracking-[0.2em] text-neutral-500">
-            CURRENT CONTROLLER
-            {isCurrentController ? (
-              <span className="bg-fg px-2 py-0.5 text-bg">YOU</span>
-            ) : null}
+          <div className="mt-6 grid gap-px bg-grid sm:grid-cols-3">
+            <CompactDetail
+              label="RESERVE"
+              value={formatArbiterAmount(round.reservePrice)}
+            />
+            <CompactDetail
+              label="BIDS"
+              value={String(round.fundedTrancheCount)}
+            />
+            <CompactDetail
+              label="WINDOW"
+              value={formatDuration(round.schedule.biddingDurationSeconds)}
+            />
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-[-0.05em] sm:text-3xl">
-            {snapshot.controller
-              ? shortAddress(snapshot.controller.address)
-              : 'UNCLAIMED'}
-          </div>
-          <div className="mt-2 text-[9px] tracking-[0.14em] text-fg">
-            CONTROL CONTINUES UNTIL THE NEXT WINNER
-          </div>
-          {isCurrentController ? <ProjectionPlaceholder /> : null}
+
+          {canBid ? (
+            <form className="mt-6" onSubmit={submitBid}>
+              <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.18em]">
+                <label
+                  htmlFor="arbiter-bid-amount"
+                  className="text-neutral-500"
+                >
+                  YOUR SEALED BID
+                </label>
+                <span className={onPlaceBid ? 'text-fg' : 'text-neutral-600'}>
+                  {onPlaceBid
+                    ? isMock
+                      ? 'MOCK WALLET // CONNECTED'
+                      : 'WALLET // CONNECTED'
+                    : 'WALLET BIDDER UNAVAILABLE'}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] border border-neutral-600 focus-within:border-fg">
+                <input
+                  id="arbiter-bid-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={bidAmount}
+                  onChange={(event) => {
+                    setBidAmount(event.target.value);
+                    setSubmittedAmount(null);
+                  }}
+                  className="min-w-0 bg-black px-4 py-4 text-2xl font-bold tabular-nums tracking-[-0.04em] text-fg outline-none"
+                />
+                <span className="grid place-items-center border-l border-grid px-4 text-[10px] tracking-[0.16em] text-neutral-400">
+                  STRK
+                </span>
+              </div>
+              <button
+                type="submit"
+                disabled={!onPlaceBid || !bidIsValid}
+                title={
+                  onPlaceBid
+                    ? 'Place a sealed bid'
+                    : 'Private wallet bidding is not connected yet'
+                }
+                className="mt-3 w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+              >
+                {submittedAmount ? 'MOCK BID READY' : 'PLACE SEALED BID'}
+              </button>
+              {submittedAmount ? (
+                <p
+                  className="mt-2 text-[8px] tracking-[0.16em] text-fg"
+                  role="status"
+                >
+                  {submittedAmount} STRK // READY FOR WALLET CONFIRMATION
+                </p>
+              ) : null}
+            </form>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-function AuctionPanel({
-  phase,
-  round,
-  chainNow,
-  onPlaceBid,
+function HistoryPanel({
+  entries,
+  isMock,
 }: {
-  phase: ArbiterPhase;
-  round: ArbiterRound;
-  chainNow: number;
-  onPlaceBid?: () => void;
+  entries: ArbiterHistoryEntry[];
+  isMock: boolean;
 }) {
-  const state = auctionState(phase, round);
-  const canBid = phase === 'pending' || phase === 'bidding';
-
   return (
-    <section className="flex min-h-[27rem] flex-col justify-between bg-black p-5 sm:p-7">
-      <div className="flex items-center justify-between text-[8px] tracking-[0.2em]">
-        <span className="text-fg">NEXT CONTROL</span>
-        <span className="text-neutral-500">
-          ROUND {String(round.id).padStart(4, '0')}
+    <section className="min-h-[30rem] bg-black">
+      <div className="flex items-center justify-between border-b border-grid px-5 py-5 sm:px-7">
+        <div>
+          <div className="text-[8px] tracking-[0.22em] text-neutral-500">
+            COMPLETED CONTROL CYCLES
+          </div>
+          <h3 className="mt-2 text-2xl font-bold tracking-[-0.05em]">
+            Winner history
+          </h3>
+        </div>
+        <span className="text-[8px] tracking-[0.18em] text-neutral-500">
+          {isMock ? 'MOCK DATA' : 'VERIFIED'}
         </span>
       </div>
 
-      <AuctionOrbit phase={phase} round={round} chainNow={chainNow} />
-
-      <div>
-        <h3 className="text-2xl font-bold tracking-[-0.05em] sm:text-3xl">
-          {state.title}
-        </h3>
-        <p className="mt-2 max-w-sm text-xs leading-5 text-neutral-400">
-          {state.body}
-        </p>
-        {canBid ? (
-          <button
-            type="button"
-            onClick={onPlaceBid}
-            disabled={!onPlaceBid}
-            title={
-              onPlaceBid
-                ? 'Place a sealed bid'
-                : 'Private wallet bidding is not connected yet'
-            }
-            className="mt-5 w-full border border-fg bg-fg px-4 py-3 text-[10px] font-bold tracking-[0.18em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+      {entries.length === 0 ? (
+        <div className="grid min-h-[22rem] place-items-center px-6 text-center">
+          <div>
+            <div className="text-[9px] tracking-[0.2em] text-neutral-500">
+              NO WINNERS YET
+            </div>
+            <p className="mt-3 text-xs text-neutral-600">
+              Completed auctions will appear here.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div role="table" aria-label="Arbiter winner history">
+          <div
+            role="row"
+            className="hidden grid-cols-[6rem_minmax(0,1fr)_7rem_10rem] border-b border-grid text-[8px] tracking-[0.18em] text-neutral-600 sm:grid"
           >
-            PLACE SEALED BID
-          </button>
-        ) : null}
-      </div>
+            <div role="columnheader" className="px-7 py-4">
+              ROUND
+            </div>
+            <div role="columnheader" className="px-5 py-4">
+              WINNER
+            </div>
+            <div role="columnheader" className="px-5 py-4 text-right">
+              BIDDERS
+            </div>
+            <div role="columnheader" className="px-7 py-4 text-right">
+              WINNING BID
+            </div>
+          </div>
+          {entries.map((entry) => (
+            <div
+              key={entry.roundId}
+              role="row"
+              className="grid grid-cols-2 border-b border-grid last:border-b-0 sm:grid-cols-[6rem_minmax(0,1fr)_7rem_10rem]"
+            >
+              <HistoryCell label="ROUND" className="px-5 py-4 sm:px-7 sm:py-5">
+                <span className="text-[10px] text-neutral-500">
+                  {String(entry.roundId).padStart(4, '0')}
+                </span>
+              </HistoryCell>
+              <HistoryCell
+                label="WINNER"
+                className="px-5 py-4 sm:py-5"
+                title={entry.winnerAddress}
+              >
+                <span className="text-sm font-bold tracking-[-0.03em] text-fg">
+                  {shortAddress(entry.winnerAddress)}
+                </span>
+              </HistoryCell>
+              <HistoryCell
+                label="BIDDERS"
+                className="border-t border-grid px-5 py-4 sm:border-t-0 sm:py-5 sm:text-right"
+              >
+                <span className="text-sm tabular-nums text-neutral-300">
+                  {entry.bidderCount}
+                </span>
+              </HistoryCell>
+              <HistoryCell
+                label="WINNING BID"
+                className="border-t border-grid px-5 py-4 text-right sm:border-t-0 sm:px-7 sm:py-5"
+              >
+                <span className="text-sm font-bold tabular-nums text-fg">
+                  {formatArbiterAmount(entry.winningBid)}
+                </span>
+              </HistoryCell>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
+  );
+}
+
+function HistoryCell({
+  label,
+  className,
+  title,
+  children,
+}: {
+  label: string;
+  className: string;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div role="cell" className={className} title={title}>
+      <div className="mb-2 text-[7px] tracking-[0.16em] text-neutral-600 sm:hidden">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function CompactDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-black px-3 py-3">
+      <div className="text-[7px] tracking-[0.16em] text-neutral-600">
+        {label}
+      </div>
+      <div className="mt-1 text-[11px] text-neutral-200">{value}</div>
+    </div>
   );
 }
 
@@ -505,87 +644,6 @@ function AuctionOrbit({
         ) : null}
       </div>
     </div>
-  );
-}
-
-function PhaseRail({ phase }: { phase: ArbiterPhase }) {
-  const active = phaseRailIndex(phase);
-  const labels = ['WAITING', '3 DAY AUCTION', 'RESOLVING', 'CONTROL'];
-
-  return (
-    <ol className="grid grid-cols-4 border-t border-grid bg-black">
-      {labels.map((label, index) => (
-        <li
-          key={label}
-          aria-current={index === active ? 'step' : undefined}
-          className={`border-r border-grid px-2 py-3 text-center text-[7px] tracking-[0.12em] last:border-r-0 sm:px-4 sm:text-[8px] sm:tracking-[0.18em] ${
-            index === active
-              ? 'bg-fg text-bg'
-              : index < active
-                ? 'text-neutral-300'
-                : 'text-neutral-600'
-          }`}
-        >
-          {label}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function AuctionDetails({
-  snapshot,
-  round,
-  isMock,
-}: {
-  snapshot: ArbiterSnapshot;
-  round: ArbiterRound;
-  isMock: boolean;
-}) {
-  return (
-    <details className="group border-t border-grid bg-black">
-      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-4 text-[9px] tracking-[0.18em] text-neutral-400 transition-colors hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-fg sm:px-6 [&::-webkit-details-marker]:hidden">
-        <span>AUCTION DETAILS</span>
-        <span className="text-fg group-open:rotate-45">＋</span>
-      </summary>
-      <div className="grid gap-px border-t border-grid bg-grid sm:grid-cols-2 lg:grid-cols-4">
-        <DetailCell
-          label="RESERVE"
-          value={formatArbiterAmount(round.reservePrice)}
-        />
-        <DetailCell
-          label="ACCEPTED BIDS"
-          value={`${round.fundedTrancheCount} / ${round.maxBids}`}
-        />
-        <DetailCell
-          label="BIDDING WINDOW"
-          value={formatDuration(round.schedule.biddingDurationSeconds)}
-        />
-        <DetailCell
-          label="STATUS"
-          value={isMock ? 'LOCAL PREVIEW' : 'ONCHAIN VERIFIED'}
-        />
-      </div>
-      {round.result?.hasWinner ? (
-        <div className="grid gap-px border-t border-grid bg-grid sm:grid-cols-2">
-          <DetailCell
-            label="CLEARING PRICE"
-            value={formatArbiterAmount(round.result.clearingPrice)}
-          />
-          <DetailCell
-            label="WINNER COMMITMENT"
-            value={shortAddress(round.result.winnerCommitment)}
-          />
-        </div>
-      ) : null}
-      <div className="flex flex-col gap-2 border-t border-grid px-4 py-4 text-[9px] leading-4 text-neutral-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <span>Bids stay sealed until settlement.</span>
-        <span>
-          {snapshot.network} // AUCTION {round.auctionId} //{' '}
-          {shortAddress(round.whisperAddress)}
-        </span>
-      </div>
-    </details>
   );
 }
 
@@ -678,34 +736,6 @@ function MetricText({ label, value }: { label: string; value: string }) {
         {value}
       </div>
     </div>
-  );
-}
-
-function DetailCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 bg-black px-4 py-4 sm:px-6">
-      <div className="text-[8px] tracking-[0.16em] text-neutral-600">
-        {label}
-      </div>
-      <div className="mt-2 truncate text-xs text-neutral-200" title={value}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function ArbiterGlyph({ className }: { className: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 72 72"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-    >
-      <path d="M36 6 65 55 36 66 7 55 36 6Z" />
-      <path d="m7 55 29-17 29 17M36 6v32m0 0v28" />
-    </svg>
   );
 }
 
@@ -815,16 +845,6 @@ function biddingProgress(
     1,
     Math.max(0, (chainNow - startedAt) / (deadline - startedAt))
   );
-}
-
-function phaseRailIndex(phase: ArbiterPhase) {
-  if (phase === 'pending') return 0;
-  if (phase === 'bidding') return 1;
-  if (phase === 'acceptance' || phase === 'settling' || phase === 'recovery') {
-    return 2;
-  }
-  if (phase === 'settled' || phase === 'aborted') return 3;
-  return 0;
 }
 
 function formatDuration(seconds: number) {

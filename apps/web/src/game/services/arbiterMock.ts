@@ -1,4 +1,4 @@
-import type { ArbiterSnapshot } from './api';
+import type { ArbiterHistoryEntry, ArbiterSnapshot } from './api';
 import { config } from './config';
 
 export type ArbiterMockMode = 'pending' | 'bidding' | 'resolving' | 'winner';
@@ -13,6 +13,37 @@ const MOCK_WINNER_COMMITMENT =
 const FALLBACK_STRK_ADDRESS =
   '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 const THREE_DAYS_SECONDS = 3 * 24 * 60 * 60;
+
+const MOCK_HISTORY: ArbiterHistoryEntry[] = [
+  {
+    roundId: 8,
+    winnerAddress:
+      '0x071a45e03bcb8ba82cf693acd5a2409f1fd3827e9dbc45963f4d3d38ba012ce',
+    bidderCount: 22,
+    winningBid: '41750000000000000000',
+  },
+  {
+    roundId: 7,
+    winnerAddress:
+      '0x0137c0de72a0ee1124abc8dbcb4ba0d83d96037de7f1cb9ee44183d30eaace1',
+    bidderCount: 16,
+    winningBid: '32800000000000000000',
+  },
+  {
+    roundId: 6,
+    winnerAddress:
+      '0x052b16d6f90bf4da328a88db7c4dbe7dd46b7f3b85569eb9c445d70c3b2307a',
+    bidderCount: 11,
+    winningBid: '24100000000000000000',
+  },
+  {
+    roundId: 5,
+    winnerAddress:
+      '0x02c1a6ac0f381abb0d1fe5c190976f791ebcbe698d552b8a7e9441b477cf0ff',
+    bidderCount: 9,
+    winningBid: '18750000000000000000',
+  },
+];
 
 export function isArbiterMockMode(
   value: string | null
@@ -71,8 +102,8 @@ export function createArbiterMockSnapshot(
         status: 'pending',
         result: null,
       },
-      controller,
-      billboard,
+      controller: null,
+      billboard: null,
     };
   }
 
@@ -96,8 +127,8 @@ export function createArbiterMockSnapshot(
         status: 'bidding',
         result: null,
       },
-      controller,
-      billboard,
+      controller: null,
+      billboard: null,
     };
   }
 
@@ -119,8 +150,8 @@ export function createArbiterMockSnapshot(
         status: 'bidding',
         result: null,
       },
-      controller,
-      billboard,
+      controller: null,
+      billboard: null,
     };
   }
 
@@ -151,6 +182,13 @@ export function createArbiterMockSnapshot(
     controller,
     billboard,
   };
+}
+
+export function createArbiterMockHistory(
+  mode: ArbiterMockMode
+): ArbiterHistoryEntry[] {
+  if (mode === 'pending') return [];
+  return MOCK_HISTORY.map((entry) => ({ ...entry }));
 }
 
 function iso(timestamp: number): string {

@@ -45,16 +45,20 @@ describe('ArbiterConsole', () => {
         error={null}
         onClose={() => undefined}
         onRefresh={() => undefined}
+        onPlaceBid={() => undefined}
+        previewMode="bidding"
       />
     );
 
     expect(markup).toContain('BIDDING OPEN');
     expect(markup).toContain('BIDDING CLOSES IN');
     expect(markup).toContain('1H 00M');
-    expect(markup).toContain('ACCEPTED BIDS');
-    expect(markup).toContain('2 / 16');
+    expect(markup).toContain('BIDS');
+    expect(markup).not.toContain('FUNDED BIDS');
+    expect(markup).not.toContain('ACCEPTED BIDS');
     expect(markup).toContain('PLACE SEALED BID');
-    expect(markup).toContain('disabled');
+    expect(markup).toContain('MOCK WALLET // CONNECTED');
+    expect(markup).not.toContain(' disabled=""');
     expect(markup).not.toContain('WINNING BID');
   });
 
@@ -76,10 +80,12 @@ describe('ArbiterConsole', () => {
     expect(markup).toContain('WAITING FOR FIRST BID');
     expect(markup).toContain('STARTS ON BID');
     expect(markup).toContain('first sealed bid opens a three-day auction');
-    expect(markup).toContain('CONTROL CONTINUES UNTIL THE NEXT WINNER');
+    expect(markup).not.toContain('CURRENT WINNER');
+    expect(markup).not.toContain('CURRENT CONTROLLER');
+    expect(markup).not.toContain('UNCLAIMED');
   });
 
-  it('reveals the public settlement result without inventing a winner address', () => {
+  it('keeps the settled round summary compact', () => {
     const snapshot: ArbiterSnapshot = {
       ...biddingSnapshot,
       phase: 'settled',
@@ -108,9 +114,9 @@ describe('ArbiterConsole', () => {
     );
 
     expect(markup).toContain('Winner confirmed');
-    expect(markup).toContain('CLEARING PRICE');
-    expect(markup).toContain('2 [STRK]');
-    expect(markup).toContain('WINNER COMMITMENT');
+    expect(markup).toContain('BIDS');
+    expect(markup).not.toContain('CLEARING PRICE');
+    expect(markup).not.toContain('WINNER COMMITMENT');
   });
 
   it('shows the development scenario controls with current Influence and bidding', () => {
@@ -132,15 +138,49 @@ describe('ArbiterConsole', () => {
 
     expect(markup).toContain('LOCAL SIGNAL');
     expect(markup).toContain('BIDDING');
-    expect(markup).toContain('CURRENT CONTROLLER');
-    expect(markup).toContain('CONTROL CONTINUES UNTIL THE NEXT WINNER');
-    expect(markup).toContain('17 / 64');
+    expect(markup).not.toContain('CURRENT WINNER');
+    expect(markup).not.toContain('CURRENT CONTROLLER');
+    expect(markup).not.toContain('UNCLAIMED');
+    expect(markup).toContain('BIDS');
+    expect(markup).toContain('>17</div>');
+    expect(markup).not.toContain('17 / 64');
     expect(markup).toContain('LOCAL PREVIEW');
+  });
+
+  it('shows only winner, bidder count, and winning bid in history', () => {
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={biddingSnapshot}
+        isLoading={false}
+        error={null}
+        view="history"
+        history={[
+          {
+            roundId: 8,
+            winnerAddress: '0x071a45e03bcb8ba82cf693acd5a2409f',
+            bidderCount: 22,
+            winningBid: '41750000000000000000',
+          },
+        ]}
+        previewMode="bidding"
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('Winner history');
+    expect(markup).toContain('WINNER');
+    expect(markup).toContain('BIDDERS');
+    expect(markup).toContain('WINNING BID');
+    expect(markup).toContain('22');
+    expect(markup).toContain('41.75 [STRK]');
+    expect(markup).not.toContain('AUCTION DETAILS');
   });
 });
 
 describe('ArbiterSummaryCard', () => {
-  it('keeps the in-world surface light and links to the Influence console', () => {
+  it('keeps the in-world surface light and links to the auction page', () => {
     const snapshot = createArbiterMockSnapshot(
       'bidding',
       Date.parse('2026-08-24T12:00:00Z')
@@ -160,7 +200,7 @@ describe('ArbiterSummaryCard', () => {
     );
 
     expect(markup).toContain('BIDDING OPEN');
-    expect(markup).toContain('CURRENT CONTROLLER');
+    expect(markup).not.toContain('CURRENT CONTROLLER');
     expect(markup).toContain('VIEW AUCTION');
     expect(markup).toContain(
       '/arbiter?arbiterMock=bidding&amp;tracking=arbiter'

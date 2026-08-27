@@ -76,6 +76,13 @@ export interface ArbiterSnapshot {
   } | null;
 }
 
+export interface ArbiterHistoryEntry {
+  roundId: number;
+  winnerAddress: string;
+  bidderCount: number;
+  winningBid: string;
+}
+
 export interface PreparedSectorImage {
   contentType: string;
   detail: Blob;

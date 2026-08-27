@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WalletList } from '@starknet-io/get-starknet-modal';
+import { useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 
 function shortAddress(address: string) {
@@ -25,6 +26,7 @@ function preferredDownload(downloads: Record<string, string>) {
 }
 
 export function WalletButton() {
+  const location = useLocation();
   const {
     address,
     connect,
@@ -36,6 +38,16 @@ export function WalletButton() {
   } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const arbiterPreview = new URLSearchParams(location.search).get(
+    'arbiterMock'
+  );
+  const isMockConnected = Boolean(
+    import.meta.env.DEV &&
+      location.pathname.startsWith('/arbiter') &&
+      arbiterPreview &&
+      arbiterPreview !== 'live'
+  );
+  const hasVisibleConnection = isConnected || isMockConnected;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,11 +71,14 @@ export function WalletButton() {
 
   const label = isConnecting
     ? '> CONNECTING'
-    : isConnected && address
-      ? `> ${shortAddress(address)}`
-      : '> CONNECT_WALLET';
+    : isMockConnected
+      ? '> 0xB1D...C0DE'
+      : isConnected && address
+        ? `> ${shortAddress(address)}`
+        : '> CONNECT_WALLET';
 
   const handleButtonClick = async () => {
+    if (isMockConnected) return;
     if (isConnected) {
       try {
         await disconnect();
@@ -90,20 +105,22 @@ export function WalletButton() {
         type="button"
         onClick={() => void handleButtonClick()}
         disabled={isConnecting}
-        aria-expanded={isConnected ? undefined : isOpen}
-        aria-haspopup={isConnected ? undefined : 'menu'}
+        aria-expanded={hasVisibleConnection ? undefined : isOpen}
+        aria-haspopup={hasVisibleConnection ? undefined : 'menu'}
         title={
-          error ||
-          (isConnected
-            ? `Disconnect ${walletName || 'wallet'}`
-            : 'Connect a Starknet wallet')
+          isMockConnected
+            ? 'Mock Ready wallet connected'
+            : error ||
+              (isConnected
+                ? `Disconnect ${walletName || 'wallet'}`
+                : 'Connect a Starknet wallet')
         }
         className="border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm"
       >
         {label}
       </button>
 
-      {!isConnected && isOpen ? (
+      {!hasVisibleConnection && isOpen ? (
         <div
           role="menu"
           className="absolute right-0 top-full z-50 mt-2 w-64 border border-grid bg-bg p-2 shadow-2xl"

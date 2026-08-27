@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { createArbiterMockSnapshot, isArbiterMockMode } from './arbiterMock';
+import {
+  createArbiterMockHistory,
+  createArbiterMockSnapshot,
+  isArbiterMockMode,
+} from './arbiterMock';
 
 const observedAt = Date.parse('2026-08-24T12:00:00Z');
 
 describe('Arbiter mock snapshots', () => {
-  it('creates a live Influence preview with an existing projection', () => {
+  it('creates a first-auction bidding preview without a current winner', () => {
     const snapshot = createArbiterMockSnapshot('bidding', observedAt);
 
     expect(snapshot.phase).toBe('bidding');
     expect(snapshot.round?.status).toBe('bidding');
     expect(snapshot.round?.fundedTrancheCount).toBe(17);
     expect(snapshot.round?.result).toBeNull();
-    expect(snapshot.controller?.address).toMatch(/^0x/);
-    expect(snapshot.billboard?.thumbnailUrl).toMatch(/^data:image\/svg\+xml/);
+    expect(snapshot.controller).toBeNull();
+    expect(snapshot.billboard).toBeNull();
     expect(Date.parse(snapshot.round!.biddingDeadline!) - observedAt).toBe(
       180_000_000
     );
@@ -25,7 +29,7 @@ describe('Arbiter mock snapshots', () => {
     expect(snapshot.round?.status).toBe('pending');
     expect(snapshot.round?.biddingDeadline).toBeNull();
     expect(snapshot.round?.schedule.biddingDurationSeconds).toBe(259200);
-    expect(snapshot.controller).not.toBeNull();
+    expect(snapshot.controller).toBeNull();
   });
 
   it('creates a claimed winner preview', () => {
@@ -35,6 +39,18 @@ describe('Arbiter mock snapshots', () => {
     expect(snapshot.round?.result?.hasWinner).toBe(true);
     expect(snapshot.round?.result?.clearingPrice).toBe('37100000000000000000');
     expect(snapshot.controller).not.toBeNull();
+  });
+
+  it('provides winner history after the first completed cycle', () => {
+    expect(createArbiterMockHistory('pending')).toEqual([]);
+
+    const history = createArbiterMockHistory('bidding');
+    expect(history).toHaveLength(4);
+    expect(history[0]).toMatchObject({
+      roundId: 8,
+      bidderCount: 22,
+      winningBid: '41750000000000000000',
+    });
   });
 
   it('accepts only supported query modes', () => {

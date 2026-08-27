@@ -69,7 +69,10 @@ function RotatingArbiter({
     >
       <mesh geometry={geometry} raycast={() => undefined}>
         <meshBasicMaterial
-          color={SECTOR_COLORS.neutral}
+          color={SECTOR_COLORS.neutralGrid}
+          transparent
+          opacity={0.18}
+          depthWrite={false}
           side={THREE.DoubleSide}
         />
       </mesh>
