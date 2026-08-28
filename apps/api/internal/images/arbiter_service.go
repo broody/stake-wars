@@ -16,10 +16,8 @@ import (
 )
 
 const (
-	arbiterDetailWidth     = 512
-	arbiterDetailHeight    = 288
-	arbiterThumbnailWidth  = 256
-	arbiterThumbnailHeight = 144
+	arbiterDetailMaximumDimension    = 512
+	arbiterThumbnailMaximumDimension = 256
 )
 
 type ArbiterControllerReader interface {
@@ -155,11 +153,13 @@ func (s *ArbiterService) Complete(
 	if int64(len(detail)) != upload.DetailSize || int64(len(thumbnail)) != upload.ThumbnailSize {
 		return ArbiterArtwork{}, fmt.Errorf("%w: uploaded object size does not match authorization", ErrInvalidImage)
 	}
-	if err := validateArbiterImage(detail, upload.ContentType, arbiterDetailWidth, arbiterDetailHeight); err != nil {
+	if err := validateArbiterImage(
+		detail, upload.ContentType, arbiterDetailMaximumDimension,
+	); err != nil {
 		return ArbiterArtwork{}, err
 	}
 	if err := validateArbiterImage(
-		thumbnail, upload.ContentType, arbiterThumbnailWidth, arbiterThumbnailHeight,
+		thumbnail, upload.ContentType, arbiterThumbnailMaximumDimension,
 	); err != nil {
 		return ArbiterArtwork{}, err
 	}
@@ -180,7 +180,7 @@ func (s *ArbiterService) Complete(
 	return artwork, nil
 }
 
-func validateArbiterImage(data []byte, contentType string, width, height int) error {
+func validateArbiterImage(data []byte, contentType string, maximumDimension int) error {
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("%w: image cannot be decoded", ErrInvalidImage)
@@ -189,8 +189,14 @@ func validateArbiterImage(data []byte, contentType string, width, height int) er
 		!(format == "jpeg" && contentType == "image/jpeg") {
 		return fmt.Errorf("%w: image signature does not match content type", ErrInvalidImage)
 	}
-	if configuration.Width != width || configuration.Height != height {
-		return fmt.Errorf("%w: Arbiter image must be %dx%d", ErrInvalidImage, width, height)
+	if configuration.Width <= 0 || configuration.Height <= 0 ||
+		configuration.Width > maximumDimension || configuration.Height > maximumDimension {
+		return fmt.Errorf(
+			"%w: Arbiter image dimensions must not exceed %dx%d",
+			ErrInvalidImage,
+			maximumDimension,
+			maximumDimension,
+		)
 	}
 	return nil
 }

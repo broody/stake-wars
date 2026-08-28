@@ -383,8 +383,42 @@ describe('ArbiterSummaryCard', () => {
 
     expect(markup).toContain('YOU');
     expect(markup).toContain('CONTROLLER ACTIONS');
-    expect(markup).toContain('PROJECT IMAGE');
+    expect(markup).toContain('SELECT IMAGE');
     expect(markup).toContain('01 AVAILABLE');
+    expect(markup).not.toContain('16:9');
     expect(markup).not.toContain('SET SIGNAL // SOON');
+  });
+
+  it('labels the first projection action as a replacement when one exists', () => {
+    const snapshot: ArbiterSnapshot = {
+      ...biddingSnapshot,
+      controller: {
+        address: '0x777',
+        claimedAt: '2026-08-24T11:00:00Z',
+        startsAt: '2026-08-24T11:00:00Z',
+        expiresAt: null,
+      },
+      billboard: {
+        imageUrl: 'https://images.example/arbiter.webp',
+        thumbnailUrl: 'https://images.example/arbiter-thumbnail.webp',
+        updatedAt: '2026-08-24T11:05:00Z',
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ArbiterSummaryCard
+          isOpen
+          snapshot={snapshot}
+          isLoading={false}
+          error={null}
+          viewerAddress={snapshot.controller!.address}
+          onClose={() => undefined}
+          onRefresh={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('SELECT REPLACEMENT');
+    expect(markup).not.toContain('16:9');
   });
 });

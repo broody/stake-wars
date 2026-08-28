@@ -28,8 +28,8 @@ func TestAuthorizeAndPublishArbiterImage(t *testing.T) {
 	service := NewArbiterService(
 		store, objects, controllers, "SN_SEPOLIA", 2*1024*1024,
 	)
-	detail := encodedRectPNG(t, arbiterDetailWidth, arbiterDetailHeight)
-	thumbnail := encodedRectPNG(t, arbiterThumbnailWidth, arbiterThumbnailHeight)
+	detail := encodedRectPNG(t, 320, arbiterDetailMaximumDimension)
+	thumbnail := encodedRectPNG(t, 160, arbiterThumbnailMaximumDimension)
 	authorization, err := service.Authorize(
 		context.Background(),
 		"0xabc",
@@ -79,8 +79,8 @@ func TestArbiterImageCompletionRejectsSupersededController(t *testing.T) {
 	service := NewArbiterService(
 		NewStore(db), objects, controllers, "SN_SEPOLIA", 2*1024*1024,
 	)
-	detail := encodedRectPNG(t, arbiterDetailWidth, arbiterDetailHeight)
-	thumbnail := encodedRectPNG(t, arbiterThumbnailWidth, arbiterThumbnailHeight)
+	detail := encodedRectPNG(t, arbiterDetailMaximumDimension, 320)
+	thumbnail := encodedRectPNG(t, arbiterThumbnailMaximumDimension, 160)
 	authorization, err := service.Authorize(
 		context.Background(),
 		"0xabc",
@@ -100,6 +100,29 @@ func TestArbiterImageCompletionRejectsSupersededController(t *testing.T) {
 		context.Background(), authorization.UploadID, "0xabc",
 	); err != ErrForbidden {
 		t.Fatalf("expected forbidden after controller changed, got %v", err)
+	}
+}
+
+func TestValidateArbiterImageAcceptsAnyRatioWithinLimit(t *testing.T) {
+	for _, dimensions := range []struct {
+		width  int
+		height int
+	}{
+		{width: 512, height: 128},
+		{width: 128, height: 512},
+		{width: 512, height: 512},
+	} {
+		image := encodedRectPNG(t, dimensions.width, dimensions.height)
+		if err := validateArbiterImage(image, "image/png", 512); err != nil {
+			t.Fatalf("expected %dx%d image to be accepted: %v", dimensions.width, dimensions.height, err)
+		}
+	}
+}
+
+func TestValidateArbiterImageRejectsDimensionOverLimit(t *testing.T) {
+	image := encodedRectPNG(t, 513, 100)
+	if err := validateArbiterImage(image, "image/png", 512); err == nil {
+		t.Fatal("expected oversized image to be rejected")
 	}
 }
 

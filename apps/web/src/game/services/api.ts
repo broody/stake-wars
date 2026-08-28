@@ -209,7 +209,7 @@ export const api = {
   },
 
   getArbiter(signal?: AbortSignal): Promise<ArbiterSnapshot> {
-    return requestJSON('/v1/arbiter', { signal });
+    return requestJSON('/v1/arbiter', { signal, cache: 'no-store' });
   },
 
   getArbiterHistory(signal?: AbortSignal): Promise<ArbiterHistoryPage> {

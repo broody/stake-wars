@@ -84,7 +84,8 @@ export function ArbiterSummaryCard({
   onRefresh,
   viewerAddress,
 }: ArbiterSummaryCardProps) {
-  const [isProjecting, setProjecting] = useState(false);
+  const projectionInputRef = useRef<HTMLInputElement>(null);
+  const [projectionFile, setProjectionFile] = useState<File | null>(null);
 
   useCloseOnEscape(isOpen, onClose);
   const isCurrentController = Boolean(
@@ -94,7 +95,7 @@ export function ArbiterSummaryCard({
   );
 
   useEffect(() => {
-    if (!isOpen || !isCurrentController) setProjecting(false);
+    if (!isOpen || !isCurrentController) setProjectionFile(null);
   }, [isCurrentController, isOpen]);
 
   if (!isOpen) return null;
@@ -177,19 +178,32 @@ export function ArbiterSummaryCard({
         ) : null}
 
         {isCurrentController && viewerAddress ? (
-          isProjecting ? (
-            <ArbiterProjectionUpload
-              walletAddress={viewerAddress}
-              replacing={Boolean(snapshot?.billboard)}
-              onCancel={() => setProjecting(false)}
-              onPublished={onRefresh}
+          <>
+            <input
+              ref={projectionInputRef}
+              type="file"
+              accept="image/webp,image/jpeg,image/png"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) setProjectionFile(file);
+              }}
             />
-          ) : (
-            <ArbiterControllerActions
-              replacing={Boolean(snapshot?.billboard)}
-              onProject={() => setProjecting(true)}
-            />
-          )
+            {projectionFile ? (
+              <ArbiterProjectionUpload
+                initialFile={projectionFile}
+                walletAddress={viewerAddress}
+                onCancel={() => setProjectionFile(null)}
+                onPublished={onRefresh}
+              />
+            ) : (
+              <ArbiterControllerActions
+                replacing={Boolean(snapshot?.billboard)}
+                onSelect={() => projectionInputRef.current?.click()}
+              />
+            )}
+          </>
         ) : null}
       </div>
 
@@ -798,10 +812,10 @@ function ErrorNotice({
 
 function ArbiterControllerActions({
   replacing,
-  onProject,
+  onSelect,
 }: {
   replacing: boolean;
-  onProject: () => void;
+  onSelect: () => void;
 }) {
   return (
     <section className="border-t border-grid pt-4">
@@ -811,16 +825,11 @@ function ArbiterControllerActions({
       </div>
       <button
         type="button"
-        onClick={onProject}
+        onClick={onSelect}
         className="mt-3 flex w-full items-center justify-between border border-fg bg-fg px-3 py-3 text-left text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
       >
-        <span>
-          <span className="block text-[10px] font-semibold tracking-[0.18em]">
-            {replacing ? 'REPLACE IMAGE' : 'PROJECT IMAGE'}
-          </span>
-          <span className="mt-1 block text-[8px] tracking-[0.12em] text-neutral-600">
-            16:9 CORE TRANSMISSION
-          </span>
+        <span className="text-[10px] font-semibold tracking-[0.18em]">
+          {replacing ? 'SELECT REPLACEMENT' : 'SELECT IMAGE'}
         </span>
         <span aria-hidden="true" className="text-base">
           →
@@ -833,19 +842,20 @@ function ArbiterControllerActions({
 const DEFAULT_MAXIMUM_IMAGE_BYTES = 2 * 1024 * 1024;
 
 function ArbiterProjectionUpload({
+  initialFile,
   walletAddress,
-  replacing,
   onCancel,
   onPublished,
 }: {
+  initialFile: File;
   walletAddress: string;
-  replacing: boolean;
   onCancel: () => void;
   onPublished: () => void;
 }) {
   const { signTypedDataAsync } = useSignTypedData({});
   const inputRef = useRef<HTMLInputElement>(null);
   const preparationVersionRef = useRef(0);
+  const preparedInitialFileRef = useRef<File | null>(null);
   const [prepared, setPrepared] = useState<PreparedArbiterImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -926,6 +936,12 @@ function ArbiterProjectionUpload({
     },
     [isUploading, maximumImageBytes]
   );
+
+  useEffect(() => {
+    if (preparedInitialFileRef.current === initialFile) return;
+    preparedInitialFileRef.current = initialFile;
+    void chooseFile(initialFile);
+  }, [chooseFile, initialFile]);
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
@@ -1020,22 +1036,21 @@ function ArbiterProjectionUpload({
         }}
         className="mt-3 w-full border border-dashed border-neutral-600 bg-neutral-950 p-3 text-left transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-wait disabled:opacity-60"
       >
-        <span className="block aspect-video overflow-hidden border border-neutral-800 bg-black">
+        <span className="grid min-h-32 max-h-64 place-items-center overflow-hidden border border-neutral-800 bg-black">
           {previewUrl ? (
             <img
               src={previewUrl}
               alt="Prepared Arbiter projection preview"
-              className="h-full w-full object-cover"
+              className="h-auto max-h-64 max-w-full object-contain"
             />
           ) : (
-            <span className="grid h-full place-items-center text-[9px] tracking-[0.18em] text-neutral-600">
+            <span className="grid min-h-32 place-items-center text-[9px] tracking-[0.18em] text-neutral-600">
               CHOOSE · DROP · PASTE
             </span>
           )}
         </span>
-        <span className="mt-2 flex items-center justify-between gap-3 text-[8px] tracking-[0.12em] text-neutral-500">
-          <span className="truncate">{fileName || 'WEBP · JPEG · PNG'}</span>
-          <span>16:9</span>
+        <span className="mt-2 block truncate text-[8px] tracking-[0.12em] text-neutral-500">
+          {fileName || 'WEBP · JPEG · PNG'}
         </span>
       </button>
 
@@ -1075,9 +1090,7 @@ function ArbiterProjectionUpload({
               ? 'PROJECTING IMAGE…'
               : !prepared
                 ? 'CHOOSE IMAGE'
-                : replacing
-                  ? 'REPLACE PROJECTION'
-                  : 'PROJECT IMAGE'}
+                : 'PROJECT IMAGE'}
       </button>
     </section>
   );

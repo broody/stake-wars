@@ -27,8 +27,8 @@ import {
 const ORBIT_HOVER_HOLD_MS = 3_000;
 const ORBIT_IDLE_COLOR = new THREE.Color(SECTOR_COLORS.neutralGrid);
 const ORBIT_HOVER_COLOR = new THREE.Color(SECTOR_COLORS.hover);
-const PROJECTION_WIDTH = 4.8;
-const PROJECTION_HEIGHT = PROJECTION_WIDTH * (9 / 16);
+const PROJECTION_MAX_DIMENSION = 4.8;
+const PROJECTION_DEFAULT_ASPECT_RATIO = 16 / 9;
 const PROJECTION_ORBIT_RADIUS = 15;
 const PROJECTION_FACE_OFFSET = 0.018;
 const PROJECTION_MARK_OFFSET = 0.032;
@@ -54,6 +54,23 @@ const PROJECTION_MARKS = [
   { x: -1, y: -1, xDirection: 1, yDirection: 1 },
   { x: 1, y: -1, xDirection: -1, yDirection: 1 },
 ] as const;
+
+function projectionDimensions(width: number, height: number) {
+  const aspectRatio =
+    Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
+      ? width / height
+      : PROJECTION_DEFAULT_ASPECT_RATIO;
+
+  return aspectRatio >= 1
+    ? {
+        width: PROJECTION_MAX_DIMENSION,
+        height: PROJECTION_MAX_DIMENSION / aspectRatio,
+      }
+    : {
+        width: PROJECTION_MAX_DIMENSION * aspectRatio,
+        height: PROJECTION_MAX_DIMENSION,
+      };
+}
 
 export function OrbitalArbiter({
   isTracking,
@@ -350,6 +367,9 @@ function ArbiterProjection({
   const backMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const emptyTexture = useMemo(createEmptyProjectionTexture, []);
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const [projectionSize, setProjectionSize] = useState(() =>
+    projectionDimensions(PROJECTION_DEFAULT_ASPECT_RATIO, 1)
+  );
 
   useLayoutEffect(() => {
     if (projectionContentRef.current) {
@@ -359,6 +379,7 @@ function ArbiterProjection({
 
   useEffect(() => {
     setTexture(null);
+    setProjectionSize(projectionDimensions(PROJECTION_DEFAULT_ASPECT_RATIO, 1));
     if (!imageUrl) return;
 
     let active = true;
@@ -368,6 +389,18 @@ function ArbiterProjection({
       value.colorSpace = THREE.SRGBColorSpace;
       value.minFilter = THREE.LinearMipmapLinearFilter;
       loaded = value;
+      const source = value.image as {
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      };
+      setProjectionSize(
+        projectionDimensions(
+          source.naturalWidth ?? source.width ?? 0,
+          source.naturalHeight ?? source.height ?? 0
+        )
+      );
       setTexture(value);
     });
 
@@ -435,11 +468,15 @@ function ArbiterProjection({
     }
     setRegistrationMarksExpansion(
       frontRegistrationRef.current,
-      bracketExpansion
+      bracketExpansion,
+      projectionSize.width,
+      projectionSize.height
     );
     setRegistrationMarksExpansion(
       backRegistrationRef.current,
-      bracketExpansion
+      bracketExpansion,
+      projectionSize.width,
+      projectionSize.height
     );
     if (projectionImageRef.current) {
       projectionImageRef.current.visible = imageOpacity > 0;
@@ -472,7 +509,7 @@ function ArbiterProjection({
         <group ref={projectionImageRef}>
           <mesh raycast={() => undefined}>
             <planeGeometry
-              args={[PROJECTION_WIDTH + 0.12, PROJECTION_HEIGHT + 0.12]}
+              args={[projectionSize.width + 0.12, projectionSize.height + 0.12]}
             />
             <meshBasicMaterial
               ref={backdropMaterialRef}
@@ -485,7 +522,9 @@ function ArbiterProjection({
             />
           </mesh>
           <mesh position={[0, 0, PROJECTION_FACE_OFFSET]} renderOrder={5}>
-            <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+            <planeGeometry
+              args={[projectionSize.width, projectionSize.height]}
+            />
             <meshBasicMaterial
               ref={frontMaterialRef}
               map={frontTexture}
@@ -497,7 +536,9 @@ function ArbiterProjection({
             />
           </mesh>
           <mesh position={[0, 0, -PROJECTION_FACE_OFFSET]} renderOrder={5}>
-            <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+            <planeGeometry
+              args={[projectionSize.width, projectionSize.height]}
+            />
             <meshBasicMaterial
               ref={backMaterialRef}
               map={backTexture}
@@ -520,7 +561,7 @@ function ArbiterProjection({
           side={THREE.BackSide}
         />
         <mesh position={[0, 0, PROJECTION_MARK_OFFSET + 0.005]}>
-          <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+          <planeGeometry args={[projectionSize.width, projectionSize.height]} />
           <meshBasicMaterial
             transparent
             opacity={0}
@@ -570,12 +611,14 @@ function ProjectionRegistrationMarks({
 
 function setRegistrationMarksExpansion(
   root: THREE.Group | null,
-  expansion: number
+  expansion: number,
+  width: number,
+  height: number
 ) {
   if (!root) return;
 
-  const horizontalOffset = PROJECTION_WIDTH / 2 + 0.035;
-  const verticalOffset = PROJECTION_HEIGHT / 2 + 0.035;
+  const horizontalOffset = width / 2 + 0.035;
+  const verticalOffset = height / 2 + 0.035;
   PROJECTION_MARKS.forEach(({ x, y }, index) => {
     root.children[index]?.position.set(
       x * horizontalOffset * expansion,

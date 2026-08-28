@@ -1,9 +1,7 @@
 import type { PreparedArbiterImage } from '../services/api';
 
-export const ARBITER_DETAIL_WIDTH = 512;
-export const ARBITER_DETAIL_HEIGHT = 288;
-export const ARBITER_THUMBNAIL_WIDTH = 256;
-export const ARBITER_THUMBNAIL_HEIGHT = 144;
+export const ARBITER_DETAIL_MAX_DIMENSION = 512;
+export const ARBITER_THUMBNAIL_MAX_DIMENSION = 256;
 const MAX_SOURCE_MULTIPLIER = 8;
 const SUPPORTED_SOURCE_TYPES = new Set([
   'image/webp',
@@ -11,44 +9,30 @@ const SUPPORTED_SOURCE_TYPES = new Set([
   'image/png',
 ]);
 
-export interface AspectCrop {
-  sourceX: number;
-  sourceY: number;
-  sourceWidth: number;
-  sourceHeight: number;
+export interface ImageDimensions {
+  width: number;
+  height: number;
 }
 
-export function centeredAspectCrop(
+export function containedImageDimensions(
   width: number,
   height: number,
-  targetAspect: number
-): AspectCrop {
+  maximumDimension: number
+): ImageDimensions {
   if (
     !Number.isFinite(width) ||
     !Number.isFinite(height) ||
-    !Number.isFinite(targetAspect) ||
+    !Number.isFinite(maximumDimension) ||
     width <= 0 ||
     height <= 0 ||
-    targetAspect <= 0
+    maximumDimension <= 0
   ) {
-    throw new RangeError('Image dimensions and aspect must be positive.');
+    throw new RangeError('Image dimensions and limit must be positive.');
   }
-  const sourceAspect = width / height;
-  if (sourceAspect > targetAspect) {
-    const sourceWidth = height * targetAspect;
-    return {
-      sourceX: (width - sourceWidth) / 2,
-      sourceY: 0,
-      sourceWidth,
-      sourceHeight: height,
-    };
-  }
-  const sourceHeight = width / targetAspect;
+  const scale = Math.min(1, maximumDimension / Math.max(width, height));
   return {
-    sourceX: 0,
-    sourceY: (height - sourceHeight) / 2,
-    sourceWidth: width,
-    sourceHeight,
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
   };
 }
 
@@ -73,27 +57,26 @@ function renderBillboard(
   source: CanvasImageSource,
   width: number,
   height: number,
-  outputWidth: number,
-  outputHeight: number
+  maximumDimension: number
 ): HTMLCanvasElement {
+  const output = containedImageDimensions(width, height, maximumDimension);
   const canvas = document.createElement('canvas');
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
+  canvas.width = output.width;
+  canvas.height = output.height;
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) throw new Error('Canvas image preparation is unavailable.');
-  const crop = centeredAspectCrop(width, height, outputWidth / outputHeight);
   context.fillStyle = '#000000';
-  context.fillRect(0, 0, outputWidth, outputHeight);
+  context.fillRect(0, 0, output.width, output.height);
   context.drawImage(
     source,
-    crop.sourceX,
-    crop.sourceY,
-    crop.sourceWidth,
-    crop.sourceHeight,
     0,
     0,
-    outputWidth,
-    outputHeight
+    width,
+    height,
+    0,
+    0,
+    output.width,
+    output.height
   );
   return canvas;
 }
@@ -122,15 +105,13 @@ export async function prepareArbiterImage(
       bitmap,
       bitmap.width,
       bitmap.height,
-      ARBITER_DETAIL_WIDTH,
-      ARBITER_DETAIL_HEIGHT
+      ARBITER_DETAIL_MAX_DIMENSION
     );
     const thumbnailCanvas = renderBillboard(
       bitmap,
       bitmap.width,
       bitmap.height,
-      ARBITER_THUMBNAIL_WIDTH,
-      ARBITER_THUMBNAIL_HEIGHT
+      ARBITER_THUMBNAIL_MAX_DIMENSION
     );
     let detail: Blob | null = null;
     for (const quality of [0.88, 0.76, 0.64, 0.52]) {
