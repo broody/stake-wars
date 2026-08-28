@@ -107,6 +107,52 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('UNCLAIMED');
   });
 
+  it('counts down the acceptance window before settlement begins', () => {
+    const snapshot: ArbiterSnapshot = {
+      ...biddingSnapshot,
+      phase: 'acceptance',
+      observedAt: '2026-08-24T11:08:11Z',
+    };
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={snapshot}
+        isLoading={false}
+        error={null}
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('Finalizing bids');
+    expect(markup).toContain('SETTLEMENT STARTS IN');
+    expect(markup).toContain('00:01:49');
+    expect(markup).not.toContain('>SEALED</div>');
+  });
+
+  it('shows proof generation after the settlement window opens', () => {
+    const snapshot: ArbiterSnapshot = {
+      ...biddingSnapshot,
+      phase: 'settling',
+      observedAt: '2026-08-24T11:10:01Z',
+    };
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={snapshot}
+        isLoading={false}
+        error={null}
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('Choosing the winner');
+    expect(markup).toContain('SETTLEMENT');
+    expect(markup).toContain('PROVING');
+    expect(markup).toContain('generated and confirmed onchain');
+  });
+
   it('keeps the settled round summary compact', () => {
     const snapshot: ArbiterSnapshot = {
       ...biddingSnapshot,
@@ -148,6 +194,7 @@ describe('ArbiterConsole', () => {
         snapshot={biddingSnapshot}
         isLoading={false}
         error={null}
+        presentation="page"
         onClose={() => undefined}
         onRefresh={() => undefined}
       />
@@ -158,6 +205,9 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('CURRENT WINNER');
     expect(markup).not.toContain('CURRENT CONTROLLER');
     expect(markup).not.toContain('UNCLAIMED');
+    expect(markup).toContain('CURRENT ROUND');
+    expect(markup).toContain('aria-label="Round 4"');
+    expect(markup).toContain('>0004</span>');
     expect(markup).toContain('BIDS');
     expect(markup).toContain('>3</div>');
     expect(markup).not.toContain('>2</div>');
@@ -197,7 +247,7 @@ describe('ArbiterConsole', () => {
     expect(markup).not.toContain('AUCTION DETAILS');
   });
 
-  it('shows an unclaimed label instead of a winner commitment', () => {
+  it('shows a verification label instead of a winner commitment', () => {
     const markup = renderToStaticMarkup(
       <ArbiterConsole
         isOpen
@@ -218,8 +268,8 @@ describe('ArbiterConsole', () => {
       />
     );
 
-    expect(markup).toContain('UNCLAIMED');
-    expect(markup).toContain('The winning wallet has not claimed control yet');
+    expect(markup).toContain('VERIFYING');
+    expect(markup).toContain('The winning wallet is being verified');
     expect(markup).not.toContain('WINNER COMMITMENT');
   });
 });

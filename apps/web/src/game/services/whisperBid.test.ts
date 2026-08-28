@@ -40,7 +40,7 @@ const operatorConfig = {
 };
 
 describe('Whisper Ready bid submission', () => {
-  it('uploads the capsule before invoking Ready and stores the claim ticket', async () => {
+  it('uploads the capsule before invoking Ready without browser persistence', async () => {
     const calls: string[] = [];
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -55,8 +55,6 @@ describe('Whisper Ready bid submission', () => {
       calls.push('wallet');
       return { transactionHash: '0xfeed' };
     });
-    const storage = new MemoryStorage();
-
     const receipt = await submitArbiterBid({
       amount: '1.25',
       network: 'SN_SEPOLIA',
@@ -67,7 +65,6 @@ describe('Whisper Ready bid submission', () => {
       expectedPoolAddress: operatorConfig.poolAddress,
       operatorUrl: 'https://operator.example/',
       invokePrivateActions,
-      storage,
       fetcher,
     });
 
@@ -84,9 +81,6 @@ describe('Whisper Ready bid submission', () => {
       { type: 'invoke', contract: round.whisperAddress },
     ]);
     expect(receipt.transactionHash).toBe('0xfeed');
-    expect(storage.getItem('stakewars:arbiter-claim-tickets:v1')).toContain(
-      '"transactionHash":"0xfeed"'
-    );
   });
 
   it('fails closed before Ready when the operator does not match the round', async () => {
@@ -106,7 +100,6 @@ describe('Whisper Ready bid submission', () => {
         expectedPoolAddress: operatorConfig.poolAddress,
         operatorUrl: 'https://operator.example',
         invokePrivateActions,
-        storage: new MemoryStorage(),
         fetcher,
       })
     ).rejects.toThrow('operator vault does not match');
@@ -132,38 +125,9 @@ describe('Whisper Ready bid submission', () => {
         expectedPoolAddress: operatorConfig.poolAddress,
         operatorUrl: 'https://operator.example',
         invokePrivateActions,
-        storage: new MemoryStorage(),
         fetcher,
       })
     ).rejects.toThrow('capsule service paused');
     expect(invokePrivateActions).not.toHaveBeenCalled();
   });
 });
-
-class MemoryStorage implements Storage {
-  private values = new Map<string, string>();
-
-  get length() {
-    return this.values.size;
-  }
-
-  clear() {
-    this.values.clear();
-  }
-
-  getItem(key: string) {
-    return this.values.get(key) ?? null;
-  }
-
-  key(index: number) {
-    return Array.from(this.values.keys())[index] ?? null;
-  }
-
-  removeItem(key: string) {
-    this.values.delete(key);
-  }
-
-  setItem(key: string, value: string) {
-    this.values.set(key, value);
-  }
-}

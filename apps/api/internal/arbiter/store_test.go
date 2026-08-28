@@ -114,6 +114,13 @@ func TestStoreProjectsImmutableWinnerHistory(t *testing.T) {
 	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
 		t.Fatal(err)
 	}
+	unresolved, err := store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unresolved) != 0 {
+		t.Fatalf("already resolved winner should not be returned: %+v", unresolved)
+	}
 	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
 		t.Fatalf("idempotent projection failed: %v", err)
 	}
@@ -139,5 +146,59 @@ func TestStoreProjectsImmutableWinnerHistory(t *testing.T) {
 	}
 	if len(rounds) != 1 || rounds[0].RoundID != 2 {
 		t.Fatalf("unexpected unprojected rounds: %+v", rounds)
+	}
+}
+
+func TestStoreResolvesSettledWinnerIdempotently(t *testing.T) {
+	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "arbiter.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if _, err := db.Exec(`
+		INSERT INTO arbiter_rounds(
+			network, round_id, whisper_address, auction_id, expected_creator,
+			payment_token, metadata_hash, winner_payload_domain, vault_address
+		) VALUES ('SN_SEPOLIA', 1, '0x1', 7, '0x2', '0x3', '0x4', '0x5', '0x6')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(db)
+	projection := SettlementProjection{
+		RoundID: 1, WhisperAddress: "0x1", AuctionID: 7, HasWinner: true,
+		WinnerGroupHandle: "0xabc", WinnerCommitment: "0xdef",
+		WinningBid: "200", SecondHighestBid: "150", ClearingPrice: "150",
+		FundedBidCount: 2, SettlementHash: "0x999",
+		SettlementTransactionHash: "0xaaa", SettledAt: time.Unix(125, 0).UTC(),
+	}
+	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
+		t.Fatal(err)
+	}
+	winners, err := store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(winners) != 1 || winners[0].AuctionID != 7 ||
+		winners[0].WinnerGroupHandle != "0xabc" || winners[0].SettledAt.Unix() != 125 {
+		t.Fatalf("unexpected unresolved winners: %+v", winners)
+	}
+	if err := store.ResolveWinner(context.Background(), "SN_SEPOLIA", winners[0], "0x777"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ResolveWinner(context.Background(), "SN_SEPOLIA", winners[0], "0x777"); err != nil {
+		t.Fatalf("idempotent resolution failed: %v", err)
+	}
+	controller, err := store.Controller(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if controller.Address != "0x777" || controller.ClaimedAt.Unix() != 125 ||
+		controller.StartsAt == nil || controller.StartsAt.Unix() != 125 {
+		t.Fatalf("unexpected resolved controller: %+v", controller)
+	}
+	winners, err = store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
+	if err != nil || len(winners) != 0 {
+		t.Fatalf("resolved winner remained pending: %+v, %v", winners, err)
 	}
 }

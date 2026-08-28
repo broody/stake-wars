@@ -53,6 +53,14 @@ type SettlementProjection struct {
 	SettledAt                 time.Time
 }
 
+type UnresolvedWinner struct {
+	RoundID           uint64
+	AuctionID         uint64
+	WinnerGroupHandle string
+	WinnerCommitment  string
+	SettledAt         time.Time
+}
+
 type Store struct{ db *sql.DB }
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
@@ -396,6 +404,111 @@ func (s *Store) SaveSettlement(
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit Arbiter settlement projection: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UnresolvedWinners(
+	ctx context.Context,
+	network string,
+) ([]UnresolvedWinner, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT o.round_id, o.auction_id, o.winner_group_handle,
+			o.winner_commitment, o.settled_at
+		FROM arbiter_round_outcomes o
+		JOIN arbiter_rounds r
+			ON r.network = o.network AND r.round_id = o.round_id
+		WHERE o.network = ? AND o.terminal_status = 'settled'
+			AND o.has_winner = 1 AND r.claimed_controller IS NULL
+		ORDER BY o.round_id ASC
+	`, network)
+	if err != nil {
+		return nil, fmt.Errorf("list unresolved Arbiter winners: %w", err)
+	}
+	defer rows.Close()
+
+	winners := make([]UnresolvedWinner, 0)
+	for rows.Next() {
+		var winner UnresolvedWinner
+		var settledAt int64
+		if err := rows.Scan(
+			&winner.RoundID,
+			&winner.AuctionID,
+			&winner.WinnerGroupHandle,
+			&winner.WinnerCommitment,
+			&settledAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan unresolved Arbiter winner: %w", err)
+		}
+		winner.SettledAt = time.Unix(settledAt, 0).UTC()
+		winners = append(winners, winner)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate unresolved Arbiter winners: %w", err)
+	}
+	return winners, nil
+}
+
+// ResolveWinner atomically activates the address disclosed from the winning
+// encrypted capsule after its group and commitment match the immutable result.
+func (s *Store) ResolveWinner(
+	ctx context.Context,
+	network string,
+	winner UnresolvedWinner,
+	address string,
+) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin Arbiter winner resolution: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var auctionID uint64
+	var winnerGroup, winnerCommitment string
+	var hasWinner int
+	var currentAddress sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT o.auction_id, o.has_winner, o.winner_group_handle,
+			o.winner_commitment, r.claimed_controller
+		FROM arbiter_round_outcomes o
+		JOIN arbiter_rounds r
+			ON r.network = o.network AND r.round_id = o.round_id
+		WHERE o.network = ? AND o.round_id = ? AND o.terminal_status = 'settled'
+	`, network, winner.RoundID).Scan(
+		&auctionID, &hasWinner, &winnerGroup, &winnerCommitment, &currentAddress,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("resolve Arbiter winner: settlement not found")
+	}
+	if err != nil {
+		return fmt.Errorf("read Arbiter winner settlement: %w", err)
+	}
+	if hasWinner != 1 || auctionID != winner.AuctionID ||
+		winnerGroup != winner.WinnerGroupHandle || winnerCommitment != winner.WinnerCommitment {
+		return fmt.Errorf("resolve Arbiter winner: immutable outcome mismatch")
+	}
+	if currentAddress.Valid {
+		if currentAddress.String != address {
+			return fmt.Errorf("resolve Arbiter winner: conflicting address")
+		}
+		return nil
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE arbiter_rounds
+		SET claimed_controller = ?, claimed_at = ?, billboard_starts_at = ?,
+			updated_at = unixepoch()
+		WHERE network = ? AND round_id = ? AND claimed_controller IS NULL
+	`, address, winner.SettledAt.Unix(), winner.SettledAt.Unix(), network, winner.RoundID)
+	if err != nil {
+		return fmt.Errorf("save resolved Arbiter winner: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil || rows != 1 {
+		return fmt.Errorf("save resolved Arbiter winner: round was not updated")
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit Arbiter winner resolution: %w", err)
 	}
 	return nil
 }

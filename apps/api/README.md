@@ -68,12 +68,12 @@ history.
 | `ARBITER_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Arbiter rounds. Sepolia rehearsal environments currently set this to `5m`. |
 | `ARBITER_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
 | `ARBITER_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
-| `ARBITER_COORDINATOR_URL` | unset | Private Whisper operator origin used only by the recurring auction coordinator. |
+| `ARBITER_COORDINATOR_URL` | unset | Whisper operator origin used by recurring auction creation and post-settlement winner resolution. |
 | `ARBITER_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation endpoint. |
 | `ARBITER_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Arbiter rounds. |
 | `ARBITER_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
 | `ARBITER_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |
-| `ARBITER_WINNER_PAYLOAD_DOMAIN` | Stake Wars v1 felt | Fixed application domain for winner claim commitments. |
+| `ARBITER_WINNER_PAYLOAD_DOMAIN` | Stake Wars v1 felt | Fixed application domain for opaque winner commitments. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |

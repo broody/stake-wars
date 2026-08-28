@@ -10,7 +10,6 @@ import type { WhisperEncryptedCapsule } from '@whisper-sdk/capsule.ts';
 import type { ArbiterRound } from './api';
 import { parseStrk } from '../utils/format';
 
-const CLAIM_TICKETS_KEY = 'stakewars:arbiter-claim-tickets:v1';
 const MAX_FELT = (1n << 251n) + 17n * (1n << 192n);
 
 interface WhisperOperatorConfig {
@@ -20,21 +19,6 @@ interface WhisperOperatorConfig {
   vaultAddress: string;
   vaultPublicKey: string;
   revealPublicKey: string;
-}
-
-interface ArbiterClaimTicket {
-  version: 1;
-  network: string;
-  whisperAddress: string;
-  auctionId: number;
-  roundId: number;
-  walletAddress: string;
-  groupHandle: string;
-  bidHandle: string;
-  winnerCommitment: string;
-  claimSecret: string;
-  transactionHash: string | null;
-  createdAt: string;
 }
 
 export interface SubmitArbiterBidInput {
@@ -49,7 +33,6 @@ export interface SubmitArbiterBidInput {
   invokePrivateActions: (
     actions: STRK20_ACTION[]
   ) => Promise<{ transactionHash: string }>;
-  storage?: Storage;
   fetcher?: typeof fetch;
 }
 
@@ -69,7 +52,6 @@ export async function submitArbiterBid({
   expectedPoolAddress,
   operatorUrl,
   invokePrivateActions,
-  storage = window.localStorage,
   fetcher = fetch,
 }: SubmitArbiterBidInput): Promise<ArbiterBidReceipt> {
   if (round.submissionCount >= round.maxBids) {
@@ -102,7 +84,7 @@ export async function submitArbiterBid({
   const whisperAddress = positiveFelt('Whisper address', round.whisperAddress);
   const bidNonce = randomFelt();
   const salt = randomFelt();
-  const claimSecret = randomFelt();
+  const winnerSecret = randomFelt();
   const refundCommitment = computeRefundCommitment(bidder);
   const winnerCommitment = computeStakeWarsWinnerCommitment({
     winnerPayloadDomain: round.winnerPayloadDomain,
@@ -110,7 +92,7 @@ export async function submitArbiterBid({
     whisperAddress,
     auctionId,
     walletAddress: bidder,
-    claimSecret,
+    winnerSecret,
   });
   const revealCommitment = computeRevealCommitment(
     auctionId,
@@ -149,34 +131,15 @@ export async function submitArbiterBid({
     }
   );
 
-  const ticket: ArbiterClaimTicket = {
-    version: 1,
-    network,
-    whisperAddress: hex(whisperAddress),
-    auctionId: round.auctionId,
-    roundId: round.id,
-    walletAddress: hex(bidder),
-    groupHandle: hex(composition.groupHandle),
-    bidHandle: hex(composition.bidHandle),
-    winnerCommitment: hex(winnerCommitment),
-    claimSecret: hex(claimSecret),
-    transactionHash: null,
-    createdAt: new Date().toISOString(),
-  };
-  saveClaimTicket(storage, ticket);
   await uploadCapsule(operatorUrl, capsule, fetcher);
 
   const result = await invokePrivateActions(
     composition.actions as STRK20_ACTION[]
   );
-  saveClaimTicket(storage, {
-    ...ticket,
-    transactionHash: result.transactionHash,
-  });
   return {
     transactionHash: result.transactionHash,
-    groupHandle: ticket.groupHandle,
-    bidHandle: ticket.bidHandle,
+    groupHandle: hex(composition.groupHandle),
+    bidHandle: hex(composition.bidHandle),
   };
 }
 
@@ -186,14 +149,14 @@ export function computeStakeWarsWinnerCommitment({
   whisperAddress,
   auctionId,
   walletAddress,
-  claimSecret,
+  winnerSecret,
 }: {
   winnerPayloadDomain: string;
   chainId: bigint;
   whisperAddress: bigint;
   auctionId: bigint;
   walletAddress: bigint;
-  claimSecret: bigint;
+  winnerSecret: bigint;
 }): bigint {
   return ec.starkCurve.poseidonHashMany([
     positiveFelt('winner payload domain', winnerPayloadDomain),
@@ -201,7 +164,7 @@ export function computeStakeWarsWinnerCommitment({
     positiveFelt('Whisper address', whisperAddress),
     positiveFelt('auction id', auctionId),
     positiveFelt('wallet address', walletAddress),
-    positiveFelt('claim secret', claimSecret),
+    positiveFelt('winner secret', winnerSecret),
   ]);
 }
 
@@ -281,33 +244,6 @@ async function uploadCapsule(
     }
     throw new Error(detail);
   }
-}
-
-function saveClaimTicket(storage: Storage, ticket: ArbiterClaimTicket) {
-  let tickets: ArbiterClaimTicket[] = [];
-  const current = storage.getItem(CLAIM_TICKETS_KEY);
-  if (current) {
-    try {
-      const parsed = JSON.parse(current) as unknown;
-      if (!Array.isArray(parsed)) throw new Error();
-      tickets = parsed as ArbiterClaimTicket[];
-    } catch {
-      throw new Error('The local Arbiter claim-ticket store is unreadable.');
-    }
-  }
-  const key = claimTicketKey(ticket);
-  const next = tickets.filter((candidate) => claimTicketKey(candidate) !== key);
-  next.push(ticket);
-  storage.setItem(CLAIM_TICKETS_KEY, JSON.stringify(next));
-}
-
-function claimTicketKey(ticket: ArbiterClaimTicket): string {
-  return [
-    ticket.network,
-    ticket.whisperAddress,
-    ticket.auctionId,
-    ticket.groupHandle,
-  ].join(':');
 }
 
 function randomFelt(): bigint {

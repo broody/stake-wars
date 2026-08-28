@@ -6,16 +6,16 @@ Updated 2026-08-27 by the strk20-privacy-integration skill. Stake Wars' STRK20 s
 extension completed on 2026-08-26, and active Whisper raw-event indexing was
 verified locally on 2026-08-27. Live canonical history was implemented on
 2026-08-27. Whisper is linked at `vendor/whisper` as a pinned Git submodule.
-Ready Wallet bid integration was approved on 2026-08-27 for a manual Sepolia
-rehearsal. Claim and authorized recurring round creation remain proposed; no
-deployment, bootstrap transaction, or agent-submitted onchain transaction is
-approved by this plan.
+Ready Wallet bidding, five-minute settlement, recurring round creation, and
+automatic winner resolution were implemented and exercised on Sepolia on
+2026-08-27. Billboard upload authorization and the full 72-hour rehearsal
+remain proposed; no Mainnet transaction is approved by this plan.
 
 This plan supersedes the broader gameplay-edict exploration for the first
 Arbiter release. Winning a recurring Whisper auction grants one off-chain
 privilege: control of the image displayed on a floating billboard in front of
 the orbiting Arbiter. The controller keeps that privilege until a later
-qualifying winner claims it; an idle, unresolved, aborted, or no-winner auction
+qualifying winner is resolved; an idle, resolving, aborted, or no-winner auction
 does not create a control gap. It does not alter FORCE, Sector rules, staking,
 the Dojo World, or administrative configuration.
 
@@ -29,7 +29,7 @@ form one submission without collapsing their ownership boundaries:
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Cairo Vickrey auction, start-on-bid scheduling, and STRK20 callbacks  | Arbiter auction, continuous-controller policy, and billboard UX                               |
 | Headless bidder SDK and encrypted reveal capsule                      | Ready Wallet connection, consent, and action submission                                       |
-| Vault operator, discovery, acceptance, settlement, and recovery       | Canonical round registry, public read model, winner claim, artwork authorization, and display |
+| Vault operator, discovery, acceptance, settlement, winner disclosure, and recovery | Canonical round registry, public read model, automatic controller resolution, artwork authorization, and display |
 | Reusable off-chain/ERC-20/ERC-721/ERC-1155 fulfillment primitives     | Stake Wars-specific off-chain controller entitlement                                          |
 | Independent releases, security review, deployments, and documentation | Public game deployment, demo, and root `strk20.json` submission evidence                      |
 
@@ -63,7 +63,7 @@ verified. Sepolia hashes must not be presented as qualifying Mainnet evidence.
   currently tied specifically to Sector ownership and must not be reused
   without a separate Arbiter-winner verifier.
 - `vendor/whisper` pins Whisper commit
-  `7828af2cf0097b82b9d86dc594be2046000f348a`. The active experimental Sepolia
+  `24974e012546b3d1a7bd154f6dead8f59cfb251b`. The active experimental Sepolia
   v0.4 deployment is `0x02ca43bf2b1e68ae9f39a43e36fce239097444985b4b774b06d0f628a4d678c4`
   from block `14134212`; its deployed source commit is `dd8b61a`, which includes
   start-on-bid scheduling and the complete indexable event history. Auction 1
@@ -94,25 +94,27 @@ Ready to execute the returned action array. The bid flow never requests or
 receives the user's viewing key, selected notes, proofs, or private balances.
 
 No new Cairo consumer contract is required for the first billboard because the
-prize is entirely off-chain. The Go API can verify the canonical Whisper result
-and an authenticated winner-commitment opening before authorizing the existing
-object-storage flow. Reconsider an on-chain Arbiter registry only if the prize
-later controls on-chain gameplay.
+prize is entirely off-chain. After `get_result` confirms settlement, the
+Whisper operator decrypts only the winning group's authenticated capsule and
+publishes its refund recipient; the Go API matches the disclosed group and
+winner commitment to the immutable result before activating that address.
+Reconsider an on-chain Arbiter registry only if the prize later controls
+on-chain gameplay.
 
 ## 4 Privacy boundary
 
 | Hidden before settlement                                                                         | Public before settlement                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bid amount, bidder wallet relationship, refund destination, bid salt, and billboard claim secret | Auction token, reserve, schedule kind and durations, resolved deadlines, capacity, group/tranche handles, submission count, funded-tranche count, commitments, and timing |
+| Bid amount, bidder wallet relationship, refund destination, bid salt, and ephemeral winner secret | Auction token, reserve, schedule kind and durations, resolved deadlines, capacity, group/tranche handles, submission count, funded-tranche count, commitments, and timing |
 
 | Still private after settlement                                                                                                     | Newly public after settlement                                                                                                             |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Viewing keys, notes, proofs, private refund/change/proceeds recipients, and the wallet-to-bid relationship until the winner claims | Every accepted tranche amount and salt, aggregate winning bid, second-highest bid, clearing price, winner commitment, and settlement time |
+| Viewing keys, notes, proofs, losing refund recipients, and losing wallet-to-bid relationships | Every accepted tranche amount and salt, aggregate winning bid, second-highest bid, clearing price, winner commitment, settlement time, and the verified winning address |
 
 Whisper's 1-of-1 operator can decrypt bid capsules and controls the escrow vault;
 the auction is sealed from the public and competing bidders, not from that
-operator. Claiming the billboard intentionally discloses the winning wallet to
-Stake Wars and, once displayed as the controller, to the public. A public
+operator. Automatic winner resolution intentionally discloses only the winning
+wallet to Stake Wars and the public after settlement. A public
 STRK20 deposit immediately before bidding creates timing and amount-correlation
 risk; the UI should direct bidders to use already-mature private notes. For a
 pending auction, the first successful private bid also publicly fixes the
@@ -174,12 +176,13 @@ The console has explicit lifecycle states:
    bidder count.
 4. **Resolving:** collapse acceptance grace and settlement into one simple
    user-facing state while retaining their distinct deadlines in details and
-   API data. Do not claim a winner before `get_result` succeeds.
+   API data. Do not announce a winner before `get_result` succeeds.
 5. **Settled, no winner:** keep the current controller and billboard active
    while the worker prepares the next pending round.
-6. **Settled, unclaimed:** keep the current controller active; show the result
-   and `WINNER UNCLAIMED` without implying that control already moved.
-7. **Settled, claimed:** hand control to the public claimant, show the active
+6. **Settled, verifying winner:** keep the prior controller active briefly;
+   show the result and `VERIFYING` while the worker validates the operator's
+   post-settlement disclosure.
+7. **Winner resolved:** hand control to the verified winning address, show the active
    billboard preview, and expose `UPLOAD IMAGE` or `REPLACE IMAGE` to that
    wallet while the next pending round remains available.
 8. **Aborted/recovery:** explain that control did not change and that private
@@ -203,7 +206,7 @@ Keep these durable records:
 - `arbiter_rounds`: network, monotonically increasing Stake Wars round ID,
   Whisper address and auction ID, expected creator, payment token, metadata
   hash, winner-payload domain, vault, expected schedule/configuration, optional
-  claimed controller, claim timestamp, and active artwork ID;
+  resolved controller, activation timestamp, and active artwork ID;
 - `arbiter_round_outcomes`: one immutable terminal projection per canonical
   round, including terminal status, whether a winner exists, winner commitment,
   winning bid, clearing price, funded bid count, settlement transaction, and
@@ -220,10 +223,11 @@ GET /v1/arbiter/history?limit=<n>&cursor=<opaque>
 ```
 
 The current endpoint returns the canonical round, validated on-chain state and
-result, public claim/controller state, and approved billboard metadata. History
+result, public controller state, and approved billboard metadata. History
 returns only canonical settled rounds that have a winner, newest first. Its
-`winnerAddress` remains nullable and renders as `UNCLAIMED` until a valid public
-claim; it must never substitute the public winner commitment for an address.
+`winnerAddress` remains nullable and renders as `VERIFYING` until the worker
+validates the operator disclosure; it must never substitute the public winner
+commitment for an address.
 Use `AuctionSettled.winning_bid` for the winning bid and
 `funded_bid_count` for the `BIDS` column. That count represents funded logical
 bid groups, not provably unique wallets, so the UI must not label it
@@ -246,7 +250,7 @@ database row, and apply this state machine:
 2. Bidding, acceptance, and settlement-in-progress states do nothing.
 3. Settled with a winner, settled without a winner, and aborted are all
    terminal and each schedules exactly one next pending round. Creating the
-   successor does not wait for the winner to claim.
+   successor does not wait for winner disclosure to finish.
 4. On a terminal state, upsert the immutable outcome and uniquely keyed cycle
    job. Derive the successor's metadata hash deterministically from the
    predecessor and next Stake Wars round.
@@ -277,10 +281,10 @@ or expose raw signing material to unrelated worker duties.
 Do not put a mutable current auction ID in the Vite environment or require a
 frontend deployment for each round.
 
-## 7 Winner claim design
+## 7 Automatic winner resolution
 
-At initial bid creation, generate a cryptographically random claim secret and
-commit to:
+At initial bid creation, generate a cryptographically random ephemeral winner
+secret and commit to:
 
 ```text
 Poseidon(
@@ -289,29 +293,29 @@ Poseidon(
   whisper_address,
   auction_id,
   connected_wallet_address,
-  claim_secret
+  winner_secret
 )
 ```
 
 Use the result as Whisper's application-defined `winner_commitment` and set a
-fixed Stake Wars `winner_payload_domain` in the canonical auction. Store the
-claim ticket locally under the exact network, Whisper address, auction ID, and
-group handle; never log it or send it with analytics. The UI must warn that
-clearing browser data before claim can make the billboard prize unclaimable;
-an export/recovery design should be decided before meaningful-value auctions.
+fixed Stake Wars `winner_payload_domain` in the canonical auction. The secret
+is used only while preparing the bid and is discarded; the browser stores no
+claim ticket, winner secret, encrypted capsule, note, or proof.
 
-After settlement, the connected wallet authenticates through Stake Wars'
-existing typed-data session and submits the claim secret. The API recomputes
-the commitment using the authenticated wallet address, verifies it against the
-canonical on-chain `get_result`, atomically records the first valid claim, and
-never returns the secret. This prevents address-dictionary attacks during
-bidding while making the controller public only after voluntary claim.
+The encrypted Whisper capsule already binds `refund_recipient` to the public
+bid's `refund_commitment`. Once `get_result` is available, the operator selects
+the winning group, decrypts its capsule, revalidates the reveal and refund
+commitments, and exposes only the winning address through the authenticated
+`GET /v1/auctions/<auction-id>/winner`. Before settlement that endpoint returns
+no address, and losing addresses are never published.
 
-Controller claims are monotonic by Stake Wars round ID, not by claim time. A
-claim may replace the current controller only when its round ID is newer than
-the controller's source round; a late claim from an older winner is rejected
-after a newer round has claimed. Controller lookup likewise orders by round ID,
-so retries or delayed claims cannot roll control backward.
+The Stake Wars worker matches the disclosed auction ID, winner group, and
+winner commitment against its RPC-verified immutable outcome, normalizes the
+address, and atomically activates it at the settlement timestamp. Controller
+selection remains monotonic by Stake Wars round ID, so retries or delayed
+processing cannot roll control backward. The winning wallet later proves
+control through the existing typed-data session when authorizing artwork; it
+does not submit a separate claim or retain browser recovery material.
 
 ## 8 Billboard storage and rendering
 
@@ -327,9 +331,9 @@ so retries or delayed claims cannot roll control backward.
 - Verify winner authority both before issuing upload URLs and before
   publication. Replacement supersedes metadata only after the new object is
   valid; never delete the previous object first.
-- A claimed winner may replace the billboard during their term. The approved
-  image remains active until the next **successful winner claim**; a pending,
-  unresolved, settled-no-winner, unclaimed, or aborted auction leaves the
+- A resolved winner may replace the billboard during their term. The approved
+  image remains active until the next **verified winner resolution**; a pending,
+  resolving, settled-no-winner, disclosure-pending, or aborted auction leaves the
   previous approved billboard in place.
 - Render the approved texture as a child of `OrbitalArbiter`. The empty state is
   a restrained `SIGNAL AVAILABLE` wireframe rather than a broken image or a
@@ -346,9 +350,9 @@ acceptance gate passes.
 | Milestone                                  | Whisper deliverable and gate                                                                                                                                                                                             | Stake Wars deliverable and acceptance                                                                                                                                                                                                                                            | Status                                                                 |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | M0 — foundation and schedule compatibility | Pin the start-on-bid contract/ABI, SDK source, operator, and current public Sepolia metadata; keep the existing absolute-schedule smoke evidence distinct from new schedule support                                      | Pin Whisper under `vendor/whisper`; dual-decode the legacy and start-on-bid ABI; validate the configured duration (five minutes for initial Sepolia rehearsals, 72 hours by default); expose pending through terminal lifecycle states; keep controller lookup independent from the newest round                                               | Complete: canonical Sepolia auction 2 is pending and its creation event is indexed |
-| M1 — wallet bidder                         | Publish a reviewed SDK tag from the pinned source and pass a live Sepolia Ready test where the first private bid emits `AuctionStarted`; prove the resolved deadline matches the configured five-minute rehearsal window and later bids/top-ups do not move it | Pin that SDK release; submit least-privileged `transfer + invoke` actions; store claim tickets locally; distinguish submitted from funded; recover transaction state by polling when the relayed transaction is slow                                                             | Ready for manual Ready Wallet bid against Sepolia auction 2; live activation/funding evidence remains |
-| M2 — recurring Sepolia product             | Deploy or upgrade the reviewed start-on-bid class; run the separate operator with capsule controls, replay-note inventory, settlement, abort, recovery monitoring, and a full canonical three-day round                  | Start from a pending canonical round; bid from `/arbiter`; preserve the prior controller through bidding/resolution; settle, claim, publish, and render; then have the idempotent worker create and register exactly one next pending round without changing the controller | Five-minute coordinator/bootstrap path is live; settlement, next-round cycle, claim, and full-duration rehearsal remain |
-| M3 — Mainnet hackathon release             | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal                                                                                                   | Deploy the public product, complete a real auction/claim/display/cycle flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo                                                                        | Pending; requires explicit Mainnet approval                            |
+| M1 — wallet bidder                         | Publish a reviewed SDK tag from the pinned source and pass a live Sepolia Ready test where the first private bid emits `AuctionStarted`; prove the resolved deadline matches the configured five-minute rehearsal window and later bids/top-ups do not move it | Pin that SDK release; submit least-privileged `transfer + invoke` actions; keep winner material out of browser storage; distinguish submitted from funded; recover transaction state by polling when the relayed transaction is slow | Complete for the five-minute Ready path; published SDK packaging and additive top-up remain |
+| M2 — recurring Sepolia product             | Run the separate operator with capsule controls, replay-note inventory, settlement, post-settlement winner disclosure, abort, recovery monitoring, and a full canonical three-day round | Start from a pending canonical round; bid from `/arbiter`; preserve the prior controller through bidding/resolution; settle, automatically resolve, publish, and render; then have the idempotent worker create and register exactly one next pending round | Five-minute settlement, next-round cycle, and automatic winner-resolution code are complete; billboard publishing and full-duration rehearsal remain |
+| M3 — Mainnet hackathon release             | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal | Deploy the public product, complete a real auction/resolution/display/cycle flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo | Pending; requires explicit Mainnet approval |
 | M4 — post-sprint hardening                 | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible                                                                                                   | Incident UX, expanded monitoring and moderation, tested disaster recovery, and a policy for upgrading the pinned Whisper version                                                                                                                                                 | Post-sprint                                                            |
 
 ## 10 Stake Wars delivery phases
@@ -368,18 +372,18 @@ acceptance gate passes.
 5. Implement the Go read model, Whisper RPC decoder, canonical-round database
    migration, and `GET /v1/arbiter` endpoint with fixture-backed tests.
 6. Verify desktop and mobile layouts on `http://localhost:3000/play`; no bidding,
-   claim, upload, deployment, or external transaction is part of Phase A.
+   winner resolution, upload, deployment, or external transaction is part of Phase A.
 
 ### Phase A.1 — start-on-bid compatibility and controller continuity — ✅ done 2026-08-27
 
-1. Pull and pin Whisper commit `7828af2cf0097b82b9d86dc594be2046000f348a`,
+1. Pull and pin Whisper commit `24974e012546b3d1a7bd154f6dead8f59cfb251b`,
    then dual-decode the earlier absolute-schedule response and the new
    start-on-bid response without treating zero pending timestamps as dates.
 2. Require canonical start-on-bid rounds to use the configured bidding duration,
    validate their resolved duration arithmetic after the first bid, and expose
    the schedule plus nullable timestamps through `GET /v1/arbiter`.
 3. Resolve the current controller independently from the newest canonical
-   round, so pending, resolving, aborted, no-winner, and unclaimed rounds do not
+   round, so pending, resolving, aborted, no-winner, and disclosure-pending rounds do not
    blank or prematurely replace the active controller.
 4. Redesign the Arbiter surfaces around the `WAITING`, configured auction,
    `RESOLVING`, and `CONTROL` stages using the existing theme and font, with
@@ -401,14 +405,14 @@ acceptance gate passes.
    Use direct RPC for current state and allow Torii enrichment to retry when it
    is behind.
 3. Add cursor-paginated `GET /v1/arbiter/history`, returning only canonical
-   settled rounds with a winner. Join the public claimed controller by round;
-   return `winnerAddress: null` before claim and never return a commitment in
-   its place.
+   settled rounds with a winner. Join the resolved controller by round; return
+   `winnerAddress: null` while disclosure is pending and never return a
+   commitment in its place.
 4. Add `api.getArbiterHistory()` and a route-scoped history query refreshed on
    focus and about every 30 seconds. Replace the live page's empty array with
-   API data; render `UNCLAIMED`, `BIDS`, and the winning bid.
+   API data; render `VERIFYING`, `BIDS`, and the winning bid.
 5. Test Torii lag, malformed/unrelated events, duplicate projection, cursor
-   stability, nullable claims, amount formatting, empty history, and API
+   stability, nullable winner resolution, amount formatting, empty history, and API
    failure. Verify locally against the shared Sepolia Torii index without
    treating smoke auction 1 as a Stake Wars winner.
 
@@ -437,8 +441,8 @@ live submission proves the handles and event flow.
 3. Expose a least-privileged WalletContext action that submits a supplied
    `STRK20_ACTION[]` with `WalletAccountV6.strk20InvokeTransaction`; do not
    expose the wallet object or add a balance-read prompt.
-4. Add bid preparation in a focused `services/whisper.ts`: random nonce, salt,
-   refund commitment, claim ticket, reveal commitment, encrypted capsule, and
+4. Add bid preparation in `services/whisperBid.ts`: random nonce, salt, refund
+   commitment, ephemeral winner commitment, reveal commitment, encrypted capsule, and
    standard Whisper actions.
 5. Upload the encrypted capsule before invoking the wallet. Configure the
    Whisper operator for the Stake Wars origin, strict body limits, rate limits,
@@ -456,15 +460,16 @@ live submission proves the handles and event flow.
 8. Keep additive top-ups out of the first UI until the interactive Ready initial
    bid and top-up paths have both passed live Sepolia testing.
 
-### Phase C — claim, billboard publishing, and recurring Sepolia operation
+### Phase C — automatic winner resolution, billboard publishing, and recurring Sepolia operation
 
 1. Refactor the existing frontend wallet-session helper so Sector and Arbiter
    uploads share authentication without sharing authorization rules.
-2. Add authenticated claim, upload-authorization, upload-completion, list, and
-   removal/reporting paths for Arbiter artwork.
-3. Re-read the canonical Whisper result and claim status at authorization and
-   completion; test replay, wrong wallet, wrong secret, superseded round,
-   concurrent claim, replaced image, removed image, and storage failure cases.
+2. Consume Whisper's post-settlement winner disclosure in an idempotent worker
+   duty, verify it against the immutable result, and add upload-authorization,
+   upload-completion, list, and removal/reporting paths for Arbiter artwork.
+3. Re-read the canonical Whisper result and resolved controller at authorization
+   and completion; test disclosure mismatch, wrong wallet, superseded round,
+   concurrent resolution, replaced image, removed image, and storage failure cases.
 4. Add winner-only crop/preview/upload controls inside the Arbiter Console and
    refresh the 3D texture only after the API publishes the approved record.
 5. Wire the existing Arbiter worker into API startup with an immediate pass and
@@ -488,11 +493,11 @@ live submission proves the handles and event flow.
    and reviewed acceptance/settlement durations. Use an explicit bootstrap
    command for the first canonical round; ordinary API startup must never
    create it implicitly.
-10. Preserve the current controller and artwork until a later winner completes
-    a valid claim. Enforce monotonically increasing controller round IDs so a
-    late older claim cannot replace a newer controller.
+10. Preserve the current controller and artwork until a later winner disclosure
+    is verified. Enforce monotonically increasing controller round IDs so
+    delayed processing cannot replace a newer controller.
 11. First verify a complete five-minute Sepolia rehearsal round using Ready,
-    including first-bid activation, settlement, claim, display, crash recovery
+    including first-bid activation, settlement, automatic resolution, display, crash recovery
     at every coordinator boundary, and creation of exactly one next pending
     round before enabling any meaningful bid amount. Then restore 72 hours and
     complete one full-duration M2 rehearsal before enabling any Mainnet auction.
@@ -502,10 +507,10 @@ live submission proves the handles and event flow.
 1. Confirm reserve, capacity, acceptance/settlement durations, proceeds
    recipient, no-sale behavior, and the account authorized to create and
    register the canonical next round. Bidding remains fixed at three days from
-   the first successful bid and control lasts until the next valid winner claim.
+   the first successful bid and control lasts until the next verified winner resolution.
 2. Add explicit round creation/registration tooling and monitoring for capsule
    backlog, note acceptance, replay-note inventory, relayer fees, settlement,
-   abort deadline, claim, image moderation, and stale billboard state.
+   abort deadline, winner disclosure, image moderation, and stale billboard state.
 3. Add durable operator database backup/recovery, key rotation, incident
    procedures, capsule upload abuse controls, and a low-value rehearsal.
 4. Obtain independent Cairo, capsule-format, and operator-custody review before
@@ -515,26 +520,26 @@ live submission proves the handles and event flow.
    independently verify every qualifying pool transaction before adding at
    least three hashes to the root `strk20.json`.
 6. Publish a three-minute demo showing Whisper's reusable mechanics through the
-   Stake Wars bidder, settlement, claim, and billboard flow; keep the public
+   Stake Wars bidder, settlement, winner-resolution, and billboard flow; keep the public
    demo URL rooted in Stake Wars.
 
 ## 11 Verification matrix
 
 - Web: disconnected, unsupported wallet, pending without a deadline, first-bid
   activation, bidding, grace, settling, settled with and without winner,
-  unclaimed winner, claimed non-winner, claimed winner, aborted, API
+  disclosure pending, resolved winner, no-winner, aborted, API
   unavailable, billboard unavailable, and reduced-motion tests.
 - API: canonical auction validation, felt/address normalization, ABI decoding,
   legacy/new status mapping, pending zero timestamps, exact schedule arithmetic,
   chain time rather than browser time, Torii event validation and lag, cursor
-  stability, controller continuity and monotonic claim ordering, settlement
-  result validation, claim atomicity, authorization at both upload stages,
+  stability, controller continuity and monotonic resolution ordering, settlement
+  result validation, disclosure atomicity, authorization at both upload stages,
   MIME/signature/dimension checks, moderation, and supersession tests.
 - Worker: ignore non-terminal rounds and leave bidless pending rounds open;
   create one successor after settled-with-winner, settled-without-winner, or
   aborted; retry safely across onchain discovery, submission, receipt
   confirmation, readback, and database registration; retain the controller for
-  abort, no-winner, and unclaimed outcomes; recover after a crash at every
+  abort, no-winner, and disclosure-pending outcomes; recover after a crash at every
   persisted boundary.
 - Whisper: verify the `vendor/whisper` gitlink matches the intended reviewed
   commit, then run contract, SDK, operator, docs, deployment JSON, and
@@ -546,9 +551,9 @@ live submission proves the handles and event flow.
   real `/arbiter` view. Verify the first bid starts—not merely submits to—the
   configured auction (five minutes for the initial rehearsal), the capsule
   arrives, the tranche becomes funded, settlement
-  publishes the correct result, only the winner can claim, only the claimed
-  winner can publish the visible billboard, the old controller remains until
-  that claim, and exactly one next pending round is registered.
+  publishes the correct result, the operator discloses only the verified
+  winner, only that wallet can publish the visible billboard, the old
+  controller remains until resolution, and exactly one next pending round is registered.
 
 ## 12 Decisions still required before transaction-capable phases
 
@@ -557,9 +562,9 @@ live submission proves the handles and event flow.
 2. Choose the reserve, maximum accepted tranches, acceptance duration,
    settlement duration, and proceeds destination. The initial Sepolia test
    override is five minutes; the production target remains three days and the
-   controller term ends only on a later valid winner claim.
-3. Decide whether a lost claim ticket permanently forfeits the billboard or
-   whether an operator-assisted recovery mechanism is acceptable.
+   controller term ends only on a later verified winner resolution.
+3. Browser winner tickets are intentionally absent. ✅ decided 2026-08-27;
+   encrypted capsules remain durable only in the operator database.
 4. Decide when a new image becomes public: immediately after technical
    validation, only after moderation approval, or immediately with a report and
    removal path.

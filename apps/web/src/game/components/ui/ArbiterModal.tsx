@@ -10,6 +10,7 @@ import type { ArbiterBidReceipt } from '../../services/whisperBid';
 import { useArbiter } from '../../contexts/useArbiter';
 import { useWallet } from '../../contexts/WalletContext';
 import {
+  arbiterCountdown,
   arbiterDeadline,
   arbiterPhaseLabel,
   formatArbiterAmount,
@@ -239,7 +240,19 @@ export function ArbiterConsole({
             {title}
           </h2>
         </div>
-        {!isPage ? (
+        {isPage && view === 'auction' && round ? (
+          <div
+            className="flex items-center gap-3 border-l border-grid pl-4 sm:gap-4 sm:pl-6"
+            aria-label={`Round ${round.id}`}
+          >
+            <span className="text-[7px] tracking-[0.22em] text-neutral-500">
+              CURRENT ROUND
+            </span>
+            <span className="text-xl font-bold tabular-nums tracking-[-0.05em] text-fg sm:text-2xl">
+              {String(round.id).padStart(4, '0')}
+            </span>
+          </div>
+        ) : !isPage ? (
           <button
             type="button"
             onClick={onClose}
@@ -361,12 +374,7 @@ function AuctionPanel({
 
   return (
     <section className="bg-black px-5 py-6 sm:px-7 sm:py-8">
-      <div className="flex items-center justify-between text-[8px] tracking-[0.2em]">
-        <span className="text-fg">BIDDING DETAILS</span>
-        <span className="text-neutral-500">
-          ROUND {String(round.id).padStart(4, '0')}
-        </span>
-      </div>
+      <div className="text-[8px] tracking-[0.2em] text-fg">BIDDING DETAILS</div>
 
       <div className="mt-4 grid items-center gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
         <AuctionOrbit phase={phase} round={round} chainNow={chainNow} />
@@ -521,7 +529,7 @@ function HistoryPanel({ entries }: { entries: ArbiterHistoryEntry[] }) {
               className="grid grid-cols-2 border-b border-grid last:border-b-0 sm:grid-cols-[6rem_minmax(0,1fr)_7rem_10rem]"
             >
               <HistoryCell label="ROUND" className="px-5 py-4 sm:px-7 sm:py-5">
-                <span className="text-[10px] text-neutral-500">
+                <span className="text-lg font-bold tabular-nums tracking-[-0.04em] text-neutral-300">
                   {String(entry.roundId).padStart(4, '0')}
                 </span>
               </HistoryCell>
@@ -529,8 +537,7 @@ function HistoryPanel({ entries }: { entries: ArbiterHistoryEntry[] }) {
                 label="WINNER"
                 className="px-5 py-4 sm:py-5"
                 title={
-                  entry.winnerAddress ??
-                  'The winning wallet has not claimed control yet'
+                  entry.winnerAddress ?? 'The winning wallet is being verified'
                 }
               >
                 <span
@@ -540,7 +547,7 @@ function HistoryPanel({ entries }: { entries: ArbiterHistoryEntry[] }) {
                 >
                   {entry.winnerAddress
                     ? shortAddress(entry.winnerAddress)
-                    : 'UNCLAIMED'}
+                    : 'VERIFYING'}
                 </span>
               </HistoryCell>
               <HistoryCell
@@ -609,7 +616,7 @@ function AuctionOrbit({
   chainNow: number;
 }) {
   const deadline = arbiterDeadline(phase, round);
-  const progress = biddingProgress(phase, round, chainNow);
+  const progress = auctionProgress(phase, round, chainNow);
   const radius = 88;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - progress);
@@ -652,7 +659,9 @@ function AuctionOrbit({
           cy="12"
           r="3"
           fill="currentColor"
-          className={phase === 'pending' ? 'animate-pulse' : ''}
+          className={
+            phase === 'pending' || phase === 'settling' ? 'animate-pulse' : ''
+          }
         />
       </svg>
       <div className="relative text-center">
@@ -736,10 +745,14 @@ function auctionState(phase: ArbiterPhase, round: ArbiterRound) {
         body: 'Bid privately. Control changes only after the result is confirmed.',
       };
     case 'acceptance':
+      return {
+        title: 'Finalizing bids',
+        body: 'Submitted bids can be funded until the settlement window opens.',
+      };
     case 'settling':
       return {
         title: 'Choosing the winner',
-        body: 'Bidding is closed. The current controller stays in place.',
+        body: 'The settlement proof is being generated and confirmed onchain.',
       };
     case 'recovery':
       return {
@@ -750,7 +763,7 @@ function auctionState(phase: ArbiterPhase, round: ArbiterRound) {
       return round.result?.hasWinner
         ? {
             title: 'Winner confirmed',
-            body: 'Control changes when the winning commitment is claimed.',
+            body: 'The winning wallet is being verified for control.',
           }
         : {
             title: 'Control stays put',
@@ -778,7 +791,10 @@ function orbitValue(
   if (phase === 'bidding' && deadline) {
     return compactAuctionCountdown(deadline.at, chainNow);
   }
-  if (phase === 'acceptance' || phase === 'settling') return 'SEALED';
+  if (phase === 'acceptance' && deadline) {
+    return arbiterCountdown(deadline.at, chainNow);
+  }
+  if (phase === 'settling') return 'PROVING';
   if (phase === 'settled') return 'FINAL';
   if (phase === 'aborted') return 'ENDED';
   if (phase === 'recovery') return 'HOLD';
@@ -787,7 +803,8 @@ function orbitValue(
 
 function orbitLabel(phase: ArbiterPhase) {
   if (phase === 'bidding') return 'BIDDING CLOSES IN';
-  if (phase === 'acceptance' || phase === 'settling') return 'RESOLVING';
+  if (phase === 'acceptance') return 'SETTLEMENT STARTS IN';
+  if (phase === 'settling') return 'SETTLEMENT';
   if (phase === 'pending') return 'AUCTION';
   return arbiterPhaseLabel(phase);
 }
@@ -801,34 +818,50 @@ function summaryAuctionValue(
   if (phase === 'bidding' && deadline) {
     return compactAuctionCountdown(deadline.at, chainNow);
   }
-  if (phase === 'acceptance' || phase === 'settling') return 'RESOLVING';
+  if (phase === 'acceptance' && deadline) {
+    return arbiterCountdown(deadline.at, chainNow);
+  }
+  if (phase === 'settling') return 'PROVING RESULT';
   return arbiterPhaseLabel(phase);
 }
 
-function biddingProgress(
+function auctionProgress(
   phase: ArbiterPhase,
   round: ArbiterRound,
   chainNow: number
 ) {
-  if (phase === 'acceptance' || phase === 'settling' || phase === 'settled') {
+  if (phase === 'settling' || phase === 'settled') {
     return 1;
   }
-  if (phase !== 'bidding' || !round.startedAt || !round.biddingDeadline) {
-    return 0;
+  if (phase === 'acceptance') {
+    return timedProgress(
+      round.biddingDeadline,
+      round.forceRevealAfter,
+      chainNow
+    );
   }
-  const startedAt = Date.parse(round.startedAt);
-  const deadline = Date.parse(round.biddingDeadline);
+  if (phase === 'bidding') {
+    return timedProgress(round.startedAt, round.biddingDeadline, chainNow);
+  }
+  return 0;
+}
+
+function timedProgress(
+  startsAtValue: string | null,
+  endsAtValue: string | null,
+  chainNow: number
+) {
+  if (!startsAtValue || !endsAtValue) return 0;
+  const startsAt = Date.parse(startsAtValue);
+  const endsAt = Date.parse(endsAtValue);
   if (
-    !Number.isFinite(startedAt) ||
-    !Number.isFinite(deadline) ||
-    deadline <= startedAt
+    !Number.isFinite(startsAt) ||
+    !Number.isFinite(endsAt) ||
+    endsAt <= startsAt
   ) {
     return 0;
   }
-  return Math.min(
-    1,
-    Math.max(0, (chainNow - startedAt) / (deadline - startedAt))
-  );
+  return Math.min(1, Math.max(0, (chainNow - startsAt) / (endsAt - startsAt)));
 }
 
 function formatDuration(seconds: number) {
