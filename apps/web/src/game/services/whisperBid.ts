@@ -8,6 +8,10 @@ import {
 import { encryptWhisperBidCapsule } from '@whisper-sdk/capsule.ts';
 import type { WhisperEncryptedCapsule } from '@whisper-sdk/capsule.ts';
 import type { ArbiterRound } from './api';
+import type {
+  PrivateSubmissionObserver,
+  PrivateTransactionResult,
+} from './privateWallet';
 import { parseStrk } from '../utils/format';
 
 const MAX_FELT = (1n << 251n) + 17n * (1n << 192n);
@@ -31,13 +35,16 @@ export interface SubmitArbiterBidInput {
   expectedPoolAddress: string;
   operatorUrl: string;
   invokePrivateActions: (
-    actions: STRK20_ACTION[]
-  ) => Promise<{ transactionHash: string }>;
+    actions: STRK20_ACTION[],
+    observeSubmission?: PrivateSubmissionObserver
+  ) => Promise<PrivateTransactionResult>;
+  observeSubmission?: PrivateSubmissionObserver;
   fetcher?: typeof fetch;
 }
 
 export interface ArbiterBidReceipt {
-  transactionHash: string;
+  transactionHash: string | null;
+  confirmedBy: PrivateTransactionResult['confirmedBy'];
   groupHandle: string;
   bidHandle: string;
 }
@@ -52,6 +59,7 @@ export async function submitArbiterBid({
   expectedPoolAddress,
   operatorUrl,
   invokePrivateActions,
+  observeSubmission,
   fetcher = fetch,
 }: SubmitArbiterBidInput): Promise<ArbiterBidReceipt> {
   if (round.submissionCount >= round.maxBids) {
@@ -134,10 +142,12 @@ export async function submitArbiterBid({
   await uploadCapsule(operatorUrl, capsule, fetcher);
 
   const result = await invokePrivateActions(
-    composition.actions as STRK20_ACTION[]
+    composition.actions as STRK20_ACTION[],
+    observeSubmission
   );
   return {
     transactionHash: result.transactionHash,
+    confirmedBy: result.confirmedBy,
     groupHandle: hex(composition.groupHandle),
     bidHandle: hex(composition.bidHandle),
   };

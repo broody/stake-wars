@@ -422,10 +422,15 @@ The mock selector and mock wallet have been removed, live auction reads refresh
 every five seconds, and the Ready submission adapter is implemented. The local
 stack now points at the ready Whisper operator, canonical Sepolia auction 2 is
 registered as a pending five-minute start-on-bid round, and Torii has indexed
-its creation event. The remaining Phase B gate is the interactive Ready Wallet
-approval and confirmation that its submitted tranche becomes funded and fixes
-the expected deadlines. Per-bid funded-state tracking remains after that first
-live submission proves the handles and event flow.
+its creation event. Ready 5.33.9's separate prepare-and-submit path loses the
+cached paymaster fee target before the second confirmation and fails with
+`MISSING_FEE_TRANSFER_TO`, so the adapter uses the wallet's fee-aware one-shot
+`wallet_strk20InvokeTransaction` path. Because that Ready version can leave its
+request open after broadcasting, the UI temporarily treats an increase from
+the round's pre-submit bid count as successful submission. This fallback is
+appropriate only while auction traffic is low because a concurrent bidder can
+produce the same public signal. The remaining Phase B gate is confirmation that
+the submitted tranche becomes funded and fixes the expected deadlines.
 
 1. Establish a deployable SDK dependency. Publish a tagged, reviewed
    `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
@@ -439,8 +444,10 @@ live submission proves the handles and event flow.
    and align its `starknet@10.7.1` dependency with Stake Wars' `10.7.0` pin or
    expose a compatible peer dependency to avoid duplicate Starknet runtimes.
 3. Expose a least-privileged WalletContext action that submits a supplied
-   `STRK20_ACTION[]` with `WalletAccountV6.strk20InvokeTransaction`; do not
-   expose the wallet object or add a balance-read prompt.
+   `STRK20_ACTION[]` with `wallet_strk20InvokeTransaction`; do not expose the
+   wallet object or add a balance-read prompt. Until Ready reliably resolves
+   that request after broadcast, allow the Arbiter page's low-volume test flow
+   to confirm submission from a round-scoped bid-count increase.
 4. Add bid preparation in `services/whisperBid.ts`: random nonce, salt, refund
    commitment, ephemeral winner commitment, reveal commitment, encrypted capsule, and
    standard Whisper actions.

@@ -19,6 +19,12 @@ import type { STRK20_ACTION } from 'starknet';
 import type { WalletState } from '../types';
 import { config } from '../services/config';
 import {
+  invokePrivateActionTransaction,
+  type PrivateSubmissionObserver,
+  type PrivateTransactionResult,
+  type PrivacyWallet,
+} from '../services/privateWallet';
+import {
   readShieldedTokenBalance,
   supportsShieldedBalances,
 } from '../services/shieldedBalance';
@@ -32,14 +38,13 @@ export type ShieldedStrkStatus =
   | 'ready'
   | 'error';
 
-type PrivacyWallet = Parameters<typeof walletV6.supportedWalletApi>[0];
-
 interface WalletContextType extends WalletState {
   connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   invokePrivateActions: (
-    actions: STRK20_ACTION[]
-  ) => Promise<{ transactionHash: string }>;
+    actions: STRK20_ACTION[],
+    observeSubmission?: PrivateSubmissionObserver
+  ) => Promise<PrivateTransactionResult>;
   isPrivacyWalletSupported: boolean;
   readShieldedStrkBalance: () => Promise<void>;
   shieldedStrkBalance: bigint | null;
@@ -120,7 +125,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     shieldedStrkStatus === 'error';
 
   const invokePrivateActions = useCallback(
-    async (actions: STRK20_ACTION[]) => {
+    async (
+      actions: STRK20_ACTION[],
+      observeSubmission?: PrivateSubmissionObserver
+    ) => {
       if (!account.address || !privacyWallet) {
         throw new Error('Connect Ready before placing a private bid.');
       }
@@ -131,15 +139,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
         throw new Error('Private transaction requires at least one action.');
       }
 
-      const walletAccount = new WalletAccountV6({
-        address: account.address,
-        provider,
-        walletProvider: privacyWallet,
-      });
-      const result = await walletAccount.strk20InvokeTransaction(actions);
-      return { transactionHash: result.transaction_hash };
+      return invokePrivateActionTransaction(
+        privacyWallet,
+        actions,
+        observeSubmission
+      );
     },
-    [account.address, isPrivacyWalletSupported, privacyWallet, provider]
+    [account.address, isPrivacyWalletSupported, privacyWallet]
   );
 
   const readShieldedStrkBalance = useCallback(async () => {

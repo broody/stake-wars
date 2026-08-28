@@ -69,6 +69,7 @@ describe('ArbiterConsole', () => {
         onRefresh={() => undefined}
         onPlaceBid={async () => ({
           transactionHash: '0x123',
+          confirmedBy: 'wallet',
           groupHandle: '0x456',
           bidHandle: '0x789',
         })}

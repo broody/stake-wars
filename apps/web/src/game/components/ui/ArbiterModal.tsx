@@ -455,8 +455,9 @@ function AuctionPanel({
                   className="mt-2 text-[8px] tracking-[0.16em] text-fg"
                   role="status"
                 >
-                  TRANSACTION {shortAddress(receipt.transactionHash)} // CLAIM
-                  TICKET SAVED ON THIS DEVICE
+                  {receipt.transactionHash
+                    ? `TRANSACTION ${shortAddress(receipt.transactionHash)} // BID SUBMITTED`
+                    : 'BID OBSERVED ONCHAIN // SUBMITTED'}
                 </p>
               ) : null}
               {bidError ? (

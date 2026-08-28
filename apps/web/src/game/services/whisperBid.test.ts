@@ -53,7 +53,7 @@ describe('Whisper Ready bid submission', () => {
     const invokePrivateActions = vi.fn(async (actions: STRK20_ACTION[]) => {
       invokedActions.push(actions);
       calls.push('wallet');
-      return { transactionHash: '0xfeed' };
+      return { transactionHash: '0xfeed', confirmedBy: 'wallet' as const };
     });
     const receipt = await submitArbiterBid({
       amount: '1.25',
@@ -81,6 +81,7 @@ describe('Whisper Ready bid submission', () => {
       { type: 'invoke', contract: round.whisperAddress },
     ]);
     expect(receipt.transactionHash).toBe('0xfeed');
+    expect(receipt.confirmedBy).toBe('wallet');
   });
 
   it('fails closed before Ready when the operator does not match the round', async () => {
