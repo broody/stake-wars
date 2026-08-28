@@ -47,6 +47,14 @@ export function positionOnArbiterOrbit(angle: number, target: THREE.Vector3) {
     .addScaledVector(ORBIT_Y_AXIS, Math.sin(angle) * ARBITER_ORBIT_RADIUS);
 }
 
+export function tangentOnArbiterOrbit(angle: number, target: THREE.Vector3) {
+  return target
+    .copy(ORBIT_X_AXIS)
+    .multiplyScalar(-Math.sin(angle))
+    .addScaledVector(ORBIT_Y_AXIS, Math.cos(angle))
+    .normalize();
+}
+
 export function sampleArbiterOrbit(
   elapsedTime: number,
   prefersReducedMotion: boolean,

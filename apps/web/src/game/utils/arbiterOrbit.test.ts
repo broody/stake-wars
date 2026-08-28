@@ -5,6 +5,7 @@ import {
   arbiterOrbitAngle,
   positionOnArbiterOrbit,
   sampleArbiterOrbit,
+  tangentOnArbiterOrbit,
 } from './arbiterOrbit';
 
 describe('arbiter orbit', () => {
@@ -15,6 +16,18 @@ describe('arbiter orbit', () => {
       positionOnArbiterOrbit((step / 24) * Math.PI * 2, position);
       expect(position.length()).toBeCloseTo(ARBITER_ORBIT_RADIUS, 8);
     }
+  });
+
+  it('returns a unit tangent aligned to the orbit ring', () => {
+    const angle = 1.13;
+    const position = positionOnArbiterOrbit(angle, new THREE.Vector3());
+    const tangent = tangentOnArbiterOrbit(angle, new THREE.Vector3());
+
+    expect(tangent.length()).toBeCloseTo(1, 8);
+    expect(position.dot(tangent)).toBeCloseTo(0, 8);
+
+    const next = positionOnArbiterOrbit(angle + 0.0001, new THREE.Vector3());
+    expect(next.sub(position).normalize().dot(tangent)).toBeCloseTo(1, 6);
   });
 
   it('samples a camera phase on the Arbiter path with a stable orbit up', () => {

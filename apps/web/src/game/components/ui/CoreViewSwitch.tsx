@@ -17,6 +17,7 @@ export function CoreViewSwitch() {
 
   return (
     <label
+      data-preserve-core-tracking
       aria-busy={isProjectionLoading}
       className={`pointer-events-auto absolute bottom-5 left-1/2 flex w-48 -translate-x-1/2 select-none items-center justify-center gap-2 bg-black/25 px-3 py-2.5 font-mono text-[10px] tracking-[0.16em] text-neutral-500 backdrop-blur-[2px] transition-colors ${
         isProjectionLoading ? 'cursor-wait' : 'cursor-pointer hover:text-white'

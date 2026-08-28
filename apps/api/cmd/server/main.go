@@ -102,6 +102,7 @@ func run() error {
 		},
 	)
 	var imageService *images.Service
+	var arbiterImageService *images.ArbiterService
 	if configuration.ImageStorageEnabled() {
 		if configuration.StarknetRPCURL == "" || configuration.ControlSystemAddress == "" {
 			return errors.New("STARKNET_RPC_URL and CONTROL_SYSTEM_ADDRESS are required when image storage is enabled")
@@ -124,9 +125,17 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		imageStore := images.NewStore(db)
 		imageService = images.NewService(
-			images.NewStore(db), objectStore, controlReader,
+			imageStore, objectStore, controlReader,
 			configuration.StarknetChainID, configuration.MaxImageBytes,
+		)
+		arbiterImageService = images.NewArbiterService(
+			imageStore,
+			objectStore,
+			arbiterStore,
+			configuration.StarknetChainID,
+			configuration.MaxImageBytes,
 		)
 	} else {
 		slog.Warn("image storage is not configured; Sector uploads are disabled")
@@ -134,10 +143,11 @@ func run() error {
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
 		Handler: api.NewHandler(api.Dependencies{
-			DB:     db,
-			Auth:   authService,
-			Torii:  toriiGateway,
-			Images: imageService,
+			DB:            db,
+			Auth:          authService,
+			Torii:         toriiGateway,
+			Images:        imageService,
+			ArbiterImages: arbiterImageService,
 			Arbiter: arbiter.NewService(
 				arbiterStore,
 				whisperReader,

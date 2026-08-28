@@ -97,6 +97,19 @@ export interface PreparedSectorImage {
   thumbnail: Blob;
 }
 
+export type PreparedArbiterImage = PreparedSectorImage;
+
+export interface ArbiterArtwork {
+  id: string;
+  network: string;
+  controllerRoundId: number;
+  ownerAddress: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  contentHash: string;
+  updatedAt: string;
+}
+
 interface ApiProblem {
   error?: { title?: string; detail?: string };
 }
@@ -254,6 +267,39 @@ export const api = {
     ]);
     return requestJSON<SectorArtwork>(
       `/v1/sector-artworks/uploads/${encodeURIComponent(
+        authorization.uploadId
+      )}/complete`,
+      jsonRequest({}, session.token)
+    );
+  },
+
+  async uploadArbiterArtwork({
+    walletAddress,
+    prepared,
+    signTypedData,
+  }: {
+    walletAddress: string;
+    prepared: PreparedArbiterImage;
+    signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
+  }): Promise<ArbiterArtwork> {
+    const session = await imageSession(walletAddress, signTypedData);
+    const authorization = await requestJSON<ImageUploadAuthorization>(
+      '/v1/arbiter/artwork/uploads',
+      jsonRequest(
+        {
+          contentType: prepared.contentType,
+          detailSize: prepared.detail.size,
+          thumbnailSize: prepared.thumbnail.size,
+        },
+        session.token
+      )
+    );
+    await Promise.all([
+      putObject(authorization.detail, prepared.detail),
+      putObject(authorization.thumbnail, prepared.thumbnail),
+    ]);
+    return requestJSON<ArbiterArtwork>(
+      `/v1/arbiter/artwork/uploads/${encodeURIComponent(
         authorization.uploadId
       )}/complete`,
       jsonRequest({}, session.token)

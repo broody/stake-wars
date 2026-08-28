@@ -11,6 +11,7 @@ import (
 var (
 	ErrNoRound      = errors.New("no Arbiter round")
 	ErrNoController = errors.New("no Arbiter controller")
+	ErrNoBillboard  = errors.New("no Arbiter billboard")
 )
 
 type CanonicalRound struct {
@@ -31,10 +32,17 @@ type CanonicalRound struct {
 }
 
 type ControllerRecord struct {
-	RoundID   uint64
-	Address   string
-	ClaimedAt time.Time
-	StartsAt  *time.Time
+	RoundID         uint64
+	Address         string
+	ClaimedAt       time.Time
+	StartsAt        *time.Time
+	ActiveArtworkID string
+}
+
+type BillboardRecord struct {
+	ImageURL     string
+	ThumbnailURL string
+	UpdatedAt    time.Time
 }
 
 type SettlementProjection struct {
@@ -242,13 +250,18 @@ func (s *Store) Controller(ctx context.Context, network string) (ControllerRecor
 	var controller ControllerRecord
 	var claimedAt int64
 	var startsAt sql.NullInt64
+	var activeArtworkID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
-		SELECT round_id, claimed_controller, claimed_at, billboard_starts_at
+		SELECT round_id, claimed_controller, claimed_at, billboard_starts_at,
+			active_artwork_id
 		FROM arbiter_rounds
 		WHERE network = ? AND claimed_controller IS NOT NULL AND claimed_at IS NOT NULL
 		ORDER BY round_id DESC
 		LIMIT 1
-	`, network).Scan(&controller.RoundID, &controller.Address, &claimedAt, &startsAt)
+	`, network).Scan(
+		&controller.RoundID, &controller.Address, &claimedAt, &startsAt,
+		&activeArtworkID,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ControllerRecord{}, ErrNoController
 	}
@@ -260,7 +273,45 @@ func (s *Store) Controller(ctx context.Context, network string) (ControllerRecor
 		value := time.Unix(startsAt.Int64, 0).UTC()
 		controller.StartsAt = &value
 	}
+	if activeArtworkID.Valid {
+		controller.ActiveArtworkID = activeArtworkID.String
+	}
 	return controller, nil
+}
+
+func (s *Store) CurrentController(
+	ctx context.Context,
+	network string,
+) (uint64, string, error) {
+	controller, err := s.Controller(ctx, network)
+	if err != nil {
+		return 0, "", err
+	}
+	return controller.RoundID, controller.Address, nil
+}
+
+func (s *Store) Billboard(
+	ctx context.Context,
+	network string,
+	artworkID string,
+) (BillboardRecord, error) {
+	var billboard BillboardRecord
+	var updatedAt int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT image_url, thumbnail_url, updated_at
+		FROM arbiter_artworks
+		WHERE network = ? AND id = ? AND moderation_status = 'approved'
+	`, network, artworkID).Scan(
+		&billboard.ImageURL, &billboard.ThumbnailURL, &updatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BillboardRecord{}, ErrNoBillboard
+	}
+	if err != nil {
+		return BillboardRecord{}, fmt.Errorf("read Arbiter billboard: %w", err)
+	}
+	billboard.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+	return billboard, nil
 }
 
 func (s *Store) UnprojectedRounds(

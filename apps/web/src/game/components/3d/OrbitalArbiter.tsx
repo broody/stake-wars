@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useArbiter } from '../../contexts/useArbiter';
+import { useSectors } from '../../contexts/SectorContext';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import {
   arbiterOrbitAngle,
   arbiterOrbitPrecession,
   positionOnArbiterOrbit,
+  tangentOnArbiterOrbit,
 } from '../../utils/arbiterOrbit';
 import {
   ARBITER_INITIAL_ROTATION,
@@ -16,6 +19,14 @@ import {
 const ORBIT_HOVER_HOLD_MS = 3_000;
 const ORBIT_IDLE_COLOR = new THREE.Color(SECTOR_COLORS.neutralGrid);
 const ORBIT_HOVER_COLOR = new THREE.Color(SECTOR_COLORS.hover);
+const PROJECTION_WIDTH = 4.8;
+const PROJECTION_HEIGHT = PROJECTION_WIDTH * (9 / 16);
+const PROJECTION_ORBIT_RADIUS = 15;
+const PROJECTION_FACE_OFFSET = 0.018;
+const PROJECTION_MARK_OFFSET = 0.032;
+const PROJECTION_ALIGNMENT_DAMPING = 5;
+const PROJECTION_OPACITY_DAMPING = 7;
+const PROJECTION_BODY_OPACITY = 0.18;
 
 export function OrbitalArbiter({
   isTracking,
@@ -24,9 +35,12 @@ export function OrbitalArbiter({
   isTracking: boolean;
   onInspect: () => void;
 }) {
+  const { snapshot } = useArbiter();
+  const { isProjectionVisible } = useSectors();
   const orbitSystemRef = useRef<THREE.Group>(null);
   const arbiterRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
+  const bodyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const orbitLineRef = useRef<THREE.LineLoop>(null);
   const orbitMaterialRef = useRef<THREE.LineDashedMaterial>(null);
   const orbitHighlightUntilRef = useRef(0);
@@ -48,6 +62,31 @@ export function OrbitalArbiter({
     () => new THREE.EdgesGeometry(arbiterGeometry),
     [arbiterGeometry]
   );
+  const arbiterFaceFrameInverse = useMemo(() => {
+    const positions = arbiterGeometry.getAttribute('position');
+    const normals = arbiterGeometry.getAttribute('normal');
+    const first = new THREE.Vector3().fromBufferAttribute(positions, 0);
+    const second = new THREE.Vector3().fromBufferAttribute(positions, 1);
+    const faceTangent = second.sub(first).normalize();
+    const faceNormal = new THREE.Vector3()
+      .fromBufferAttribute(normals, 0)
+      .normalize();
+    const faceUp = new THREE.Vector3()
+      .crossVectors(faceNormal, faceTangent)
+      .normalize();
+    const faceBasis = new THREE.Matrix4().makeBasis(
+      faceTangent,
+      faceUp,
+      faceNormal
+    );
+    return new THREE.Quaternion().setFromRotationMatrix(faceBasis).invert();
+  }, [arbiterGeometry]);
+  const bodyProjectionInward = useMemo(() => new THREE.Vector3(), []);
+  const bodyProjectionTangent = useMemo(() => new THREE.Vector3(), []);
+  const bodyProjectionUp = useMemo(() => new THREE.Vector3(), []);
+  const bodyProjectionBasis = useMemo(() => new THREE.Matrix4(), []);
+  const bodyProjectionFrame = useMemo(() => new THREE.Quaternion(), []);
+  const bodyProjectionTarget = useMemo(() => new THREE.Quaternion(), []);
   const prefersReducedMotion = useMemo(
     () =>
       globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
@@ -84,10 +123,50 @@ export function OrbitalArbiter({
       arbiterRef.current.position.copy(orbitPosition);
     }
 
-    if (bodyRef.current && !prefersReducedMotion) {
-      bodyRef.current.rotation.x += delta * ARBITER_ROTATION_SPEED.x;
-      bodyRef.current.rotation.y += delta * ARBITER_ROTATION_SPEED.y;
-      bodyRef.current.rotation.z += delta * ARBITER_ROTATION_SPEED.z;
+    if (bodyRef.current) {
+      if (isProjectionVisible) {
+        bodyProjectionInward.copy(orbitPosition).normalize().negate();
+        tangentOnArbiterOrbit(angle, bodyProjectionTangent);
+        bodyProjectionUp
+          .crossVectors(bodyProjectionInward, bodyProjectionTangent)
+          .normalize();
+        bodyProjectionBasis.makeBasis(
+          bodyProjectionTangent,
+          bodyProjectionUp,
+          bodyProjectionInward
+        );
+        bodyProjectionFrame.setFromRotationMatrix(bodyProjectionBasis);
+        bodyProjectionTarget
+          .copy(bodyProjectionFrame)
+          .multiply(arbiterFaceFrameInverse);
+
+        if (prefersReducedMotion) {
+          bodyRef.current.quaternion.copy(bodyProjectionTarget);
+        } else {
+          bodyRef.current.quaternion.slerp(
+            bodyProjectionTarget,
+            1 - Math.exp(-delta * PROJECTION_ALIGNMENT_DAMPING)
+          );
+        }
+      } else if (!prefersReducedMotion) {
+        bodyRef.current.rotation.x += delta * ARBITER_ROTATION_SPEED.x;
+        bodyRef.current.rotation.y += delta * ARBITER_ROTATION_SPEED.y;
+        bodyRef.current.rotation.z += delta * ARBITER_ROTATION_SPEED.z;
+      }
+    }
+
+    if (bodyMaterialRef.current) {
+      const targetOpacity = isProjectionVisible ? PROJECTION_BODY_OPACITY : 1;
+      bodyMaterialRef.current.opacity = prefersReducedMotion
+        ? targetOpacity
+        : THREE.MathUtils.damp(
+            bodyMaterialRef.current.opacity,
+            targetOpacity,
+            PROJECTION_OPACITY_DAMPING,
+            delta
+          );
+      bodyMaterialRef.current.depthWrite =
+        bodyMaterialRef.current.opacity > 0.995;
     }
 
     if (orbitMaterialRef.current) {
@@ -157,7 +236,9 @@ export function OrbitalArbiter({
         >
           <mesh geometry={arbiterGeometry} raycast={() => undefined}>
             <meshBasicMaterial
+              ref={bodyMaterialRef}
               color={SECTOR_COLORS.neutral}
+              transparent
               side={THREE.DoubleSide}
             />
           </mesh>
@@ -187,6 +268,232 @@ export function OrbitalArbiter({
           </mesh>
         </group>
       </group>
+
+      <ArbiterProjection
+        imageUrl={
+          isProjectionVisible ? (snapshot?.billboard?.imageUrl ?? null) : null
+        }
+        isProjectionVisible={isProjectionVisible}
+        prefersReducedMotion={prefersReducedMotion}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        onClick={handleClick}
+      />
     </group>
   );
+}
+
+function ArbiterProjection({
+  imageUrl,
+  isProjectionVisible,
+  prefersReducedMotion,
+  onPointerOver,
+  onPointerOut,
+  onClick,
+}: {
+  imageUrl: string | null;
+  isProjectionVisible: boolean;
+  prefersReducedMotion: boolean;
+  onPointerOver: (event: { stopPropagation: () => void }) => void;
+  onPointerOut: () => void;
+  onClick: (event: { stopPropagation: () => void }) => void;
+}) {
+  const projectionRef = useRef<THREE.Group>(null);
+  const projectionPosition = useMemo(() => new THREE.Vector3(), []);
+  const projectionRadial = useMemo(() => new THREE.Vector3(), []);
+  const projectionTangent = useMemo(() => new THREE.Vector3(), []);
+  const projectionNormal = useMemo(() => new THREE.Vector3(), []);
+  const projectionOrientation = useMemo(() => new THREE.Matrix4(), []);
+  const emptyTexture = useMemo(createEmptyProjectionTexture, []);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    setTexture(null);
+    if (!imageUrl) return;
+
+    let active = true;
+    let loaded: THREE.Texture | null = null;
+    const next = new THREE.TextureLoader().load(imageUrl, (value) => {
+      if (!active) return value.dispose();
+      value.colorSpace = THREE.SRGBColorSpace;
+      value.minFilter = THREE.LinearMipmapLinearFilter;
+      loaded = value;
+      setTexture(value);
+    });
+
+    return () => {
+      active = false;
+      loaded?.dispose();
+      if (next !== loaded) next.dispose();
+      setTexture(null);
+    };
+  }, [imageUrl]);
+
+  useEffect(() => () => emptyTexture.dispose(), [emptyTexture]);
+
+  const mirroredTexture = useMemo(() => {
+    if (!texture) return null;
+    const mirrored = texture.clone();
+    mirrored.wrapS = THREE.RepeatWrapping;
+    mirrored.repeat.x = -1;
+    mirrored.offset.x = 1;
+    mirrored.updateMatrix();
+    mirrored.needsUpdate = true;
+    return mirrored;
+  }, [texture]);
+
+  useEffect(() => () => mirroredTexture?.dispose(), [mirroredTexture]);
+
+  useFrame(({ clock }) => {
+    const projection = projectionRef.current;
+    if (!projection) return;
+
+    const angle = arbiterOrbitAngle(
+      clock.getElapsedTime(),
+      prefersReducedMotion
+    );
+    positionOnArbiterOrbit(angle, projectionPosition);
+    projectionPosition.setLength(PROJECTION_ORBIT_RADIUS);
+    projection.position.copy(projectionPosition);
+    projectionRadial.copy(projectionPosition).normalize();
+    tangentOnArbiterOrbit(angle, projectionTangent).negate();
+    projectionNormal
+      .crossVectors(projectionRadial, projectionTangent)
+      .normalize();
+    projectionOrientation.makeBasis(
+      projectionTangent,
+      projectionNormal,
+      projectionRadial
+    );
+    projection.quaternion.setFromRotationMatrix(projectionOrientation);
+  });
+
+  const frontTexture = mirroredTexture ?? emptyTexture;
+  const backTexture = mirroredTexture ?? emptyTexture;
+
+  return (
+    <group ref={projectionRef}>
+      <group
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+        onClick={onClick}
+      >
+        {isProjectionVisible ? (
+          <>
+            <mesh raycast={() => undefined}>
+              <planeGeometry
+                args={[PROJECTION_WIDTH + 0.12, PROJECTION_HEIGHT + 0.12]}
+              />
+              <meshBasicMaterial
+                color="#000000"
+                transparent
+                opacity={0.94}
+                side={THREE.DoubleSide}
+                toneMapped={false}
+              />
+            </mesh>
+            <mesh position={[0, 0, PROJECTION_FACE_OFFSET]} renderOrder={5}>
+              <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+              <meshBasicMaterial
+                map={frontTexture}
+                side={THREE.FrontSide}
+                toneMapped={false}
+              />
+            </mesh>
+            <mesh position={[0, 0, -PROJECTION_FACE_OFFSET]} renderOrder={5}>
+              <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+              <meshBasicMaterial
+                map={backTexture}
+                side={THREE.BackSide}
+                toneMapped={false}
+              />
+            </mesh>
+          </>
+        ) : null}
+        <ProjectionRegistrationMarks
+          positionZ={PROJECTION_MARK_OFFSET}
+          side={THREE.FrontSide}
+        />
+        <ProjectionRegistrationMarks
+          positionZ={-PROJECTION_MARK_OFFSET}
+          side={THREE.BackSide}
+        />
+        <mesh position={[0, 0, PROJECTION_MARK_OFFSET + 0.005]}>
+          <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+function ProjectionRegistrationMarks({
+  positionZ,
+  side,
+}: {
+  positionZ: number;
+  side: THREE.Side;
+}) {
+  const horizontalOffset = PROJECTION_WIDTH / 2 + 0.035;
+  const verticalOffset = PROJECTION_HEIGHT / 2 + 0.035;
+  const marks = [
+    [-horizontalOffset, verticalOffset, 1, -1],
+    [horizontalOffset, verticalOffset, -1, -1],
+    [-horizontalOffset, -verticalOffset, 1, 1],
+    [horizontalOffset, -verticalOffset, -1, 1],
+  ] as const;
+
+  return (
+    <group position={[0, 0, positionZ]} raycast={() => undefined}>
+      {marks.map(([x, y, xDirection, yDirection]) => (
+        <group key={`${x}:${y}`} position={[x, y, 0]}>
+          <mesh position={[xDirection * 0.08, 0, 0]}>
+            <planeGeometry args={[0.17, 0.018]} />
+            <meshBasicMaterial
+              color={SECTOR_COLORS.hover}
+              side={side}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[0, yDirection * 0.08, 0]}>
+            <planeGeometry args={[0.018, 0.17]} />
+            <meshBasicMaterial
+              color={SECTOR_COLORS.hover}
+              side={side}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function createEmptyProjectionTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 288;
+  const context = canvas.getContext('2d');
+  if (!context) return new THREE.CanvasTexture(canvas);
+
+  context.fillStyle = '#000000';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = '#252525';
+  context.setLineDash([8, 10]);
+  context.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  context.setLineDash([]);
+  context.fillStyle = '#686868';
+  context.font = '18px monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('SIGNAL AVAILABLE', canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }

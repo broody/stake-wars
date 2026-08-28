@@ -59,6 +59,53 @@ func TestServiceReturnsVerifiedSettledRound(t *testing.T) {
 	}
 }
 
+func TestServiceReturnsCurrentControllerBillboard(t *testing.T) {
+	round := canonicalRoundFixture()
+	claimedAt := time.Unix(130, 0).UTC()
+	round.ClaimedController = "0x777"
+	round.ClaimedAt = &claimedAt
+	round.ActiveArtworkID = "artwork-1"
+	updatedAt := time.Unix(135, 0).UTC()
+	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
+	auction.Schedule = starknet.WhisperSchedule{
+		Kind:               starknet.WhisperScheduleStartOnBid,
+		BiddingDuration:    defaultBiddingDurationSeconds,
+		AcceptanceDuration: 10 * 60,
+		SettlementDuration: 30 * 60,
+	}
+	auction.BiddingDeadline = 0
+	auction.ForceRevealAfter = 0
+	auction.AbortAfter = 0
+	reader := &fakeWhisperReader{
+		auction:        auction,
+		chainTimestamp: 140,
+	}
+	service := NewService(
+		fakeRoundStore{
+			round: round,
+			billboard: &BillboardRecord{
+				ImageURL:     "https://images.example/arbiter.webp",
+				ThumbnailURL: "https://images.example/arbiter-thumb.webp",
+				UpdatedAt:    updatedAt,
+			},
+		},
+		reader,
+		"SN_SEPOLIA",
+		defaultBiddingDurationSeconds,
+	)
+
+	snapshot, err := service.Current(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Billboard == nil ||
+		snapshot.Billboard.ImageURL != "https://images.example/arbiter.webp" ||
+		snapshot.Billboard.ThumbnailURL != "https://images.example/arbiter-thumb.webp" ||
+		!snapshot.Billboard.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("unexpected billboard snapshot: %+v", snapshot.Billboard)
+	}
+}
+
 func TestServiceRejectsCanonicalMismatch(t *testing.T) {
 	round := canonicalRoundFixture()
 	reader := &fakeWhisperReader{
@@ -187,8 +234,9 @@ func TestLifecyclePhaseUsesChainTime(t *testing.T) {
 }
 
 type fakeRoundStore struct {
-	round CanonicalRound
-	err   error
+	round     CanonicalRound
+	billboard *BillboardRecord
+	err       error
 }
 
 func (s fakeRoundStore) Current(context.Context, string) (CanonicalRound, error) {
@@ -201,8 +249,19 @@ func (s fakeRoundStore) Controller(context.Context, string) (ControllerRecord, e
 	}
 	return ControllerRecord{
 		Address: s.round.ClaimedController, ClaimedAt: *s.round.ClaimedAt,
-		StartsAt: s.round.BillboardStartsAt,
+		StartsAt: s.round.BillboardStartsAt, ActiveArtworkID: s.round.ActiveArtworkID,
 	}, nil
+}
+
+func (s fakeRoundStore) Billboard(
+	context.Context,
+	string,
+	string,
+) (BillboardRecord, error) {
+	if s.billboard == nil {
+		return BillboardRecord{}, ErrNoBillboard
+	}
+	return *s.billboard, nil
 }
 
 type fakeWhisperReader struct {

@@ -35,6 +35,7 @@ type Dependencies struct {
 	AllowedOrigins []string
 	Torii          *ToriiGateway
 	Images         *images.Service
+	ArbiterImages  *images.ArbiterService
 	Arbiter        arbiterReader
 	ArbiterHistory arbiterHistoryReader
 }
@@ -61,6 +62,8 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/sector-artworks", server.listSectorImages)
 	mux.HandleFunc("POST /v1/sector-artworks/uploads", server.authorizeSectorImage)
 	mux.HandleFunc("POST /v1/sector-artworks/uploads/{uploadID}/complete", server.completeSectorImage)
+	mux.HandleFunc("POST /v1/arbiter/artwork/uploads", server.authorizeArbiterImage)
+	mux.HandleFunc("POST /v1/arbiter/artwork/uploads/{uploadID}/complete", server.completeArbiterImage)
 	if dependencies.Torii != nil {
 		mux.Handle("/torii/graphql", dependencies.Torii)
 		mux.Handle("/torii/health", dependencies.Torii)
@@ -260,6 +263,82 @@ func (s *server) completeSectorImage(w http.ResponseWriter, r *http.Request) {
 	default:
 		slog.ErrorContext(r.Context(), "complete sector image", "error", err)
 		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the uploaded image")
+	}
+}
+
+func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if s.dependencies.ArbiterImages == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
+		return
+	}
+	var input struct {
+		ContentType   string `json:"contentType"`
+		DetailSize    int64  `json:"detailSize"`
+		ThumbnailSize int64  `json:"thumbnailSize"`
+	}
+	if err := decodeJSON(w, r, &input); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	authorization, err := s.dependencies.ArbiterImages.Authorize(
+		r.Context(),
+		session.WalletAddress,
+		images.ArbiterAuthorizeInput{
+			ContentType: input.ContentType, DetailSize: input.DetailSize,
+			ThumbnailSize: input.ThumbnailSize,
+		},
+	)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, authorization)
+	case errors.Is(err, images.ErrInvalidImage):
+		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrForbidden), errors.Is(err, arbiter.ErrNoController):
+		writeProblem(w, http.StatusForbidden, "controller required", "only the current Arbiter controller can project an image")
+	case errors.Is(err, images.ErrUploadUnavailable):
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
+	default:
+		slog.ErrorContext(r.Context(), "authorize Arbiter image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload authorization failed", "could not authorize the Arbiter image upload")
+	}
+}
+
+func (s *server) completeArbiterImage(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if s.dependencies.ArbiterImages == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
+		return
+	}
+	uploadID := r.PathValue("uploadID")
+	if uploadID == "" {
+		writeProblem(w, http.StatusBadRequest, "invalid request", "upload ID is required")
+		return
+	}
+	artwork, err := s.dependencies.ArbiterImages.Complete(
+		r.Context(), uploadID, session.WalletAddress,
+	)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, artwork)
+	case errors.Is(err, images.ErrInvalidImage):
+		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrForbidden), errors.Is(err, images.ErrUploadNotFound),
+		errors.Is(err, arbiter.ErrNoController):
+		writeProblem(w, http.StatusForbidden, "upload unavailable", "the upload is expired, completed, or no longer controlled by this wallet")
+	case errors.Is(err, images.ErrUploadUnavailable):
+		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
+	default:
+		slog.ErrorContext(r.Context(), "complete Arbiter image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the Arbiter image")
 	}
 }
 

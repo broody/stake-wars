@@ -87,6 +87,7 @@ type BillboardView struct {
 type roundStore interface {
 	Current(ctx context.Context, network string) (CanonicalRound, error)
 	Controller(ctx context.Context, network string) (ControllerRecord, error)
+	Billboard(ctx context.Context, network string, artworkID string) (BillboardRecord, error)
 }
 
 type Service struct {
@@ -219,6 +220,20 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 		snapshot.Controller = &ControllerView{
 			Address: controller, ClaimedAt: controllerRecord.ClaimedAt,
 			StartsAt: controllerRecord.StartsAt,
+		}
+		if controllerRecord.ActiveArtworkID != "" {
+			billboard, err := s.store.Billboard(
+				ctx,
+				s.network,
+				controllerRecord.ActiveArtworkID,
+			)
+			if err != nil {
+				return Snapshot{}, fmt.Errorf("read current Arbiter billboard: %w", err)
+			}
+			snapshot.Billboard = &BillboardView{
+				ImageURL: billboard.ImageURL, ThumbnailURL: billboard.ThumbnailURL,
+				UpdatedAt: billboard.UpdatedAt,
+			}
 		}
 	}
 	return snapshot, nil

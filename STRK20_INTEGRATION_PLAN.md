@@ -8,8 +8,9 @@ verified locally on 2026-08-27. Live canonical history was implemented on
 2026-08-27. Whisper is linked at `vendor/whisper` as a pinned Git submodule.
 Ready Wallet bidding, five-minute settlement, recurring round creation, and
 automatic winner resolution were implemented and exercised on Sepolia on
-2026-08-27. Billboard upload authorization and the full 72-hour rehearsal
-remain proposed; no Mainnet transaction is approved by this plan.
+2026-08-27. Controller-gated billboard upload, publication, and 3D rendering
+are implemented locally; their integrated Sepolia rehearsal and the full
+72-hour rehearsal remain. No Mainnet transaction is approved by this plan.
 
 This plan supersedes the broader gameplay-edict exploration for the first
 Arbiter release. Winning a recurring Whisper auction grants one off-chain
@@ -157,12 +158,20 @@ Desktop composition:
 ```
 
 The memorable visual element is the **transmission plate**: a thin 16:9 image
-plane floating just ahead of the tetrahedral Arbiter, framed by four terminal
-registration marks. It remains in the existing monochrome palette and gains no
-new accent color. It should face the camera enough to remain legible while
-retaining a stable spatial offset from the Arbiter. Motion is limited to the
-existing orbit plus one brief synchronization pulse when a new approved image
-becomes active, with reduced-motion support.
+plane floating between the Core and the tetrahedral Arbiter, closer to the
+Arbiter and synchronized to its trajectory, framed by four terminal registration
+marks. It remains in the existing monochrome palette and gains no new accent
+color. Its front faces the Arbiter, its horizontal axis follows the orbit tangent,
+and its roll therefore matches the ring instead of the camera. When `SHOW
+PROJECTION` is enabled, the Arbiter eases out of its free rotation and holds one
+tetrahedral face toward the Core and transmission plane; disabling projection
+resumes the multi-axis rotation from that orientation. Reduced-motion mode snaps
+to the aligned state. The registration brackets remain visible in Control mode,
+but the two-sided image surface and its texture load are enabled only by the
+existing `SHOW PROJECTION` control. The Arbiter-facing artwork is mirrored;
+the same flipped texture cancels the reverse geometry when viewed from the Core,
+so the Core-facing side reads normally while empty-state utility text remains
+legible.
 
 The console has explicit lifecycle states:
 
@@ -351,7 +360,7 @@ acceptance gate passes.
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | M0 — foundation and schedule compatibility | Pin the start-on-bid contract/ABI, SDK source, operator, and current public Sepolia metadata; keep the existing absolute-schedule smoke evidence distinct from new schedule support                                      | Pin Whisper under `vendor/whisper`; dual-decode the legacy and start-on-bid ABI; validate the configured duration (five minutes for initial Sepolia rehearsals, 72 hours by default); expose pending through terminal lifecycle states; keep controller lookup independent from the newest round                                               | Complete: canonical Sepolia auction 2 is pending and its creation event is indexed |
 | M1 — wallet bidder                         | Publish a reviewed SDK tag from the pinned source and pass a live Sepolia Ready test where the first private bid emits `AuctionStarted`; prove the resolved deadline matches the configured five-minute rehearsal window and later bids/top-ups do not move it | Pin that SDK release; submit least-privileged `transfer + invoke` actions; keep winner material out of browser storage; distinguish submitted from funded; recover transaction state by polling when the relayed transaction is slow | Complete for the five-minute Ready path; published SDK packaging and additive top-up remain |
-| M2 — recurring Sepolia product             | Run the separate operator with capsule controls, replay-note inventory, settlement, post-settlement winner disclosure, abort, recovery monitoring, and a full canonical three-day round | Start from a pending canonical round; bid from `/arbiter`; preserve the prior controller through bidding/resolution; settle, automatically resolve, publish, and render; then have the idempotent worker create and register exactly one next pending round | Five-minute settlement, next-round cycle, and automatic winner-resolution code are complete; billboard publishing and full-duration rehearsal remain |
+| M2 — recurring Sepolia product             | Run the separate operator with capsule controls, replay-note inventory, settlement, post-settlement winner disclosure, abort, recovery monitoring, and a full canonical three-day round | Start from a pending canonical round; bid from `/arbiter`; preserve the prior controller through bidding/resolution; settle, automatically resolve, publish, and render; then have the idempotent worker create and register exactly one next pending round | Five-minute settlement, next-round cycle, automatic winner resolution, and local billboard publishing/rendering are complete; integrated Sepolia and full-duration rehearsals remain |
 | M3 — Mainnet hackathon release             | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal | Deploy the public product, complete a real auction/resolution/display/cycle flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo | Pending; requires explicit Mainnet approval |
 | M4 — post-sprint hardening                 | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible                                                                                                   | Incident UX, expanded monitoring and moderation, tested disaster recovery, and a policy for upgrading the pinned Whisper version                                                                                                                                                 | Post-sprint                                                            |
 

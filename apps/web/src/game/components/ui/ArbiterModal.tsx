@@ -1,4 +1,12 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import { Link } from 'react-router-dom';
 import type {
   ArbiterHistoryEntry,
@@ -8,8 +16,11 @@ import type {
 } from '../../services/api';
 import type { ArbiterBidReceipt } from '../../services/whisperBid';
 import type { StoredArbiterBid } from '../../services/arbiterBidStorage';
+import { api, type PreparedArbiterImage } from '../../services/api';
 import { useArbiter } from '../../contexts/useArbiter';
 import { useWallet } from '../../contexts/WalletContext';
+import { prepareArbiterImage } from '../../utils/arbiterImage';
+import { clipboardImageFile } from '../../utils/sectorImage';
 import {
   arbiterCountdown,
   arbiterDeadline,
@@ -73,19 +84,21 @@ export function ArbiterSummaryCard({
   onRefresh,
   viewerAddress,
 }: ArbiterSummaryCardProps) {
-  const chainNow = useArbiterChainNow(isOpen, snapshot?.observedAt);
+  const [isProjecting, setProjecting] = useState(false);
 
   useCloseOnEscape(isOpen, onClose);
-  if (!isOpen) return null;
-
-  const round = snapshot?.round ?? null;
-  const phase = snapshot?.phase ?? 'none';
-  const deadline = round ? arbiterDeadline(phase, round) : null;
   const isCurrentController = Boolean(
     viewerAddress &&
       snapshot?.controller &&
       addressesMatch(viewerAddress, snapshot.controller.address)
   );
+
+  useEffect(() => {
+    if (!isOpen || !isCurrentController) setProjecting(false);
+  }, [isCurrentController, isOpen]);
+
+  if (!isOpen) return null;
+
   const search = new URLSearchParams();
   search.set('tracking', 'arbiter');
 
@@ -106,7 +119,7 @@ export function ArbiterSummaryCard({
             id="arbiter-summary-title"
             className="mt-1 text-base font-bold tracking-[-0.03em]"
           >
-            {arbiterPhaseLabel(phase)}
+            ARBITER CONTROL
           </h2>
         </div>
         <button
@@ -131,50 +144,29 @@ export function ArbiterSummaryCard({
         ) : null}
 
         {snapshot?.controller ? (
-          <div className="flex items-end justify-between gap-3">
-            <MetricText
-              label="CURRENT CONTROLLER"
-              value={shortAddress(snapshot.controller.address)}
-            />
-            <div className="text-right">
-              {isCurrentController ? (
-                <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
-                  YOU
-                </span>
-              ) : null}
-              <div className="mt-2 text-[8px] tracking-[0.12em] text-neutral-500">
-                UNTIL NEXT WINNER
+          <section className="border-l border-fg pl-3">
+            <div className="flex items-end justify-between gap-3">
+              <MetricText
+                label="CURRENT CONTROLLER"
+                value={shortAddress(snapshot.controller.address)}
+              />
+              <div className="text-right">
+                {isCurrentController ? (
+                  <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
+                    YOU
+                  </span>
+                ) : null}
+                <div className="mt-2 text-[8px] tracking-[0.12em] text-neutral-500">
+                  UNTIL NEXT WINNER
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
-
-        {snapshot && round ? (
-          <section className="border-l border-fg bg-white/[0.04] px-3 py-3">
-            <div className="text-[8px] tracking-[0.18em] text-neutral-500">
-              NEXT CONTROL
-            </div>
-            <div className="mt-1 flex items-end justify-between gap-3">
-              <span className="text-lg font-bold tracking-[-0.04em]">
-                {summaryAuctionValue(phase, deadline, chainNow)}
-              </span>
-              <span className="text-[8px] tracking-[0.14em] text-fg">
-                VERIFIED
-              </span>
-            </div>
-            {phase === 'pending' ? (
-              <p className="mt-2 text-[10px] leading-4 text-neutral-400">
-                First sealed bid starts a{' '}
-                {formatAuctionWindow(round.schedule.biddingDurationSeconds)}{' '}
-                auction.
-              </p>
-            ) : null}
           </section>
         ) : null}
 
-        {snapshot && !round ? (
+        {snapshot && !snapshot.controller ? (
           <p className="border-l border-neutral-700 pl-3 leading-5 text-neutral-400">
-            No auction is registered for this network.
+            No controller has been assigned.
           </p>
         ) : null}
 
@@ -184,14 +176,28 @@ export function ArbiterSummaryCard({
           </p>
         ) : null}
 
-        {isCurrentController ? <ProjectionPlaceholder compact /> : null}
+        {isCurrentController && viewerAddress ? (
+          isProjecting ? (
+            <ArbiterProjectionUpload
+              walletAddress={viewerAddress}
+              replacing={Boolean(snapshot?.billboard)}
+              onCancel={() => setProjecting(false)}
+              onPublished={onRefresh}
+            />
+          ) : (
+            <ArbiterControllerActions
+              replacing={Boolean(snapshot?.billboard)}
+              onProject={() => setProjecting(true)}
+            />
+          )
+        ) : null}
       </div>
 
       <Link
         to={{ pathname: '/arbiter', search: `?${search.toString()}` }}
         className="flex items-center justify-between border-t border-grid px-4 py-3 text-[9px] tracking-[0.18em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-fg"
       >
-        <span>VIEW AUCTION</span>
+        <span>OPEN ARBITER PAGE</span>
         <span aria-hidden="true">↗</span>
       </Link>
     </aside>
@@ -790,16 +796,290 @@ function ErrorNotice({
   );
 }
 
-function ProjectionPlaceholder({ compact = false }: { compact?: boolean }) {
+function ArbiterControllerActions({
+  replacing,
+  onProject,
+}: {
+  replacing: boolean;
+  onProject: () => void;
+}) {
   return (
-    <button
-      type="button"
-      disabled
-      title="Signal controls are planned for the next integration phase"
-      className={`${compact ? 'mt-0' : 'mt-4'} border border-neutral-700 px-3 py-2 text-[8px] tracking-[0.14em] text-dim`}
-    >
-      SET SIGNAL // SOON
-    </button>
+    <section className="border-t border-grid pt-4">
+      <div className="flex items-center justify-between text-[8px] tracking-[0.18em] text-neutral-500">
+        <span>CONTROLLER ACTIONS</span>
+        <span>01 AVAILABLE</span>
+      </div>
+      <button
+        type="button"
+        onClick={onProject}
+        className="mt-3 flex w-full items-center justify-between border border-fg bg-fg px-3 py-3 text-left text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+      >
+        <span>
+          <span className="block text-[10px] font-semibold tracking-[0.18em]">
+            {replacing ? 'REPLACE IMAGE' : 'PROJECT IMAGE'}
+          </span>
+          <span className="mt-1 block text-[8px] tracking-[0.12em] text-neutral-600">
+            16:9 CORE TRANSMISSION
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-base">
+          →
+        </span>
+      </button>
+    </section>
+  );
+}
+
+const DEFAULT_MAXIMUM_IMAGE_BYTES = 2 * 1024 * 1024;
+
+function ArbiterProjectionUpload({
+  walletAddress,
+  replacing,
+  onCancel,
+  onPublished,
+}: {
+  walletAddress: string;
+  replacing: boolean;
+  onCancel: () => void;
+  onPublished: () => void;
+}) {
+  const { signTypedDataAsync } = useSignTypedData({});
+  const inputRef = useRef<HTMLInputElement>(null);
+  const preparationVersionRef = useRef(0);
+  const [prepared, setPrepared] = useState<PreparedArbiterImage | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [maximumImageBytes, setMaximumImageBytes] = useState(
+    DEFAULT_MAXIMUM_IMAGE_BYTES
+  );
+  const [uploadsEnabled, setUploadsEnabled] = useState(false);
+  const [isCheckingService, setCheckingService] = useState(true);
+  const [isPreparing, setPreparing] = useState(false);
+  const [isUploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCheckingService(true);
+    api
+      .getConfig(controller.signal)
+      .then((configuration) => {
+        setUploadsEnabled(Boolean(configuration.imageUploadsEnabled));
+        if (
+          Number.isFinite(configuration.maxImageBytes) &&
+          configuration.maxImageBytes > 0
+        ) {
+          setMaximumImageBytes(configuration.maxImageBytes);
+        }
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) {
+          setUploadsEnabled(false);
+          setUploadError(
+            failure instanceof Error
+              ? failure.message
+              : 'Unable to check image storage.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCheckingService(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    },
+    [previewUrl]
+  );
+
+  const chooseFile = useCallback(
+    async (file: File | undefined) => {
+      if (!file || isUploading) return;
+      const version = ++preparationVersionRef.current;
+      setPreparing(true);
+      setUploadError(null);
+      setUploadNotice(null);
+      try {
+        const next = await prepareArbiterImage(file, maximumImageBytes);
+        if (version !== preparationVersionRef.current) return;
+        const nextPreviewUrl = URL.createObjectURL(next.detail);
+        setPrepared(next);
+        setFileName(file.name || 'PASTED IMAGE');
+        setPreviewUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return nextPreviewUrl;
+        });
+      } catch (failure) {
+        if (version !== preparationVersionRef.current) return;
+        setUploadError(
+          failure instanceof Error
+            ? failure.message
+            : 'Unable to prepare this image.'
+        );
+      } finally {
+        if (version === preparationVersionRef.current) setPreparing(false);
+      }
+    },
+    [isUploading, maximumImageBytes]
+  );
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (event.defaultPrevented || isUploading) return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          'input, textarea, [contenteditable]:not([contenteditable="false"])'
+        )
+      ) {
+        return;
+      }
+      const file = clipboardImageFile(event.clipboardData);
+      if (!file) return;
+      event.preventDefault();
+      void chooseFile(file);
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [chooseFile, isUploading]);
+
+  const upload = async () => {
+    if (!prepared || !uploadsEnabled || isUploading) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadNotice(null);
+    try {
+      await api.uploadArbiterArtwork({
+        walletAddress,
+        prepared,
+        signTypedData: signTypedDataAsync,
+      });
+      setUploadNotice('IMAGE PROJECTED');
+      onPublished();
+    } catch (failure) {
+      setUploadError(
+        failure instanceof Error ? failure.message : 'Image upload failed.'
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const disabled =
+    isCheckingService ||
+    isPreparing ||
+    isUploading ||
+    !uploadsEnabled ||
+    !prepared;
+
+  return (
+    <section className="border-t border-grid pt-4" aria-label="Project image">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[8px] tracking-[0.2em] text-neutral-500">
+            PROJECT IMAGE
+          </div>
+          <div className="mt-1 text-sm font-bold tracking-[-0.03em]">
+            CORE TRANSMISSION
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isUploading}
+          className="text-[8px] tracking-[0.16em] text-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:opacity-50"
+        >
+          RETURN
+        </button>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/webp,image/jpeg,image/png"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          void chooseFile(file);
+        }}
+      />
+      <button
+        type="button"
+        disabled={isPreparing || isUploading}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          void chooseFile(event.dataTransfer.files[0]);
+        }}
+        className="mt-3 w-full border border-dashed border-neutral-600 bg-neutral-950 p-3 text-left transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-wait disabled:opacity-60"
+      >
+        <span className="block aspect-video overflow-hidden border border-neutral-800 bg-black">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="Prepared Arbiter projection preview"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="grid h-full place-items-center text-[9px] tracking-[0.18em] text-neutral-600">
+              CHOOSE · DROP · PASTE
+            </span>
+          )}
+        </span>
+        <span className="mt-2 flex items-center justify-between gap-3 text-[8px] tracking-[0.12em] text-neutral-500">
+          <span className="truncate">{fileName || 'WEBP · JPEG · PNG'}</span>
+          <span>16:9</span>
+        </span>
+      </button>
+
+      {!isCheckingService && !uploadsEnabled && !uploadError ? (
+        <div className="mt-3 border border-neutral-700 px-3 py-2 text-[9px] leading-4 text-neutral-500">
+          UPLOADS OFFLINE · IMAGE STORAGE IS NOT CONFIGURED
+        </div>
+      ) : null}
+      {uploadError ? (
+        <div
+          role="alert"
+          className="mt-3 border border-red-700/70 px-3 py-2 text-[9px] leading-4 text-red-400"
+        >
+          UPLOAD FAILED · {uploadError}
+        </div>
+      ) : null}
+      {uploadNotice ? (
+        <div
+          role="status"
+          className="mt-3 border border-fg px-3 py-2 text-[9px] tracking-[0.14em] text-fg"
+        >
+          {uploadNotice}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => void upload()}
+        className="mt-3 w-full border border-fg bg-fg px-3 py-3 text-[10px] font-semibold tracking-[0.18em] text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
+      >
+        {isCheckingService
+          ? 'CHECKING IMAGE SERVICE…'
+          : isPreparing
+            ? 'PREPARING IMAGE…'
+            : isUploading
+              ? 'PROJECTING IMAGE…'
+              : !prepared
+                ? 'CHOOSE IMAGE'
+                : replacing
+                  ? 'REPLACE PROJECTION'
+                  : 'PROJECT IMAGE'}
+      </button>
+    </section>
   );
 }
 
@@ -890,22 +1170,6 @@ function orbitLabel(phase: ArbiterPhase) {
   if (phase === 'acceptance') return 'SETTLEMENT STARTS IN';
   if (phase === 'settling') return 'SETTLEMENT';
   if (phase === 'pending') return 'AUCTION';
-  return arbiterPhaseLabel(phase);
-}
-
-function summaryAuctionValue(
-  phase: ArbiterPhase,
-  deadline: { label: string; at: string } | null,
-  chainNow: number
-) {
-  if (phase === 'pending') return 'WAITING FOR A BID';
-  if (phase === 'bidding' && deadline) {
-    return compactAuctionCountdown(deadline.at, chainNow);
-  }
-  if (phase === 'acceptance' && deadline) {
-    return arbiterCountdown(deadline.at, chainNow);
-  }
-  if (phase === 'settling') return 'PROVING RESULT';
   return arbiterPhaseLabel(phase);
 }
 

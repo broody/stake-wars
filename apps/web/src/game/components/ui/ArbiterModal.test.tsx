@@ -310,8 +310,16 @@ describe('ArbiterConsole', () => {
 });
 
 describe('ArbiterSummaryCard', () => {
-  it('keeps the in-world surface light and links to the auction page', () => {
-    const snapshot = biddingSnapshot;
+  it('shows controller state without duplicating auction status in Core', () => {
+    const snapshot: ArbiterSnapshot = {
+      ...biddingSnapshot,
+      controller: {
+        address: '0x777',
+        claimedAt: '2026-08-24T11:00:00Z',
+        startsAt: '2026-08-24T11:00:00Z',
+        expiresAt: null,
+      },
+    };
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <ArbiterSummaryCard
@@ -325,14 +333,18 @@ describe('ArbiterSummaryCard', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain('BIDDING OPEN');
-    expect(markup).not.toContain('CURRENT CONTROLLER');
-    expect(markup).toContain('VIEW AUCTION');
+    expect(markup).toContain('ARBITER CONTROL');
+    expect(markup).toContain('CURRENT CONTROLLER');
+    expect(markup).toContain('0x777');
+    expect(markup).not.toContain('BIDDING OPEN');
+    expect(markup).not.toContain('WAITING FOR');
+    expect(markup).not.toContain('NEXT CONTROL');
+    expect(markup).not.toContain('CURRENT PROJECTION');
+    expect(markup).toContain('OPEN ARBITER PAGE');
     expect(markup).toContain('/arbiter?tracking=arbiter');
-    expect(markup).not.toContain('AUCTION DETAILS');
   });
 
-  it('shows the future projection affordance only to the favored Operator', () => {
+  it('shows the projection action only to the current controller', () => {
     const snapshot: ArbiterSnapshot = {
       ...biddingSnapshot,
       phase: 'settled',
@@ -370,7 +382,9 @@ describe('ArbiterSummaryCard', () => {
     );
 
     expect(markup).toContain('YOU');
-    expect(markup).toContain('SET SIGNAL // SOON');
-    expect(markup).toContain('disabled');
+    expect(markup).toContain('CONTROLLER ACTIONS');
+    expect(markup).toContain('PROJECT IMAGE');
+    expect(markup).toContain('01 AVAILABLE');
+    expect(markup).not.toContain('SET SIGNAL // SOON');
   });
 });
