@@ -364,10 +364,18 @@ export function Staking() {
                 emphasis
               />
             </div>
-            <div className="p-5 text-[10.5px] leading-5 text-neutral-500">
-              Staked STRK generates FORCE 1:1. FORCE is allocation accounting,
-              not a separate token, and remains ready for captures,
-              reinforcements, and challenges.
+            <div className="space-y-3 p-5 text-xs leading-5 text-neutral-500">
+              <p>
+                Your STRK is delegated directly to the Stake Wars validator
+                through Starknet&rsquo;s official staking contract. Stake Wars
+                never takes custody of your tokens. You can begin unstaking at
+                any time and withdraw your STRK after the official exit window.
+              </p>
+              <p>
+                Every 1 STRK delegated generates 1 FORCE. FORCE is allocation
+                accounting, not a separate token, and can be assigned to
+                captures, reinforcements, and challenges.
+              </p>
             </div>
           </div>
         </section>
