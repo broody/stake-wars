@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArbiterLogo } from '../components/3d/ArbiterLogo';
 import { ArbiterConsole } from '../components/ui/ArbiterModal';
@@ -8,6 +8,11 @@ import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
 import { api } from '../services/api';
 import type { ArbiterRound } from '../services/api';
+import {
+  listArbiterBids,
+  saveArbiterBid,
+  type StoredArbiterBid,
+} from '../services/arbiterBidStorage';
 import { submitArbiterBid } from '../services/whisperBid';
 
 const BID_CONFIRMATION_POLL_MS = 2_000;
@@ -25,6 +30,12 @@ export function Arbiter() {
   } = useWallet();
   const view = location.pathname.endsWith('/history') ? 'history' : 'auction';
   const historyState = useArbiterHistory(view === 'history');
+  const [ownBids, setOwnBids] = useState<StoredArbiterBid[]>([]);
+  const [ownBidsLoading, setOwnBidsLoading] = useState(false);
+  const [ownBidsError, setOwnBidsError] = useState<string | null>(null);
+  const round = snapshot?.round ?? null;
+  const roundAuctionId = round?.auctionId;
+  const roundWhisperAddress = round?.whisperAddress;
   const consoleLoading =
     view === 'history' ? historyState.isLoading : isLoading;
   const consoleError = view === 'history' ? historyState.error : error;
@@ -45,8 +56,52 @@ export function Arbiter() {
       chainId &&
       isPrivacyWalletSupported &&
       config.whisperOperatorUrl &&
-      snapshot?.round
+      round
   );
+
+  useEffect(() => {
+    let active = true;
+    if (
+      !address ||
+      !snapshot?.network ||
+      roundAuctionId === undefined ||
+      !roundWhisperAddress
+    ) {
+      setOwnBids([]);
+      setOwnBidsLoading(false);
+      setOwnBidsError(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    setOwnBids([]);
+    setOwnBidsLoading(true);
+    setOwnBidsError(null);
+    listArbiterBids({
+      network: snapshot.network,
+      walletAddress: address,
+      whisperAddress: roundWhisperAddress,
+      auctionId: roundAuctionId,
+    })
+      .then((bids) => {
+        if (active) setOwnBids(bids);
+      })
+      .catch(() => {
+        if (active) {
+          setOwnBids([]);
+          setOwnBidsError('SAVED BID UNAVAILABLE ON THIS DEVICE');
+        }
+      })
+      .finally(() => {
+        if (active) setOwnBidsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [address, roundAuctionId, roundWhisperAddress, snapshot?.network]);
+
   const placeBid = useCallback(
     async (amount: string) => {
       if (!snapshot?.round || !address || !chainId) {
@@ -65,8 +120,37 @@ export function Arbiter() {
         observeSubmission: (signal) =>
           waitForBidCountIncrease(snapshot.round!, signal),
       });
+      let storageStatus: 'saved' | 'failed' = 'saved';
+      try {
+        const saved = await saveArbiterBid({
+          version: 1,
+          network: snapshot.network,
+          walletAddress: address,
+          roundId: snapshot.round.id,
+          auctionId: snapshot.round.auctionId,
+          whisperAddress: snapshot.round.whisperAddress,
+          amount: receipt.amount,
+          groupHandle: receipt.groupHandle,
+          bidHandle: receipt.bidHandle,
+          transactionHash: receipt.transactionHash,
+          confirmedBy: receipt.confirmedBy,
+          submittedAt: new Date().toISOString(),
+        });
+        setOwnBids((current) =>
+          [
+            saved,
+            ...current.filter((bid) => bid.bidHandle !== saved.bidHandle),
+          ].sort((left, right) =>
+            right.submittedAt.localeCompare(left.submittedAt)
+          )
+        );
+        setOwnBidsError(null);
+      } catch {
+        storageStatus = 'failed';
+        setOwnBidsError('BID SUBMITTED // COULD NOT SAVE ON THIS DEVICE');
+      }
       refresh();
-      return receipt;
+      return { ...receipt, storageStatus };
     },
     [address, chainId, invokePrivateActions, refresh, snapshot]
   );
@@ -131,6 +215,9 @@ export function Arbiter() {
           title={view === 'history' ? 'WINNER HISTORY' : 'CONTROL AUCTION'}
           view={view}
           history={historyState.entries}
+          ownBids={ownBids}
+          ownBidsLoading={ownBidsLoading}
+          ownBidsError={ownBidsError}
         />
       </div>
     </div>

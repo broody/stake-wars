@@ -43,8 +43,10 @@ export interface SubmitArbiterBidInput {
 }
 
 export interface ArbiterBidReceipt {
+  amount: string;
   transactionHash: string | null;
   confirmedBy: PrivateTransactionResult['confirmedBy'];
+  storageStatus?: 'saved' | 'failed';
   groupHandle: string;
   bidHandle: string;
 }
@@ -146,6 +148,7 @@ export async function submitArbiterBid({
     observeSubmission
   );
   return {
+    amount: bidAmount.toString(),
     transactionHash: result.transactionHash,
     confirmedBy: result.confirmedBy,
     groupHandle: hex(composition.groupHandle),

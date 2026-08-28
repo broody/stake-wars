@@ -82,6 +82,7 @@ describe('Whisper Ready bid submission', () => {
     ]);
     expect(receipt.transactionHash).toBe('0xfeed');
     expect(receipt.confirmedBy).toBe('wallet');
+    expect(receipt.amount).toBe('1250000000000000000');
   });
 
   it('fails closed before Ready when the operator does not match the round', async () => {

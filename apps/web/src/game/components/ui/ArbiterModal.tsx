@@ -7,6 +7,7 @@ import type {
   ArbiterSnapshot,
 } from '../../services/api';
 import type { ArbiterBidReceipt } from '../../services/whisperBid';
+import type { StoredArbiterBid } from '../../services/arbiterBidStorage';
 import { useArbiter } from '../../contexts/useArbiter';
 import { useWallet } from '../../contexts/WalletContext';
 import {
@@ -33,6 +34,9 @@ interface ArbiterConsoleProps extends ArbiterModalProps {
   title?: string;
   view?: 'auction' | 'history';
   history?: ArbiterHistoryEntry[];
+  ownBids?: StoredArbiterBid[];
+  ownBidsLoading?: boolean;
+  ownBidsError?: string | null;
 }
 
 interface ArbiterSummaryCardProps extends ArbiterModalProps {
@@ -207,6 +211,9 @@ export function ArbiterConsole({
   title = 'THE ARBITER',
   view = 'auction',
   history = [],
+  ownBids = [],
+  ownBidsLoading = false,
+  ownBidsError = null,
 }: ArbiterConsoleProps) {
   const chainNow = useArbiterChainNow(isOpen, snapshot?.observedAt);
   useCloseOnEscape(isOpen && presentation === 'hud', onClose);
@@ -292,6 +299,9 @@ export function ArbiterConsole({
           chainNow={chainNow}
           onPlaceBid={onPlaceBid}
           bidStatusLabel={bidStatusLabel}
+          ownBids={ownBids}
+          ownBidsLoading={ownBidsLoading}
+          ownBidsError={ownBidsError}
         />
       ) : null}
 
@@ -333,12 +343,18 @@ function AuctionPanel({
   chainNow,
   onPlaceBid,
   bidStatusLabel,
+  ownBids,
+  ownBidsLoading,
+  ownBidsError,
 }: {
   phase: ArbiterPhase;
   round: ArbiterRound;
   chainNow: number;
   onPlaceBid?: (amount: string) => Promise<ArbiterBidReceipt>;
   bidStatusLabel?: string;
+  ownBids: StoredArbiterBid[];
+  ownBidsLoading: boolean;
+  ownBidsError: string | null;
 }) {
   const reserveBid = formatStrk(BigInt(round.reservePrice), 18);
   const [bidAmount, setBidAmount] = useState(reserveBid);
@@ -398,6 +414,12 @@ function AuctionPanel({
               value={formatDuration(round.schedule.biddingDurationSeconds)}
             />
           </div>
+
+          <OwnBidsPanel
+            bids={ownBids}
+            isLoading={ownBidsLoading}
+            error={ownBidsError}
+          />
 
           {canBid ? (
             <form className="mt-6" onSubmit={submitBid}>
@@ -460,6 +482,14 @@ function AuctionPanel({
                     : 'BID OBSERVED ONCHAIN // SUBMITTED'}
                 </p>
               ) : null}
+              {receipt?.storageStatus === 'failed' ? (
+                <p
+                  className="mt-2 text-[9px] leading-4 text-red-400"
+                  role="alert"
+                >
+                  BID SUBMITTED // COULD NOT SAVE ON THIS DEVICE
+                </p>
+              ) : null}
               {bidError ? (
                 <p
                   className="mt-2 text-[9px] leading-4 text-red-400"
@@ -472,6 +502,59 @@ function AuctionPanel({
           ) : null}
         </div>
       </div>
+    </section>
+  );
+}
+
+function OwnBidsPanel({
+  bids,
+  isLoading,
+  error,
+}: {
+  bids: StoredArbiterBid[];
+  isLoading: boolean;
+  error: string | null;
+}) {
+  if (!isLoading && bids.length === 0 && !error) return null;
+
+  return (
+    <section
+      aria-label="Your sealed bids"
+      className="mt-5 border-l border-fg bg-white/[0.035] px-4 py-3"
+    >
+      <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.2em]">
+        <span className="text-neutral-500">
+          {bids.length === 1 ? 'YOUR SEALED BID' : 'YOUR SEALED BIDS'}
+        </span>
+        <span className="text-neutral-600">SAVED ON THIS DEVICE</span>
+      </div>
+      {isLoading ? (
+        <div className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500">
+          RESTORING…
+        </div>
+      ) : null}
+      {!isLoading && bids.length > 0 ? (
+        <div className="mt-2 divide-y divide-grid">
+          {bids.map((bid, index) => (
+            <div
+              key={bid.bidHandle}
+              className="flex items-center justify-between gap-4 py-2 first:pt-1 last:pb-0"
+            >
+              <span className="text-xl font-bold tabular-nums tracking-[-0.04em] text-fg">
+                {formatArbiterAmount(bid.amount)}
+              </span>
+              <span className="text-[8px] tracking-[0.16em] text-neutral-500">
+                BID {String(bids.length - index).padStart(2, '0')}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mt-3 text-[9px] tracking-[0.14em] text-red-400">
+          {error}
+        </div>
+      ) : null}
     </section>
   );
 }

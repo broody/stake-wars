@@ -429,8 +429,14 @@ cached paymaster fee target before the second confirmation and fails with
 request open after broadcasting, the UI temporarily treats an increase from
 the round's pre-submit bid count as successful submission. This fallback is
 appropriate only while auction traffic is low because a concurrent bidder can
-produce the same public signal. The remaining Phase B gate is confirmation that
-the submitted tranche becomes funded and fixes the expected deadlines.
+produce the same public signal. Bid display receipts now survive reloads in
+wallet-, network-, and auction-scoped IndexedDB records encrypted with a
+non-extractable browser key; only the amount, public handles, confirmation
+method, and timestamp are saved, and claiming never depends on them. The
+remaining Phase B gate is confirmation that the submitted tranche becomes
+funded and fixes the expected deadlines. The 2026-08-27 freshness check found
+newer get-starknet tags and moved sub-account example packages, but neither
+changes this installed Wallet API route or the app-local receipt storage.
 
 1. Establish a deployable SDK dependency. Publish a tagged, reviewed
    `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
@@ -461,9 +467,13 @@ the submitted tranche becomes funded and fixes the expected deadlines.
    initial Sepolia rehearsal), and ensure later bids or additive top-ups do not
    move any resolved deadline. A rejected or reverted first bid must leave the
    auction pending.
-7. Track the returned group/bid handles locally and poll public `get_bid` state
-   until the tranche is funded or the acceptance window closes. A submitted
-   transaction is not yet an accepted bid.
+7. Save the returned amount and group/bid handles in encrypted IndexedDB scoped
+   to the connected wallet, network, Whisper deployment, and auction so the
+   user's own bid display survives reloads. Never save salts, winner secrets,
+   viewing keys, notes, or proofs, and never make claiming depend on browser
+   storage. Poll public `get_bid` state until the tranche is funded or the
+   acceptance window closes; a submitted transaction is not yet an accepted
+   bid.
 8. Keep additive top-ups out of the first UI until the interactive Ready initial
    bid and top-up paths have both passed live Sepolia testing.
 

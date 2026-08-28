@@ -68,6 +68,7 @@ describe('ArbiterConsole', () => {
         onClose={() => undefined}
         onRefresh={() => undefined}
         onPlaceBid={async () => ({
+          amount: '2000000000000000000',
           transactionHash: '0x123',
           confirmedBy: 'wallet',
           groupHandle: '0x456',
@@ -86,6 +87,39 @@ describe('ArbiterConsole', () => {
     expect(markup).toContain('READY WALLET // PRIVATE');
     expect(markup).not.toContain(' disabled=""');
     expect(markup).not.toContain('WINNING BID');
+  });
+
+  it('shows the connected wallet bids restored for the current round', () => {
+    const markup = renderToStaticMarkup(
+      <ArbiterConsole
+        isOpen
+        snapshot={biddingSnapshot}
+        isLoading={false}
+        error={null}
+        onClose={() => undefined}
+        onRefresh={() => undefined}
+        ownBids={[
+          {
+            version: 1,
+            network: 'SN_SEPOLIA',
+            walletAddress: '0x999',
+            roundId: 4,
+            auctionId: 7,
+            whisperAddress: '0x123',
+            amount: '2250000000000000000',
+            groupHandle: '0x456',
+            bidHandle: '0x789',
+            transactionHash: null,
+            confirmedBy: 'bid-count',
+            submittedAt: '2026-08-27T22:00:00.000Z',
+          },
+        ]}
+      />
+    );
+
+    expect(markup).toContain('YOUR SEALED BID');
+    expect(markup).toContain('2.25 [STRK]');
+    expect(markup).toContain('SAVED ON THIS DEVICE');
   });
 
   it('explains that the first bid starts the pending auction', () => {
