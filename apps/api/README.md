@@ -50,8 +50,18 @@ Torii listens on `127.0.0.1:8081`, persists its rebuildable index under
 launcher enables debug output and mirrors timestamped logs under
 `contracts/.torii/logs/`. In addition to the Stake Wars World, the Sepolia
 configuration indexes raw events from the staking pool and the active Whisper
-deployment. Whisper's keyed lifecycle events are the source for Arbiter winner
-history.
+deployment. Those events remain available for indexed inspection, but Torii is
+not authoritative for Arbiter control or history. The API reconciles each
+canonical round from Whisper's onchain auction and result views through direct
+Starknet RPC.
+
+After a direct-RPC result reports a winner, the API makes a server-to-server
+authenticated request to the Whisper operator's
+`GET /v1/auctions/{auctionId}/winner` endpoint. The operator decrypts and
+revalidates only the winning capsule and returns its committed wallet address.
+The API verifies the disclosed group and winner commitment against the onchain
+result before atomically activating the controller. Torii lag therefore cannot
+leave the previous winner in control.
 
 ## Configuration
 
@@ -69,7 +79,7 @@ history.
 | `ARBITER_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
 | `ARBITER_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
 | `ARBITER_COORDINATOR_URL` | unset | Whisper operator origin used by recurring auction creation and post-settlement winner resolution. |
-| `ARBITER_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation endpoint. |
+| `ARBITER_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation and winner-disclosure endpoints. |
 | `ARBITER_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Arbiter rounds. |
 | `ARBITER_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
 | `ARBITER_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |

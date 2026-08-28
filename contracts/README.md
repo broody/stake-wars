@@ -33,13 +33,13 @@ pool and active Whisper deployment as explicit `OTHER` contracts with raw
 event indexing enabled. The Whisper address and deployment block mirror
 `vendor/whisper/deployments/sepolia.json`.
 
-Arbiter history should read keyed `AuctionSettled` events from the configured
-Whisper contract and filter them to canonical Stake Wars auction IDs. The
-active deployment's event supplies the final logical-bid count, winning bid,
-clearing price, and winner commitment. Settlements emitted by previous Whisper
-deployments use legacy layouts and are intentionally outside the active
-contract's indexed history. The frontend history query is intentionally
-separate from this indexer configuration.
+Torii indexes keyed `AuctionSettled` events from the configured Whisper
+contract for inspection and rebuildable queries. Arbiter control and API
+history do not wait for this index: the API reads the canonical auction and
+result directly through Starknet RPC, then verifies the operator's winning
+address disclosure against the onchain winning group and commitment.
+Settlements emitted by previous Whisper deployments use legacy layouts and are
+intentionally outside the active contract's indexed event set.
 
 ## Control System
 

@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 5 {
-		t.Fatalf("expected five migrations, got %d", migrations)
+	if migrations != 6 {
+		t.Fatalf("expected six migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`
@@ -54,6 +54,23 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 		)
 	`); err != nil {
 		t.Fatalf("insert Arbiter outcome: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO arbiter_rounds(
+			network, round_id, whisper_address, auction_id, expected_creator,
+			payment_token, metadata_hash, winner_payload_domain, vault_address
+		) VALUES ('SN_SEPOLIA', 2, '0x1', 8, '0x2', '0x3', '0x4', '0x5', '0x6');
+		INSERT INTO arbiter_round_outcomes(
+			network, round_id, whisper_address, auction_id, terminal_status,
+			has_winner, winner_group_handle, winner_commitment, winning_bid,
+			second_highest_bid, clearing_price, funded_bid_count,
+			settlement_hash, settlement_transaction_hash, settled_at
+		) VALUES (
+			'SN_SEPOLIA', 2, '0x1', 8, 'settled', 1, '0x7', '0x8',
+			'100', '80', '80', 2, '0x9', NULL, 100
+		)
+	`); err != nil {
+		t.Fatalf("insert direct-RPC Arbiter outcome without transaction hash: %v", err)
 	}
 	if _, err := db.Exec(`
 		INSERT INTO arbiter_cycle_jobs(

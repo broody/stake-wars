@@ -53,30 +53,25 @@ func run() error {
 	arbiterBiddingDurationSeconds := uint64(configuration.ArbiterBiddingDuration / time.Second)
 	var arbiterWorker *arbiter.Worker
 	arbiterDuties := make([]arbiter.Duty, 0, 3)
-	if configuration.ToriiURL != "" {
-		settlementSource, err := arbiter.NewToriiSettlementSource(configuration.ToriiURL)
-		if err != nil {
-			return err
-		}
+	if configuration.StarknetRPCURL != "" {
 		arbiterDuties = append(arbiterDuties,
-			arbiter.NewSettlementProjector(
+			arbiter.NewOnchainSettlementProjector(
 				arbiterStore,
-				settlementSource,
 				whisperReader,
 				configuration.StarknetChainID,
 				arbiterBiddingDurationSeconds,
 			),
 		)
-		if configuration.ArbiterCoordinatorEnabled() {
-			arbiterDuties = append(arbiterDuties, arbiter.NewWinnerProjector(
-				arbiterStore,
-				arbiter.NewOperatorCoordinatorClient(
-					configuration.ArbiterCoordinatorURL,
-					configuration.ArbiterCoordinatorToken,
-				),
-				configuration.StarknetChainID,
-			))
-		}
+	}
+	if configuration.ArbiterCoordinatorEnabled() {
+		arbiterDuties = append(arbiterDuties, arbiter.NewWinnerProjector(
+			arbiterStore,
+			arbiter.NewOperatorCoordinatorClient(
+				configuration.ArbiterCoordinatorURL,
+				configuration.ArbiterCoordinatorToken,
+			),
+			configuration.StarknetChainID,
+		))
 	}
 	if configuration.ArbiterCoordinatorEnabled() {
 		restarter, err := newArbiterRestarter(configuration, arbiterStore, whisperReader)

@@ -167,7 +167,7 @@ export function Arbiter() {
             ARBITER
           </h1>
           <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
-            Bid to influence the Arbiter. All bids are private until auction
+            Bid to control the Arbiter. All bids are private until auction
             round ends.
           </p>
 

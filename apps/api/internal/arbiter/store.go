@@ -392,7 +392,7 @@ func (s *Store) SaveSettlement(
 		SELECT round_id, whisper_address, auction_id, has_winner,
 			winner_group_handle, winner_commitment, winning_bid,
 			second_highest_bid, clearing_price, funded_bid_count,
-			settlement_hash, settlement_transaction_hash, settled_at
+			settlement_hash, COALESCE(settlement_transaction_hash, ''), settled_at
 		FROM arbiter_round_outcomes
 		WHERE network = ? AND round_id = ?
 	`, network, projection.RoundID).Scan(
@@ -432,7 +432,7 @@ func (s *Store) SaveSettlement(
 		) VALUES (
 			?, ?, ?, ?, 'settled',
 			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?
+			?, ?, ?, NULLIF(?, ''), ?
 		)
 	`,
 		network,
