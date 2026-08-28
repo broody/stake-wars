@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useArbiter } from '../../contexts/useArbiter';
@@ -27,6 +34,25 @@ const PROJECTION_MARK_OFFSET = 0.032;
 const PROJECTION_ALIGNMENT_DAMPING = 5;
 const PROJECTION_OPACITY_DAMPING = 7;
 const PROJECTION_BODY_OPACITY = 0.18;
+const PROJECTION_ANIMATION_DURATION = 1.1;
+const PROJECTION_BRACKET_PHASE_END = 0.62;
+const PROJECTION_FLICKER_KEYFRAMES = [
+  [0, 0],
+  [0.08, 0.9],
+  [0.16, 0.12],
+  [0.28, 0.82],
+  [0.37, 0.24],
+  [0.5, 1],
+  [0.62, 0.48],
+  [0.78, 1],
+  [1, 1],
+] as const;
+const PROJECTION_MARKS = [
+  { x: -1, y: 1, xDirection: 1, yDirection: -1 },
+  { x: 1, y: 1, xDirection: -1, yDirection: -1 },
+  { x: -1, y: -1, xDirection: 1, yDirection: 1 },
+  { x: 1, y: -1, xDirection: -1, yDirection: 1 },
+] as const;
 
 export function OrbitalArbiter({
   isTracking,
@@ -87,6 +113,7 @@ export function OrbitalArbiter({
   const bodyProjectionBasis = useMemo(() => new THREE.Matrix4(), []);
   const bodyProjectionFrame = useMemo(() => new THREE.Quaternion(), []);
   const bodyProjectionTarget = useMemo(() => new THREE.Quaternion(), []);
+  const projectionAnimationProgressRef = useRef(0);
   const prefersReducedMotion = useMemo(
     () =>
       globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
@@ -123,8 +150,17 @@ export function OrbitalArbiter({
       arbiterRef.current.position.copy(orbitPosition);
     }
 
+    projectionAnimationProgressRef.current = nextProjectionAnimationProgress(
+      projectionAnimationProgressRef.current,
+      isProjectionVisible,
+      prefersReducedMotion,
+      delta
+    );
+    const isProjectionSequenceActive =
+      isProjectionVisible || projectionAnimationProgressRef.current > 0;
+
     if (bodyRef.current) {
-      if (isProjectionVisible) {
+      if (isProjectionSequenceActive) {
         bodyProjectionInward.copy(orbitPosition).normalize().negate();
         tangentOnArbiterOrbit(angle, bodyProjectionTangent);
         bodyProjectionUp
@@ -156,7 +192,9 @@ export function OrbitalArbiter({
     }
 
     if (bodyMaterialRef.current) {
-      const targetOpacity = isProjectionVisible ? PROJECTION_BODY_OPACITY : 1;
+      const targetOpacity = isProjectionSequenceActive
+        ? PROJECTION_BODY_OPACITY
+        : 1;
       bodyMaterialRef.current.opacity = prefersReducedMotion
         ? targetOpacity
         : THREE.MathUtils.damp(
@@ -270,10 +308,8 @@ export function OrbitalArbiter({
       </group>
 
       <ArbiterProjection
-        imageUrl={
-          isProjectionVisible ? (snapshot?.billboard?.imageUrl ?? null) : null
-        }
-        isProjectionVisible={isProjectionVisible}
+        imageUrl={snapshot?.billboard?.imageUrl ?? null}
+        animationProgressRef={projectionAnimationProgressRef}
         prefersReducedMotion={prefersReducedMotion}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
@@ -285,14 +321,14 @@ export function OrbitalArbiter({
 
 function ArbiterProjection({
   imageUrl,
-  isProjectionVisible,
+  animationProgressRef,
   prefersReducedMotion,
   onPointerOver,
   onPointerOut,
   onClick,
 }: {
   imageUrl: string | null;
-  isProjectionVisible: boolean;
+  animationProgressRef: { current: number };
   prefersReducedMotion: boolean;
   onPointerOver: (event: { stopPropagation: () => void }) => void;
   onPointerOut: () => void;
@@ -304,8 +340,21 @@ function ArbiterProjection({
   const projectionTangent = useMemo(() => new THREE.Vector3(), []);
   const projectionNormal = useMemo(() => new THREE.Vector3(), []);
   const projectionOrientation = useMemo(() => new THREE.Matrix4(), []);
+  const projectionContentRef = useRef<THREE.Group>(null);
+  const projectionImageRef = useRef<THREE.Group>(null);
+  const frontRegistrationRef = useRef<THREE.Group>(null);
+  const backRegistrationRef = useRef<THREE.Group>(null);
+  const backdropMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const frontMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const backMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const emptyTexture = useMemo(createEmptyProjectionTexture, []);
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useLayoutEffect(() => {
+    if (projectionContentRef.current) {
+      projectionContentRef.current.visible = false;
+    }
+  }, []);
 
   useEffect(() => {
     setTexture(null);
@@ -366,6 +415,48 @@ function ArbiterProjection({
       projectionRadial
     );
     projection.quaternion.setFromRotationMatrix(projectionOrientation);
+
+    const animationProgress = animationProgressRef.current;
+    const bracketPhase = THREE.MathUtils.clamp(
+      animationProgress / PROJECTION_BRACKET_PHASE_END,
+      0,
+      1
+    );
+    const bracketExpansion = THREE.MathUtils.smootherstep(bracketPhase, 0, 1);
+    const imagePhase = THREE.MathUtils.clamp(
+      (animationProgress - PROJECTION_BRACKET_PHASE_END) /
+        (1 - PROJECTION_BRACKET_PHASE_END),
+      0,
+      1
+    );
+    const imageOpacity = projectionFlickerOpacity(imagePhase);
+
+    if (projectionContentRef.current) {
+      projectionContentRef.current.visible = animationProgress > 0;
+    }
+    setRegistrationMarksExpansion(
+      frontRegistrationRef.current,
+      bracketExpansion
+    );
+    setRegistrationMarksExpansion(
+      backRegistrationRef.current,
+      bracketExpansion
+    );
+    if (projectionImageRef.current) {
+      projectionImageRef.current.visible = imageOpacity > 0;
+    }
+    if (backdropMaterialRef.current) {
+      backdropMaterialRef.current.opacity = imageOpacity * 0.94;
+      backdropMaterialRef.current.depthWrite = imageOpacity > 0.995;
+    }
+    if (frontMaterialRef.current) {
+      frontMaterialRef.current.opacity = imageOpacity;
+      frontMaterialRef.current.depthWrite = imageOpacity > 0.995;
+    }
+    if (backMaterialRef.current) {
+      backMaterialRef.current.opacity = imageOpacity;
+      backMaterialRef.current.depthWrite = imageOpacity > 0.995;
+    }
   });
 
   const frontTexture = mirroredTexture ?? emptyTexture;
@@ -374,47 +465,58 @@ function ArbiterProjection({
   return (
     <group ref={projectionRef}>
       <group
+        ref={projectionContentRef}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
         onClick={onClick}
       >
-        {isProjectionVisible ? (
-          <>
-            <mesh raycast={() => undefined}>
-              <planeGeometry
-                args={[PROJECTION_WIDTH + 0.12, PROJECTION_HEIGHT + 0.12]}
-              />
-              <meshBasicMaterial
-                color="#000000"
-                transparent
-                opacity={0.94}
-                side={THREE.DoubleSide}
-                toneMapped={false}
-              />
-            </mesh>
-            <mesh position={[0, 0, PROJECTION_FACE_OFFSET]} renderOrder={5}>
-              <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
-              <meshBasicMaterial
-                map={frontTexture}
-                side={THREE.FrontSide}
-                toneMapped={false}
-              />
-            </mesh>
-            <mesh position={[0, 0, -PROJECTION_FACE_OFFSET]} renderOrder={5}>
-              <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
-              <meshBasicMaterial
-                map={backTexture}
-                side={THREE.BackSide}
-                toneMapped={false}
-              />
-            </mesh>
-          </>
-        ) : null}
+        <group ref={projectionImageRef}>
+          <mesh raycast={() => undefined}>
+            <planeGeometry
+              args={[PROJECTION_WIDTH + 0.12, PROJECTION_HEIGHT + 0.12]}
+            />
+            <meshBasicMaterial
+              ref={backdropMaterialRef}
+              color="#000000"
+              transparent
+              opacity={0}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[0, 0, PROJECTION_FACE_OFFSET]} renderOrder={5}>
+            <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+            <meshBasicMaterial
+              ref={frontMaterialRef}
+              map={frontTexture}
+              transparent
+              opacity={0}
+              depthWrite={false}
+              side={THREE.FrontSide}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[0, 0, -PROJECTION_FACE_OFFSET]} renderOrder={5}>
+            <planeGeometry args={[PROJECTION_WIDTH, PROJECTION_HEIGHT]} />
+            <meshBasicMaterial
+              ref={backMaterialRef}
+              map={backTexture}
+              transparent
+              opacity={0}
+              depthWrite={false}
+              side={THREE.BackSide}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
         <ProjectionRegistrationMarks
+          rootRef={frontRegistrationRef}
           positionZ={PROJECTION_MARK_OFFSET}
           side={THREE.FrontSide}
         />
         <ProjectionRegistrationMarks
+          rootRef={backRegistrationRef}
           positionZ={-PROJECTION_MARK_OFFSET}
           side={THREE.BackSide}
         />
@@ -433,25 +535,18 @@ function ArbiterProjection({
 }
 
 function ProjectionRegistrationMarks({
+  rootRef,
   positionZ,
   side,
 }: {
+  rootRef: RefObject<THREE.Group | null>;
   positionZ: number;
   side: THREE.Side;
 }) {
-  const horizontalOffset = PROJECTION_WIDTH / 2 + 0.035;
-  const verticalOffset = PROJECTION_HEIGHT / 2 + 0.035;
-  const marks = [
-    [-horizontalOffset, verticalOffset, 1, -1],
-    [horizontalOffset, verticalOffset, -1, -1],
-    [-horizontalOffset, -verticalOffset, 1, 1],
-    [horizontalOffset, -verticalOffset, -1, 1],
-  ] as const;
-
   return (
-    <group position={[0, 0, positionZ]} raycast={() => undefined}>
-      {marks.map(([x, y, xDirection, yDirection]) => (
-        <group key={`${x}:${y}`} position={[x, y, 0]}>
+    <group ref={rootRef} position={[0, 0, positionZ]} raycast={() => undefined}>
+      {PROJECTION_MARKS.map(({ x, y, xDirection, yDirection }) => (
+        <group key={`${x}:${y}`}>
           <mesh position={[xDirection * 0.08, 0, 0]}>
             <planeGeometry args={[0.17, 0.018]} />
             <meshBasicMaterial
@@ -472,6 +567,57 @@ function ProjectionRegistrationMarks({
       ))}
     </group>
   );
+}
+
+function setRegistrationMarksExpansion(
+  root: THREE.Group | null,
+  expansion: number
+) {
+  if (!root) return;
+
+  const horizontalOffset = PROJECTION_WIDTH / 2 + 0.035;
+  const verticalOffset = PROJECTION_HEIGHT / 2 + 0.035;
+  PROJECTION_MARKS.forEach(({ x, y }, index) => {
+    root.children[index]?.position.set(
+      x * horizontalOffset * expansion,
+      y * verticalOffset * expansion,
+      0
+    );
+  });
+}
+
+function nextProjectionAnimationProgress(
+  current: number,
+  isProjectionVisible: boolean,
+  prefersReducedMotion: boolean,
+  delta: number
+) {
+  if (prefersReducedMotion) return isProjectionVisible ? 1 : 0;
+
+  return THREE.MathUtils.clamp(
+    current +
+      (isProjectionVisible ? delta : -delta) / PROJECTION_ANIMATION_DURATION,
+    0,
+    1
+  );
+}
+
+function projectionFlickerOpacity(progress: number) {
+  const clamped = THREE.MathUtils.clamp(progress, 0, 1);
+  for (let index = 1; index < PROJECTION_FLICKER_KEYFRAMES.length; index += 1) {
+    const [nextProgress, nextOpacity] = PROJECTION_FLICKER_KEYFRAMES[index];
+    if (clamped > nextProgress) continue;
+
+    const [previousProgress, previousOpacity] =
+      PROJECTION_FLICKER_KEYFRAMES[index - 1];
+    return THREE.MathUtils.lerp(
+      previousOpacity,
+      nextOpacity,
+      (clamped - previousProgress) / (nextProgress - previousProgress)
+    );
+  }
+
+  return 1;
 }
 
 function createEmptyProjectionTexture() {
