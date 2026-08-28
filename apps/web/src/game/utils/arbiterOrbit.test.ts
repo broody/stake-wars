@@ -3,12 +3,21 @@ import * as THREE from 'three';
 import {
   ARBITER_ORBIT_RADIUS,
   arbiterOrbitAngle,
+  createArbiterOrbitLayout,
   positionOnArbiterOrbit,
   sampleArbiterOrbit,
   tangentOnArbiterOrbit,
 } from './arbiterOrbit';
 
 describe('arbiter orbit', () => {
+  it('maps per-load randomness to orbital phase and spatial roll', () => {
+    const samples = [0.25, 0.75];
+    const layout = createArbiterOrbitLayout(() => samples.shift() ?? 0);
+
+    expect(layout.startAngle).toBeCloseTo(Math.PI / 2, 8);
+    expect(layout.roll).toBeCloseTo((Math.PI * 3) / 2, 8);
+  });
+
   it('keeps every phase on the same orbital radius', () => {
     const position = new THREE.Vector3();
 
@@ -54,6 +63,7 @@ describe('arbiter orbit', () => {
 
     expect(cameraPosition.length()).toBeCloseTo(ARBITER_ORBIT_RADIUS, 8);
     expect(cameraUp.length()).toBeCloseTo(1, 8);
+    expect(cameraUp.y).toBeGreaterThanOrEqual(0);
     expect(cameraUp.dot(cameraPosition)).toBeCloseTo(0, 8);
     expect(arbiterOrbitAngle(elapsedTime, false)).toBeGreaterThan(0);
   });

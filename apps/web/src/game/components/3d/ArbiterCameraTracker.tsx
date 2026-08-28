@@ -4,11 +4,8 @@ import * as THREE from 'three';
 import { sampleArbiterOrbit } from '../../utils/arbiterOrbit';
 
 const CORE = new THREE.Vector3();
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const CAMERA_ORBIT_RADIUS = 25;
-const CAMERA_ORBIT_ELEVATION = -2.5;
-const CAMERA_VERTICAL_OFFSET = -1.25;
-const CAMERA_PHASE_OFFSET = THREE.MathUtils.degToRad(-4);
+const CAMERA_ORBIT_ELEVATION = 3.75;
 const TRANSITION_DURATION_SECONDS = 1.25;
 
 export function ArbiterCameraTracker({ active }: { active: boolean }) {
@@ -47,15 +44,13 @@ export function ArbiterCameraTracker({ active }: { active: boolean }) {
     sampleArbiterOrbit(
       clock.getElapsedTime(),
       prefersReducedMotion,
-      CAMERA_PHASE_OFFSET,
+      0,
       desiredPosition.current,
       desiredUp.current
     );
     desiredPosition.current
       .setLength(CAMERA_ORBIT_RADIUS)
-      .addScaledVector(desiredUp.current, CAMERA_ORBIT_ELEVATION)
-      .addScaledVector(WORLD_UP, CAMERA_VERTICAL_OFFSET);
-    desiredUp.current.copy(WORLD_UP);
+      .addScaledVector(desiredUp.current, CAMERA_ORBIT_ELEVATION);
 
     transitionElapsed.current += delta;
     const progress = prefersReducedMotion

@@ -3,10 +3,21 @@ import * as THREE from 'three';
 export const ARBITER_ORBIT_RADIUS = 17;
 export const ARBITER_ORBIT_SPEED = 0.14;
 export const ARBITER_ORBIT_PRECESSION_SPEED = 0.018;
-export const ARBITER_START_ANGLE = THREE.MathUtils.degToRad(28);
+
+const FULL_TURN = Math.PI * 2;
+
+export function createArbiterOrbitLayout(random: () => number = Math.random) {
+  return {
+    startAngle: random() * FULL_TURN,
+    roll: random() * FULL_TURN,
+  } as const;
+}
+
+const SESSION_ORBIT_LAYOUT = createArbiterOrbitLayout();
+export const ARBITER_START_ANGLE = SESSION_ORBIT_LAYOUT.startAngle;
 
 const ORBIT_TILT = THREE.MathUtils.degToRad(56);
-const ORBIT_ROLL = THREE.MathUtils.degToRad(-14);
+const ORBIT_ROLL = SESSION_ORBIT_LAYOUT.roll;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const ORBIT_X_AXIS = new THREE.Vector3(
   Math.cos(ORBIT_ROLL),
@@ -18,9 +29,10 @@ const ORBIT_Y_AXIS = new THREE.Vector3(
   Math.cos(ORBIT_TILT) * Math.cos(ORBIT_ROLL),
   Math.sin(ORBIT_TILT)
 );
-const ORBIT_NORMAL = new THREE.Vector3()
+const ORBIT_UP = new THREE.Vector3()
   .crossVectors(ORBIT_X_AXIS, ORBIT_Y_AXIS)
   .normalize();
+if (ORBIT_UP.dot(WORLD_UP) < 0) ORBIT_UP.negate();
 
 export function arbiterOrbitAngle(
   elapsedTime: number,
@@ -55,6 +67,10 @@ export function tangentOnArbiterOrbit(angle: number, target: THREE.Vector3) {
     .normalize();
 }
 
+export function upOnArbiterOrbit(target: THREE.Vector3) {
+  return target.copy(ORBIT_UP);
+}
+
 export function sampleArbiterOrbit(
   elapsedTime: number,
   prefersReducedMotion: boolean,
@@ -67,5 +83,5 @@ export function sampleArbiterOrbit(
     arbiterOrbitAngle(elapsedTime, prefersReducedMotion) + phaseOffset,
     targetPosition
   ).applyAxisAngle(WORLD_UP, precession);
-  targetUp.copy(ORBIT_NORMAL).applyAxisAngle(WORLD_UP, precession);
+  upOnArbiterOrbit(targetUp).applyAxisAngle(WORLD_UP, precession);
 }

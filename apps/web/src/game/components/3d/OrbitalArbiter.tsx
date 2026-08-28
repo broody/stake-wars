@@ -16,6 +16,7 @@ import {
   arbiterOrbitPrecession,
   positionOnArbiterOrbit,
   tangentOnArbiterOrbit,
+  upOnArbiterOrbit,
 } from '../../utils/arbiterOrbit';
 import {
   ARBITER_INITIAL_ROTATION,
@@ -337,8 +338,8 @@ function ArbiterProjection({
   const projectionRef = useRef<THREE.Group>(null);
   const projectionPosition = useMemo(() => new THREE.Vector3(), []);
   const projectionRadial = useMemo(() => new THREE.Vector3(), []);
-  const projectionTangent = useMemo(() => new THREE.Vector3(), []);
-  const projectionNormal = useMemo(() => new THREE.Vector3(), []);
+  const projectionRight = useMemo(() => new THREE.Vector3(), []);
+  const projectionUp = useMemo(() => new THREE.Vector3(), []);
   const projectionOrientation = useMemo(() => new THREE.Matrix4(), []);
   const projectionContentRef = useRef<THREE.Group>(null);
   const projectionImageRef = useRef<THREE.Group>(null);
@@ -405,13 +406,11 @@ function ArbiterProjection({
     projectionPosition.setLength(PROJECTION_ORBIT_RADIUS);
     projection.position.copy(projectionPosition);
     projectionRadial.copy(projectionPosition).normalize();
-    tangentOnArbiterOrbit(angle, projectionTangent).negate();
-    projectionNormal
-      .crossVectors(projectionRadial, projectionTangent)
-      .normalize();
+    upOnArbiterOrbit(projectionUp);
+    projectionRight.crossVectors(projectionUp, projectionRadial).normalize();
     projectionOrientation.makeBasis(
-      projectionTangent,
-      projectionNormal,
+      projectionRight,
+      projectionUp,
       projectionRadial
     );
     projection.quaternion.setFromRotationMatrix(projectionOrientation);
