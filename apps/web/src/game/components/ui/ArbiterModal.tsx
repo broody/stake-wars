@@ -712,11 +712,13 @@ function HistoryCell({
 
 function CompactDetail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-black px-3 py-3">
-      <div className="text-[7px] tracking-[0.16em] text-neutral-600">
+    <div className="bg-black px-4 py-4 sm:px-5 sm:py-5">
+      <div className="text-[8px] tracking-[0.18em] text-neutral-500">
         {label}
       </div>
-      <div className="mt-1 text-[11px] text-neutral-200">{value}</div>
+      <div className="mt-2 text-xl font-bold leading-none tabular-nums tracking-[-0.04em] text-fg sm:text-2xl">
+        {value}
+      </div>
     </div>
   );
 }

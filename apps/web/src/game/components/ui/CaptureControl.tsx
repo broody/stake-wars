@@ -33,6 +33,7 @@ import {
   parseStrk,
   shortAddress,
 } from '../../utils/format';
+import { stakeRequestSearch } from '../../utils/stakingRequest';
 
 interface CaptureControlProps {
   sectors: SectorStatus[];
@@ -539,7 +540,10 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
         {!(action === 'challenge' && currentLeader) &&
           (deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
             <Link
-              to="/staking"
+              to={{
+                pathname: '/staking',
+                search: stakeRequestSearch(deficit),
+              }}
               className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
             >
               GENERATE {formatStrk(deficit, 18)} MORE FORCE

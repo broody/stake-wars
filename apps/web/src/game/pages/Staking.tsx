@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
 import { getStrkBalance } from '../services/starknet';
 import { formatStrk, parseStrk } from '../utils/format';
+import { stakeAmountFromSearch } from '../utils/stakingRequest';
 import { calculateYieldMetrics } from '../utils/yield';
 
 const MAX_U128 = (1n << 128n) - 1n;
@@ -89,6 +91,7 @@ function percentValue(value: number | null): string {
 }
 
 export function Staking() {
+  const [searchParams] = useSearchParams();
   const { address, isConnected } = useWallet();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useSectors();
@@ -109,7 +112,9 @@ export function Staking() {
     unstakeAll,
     withdrawUnstaked,
   } = useYield();
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(() =>
+    stakeAmountFromSearch(searchParams)
+  );
   const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [balanceRevision, setBalanceRevision] = useState(0);
