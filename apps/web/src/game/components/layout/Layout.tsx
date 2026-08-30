@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../utils/cn';
+import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { WalletButton } from '../ui/WalletButton';
 
 interface LayoutProps {
@@ -9,13 +10,12 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const coreTrackingSearch =
-    new URLSearchParams(location.search).get('tracking') === 'arbiter'
-      ? '?tracking=arbiter'
-      : '';
+  const shareableSearch = shareableGameViewSearch(
+    new URLSearchParams(location.search)
+  ).toString();
   const coreAwareTarget = (path: string) => ({
     pathname: path,
-    search: coreTrackingSearch,
+    search: shareableSearch ? `?${shareableSearch}` : '',
   });
 
   const navLinks = [

@@ -387,6 +387,24 @@ describe('ArbiterSummaryCard', () => {
     expect(markup).not.toContain('SET SIGNAL // SOON');
   });
 
+  it('preserves projection mode when opening the Arbiter page', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/?projection=1']}>
+        <ArbiterSummaryCard
+          isOpen
+          snapshot={biddingSnapshot}
+          isLoading={false}
+          error={null}
+          onClose={() => undefined}
+          onRefresh={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('projection=1');
+    expect(markup).toContain('tracking=arbiter');
+  });
+
   it('labels the first projection action as a replacement when one exists', () => {
     const snapshot: ArbiterSnapshot = {
       ...biddingSnapshot,

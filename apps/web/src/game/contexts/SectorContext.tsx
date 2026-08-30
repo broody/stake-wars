@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type {
   SectorOwnership,
   SectorStatus,
@@ -21,6 +22,10 @@ import { addressesMatch, isZeroAddress } from '../utils/format';
 import { getIndexedSectors } from '../services/torii';
 import { updateSectorSelection } from '../utils/sectorSelection';
 import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
+import {
+  isProjectionModeEnabled,
+  setProjectionMode,
+} from '../utils/gameViewSearch';
 
 interface SectorContextValue {
   controlView: ControlView;
@@ -76,9 +81,11 @@ const SectorContext = createContext<SectorContextValue | undefined>(undefined);
 
 export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isProjectionVisible = isProjectionModeEnabled(searchParams);
   const [controlView, setControlView] = useState<ControlView>('flat');
-  const [isProjectionVisible, setProjectionVisible] = useState(false);
-  const [isCoreWaveFlipped, setCoreWaveFlipState] = useState(false);
+  const [isCoreWaveFlipped, setCoreWaveFlipState] =
+    useState(isProjectionVisible);
   const [isImageUploadMode, setImageUploadMode] = useState(false);
   const [imageUploadSectorIds, setImageUploadSectorIds] = useState<number[]>(
     []
@@ -118,8 +125,19 @@ export function SectorProvider({ children }: PropsWithChildren) {
     setControlView(view);
   }, []);
 
-  // This visual state is intentionally independent of the normal Core view.
-  // It is retained as an effect hook for a future Arbiter ability.
+  const setProjectionVisible = useCallback(
+    (visible: boolean) => {
+      setSearchParams((current) => setProjectionMode(current, visible));
+    },
+    [setSearchParams]
+  );
+
+  useEffect(() => {
+    setCoreWaveFlipState(isProjectionVisible);
+  }, [isProjectionVisible]);
+
+  // Normal projection changes drive the wave flip. Keep an explicit setter so
+  // a future Arbiter ability can control the visual state independently.
   const setCoreWaveFlipped = useCallback((flipped: boolean) => {
     setCoreWaveFlipState(flipped);
   }, []);

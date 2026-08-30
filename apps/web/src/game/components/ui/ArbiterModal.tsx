@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type {
   ArbiterHistoryEntry,
   ArbiterPhase,
@@ -28,6 +28,7 @@ import {
   formatArbiterAmount,
 } from '../../utils/arbiter';
 import { addressesMatch, formatStrk, shortAddress } from '../../utils/format';
+import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 
 interface ArbiterModalProps {
   isOpen: boolean;
@@ -84,6 +85,7 @@ export function ArbiterSummaryCard({
   onRefresh,
   viewerAddress,
 }: ArbiterSummaryCardProps) {
+  const location = useLocation();
   const projectionInputRef = useRef<HTMLInputElement>(null);
   const [projectionFile, setProjectionFile] = useState<File | null>(null);
 
@@ -100,7 +102,7 @@ export function ArbiterSummaryCard({
 
   if (!isOpen) return null;
 
-  const search = new URLSearchParams();
+  const search = shareableGameViewSearch(new URLSearchParams(location.search));
   search.set('tracking', 'arbiter');
 
   return (
