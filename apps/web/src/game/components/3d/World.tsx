@@ -59,8 +59,12 @@ const PLACEMENT_CORNERS = [
 function PlacementCameraCapture() {
   const { camera, size } = useThree();
   const { imageUploadSectorIds } = useSectors();
-  const { placementDraft, capturePlacement, updatePlacement } =
-    useSectorImages();
+  const {
+    placementDraft,
+    isPlacementLocked,
+    capturePlacement,
+    updatePlacement,
+  } = useSectorImages();
   const lastProjectorRef = useRef<{ matrix: number[]; aspect: number } | null>(
     null
   );
@@ -70,6 +74,7 @@ function PlacementCameraCapture() {
       lastProjectorRef.current = null;
       return;
     }
+    if (isPlacementLocked) return;
     camera.updateMatrixWorld(true);
     if ('updateProjectionMatrix' in camera) camera.updateProjectionMatrix();
     const viewProjection = camera.projectionMatrix
@@ -105,7 +110,8 @@ function PlacementGuide({
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const { placementDraft, updatePlacement } = useSectorImages();
+  const { placementDraft, isPlacementLocked, updatePlacement } =
+    useSectorImages();
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -118,6 +124,11 @@ function PlacementGuide({
     unitX: number;
     unitY: number;
   } | null>(null);
+  useEffect(() => {
+    if (!isPlacementLocked) return;
+    dragRef.current = null;
+    resizeRef.current = null;
+  }, [isPlacementLocked]);
   const placement = placementDraft?.placement;
   if (!placement) return null;
   const bounds = containerRef.current?.getBoundingClientRect();
@@ -129,7 +140,11 @@ function PlacementGuide({
 
   return (
     <div
-      className="absolute cursor-move border border-dashed border-white/75 bg-white/[0.025] shadow-[0_0_0_1px_rgba(0,0,0,0.75)]"
+      className={`absolute border shadow-[0_0_0_1px_rgba(0,0,0,0.75)] ${
+        isPlacementLocked
+          ? 'cursor-not-allowed border-neutral-500 bg-black/20'
+          : 'cursor-move border-dashed border-white/75 bg-white/[0.025]'
+      }`}
       style={{
         left,
         top,
@@ -138,10 +153,16 @@ function PlacementGuide({
         transform: `rotate(${placement.rotation}rad)`,
       }}
       role="application"
-      aria-label="Artwork placement. Drag to move, drag a corner or scroll to resize."
-      tabIndex={0}
+      aria-label={
+        isPlacementLocked
+          ? 'Artwork placement locked while publishing.'
+          : 'Artwork placement. Drag to move, drag a corner or scroll to resize.'
+      }
+      aria-disabled={isPlacementLocked}
+      tabIndex={isPlacementLocked ? -1 : 0}
       onWheel={(event) => {
         event.preventDefault();
+        if (isPlacementLocked) return;
         updatePlacement({
           scale: THREE.MathUtils.clamp(
             placement.scale * Math.exp(event.deltaY * 0.001),
@@ -152,6 +173,7 @@ function PlacementGuide({
       }}
       onPointerDown={(event) => {
         event.preventDefault();
+        if (isPlacementLocked) return;
         event.currentTarget.setPointerCapture(event.pointerId);
         dragRef.current = {
           x: event.clientX,
@@ -161,6 +183,7 @@ function PlacementGuide({
         };
       }}
       onPointerMove={(event) => {
+        if (isPlacementLocked) return;
         const drag = dragRef.current;
         if (!drag) return;
         updatePlacement({
@@ -185,8 +208,10 @@ function PlacementGuide({
           aria-valuemin={5}
           aria-valuemax={200}
           aria-valuenow={Math.round(placement.scale * 100)}
-          className={`absolute z-10 h-3 w-3 border border-white bg-black/70 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white ${corner.className}`}
+          disabled={isPlacementLocked}
+          className={`absolute z-10 h-3 w-3 border border-white bg-black/70 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-600 ${corner.className}`}
           onPointerDown={(event) => {
+            if (isPlacementLocked) return;
             event.preventDefault();
             event.stopPropagation();
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -210,6 +235,7 @@ function PlacementGuide({
             };
           }}
           onPointerMove={(event) => {
+            if (isPlacementLocked) return;
             event.stopPropagation();
             const resize = resizeRef.current;
             if (!resize) return;
@@ -243,6 +269,7 @@ function PlacementGuide({
             resizeRef.current = null;
           }}
           onKeyDown={(event) => {
+            if (isPlacementLocked) return;
             if (
               event.key !== 'ArrowUp' &&
               event.key !== 'ArrowRight' &&
@@ -320,6 +347,7 @@ export function World({ active = true }: { active?: boolean }) {
     isImageUploadMode,
     selectSectors,
   } = useSectors();
+  const { isPlacementLocked } = useSectorImages();
   const { notifyWarning } = useTransactionToast();
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
@@ -510,7 +538,12 @@ export function World({ active = true }: { active?: boolean }) {
           minDistance={8}
           maxDistance={30}
           enablePan={false}
-          enabled={active && marqueeStart === null && !isArbiterOpen}
+          enabled={
+            active &&
+            marqueeStart === null &&
+            !isArbiterOpen &&
+            !isPlacementLocked
+          }
         />
 
         <CameraArrival active={active} />

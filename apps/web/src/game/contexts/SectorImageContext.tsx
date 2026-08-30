@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
@@ -26,9 +27,12 @@ interface SectorImageContextValue {
   maximumImageBytes: number;
   featuredArtworkId: string | null;
   placementDraft: PlacementDraft | null;
+  isPlacementLocked: boolean;
   beginPlacement: (previewUrl: string) => void;
   capturePlacement: (placement: ArtworkPlacement) => void;
   updatePlacement: (changes: Partial<ArtworkPlacement>) => void;
+  lockPlacement: () => ArtworkPlacement | null;
+  unlockPlacement: () => void;
   endPlacement: () => void;
   refreshImages: () => void;
   publishArtwork: (artwork: SectorArtwork) => void;
@@ -48,6 +52,9 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
   const [placementDraft, setPlacementDraft] = useState<PlacementDraft | null>(
     null
   );
+  const placementDraftRef = useRef<PlacementDraft | null>(null);
+  const placementLockedRef = useRef(false);
+  const [isPlacementLocked, setPlacementLockedState] = useState(false);
   const [featuredArtworkId, setFeaturedArtworkId] = useState<string | null>(
     null
   );
@@ -79,24 +86,52 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
     ]);
     setFeaturedArtworkId(artwork.id);
   }, []);
-  const beginPlacement = useCallback((previewUrl: string) => {
-    setPlacementDraft({ previewUrl, placement: null });
+  const setPlacementLocked = useCallback((locked: boolean) => {
+    placementLockedRef.current = locked;
+    setPlacementLockedState(locked);
   }, []);
+  const beginPlacement = useCallback(
+    (previewUrl: string) => {
+      setPlacementLocked(false);
+      const next = { previewUrl, placement: null };
+      placementDraftRef.current = next;
+      setPlacementDraft(next);
+    },
+    [setPlacementLocked]
+  );
   const capturePlacement = useCallback((placement: ArtworkPlacement) => {
-    setPlacementDraft((current) =>
-      current
-        ? { ...current, placement: current.placement ?? placement }
-        : current
-    );
+    if (placementLockedRef.current) return;
+    const current = placementDraftRef.current;
+    if (!current) return;
+    const next = { ...current, placement: current.placement ?? placement };
+    placementDraftRef.current = next;
+    setPlacementDraft(next);
   }, []);
   const updatePlacement = useCallback((changes: Partial<ArtworkPlacement>) => {
-    setPlacementDraft((current) =>
-      current?.placement
-        ? { ...current, placement: { ...current.placement, ...changes } }
-        : current
-    );
+    if (placementLockedRef.current) return;
+    const current = placementDraftRef.current;
+    if (!current?.placement) return;
+    const next = {
+      ...current,
+      placement: { ...current.placement, ...changes },
+    };
+    placementDraftRef.current = next;
+    setPlacementDraft(next);
   }, []);
-  const endPlacement = useCallback(() => setPlacementDraft(null), []);
+  const lockPlacement = useCallback(() => {
+    const placement = placementDraftRef.current?.placement ?? null;
+    if (placement) setPlacementLocked(true);
+    return placement;
+  }, [setPlacementLocked]);
+  const unlockPlacement = useCallback(
+    () => setPlacementLocked(false),
+    [setPlacementLocked]
+  );
+  const endPlacement = useCallback(() => {
+    setPlacementLocked(false);
+    placementDraftRef.current = null;
+    setPlacementDraft(null);
+  }, [setPlacementLocked]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -172,9 +207,12 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
       maximumImageBytes,
       featuredArtworkId,
       placementDraft,
+      isPlacementLocked,
       beginPlacement,
       capturePlacement,
       updatePlacement,
+      lockPlacement,
+      unlockPlacement,
       endPlacement,
       refreshImages,
       publishArtwork,
@@ -188,11 +226,14 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
       error,
       featuredArtworkId,
       isLoading,
+      isPlacementLocked,
       isThumbnailAtlasLoading,
+      lockPlacement,
       maximumImageBytes,
       placementDraft,
       publishArtwork,
       refreshImages,
+      unlockPlacement,
       updatePlacement,
       uploadsEnabled,
     ]

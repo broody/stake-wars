@@ -29,6 +29,8 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
     uploadsEnabled,
     maximumImageBytes,
     placementDraft,
+    lockPlacement,
+    unlockPlacement,
     beginPlacement,
     endPlacement,
     publishArtwork,
@@ -223,6 +225,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
         placement: placementDraft.placement,
         prepared,
         signTypedData: signTypedDataAsync,
+        onSigningComplete: lockPlacement,
       });
       publishArtwork(published);
       setUploadNotice(
@@ -233,6 +236,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
       discardPreparedImage();
       endImageUpload();
     } catch (failure) {
+      unlockPlacement();
       setUploadError(
         failure instanceof Error ? failure.message : 'Image upload failed.'
       );

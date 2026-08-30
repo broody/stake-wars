@@ -163,11 +163,13 @@ function jsonRequest(body: unknown, token?: string): RequestInit {
 
 async function imageSession(
   walletAddress: string,
-  signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>
+  signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>,
+  onSigningComplete?: () => void
 ): Promise<AuthSession> {
   const key = walletAddress.toLowerCase();
   const cached = imageSessions.get(key);
   if (cached && new Date(cached.expiresAt).getTime() > Date.now() + 15_000) {
+    onSigningComplete?.();
     return cached;
   }
 
@@ -177,6 +179,7 @@ async function imageSession(
     typedData: UseSignTypedDataArgs;
   }>('/v1/auth/challenges', jsonRequest({ walletAddress }));
   const signature = await signTypedData(challenge.typedData);
+  onSigningComplete?.();
   const session = await requestJSON<AuthSession>(
     '/v1/auth/sessions',
     jsonRequest({
@@ -230,12 +233,14 @@ export const api = {
     placement,
     prepared,
     signTypedData,
+    onSigningComplete,
   }: {
     walletAddress: string;
     targets: Array<{ sectorId: number; ownershipGeneration: bigint }>;
     placement: ArtworkPlacement;
     prepared: PreparedSectorImage;
     signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
+    onSigningComplete?: () => ArtworkPlacement | null | void;
   }): Promise<SectorArtwork> {
     const numericTargets: SectorArtworkTarget[] = targets.map((target) => {
       const ownershipGeneration = Number(target.ownershipGeneration);
@@ -247,13 +252,16 @@ export const api = {
       }
       return { sectorId: target.sectorId, ownershipGeneration };
     });
-    const session = await imageSession(walletAddress, signTypedData);
+    let committedPlacement = placement;
+    const session = await imageSession(walletAddress, signTypedData, () => {
+      committedPlacement = onSigningComplete?.() ?? committedPlacement;
+    });
     const authorization = await requestJSON<ImageUploadAuthorization>(
       '/v1/sector-artworks/uploads',
       jsonRequest(
         {
           targets: numericTargets,
-          placement,
+          placement: committedPlacement,
           contentType: prepared.contentType,
           detailSize: prepared.detail.size,
           thumbnailSize: prepared.thumbnail.size,
