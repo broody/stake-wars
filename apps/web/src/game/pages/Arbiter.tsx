@@ -6,16 +6,12 @@ import { useArbiterHistory } from '../contexts/useArbiterHistory';
 import { useArbiter } from '../contexts/useArbiter';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
-import { api } from '../services/api';
-import type { ArbiterRound } from '../services/api';
 import {
   listArbiterBids,
   saveArbiterBid,
   type StoredArbiterBid,
 } from '../services/arbiterBidStorage';
 import { submitArbiterBid } from '../services/whisperBid';
-
-const BID_CONFIRMATION_POLL_MS = 2_000;
 
 export function Arbiter() {
   const location = useLocation();
@@ -117,8 +113,6 @@ export function Arbiter() {
         expectedPoolAddress: config.strk20PoolAddress,
         operatorUrl: config.whisperOperatorUrl,
         invokePrivateActions,
-        observeSubmission: (signal) =>
-          waitForBidCountIncrease(snapshot.round!, signal),
       });
       let storageStatus: 'saved' | 'failed' = 'saved';
       try {
@@ -133,7 +127,6 @@ export function Arbiter() {
           groupHandle: receipt.groupHandle,
           bidHandle: receipt.bidHandle,
           transactionHash: receipt.transactionHash,
-          confirmedBy: receipt.confirmedBy,
           submittedAt: new Date().toISOString(),
         });
         setOwnBids((current) =>
@@ -167,8 +160,8 @@ export function Arbiter() {
             ARBITER
           </h1>
           <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
-            Bid to control the Arbiter. All bids are private until auction
-            round ends.
+            Bid to control the Arbiter. All bids are private until auction round
+            ends.
           </p>
 
           <div className="absolute right-0 top-0 flex items-center gap-3">
@@ -222,58 +215,6 @@ export function Arbiter() {
       </div>
     </div>
   );
-}
-
-async function waitForBidCountIncrease(
-  submittedRound: ArbiterRound,
-  signal: AbortSignal
-): Promise<void> {
-  while (!signal.aborted) {
-    await abortableDelay(BID_CONFIRMATION_POLL_MS, signal);
-    try {
-      const next = await api.getArbiter(signal);
-      if (
-        next.round?.id === submittedRound.id &&
-        next.round.auctionId === submittedRound.auctionId &&
-        next.round.submissionCount > submittedRound.submissionCount
-      ) {
-        return;
-      }
-      if (
-        next.round &&
-        (next.round.id !== submittedRound.id ||
-          next.round.auctionId !== submittedRound.auctionId)
-      ) {
-        throw new Error('The auction changed before the bid was confirmed.');
-      }
-    } catch (reason) {
-      if (signal.aborted) throw reason;
-      if (
-        reason instanceof Error &&
-        reason.message === 'The auction changed before the bid was confirmed.'
-      ) {
-        throw reason;
-      }
-      // A transient API read must not override the wallet request. Keep polling.
-    }
-  }
-  throw new DOMException('Bid confirmation was cancelled.', 'AbortError');
-}
-
-function abortableDelay(milliseconds: number, signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(resolve, milliseconds);
-    signal.addEventListener(
-      'abort',
-      () => {
-        window.clearTimeout(timeout);
-        reject(
-          new DOMException('Bid confirmation was cancelled.', 'AbortError')
-        );
-      },
-      { once: true }
-    );
-  });
 }
 
 function ArbiterPageLink({

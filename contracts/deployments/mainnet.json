@@ -1,0 +1,25 @@
+{
+  "network": "mainnet",
+  "chainId": "0x534e5f4d41494e",
+  "profile": "release",
+  "worldSeed": "stakewars-mainnet",
+  "worldAddress": "0x06e2d33ac9878de85acc676347f6bd97a860376fe33438eb7445317a6b1d71cc",
+  "worldClassHash": "0x0613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+  "worldDeploymentTransactionHash": "0x054a6f62f669ca2eb5e9a7d114f98bfe89a05de3993241e92122293fdd6c8b09",
+  "worldDeploymentBlock": 14066846,
+  "deployerAndAdmin": "0x03e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c",
+  "systems": {
+    "admin": "0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf",
+    "control": "0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0"
+  },
+  "gameConfig": {
+    "stakingPool": "0x06ea5688ff1395a4562238880d43500035fb55f2b80546e0e530770378cd1e2e",
+    "minimumStake": "100000000000000000000",
+    "challengePeriodSeconds": 10800,
+    "sectorLimit": 2000,
+    "paused": false,
+    "initializationTransactionHash": "0x02fdf97a91c1698ac49d2d99c19198c8d20f6ebca4cf81f0eaf58fe0dcb8a2d5",
+    "initializationBlock": 14067902
+  },
+  "deploymentStatus": "deployed, initialized, and read-verified"
+}

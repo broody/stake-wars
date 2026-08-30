@@ -42,7 +42,6 @@ const record: StoredArbiterBid = {
   groupHandle: '0x0456',
   bidHandle: '0x0789',
   transactionHash: '0x0abc',
-  confirmedBy: 'wallet',
   submittedAt: '2026-08-27T22:00:00.000Z',
 };
 

@@ -17,7 +17,6 @@ export interface StoredArbiterBid {
   groupHandle: string;
   bidHandle: string;
   transactionHash: string | null;
-  confirmedBy: 'wallet' | 'bid-count';
   submittedAt: string;
 }
 
@@ -160,7 +159,7 @@ export function createArbiterBidStore(
           if (!isStoredArbiterBid(value)) {
             throw new Error('Saved bid record is invalid.');
           }
-          return value;
+          return canonicalBid(value);
         })
       );
       return records.sort((left, right) =>
@@ -269,15 +268,19 @@ function canonicalBid(record: StoredArbiterBid): StoredArbiterBid {
     throw new Error('Bid receipt cannot be saved.');
   }
   return {
-    ...record,
+    version: 1,
     network: record.network.trim(),
     walletAddress: normalizeFelt(record.walletAddress),
+    roundId: record.roundId,
+    auctionId: record.auctionId,
     whisperAddress: normalizeFelt(record.whisperAddress),
+    amount: record.amount,
     groupHandle: normalizeFelt(record.groupHandle),
     bidHandle: normalizeFelt(record.bidHandle),
     transactionHash: record.transactionHash
       ? normalizeFelt(record.transactionHash)
       : null,
+    submittedAt: record.submittedAt,
   };
 }
 
@@ -300,8 +303,6 @@ function isStoredArbiterBid(value: unknown): value is StoredArbiterBid {
     isFelt(candidate.groupHandle) &&
     isFelt(candidate.bidHandle) &&
     (candidate.transactionHash === null || isFelt(candidate.transactionHash)) &&
-    (candidate.confirmedBy === 'wallet' ||
-      candidate.confirmedBy === 'bid-count') &&
     typeof candidate.submittedAt === 'string' &&
     Number.isFinite(Date.parse(candidate.submittedAt))
   );

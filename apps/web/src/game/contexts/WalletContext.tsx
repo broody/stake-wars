@@ -19,12 +19,6 @@ import type { STRK20_ACTION } from 'starknet';
 import type { WalletState } from '../types';
 import { config } from '../services/config';
 import {
-  invokePrivateActionTransaction,
-  type PrivateSubmissionObserver,
-  type PrivateTransactionResult,
-  type PrivacyWallet,
-} from '../services/privateWallet';
-import {
   readShieldedTokenBalance,
   supportsShieldedBalances,
 } from '../services/shieldedBalance';
@@ -38,13 +32,14 @@ export type ShieldedStrkStatus =
   | 'ready'
   | 'error';
 
+type PrivacyWallet = Parameters<typeof walletV6.supportedWalletApi>[0];
+
 interface WalletContextType extends WalletState {
   connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   invokePrivateActions: (
-    actions: STRK20_ACTION[],
-    observeSubmission?: PrivateSubmissionObserver
-  ) => Promise<PrivateTransactionResult>;
+    actions: STRK20_ACTION[]
+  ) => Promise<{ transactionHash: string }>;
   isPrivacyWalletSupported: boolean;
   readShieldedStrkBalance: () => Promise<void>;
   shieldedStrkBalance: bigint | null;
@@ -125,10 +120,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     shieldedStrkStatus === 'error';
 
   const invokePrivateActions = useCallback(
-    async (
-      actions: STRK20_ACTION[],
-      observeSubmission?: PrivateSubmissionObserver
-    ) => {
+    async (actions: STRK20_ACTION[]) => {
       if (!account.address || !privacyWallet) {
         throw new Error('Connect Ready before placing a private bid.');
       }
@@ -139,13 +131,15 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
         throw new Error('Private transaction requires at least one action.');
       }
 
-      return invokePrivateActionTransaction(
-        privacyWallet,
-        actions,
-        observeSubmission
-      );
+      const walletAccount = new WalletAccountV6({
+        address: account.address,
+        provider,
+        walletProvider: privacyWallet,
+      });
+      const result = await walletAccount.strk20InvokeTransaction(actions);
+      return { transactionHash: result.transaction_hash };
     },
-    [account.address, isPrivacyWalletSupported, privacyWallet]
+    [account.address, isPrivacyWalletSupported, privacyWallet, provider]
   );
 
   const readShieldedStrkBalance = useCallback(async () => {

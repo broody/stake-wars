@@ -53,7 +53,7 @@ describe('Whisper Ready bid submission', () => {
     const invokePrivateActions = vi.fn(async (actions: STRK20_ACTION[]) => {
       invokedActions.push(actions);
       calls.push('wallet');
-      return { transactionHash: '0xfeed', confirmedBy: 'wallet' as const };
+      return { transactionHash: '0xfeed' };
     });
     const receipt = await submitArbiterBid({
       amount: '1.25',
@@ -81,7 +81,6 @@ describe('Whisper Ready bid submission', () => {
       { type: 'invoke', contract: round.whisperAddress },
     ]);
     expect(receipt.transactionHash).toBe('0xfeed');
-    expect(receipt.confirmedBy).toBe('wallet');
     expect(receipt.amount).toBe('1250000000000000000');
   });
 
@@ -131,5 +130,32 @@ describe('Whisper Ready bid submission', () => {
       })
     ).rejects.toThrow('capsule service paused');
     expect(invokePrivateActions).not.toHaveBeenCalled();
+  });
+
+  it('propagates Ready rejection without substituting public bid state', async () => {
+    const fetcher = vi.fn(async (input: string | URL | Request) =>
+      String(input).endsWith('/v1/config')
+        ? Response.json(operatorConfig)
+        : Response.json({ status: 'created' }, { status: 201 })
+    ) as unknown as typeof fetch;
+    const invokePrivateActions = vi.fn(async () => {
+      throw new Error('User rejected the request');
+    });
+
+    await expect(
+      submitArbiterBid({
+        amount: '1',
+        network: 'SN_SEPOLIA',
+        round,
+        walletAddress: '0x999',
+        walletChainId: operatorConfig.chainId,
+        expectedPaymentToken: round.paymentToken,
+        expectedPoolAddress: operatorConfig.poolAddress,
+        operatorUrl: 'https://operator.example',
+        invokePrivateActions,
+        fetcher,
+      })
+    ).rejects.toThrow('User rejected the request');
+    expect(invokePrivateActions).toHaveBeenCalledOnce();
   });
 });

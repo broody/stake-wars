@@ -381,6 +381,7 @@ function AuctionPanel({
   const [isSubmitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ArbiterBidReceipt | null>(null);
+  const submissionInFlight = useRef(false);
   const state = auctionState(phase, round);
   const canBid = phase === 'pending' || phase === 'bidding';
   const bidIsValid = Number(bidAmount) > 0;
@@ -393,7 +394,15 @@ function AuctionPanel({
 
   const submitBid = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!onPlaceBid || !bidIsValid || isSubmitting) return;
+    if (
+      !onPlaceBid ||
+      !bidIsValid ||
+      isSubmitting ||
+      submissionInFlight.current
+    ) {
+      return;
+    }
+    submissionInFlight.current = true;
     setBidError(null);
     setReceipt(null);
     setSubmitting(true);
@@ -404,6 +413,7 @@ function AuctionPanel({
         reason instanceof Error ? reason.message : 'Private bid failed.'
       );
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -497,9 +507,8 @@ function AuctionPanel({
                   className="mt-2 text-[8px] tracking-[0.16em] text-fg"
                   role="status"
                 >
-                  {receipt.transactionHash
-                    ? `TRANSACTION ${shortAddress(receipt.transactionHash)} // BID SUBMITTED`
-                    : 'BID OBSERVED ONCHAIN // SUBMITTED'}
+                  TRANSACTION {shortAddress(receipt.transactionHash)} // BID
+                  SUBMITTED
                 </p>
               ) : null}
               {receipt?.storageStatus === 'failed' ? (

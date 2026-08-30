@@ -70,7 +70,6 @@ describe('ArbiterConsole', () => {
         onPlaceBid={async () => ({
           amount: '2000000000000000000',
           transactionHash: '0x123',
-          confirmedBy: 'wallet',
           groupHandle: '0x456',
           bidHandle: '0x789',
         })}
@@ -110,7 +109,6 @@ describe('ArbiterConsole', () => {
             groupHandle: '0x456',
             bidHandle: '0x789',
             transactionHash: null,
-            confirmedBy: 'bid-count',
             submittedAt: '2026-08-27T22:00:00.000Z',
           },
         ]}

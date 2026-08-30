@@ -425,7 +425,7 @@ acceptance gate passes.
    failure. Verify locally against the shared Sepolia Torii index without
    treating smoke auction 1 as a Stake Wars winner.
 
-### Phase B — Ready Wallet private bid submission — 🟡 ready for manual test 2026-08-27
+### Phase B — Ready Wallet private bid submission — ✅ verified on Mainnet 2026-08-30
 
 The mock selector and mock wallet have been removed, live auction reads refresh
 every five seconds, and the Ready submission adapter is implemented. The local
@@ -434,18 +434,18 @@ registered as a pending five-minute start-on-bid round, and Torii has indexed
 its creation event. Ready 5.33.9's separate prepare-and-submit path loses the
 cached paymaster fee target before the second confirmation and fails with
 `MISSING_FEE_TRANSFER_TO`, so the adapter uses the wallet's fee-aware one-shot
-`wallet_strk20InvokeTransaction` path. Because that Ready version can leave its
-request open after broadcasting, the UI temporarily treats an increase from
-the round's pre-submit bid count as successful submission. This fallback is
-appropriate only while auction traffic is low because a concurrent bidder can
-produce the same public signal. Bid display receipts now survive reloads in
+`wallet_strk20InvokeTransaction` path. Mainnet verification on 2026-08-30
+confirmed that Ready resolves the request after both confirmation and rejection,
+so bid submission now relies exclusively on that wallet response; the temporary
+bid-count fallback has been removed. Bid display receipts survive reloads in
 wallet-, network-, and auction-scoped IndexedDB records encrypted with a
-non-extractable browser key; only the amount, public handles, confirmation
-method, and timestamp are saved, and claiming never depends on them. The
-remaining Phase B gate is confirmation that the submitted tranche becomes
-funded and fixes the expected deadlines. The 2026-08-27 freshness check found
-newer get-starknet tags and moved sub-account example packages, but neither
-changes this installed Wallet API route or the app-local receipt storage.
+non-extractable browser key; the bid-local record includes the amount, public
+handles, wallet-returned transaction hash, and timestamp, and claiming never
+depends on it. Mainnet auction 1 confirmed that the submitted tranche became
+funded, the first bid fixed the expected deadlines, and the operator completed
+force reveal and settlement. The 2026-08-27 freshness check found newer
+get-starknet tags and moved sub-account example packages, but neither changes
+this installed Wallet API route or the app-local receipt storage.
 
 1. Establish a deployable SDK dependency. Publish a tagged, reviewed
    `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
@@ -460,9 +460,8 @@ changes this installed Wallet API route or the app-local receipt storage.
    expose a compatible peer dependency to avoid duplicate Starknet runtimes.
 3. Expose a least-privileged WalletContext action that submits a supplied
    `STRK20_ACTION[]` with `wallet_strk20InvokeTransaction`; do not expose the
-   wallet object or add a balance-read prompt. Until Ready reliably resolves
-   that request after broadcast, allow the Arbiter page's low-volume test flow
-   to confirm submission from a round-scoped bid-count increase.
+   wallet object or add a balance-read prompt. Treat only the wallet's resolved
+   confirmation callback as success and propagate its rejection callback.
 4. Add bid preparation in `services/whisperBid.ts`: random nonce, salt, refund
    commitment, ephemeral winner commitment, reveal commitment, encrypted capsule, and
    standard Whisper actions.
@@ -529,6 +528,14 @@ changes this installed Wallet API route or the app-local receipt storage.
     complete one full-duration M2 rehearsal before enabling any Mainnet auction.
 
 ### Phase D — Mainnet hackathon release and hardening
+
+Mainnet checkpoint 2026-08-30: the low-value auction 1 lifecycle completed from
+Ready Wallet bid through replay-protected operator acceptance, force reveal,
+settlement, verified winner disclosure, and automatic successor registration.
+The root `strk20.json` now records three independently verified successful
+Mainnet pool transactions, including Ready bids for auctions 1 and 2 and the
+auction 1 settlement. Public deployment, the three-minute demo, independent
+review, durable backups, replay inventory, and production monitoring remain.
 
 1. Confirm reserve, capacity, acceptance/settlement durations, proceeds
    recipient, no-sale behavior, and the account authorized to create and
