@@ -1,0 +1,51 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "play.stakewars.gg"
+        }
+      ],
+      "destination": "https://stakewars.gg/play/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/arbiter/:path*",
+      "destination": "/play/arbiter/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/gallery",
+      "destination": "/play/gallery",
+      "permanent": true
+    },
+    {
+      "source": "/staking",
+      "destination": "/play/staking",
+      "permanent": true
+    },
+    {
+      "source": "/operator",
+      "destination": "/play/operator",
+      "permanent": true
+    },
+    {
+      "source": "/core-lab",
+      "destination": "/play/core-lab",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/play",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/play/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}
