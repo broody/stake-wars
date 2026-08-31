@@ -265,6 +265,9 @@ func validateCanonicalRound(
 	auction starknet.WhisperAuction,
 	expectedBiddingDurationSeconds uint64,
 ) error {
+	if round.BiddingDurationSeconds > 0 {
+		expectedBiddingDurationSeconds = round.BiddingDurationSeconds
+	}
 	if auction.ID != round.AuctionID {
 		return fmt.Errorf(
 			"validate canonical Arbiter round: auction id is %d, expected %d",

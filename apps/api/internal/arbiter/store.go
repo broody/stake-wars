@@ -15,20 +15,21 @@ var (
 )
 
 type CanonicalRound struct {
-	Network             string
-	RoundID             uint64
-	WhisperAddress      string
-	AuctionID           uint64
-	ExpectedCreator     string
-	PaymentToken        string
-	MetadataHash        string
-	WinnerPayloadDomain string
-	VaultAddress        string
-	BillboardStartsAt   *time.Time
-	BillboardExpiresAt  *time.Time
-	ClaimedController   string
-	ClaimedAt           *time.Time
-	ActiveArtworkID     string
+	Network                string
+	RoundID                uint64
+	WhisperAddress         string
+	AuctionID              uint64
+	ExpectedCreator        string
+	PaymentToken           string
+	MetadataHash           string
+	WinnerPayloadDomain    string
+	VaultAddress           string
+	BiddingDurationSeconds uint64
+	BillboardStartsAt      *time.Time
+	BillboardExpiresAt     *time.Time
+	ClaimedController      string
+	ClaimedAt              *time.Time
+	ActiveArtworkID        string
 }
 
 type ControllerRecord struct {
@@ -77,12 +78,13 @@ func (s *Store) RegisterRound(ctx context.Context, round CanonicalRound) error {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO arbiter_rounds(
 			network, round_id, whisper_address, auction_id, expected_creator,
-			payment_token, metadata_hash, winner_payload_domain, vault_address
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			payment_token, metadata_hash, winner_payload_domain, vault_address,
+			bidding_duration_seconds
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(network, round_id) DO NOTHING
 	`, round.Network, round.RoundID, round.WhisperAddress, round.AuctionID,
 		round.ExpectedCreator, round.PaymentToken, round.MetadataHash,
-		round.WinnerPayloadDomain, round.VaultAddress)
+		round.WinnerPayloadDomain, round.VaultAddress, round.BiddingDurationSeconds)
 	if err != nil {
 		return fmt.Errorf("register Arbiter round: %w", err)
 	}
@@ -97,11 +99,25 @@ func (s *Store) RegisterRound(ctx context.Context, round CanonicalRound) error {
 	if err != nil {
 		return err
 	}
-	if existing.WhisperAddress != round.WhisperAddress || existing.AuctionID != round.AuctionID ||
-		existing.ExpectedCreator != round.ExpectedCreator || existing.PaymentToken != round.PaymentToken ||
-		existing.MetadataHash != round.MetadataHash || existing.WinnerPayloadDomain != round.WinnerPayloadDomain ||
-		existing.VaultAddress != round.VaultAddress {
+	if !sameCanonicalRoundIdentity(existing, round) {
 		return fmt.Errorf("register Arbiter round: conflicting canonical round")
+	}
+	if existing.BiddingDurationSeconds == 0 && round.BiddingDurationSeconds > 0 {
+		result, err := s.db.ExecContext(ctx, `
+			UPDATE arbiter_rounds SET bidding_duration_seconds = ?, updated_at = unixepoch()
+			WHERE network = ? AND round_id = ? AND bidding_duration_seconds = 0
+		`, round.BiddingDurationSeconds, round.Network, round.RoundID)
+		if err != nil {
+			return fmt.Errorf("record Arbiter round schedule: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil || rows != 1 {
+			return fmt.Errorf("record Arbiter round schedule: round was not updated")
+		}
+		return nil
+	}
+	if existing.BiddingDurationSeconds != round.BiddingDurationSeconds {
+		return fmt.Errorf("register Arbiter round: conflicting bidding duration")
 	}
 	return nil
 }
@@ -110,11 +126,12 @@ func (s *Store) round(ctx context.Context, network string, roundID uint64) (Cano
 	var round CanonicalRound
 	err := s.db.QueryRowContext(ctx, `
 		SELECT network, round_id, whisper_address, auction_id, expected_creator,
-			payment_token, metadata_hash, winner_payload_domain, vault_address
+			payment_token, metadata_hash, winner_payload_domain, vault_address,
+			bidding_duration_seconds
 		FROM arbiter_rounds WHERE network = ? AND round_id = ?
 	`, network, roundID).Scan(&round.Network, &round.RoundID, &round.WhisperAddress,
 		&round.AuctionID, &round.ExpectedCreator, &round.PaymentToken, &round.MetadataHash,
-		&round.WinnerPayloadDomain, &round.VaultAddress)
+		&round.WinnerPayloadDomain, &round.VaultAddress, &round.BiddingDurationSeconds)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CanonicalRound{}, ErrNoRound
 	}
@@ -204,6 +221,7 @@ func (s *Store) Current(ctx context.Context, network string) (CanonicalRound, er
 	err := s.db.QueryRowContext(ctx, `
 		SELECT network, round_id, whisper_address, auction_id, expected_creator,
 			payment_token, metadata_hash, winner_payload_domain, vault_address,
+			bidding_duration_seconds,
 			billboard_starts_at, billboard_expires_at, claimed_controller,
 			claimed_at, active_artwork_id
 		FROM arbiter_rounds
@@ -213,7 +231,8 @@ func (s *Store) Current(ctx context.Context, network string) (CanonicalRound, er
 	`, network).Scan(
 		&round.Network, &round.RoundID, &round.WhisperAddress, &round.AuctionID,
 		&round.ExpectedCreator, &round.PaymentToken, &round.MetadataHash,
-		&round.WinnerPayloadDomain, &round.VaultAddress, &billboardStartsAt,
+		&round.WinnerPayloadDomain, &round.VaultAddress, &round.BiddingDurationSeconds,
+		&billboardStartsAt,
 		&billboardExpiresAt, &claimedController, &claimedAtUnix, &activeArtworkID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -321,7 +340,7 @@ func (s *Store) UnprojectedRounds(
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.network, r.round_id, r.whisper_address, r.auction_id,
 			r.expected_creator, r.payment_token, r.metadata_hash,
-			r.winner_payload_domain, r.vault_address
+			r.winner_payload_domain, r.vault_address, r.bidding_duration_seconds
 		FROM arbiter_rounds r
 		LEFT JOIN arbiter_round_outcomes o
 			ON o.network = r.network AND o.round_id = r.round_id
@@ -346,6 +365,7 @@ func (s *Store) UnprojectedRounds(
 			&round.MetadataHash,
 			&round.WinnerPayloadDomain,
 			&round.VaultAddress,
+			&round.BiddingDurationSeconds,
 		); err != nil {
 			return nil, fmt.Errorf("scan unprojected Arbiter round: %w", err)
 		}
@@ -619,4 +639,13 @@ func boolInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+func sameCanonicalRoundIdentity(left, right CanonicalRound) bool {
+	return left.Network == right.Network && left.RoundID == right.RoundID &&
+		left.WhisperAddress == right.WhisperAddress && left.AuctionID == right.AuctionID &&
+		left.ExpectedCreator == right.ExpectedCreator && left.PaymentToken == right.PaymentToken &&
+		left.MetadataHash == right.MetadataHash &&
+		left.WinnerPayloadDomain == right.WinnerPayloadDomain &&
+		left.VaultAddress == right.VaultAddress
 }

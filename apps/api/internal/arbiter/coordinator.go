@@ -236,7 +236,8 @@ func (r *OperatorRoundRestarter) createAndRegister(
 		WhisperAddress: publicConfig.WhisperAddress, AuctionID: auctionID,
 		ExpectedCreator: creator, PaymentToken: r.config.PaymentToken,
 		MetadataHash: metadataHash, WinnerPayloadDomain: r.config.WinnerPayloadDomain,
-		VaultAddress: publicConfig.VaultAddress,
+		VaultAddress:           publicConfig.VaultAddress,
+		BiddingDurationSeconds: r.config.BiddingDurationSeconds,
 	}
 	auction, err := r.reader.Auction(ctx, round.WhisperAddress, round.AuctionID)
 	if err != nil {
