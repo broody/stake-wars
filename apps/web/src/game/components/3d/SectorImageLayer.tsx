@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
 import {
+  artworkAtlasSourceKey,
+  artworkAtlasSourcesFromKey,
   createProjectedArtworkGeometry,
   type ArtworkAtlasSlot,
 } from '../../utils/sectorArtworkProjection';
@@ -94,6 +96,7 @@ const fragmentShader = `
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
     vec2 atlasUv = vAtlasRect.xy + uv * vAtlasRect.zw;
     vec4 color = texture2D(artworkMap, atlasUv);
+    if (color.a <= 0.001) discard;
     gl_FragColor = vec4(color.rgb, color.a * opacity);
   }
 `;
@@ -110,15 +113,17 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 function useArtworkAtlas(
-  slots: readonly ArtworkAtlasSlot[],
+  sourceKey: string,
   columns: number,
   rows: number,
   pageId: string,
   onLoadingChange?: (pageId: string, loading: boolean) => void
 ) {
   const [texture, setTexture] = useState<THREE.CanvasTexture | null>(null);
+  useEffect(() => () => texture?.dispose(), [texture]);
   useEffect(() => {
-    if (slots.length === 0) {
+    const sources = artworkAtlasSourcesFromKey(sourceKey);
+    if (sources.length === 0) {
       setTexture(null);
       onLoadingChange?.(pageId, false);
       return;
@@ -138,22 +143,21 @@ function useArtworkAtlas(
     atlas.generateMipmaps = false;
     atlas.minFilter = THREE.LinearFilter;
     atlas.magFilter = THREE.LinearFilter;
-    setTexture(atlas);
     let next = 0;
+    let published = false;
     const worker = async () => {
-      while (active && next < slots.length) {
-        const slot = slots[next++];
+      while (active && next < sources.length) {
+        const sourceDefinition = sources[next++];
         try {
-          const source = await loadImage(slot.artwork.thumbnailUrl);
+          const source = await loadImage(sourceDefinition.thumbnailUrl);
           if (!active) return;
           context.drawImage(
             source,
-            slot.column * ATLAS_CELL_SIZE,
-            slot.row * ATLAS_CELL_SIZE,
+            sourceDefinition.column * ATLAS_CELL_SIZE,
+            sourceDefinition.row * ATLAS_CELL_SIZE,
             ATLAS_CELL_SIZE,
             ATLAS_CELL_SIZE
           );
-          atlas.needsUpdate = true;
         } catch {
           // Keep the ownership color visible when an object cannot be loaded.
         }
@@ -161,18 +165,22 @@ function useArtworkAtlas(
     };
     void Promise.all(
       Array.from(
-        { length: Math.min(IMAGE_LOAD_CONCURRENCY, slots.length) },
+        { length: Math.min(IMAGE_LOAD_CONCURRENCY, sources.length) },
         worker
       )
     ).finally(() => {
-      if (active) onLoadingChange?.(pageId, false);
+      if (!active) return;
+      atlas.needsUpdate = true;
+      published = true;
+      setTexture(atlas);
+      onLoadingChange?.(pageId, false);
     });
     return () => {
       active = false;
       onLoadingChange?.(pageId, false);
-      atlas.dispose();
+      if (!published) atlas.dispose();
     };
-  }, [columns, onLoadingChange, pageId, rows, slots]);
+  }, [columns, onLoadingChange, pageId, rows, sourceKey]);
   return texture;
 }
 
@@ -311,8 +319,9 @@ function ArtworkAtlasPage({
       })),
     [artworks, columns]
   );
+  const sourceKey = useMemo(() => artworkAtlasSourceKey(slots), [slots]);
   const texture = useArtworkAtlas(
-    slots,
+    sourceKey,
     columns,
     rows,
     pageId,

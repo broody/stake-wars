@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
@@ -26,6 +27,10 @@ import {
   isProjectionModeEnabled,
   setProjectionMode,
 } from '../utils/gameViewSearch';
+import {
+  sectorStatusMatchesIndexedState,
+  sectorStatusesHaveSameEffectiveState,
+} from '../utils/sectorState';
 
 interface SectorContextValue {
   controlView: ControlView;
@@ -100,6 +105,10 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [indexedSectors, setIndexedSectors] = useState<
     Map<number, IndexedSector>
   >(() => new Map());
+  const indexedSectorsRef = useRef(indexedSectors);
+  useEffect(() => {
+    indexedSectorsRef.current = indexedSectors;
+  }, [indexedSectors]);
   const [operatorStatus, setOperatorStatus] = useState<OperatorStatus | null>(
     null
   );
@@ -115,6 +124,22 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
   const rememberSector = useCallback((status: SectorStatus) => {
     setKnownSectors((current) => {
+      const indexed = indexedSectorsRef.current.get(status.id);
+      if (sectorStatusMatchesIndexedState(status, indexed)) {
+        if (!current.has(status.id)) return current;
+        const next = new Map(current);
+        next.delete(status.id);
+        return next;
+      }
+
+      const previous = current.get(status.id);
+      if (
+        previous &&
+        sectorStatusesHaveSameEffectiveState(previous, status, indexed)
+      ) {
+        return current;
+      }
+
       const next = new Map(current);
       next.set(status.id, status);
       return next;

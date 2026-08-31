@@ -11,6 +11,28 @@ export interface ArtworkAtlasSlot {
   row: number;
 }
 
+export interface ArtworkAtlasSource {
+  thumbnailUrl: string;
+  column: number;
+  row: number;
+}
+
+export function artworkAtlasSourceKey(
+  slots: readonly ArtworkAtlasSlot[]
+): string {
+  return JSON.stringify(
+    slots.map(({ artwork, column, row }) => ({
+      thumbnailUrl: artwork.thumbnailUrl,
+      column,
+      row,
+    }))
+  );
+}
+
+export function artworkAtlasSourcesFromKey(key: string): ArtworkAtlasSource[] {
+  return JSON.parse(key) as ArtworkAtlasSource[];
+}
+
 export function createProjectedArtworkGeometry(
   slots: readonly ArtworkAtlasSlot[],
   heights: ReadonlyMap<number, number>,
