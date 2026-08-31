@@ -15,7 +15,7 @@ export const Hero = () => {
         href="/play"
         className="group relative overflow-hidden border border-fg bg-black/70 px-10 py-4 font-mono text-[1.2rem] uppercase text-fg transition-colors duration-200 hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
       >
-        <span className="relative z-10">[ Enter the arena ]</span>
+        <span className="relative z-10">[ Enter ]</span>
         <span
           aria-hidden="true"
           className="absolute inset-y-0 left-0 w-1 bg-fg transition-[width] duration-300 group-hover:w-full motion-reduce:transition-none"
