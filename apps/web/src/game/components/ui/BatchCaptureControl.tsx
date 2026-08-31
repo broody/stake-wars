@@ -406,7 +406,7 @@ export function BatchCaptureControl({
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
-        ? 'CONFIRMING ON SEPOLIA…'
+        ? 'CONFIRMING…'
         : disabledReason
           ? `${isFortifying ? 'FORTIFY' : 'CAPTURE'} · ${disabledReason}`
           : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;

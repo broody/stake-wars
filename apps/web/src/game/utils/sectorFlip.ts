@@ -3,6 +3,43 @@ import { extractSectorPositions, SECTOR_COUNT } from './sectorGeometry';
 
 export const SECTOR_FLIP_DURATION_SECONDS = 0.95;
 export const SECTOR_FLIP_MAX_WAVE_DELAY = 0.72;
+export const SECTOR_LOAD_REVEAL_DURATION_SECONDS = 1.35;
+export const SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY = 0.72;
+
+const SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES = [
+  [0, 0],
+  [0.08, 0.9],
+  [0.16, 0.12],
+  [0.28, 0.82],
+  [0.37, 0.24],
+  [0.5, 1],
+  [0.62, 0.48],
+  [0.78, 1],
+  [1, 1],
+] as const;
+
+export function sectorLoadRevealFlickerOpacity(progress: number): number {
+  const clamped = THREE.MathUtils.clamp(progress, 0, 1);
+  for (
+    let index = 1;
+    index < SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES.length;
+    index += 1
+  ) {
+    const [nextProgress, nextOpacity] =
+      SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES[index];
+    if (clamped > nextProgress) continue;
+
+    const [previousProgress, previousOpacity] =
+      SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES[index - 1];
+    return THREE.MathUtils.lerp(
+      previousOpacity,
+      nextOpacity,
+      (clamped - previousProgress) / (nextProgress - previousProgress)
+    );
+  }
+
+  return 1;
+}
 
 export function sectorFlipWaveDelayForCount(sectorCount: number): number {
   if (sectorCount <= 1) return 0;

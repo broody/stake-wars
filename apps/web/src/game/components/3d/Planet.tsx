@@ -37,9 +37,12 @@ import {
   addSectorLineFlipAttributes,
   randomOutsideSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
+  sectorLoadRevealFlickerOpacity,
   sectorFlipWaveDelayForCount,
   sectorWaveDistanceRange as createSectorWaveDistanceRange,
   SECTOR_FLIP_DURATION_SECONDS,
+  SECTOR_LOAD_REVEAL_DURATION_SECONDS,
+  SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
 } from '../../utils/sectorFlip';
 import {
   combineSectorSelections,
@@ -65,6 +68,57 @@ interface ReliefAnimationState {
 }
 
 type ReliefAnimationRef = MutableRefObject<ReliefAnimationState>;
+
+interface SectorLoadRevealAnimationState {
+  progress: number;
+}
+
+type SectorLoadRevealAnimationRef =
+  MutableRefObject<SectorLoadRevealAnimationState>;
+
+function useSectorLoadRevealAnimation(
+  isSectorIndexReady: boolean
+): SectorLoadRevealAnimationRef {
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
+  const animationRef = useRef<SectorLoadRevealAnimationState>({
+    progress: isSectorIndexReady && !prefersReducedMotion ? 0 : 1,
+  });
+  const previousReadyRef = useRef(isSectorIndexReady);
+
+  if (isSectorIndexReady !== previousReadyRef.current) {
+    previousReadyRef.current = isSectorIndexReady;
+    animationRef.current.progress =
+      isSectorIndexReady && !prefersReducedMotion ? 0 : 1;
+  }
+
+  useFrame((_state, delta) => {
+    if (!isSectorIndexReady || animationRef.current.progress >= 1) return;
+    animationRef.current.progress = Math.min(
+      1,
+      animationRef.current.progress +
+        delta / SECTOR_LOAD_REVEAL_DURATION_SECONDS
+    );
+  });
+
+  return animationRef;
+}
+
+function sectorLoadRevealCompletionOpacity(
+  animation: SectorLoadRevealAnimationRef
+): number {
+  const progress = THREE.MathUtils.clamp(
+    (animation.current.progress - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY) /
+      (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY),
+    0,
+    1
+  );
+  return sectorLoadRevealFlickerOpacity(progress);
+}
 
 function useReliefAnimation(
   reliefTarget: number,
@@ -118,7 +172,10 @@ const SECTOR_FLIP_VERTEX_SHADER = `
   uniform vec3 uWaveOrigin;
   uniform vec2 uWaveDistanceRange;
   uniform float uWaveDelay;
+  uniform float uLoadRevealProgress;
+  uniform float uLoadRevealWaveDelay;
   varying float vFlipProgress;
+  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
 
   void main() {
@@ -134,6 +191,21 @@ const SECTOR_FLIP_VERTEX_SHADER = `
       1.0
     );
     float waveDelay = normalizedDistance * uWaveDelay;
+    float revealNoise = fract(
+      sin(dot(normalize(flipPivot), vec3(12.9898, 78.233, 37.719)))
+        * 43758.5453
+    );
+    float revealDelay = min(
+      normalizedDistance * max(uLoadRevealWaveDelay - 0.08, 0.0)
+        + revealNoise * 0.08,
+      uLoadRevealWaveDelay
+    );
+    vLoadRevealProgress = clamp(
+      (uLoadRevealProgress - revealDelay)
+        / max(1.0 - uLoadRevealWaveDelay, 0.000001),
+      0.0,
+      1.0
+    );
     float waveProgress = uFlipDirection > 0.0
       ? uFlipProgress
       : 1.0 - uFlipProgress;
@@ -186,12 +258,29 @@ const SECTOR_FLIP_VERTEX_SHADER = `
   }
 `;
 
+const SECTOR_LOAD_REVEAL_FRAGMENT_GLSL = `
+  float sectorLoadRevealOpacity(float progress) {
+    float clampedProgress = clamp(progress, 0.0, 1.0);
+    if (clampedProgress <= 0.08) return mix(0.0, 0.9, clampedProgress / 0.08);
+    if (clampedProgress <= 0.16) return mix(0.9, 0.12, (clampedProgress - 0.08) / 0.08);
+    if (clampedProgress <= 0.28) return mix(0.12, 0.82, (clampedProgress - 0.16) / 0.12);
+    if (clampedProgress <= 0.37) return mix(0.82, 0.24, (clampedProgress - 0.28) / 0.09);
+    if (clampedProgress <= 0.5) return mix(0.24, 1.0, (clampedProgress - 0.37) / 0.13);
+    if (clampedProgress <= 0.62) return mix(1.0, 0.48, (clampedProgress - 0.5) / 0.12);
+    if (clampedProgress <= 0.78) return mix(0.48, 1.0, (clampedProgress - 0.62) / 0.16);
+    return 1.0;
+  }
+`;
+
 const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform vec3 uBackColor;
   uniform float uBackVisible;
   varying float vFlipProgress;
+  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
+
+  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
 
   void main() {
     vec3 panelColor = uColor;
@@ -199,7 +288,9 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
       if (uBackVisible < 0.5) discard;
       panelColor = uBackColor;
     }
-    gl_FragColor = vec4(panelColor, 1.0);
+    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
+    if (revealOpacity <= 0.001) discard;
+    gl_FragColor = vec4(panelColor, revealOpacity);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -208,7 +299,10 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
 const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   varying float vFlipProgress;
+  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
+
+  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
 
   void main() {
     if (vFlipProgress >= 0.999) discard;
@@ -217,7 +311,9 @@ const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
     vec3 lightDirection = normalize(vec3(-0.45, 0.65, 0.60));
     float directionalLight = max(dot(viewNormal, lightDirection), 0.0);
     float shade = mix(0.36, 1.05, pow(directionalLight, 0.75));
-    gl_FragColor = vec4(uColor * shade, 1.0);
+    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
+    if (revealOpacity <= 0.001) discard;
+    gl_FragColor = vec4(uColor * shade, revealOpacity);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -234,6 +330,7 @@ const STRIPE_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform float uBaseOpacity;
   uniform float uStripeOpacity;
+  uniform float uLoadRevealOpacity;
   uniform vec2 uStripeDirection;
 
   void main() {
@@ -241,7 +338,8 @@ const STRIPE_FRAGMENT_SHADER = `
     float stripePhase = dot(gl_FragCoord.xy, stripeDirection) * 0.28 - uTime * 7.0;
     float pulse = 0.12 * sin(uTime * 3.2);
     float stripe = smoothstep(-0.2 + pulse, 0.35 + pulse, sin(stripePhase));
-    float opacity = mix(uBaseOpacity, uStripeOpacity, stripe);
+    float opacity = mix(uBaseOpacity, uStripeOpacity, stripe)
+      * uLoadRevealOpacity;
 
     gl_FragColor = vec4(uColor, opacity);
     #include <tonemapping_fragment>
@@ -266,6 +364,9 @@ const RELIEF_LINE_VERTEX_SHADER = `
   uniform vec3 uWaveOrigin;
   uniform vec2 uWaveDistanceRange;
   uniform float uWaveDelay;
+  uniform float uLoadRevealProgress;
+  uniform float uLoadRevealWaveDelay;
+  varying float vLoadRevealProgress;
 
   void main() {
     float angularDistance = acos(clamp(
@@ -280,6 +381,21 @@ const RELIEF_LINE_VERTEX_SHADER = `
       1.0
     );
     float waveDelay = normalizedDistance * uWaveDelay;
+    float revealNoise = fract(
+      sin(dot(normalize(flipPivot), vec3(12.9898, 78.233, 37.719)))
+        * 43758.5453
+    );
+    float revealDelay = min(
+      normalizedDistance * max(uLoadRevealWaveDelay - 0.08, 0.0)
+        + revealNoise * 0.08,
+      uLoadRevealWaveDelay
+    );
+    vLoadRevealProgress = clamp(
+      (uLoadRevealProgress - revealDelay)
+        / max(1.0 - uLoadRevealWaveDelay, 0.000001),
+      0.0,
+      1.0
+    );
     float waveProgress = uFlipDirection > 0.0
       ? uFlipProgress
       : 1.0 - uFlipProgress;
@@ -333,9 +449,14 @@ const RELIEF_LINE_VERTEX_SHADER = `
 const RELIEF_LINE_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform float uOpacity;
+  varying float vLoadRevealProgress;
+
+  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
 
   void main() {
-    gl_FragColor = vec4(uColor, uOpacity);
+    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
+    if (revealOpacity <= 0.001) discard;
+    gl_FragColor = vec4(uColor, uOpacity * revealOpacity);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -485,6 +606,7 @@ interface SectorGridLayerProps {
   flatHeights?: ReadonlyMap<number, number>;
   stakedHeights?: ReadonlyMap<number, number>;
   reliefAnimation?: ReliefAnimationRef;
+  loadRevealAnimation: SectorLoadRevealAnimationRef;
   flipped: boolean;
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
@@ -497,6 +619,7 @@ function AnimatedReliefLineMaterial({
   color,
   opacity,
   reliefAnimation,
+  loadRevealAnimation,
   flipped,
   waveOrigin,
   waveDistanceRange,
@@ -506,6 +629,7 @@ function AnimatedReliefLineMaterial({
   color: THREE.ColorRepresentation;
   opacity: number;
   reliefAnimation: ReliefAnimationRef;
+  loadRevealAnimation: SectorLoadRevealAnimationRef;
   flipped: boolean;
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
@@ -531,12 +655,15 @@ function AnimatedReliefLineMaterial({
       uWaveOrigin: { value: waveOrigin },
       uWaveDistanceRange: { value: waveDistanceRange },
       uWaveDelay: { value: waveDelay },
+      uLoadRevealProgress: { value: loadRevealAnimation.current.progress },
+      uLoadRevealWaveDelay: { value: SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY },
     }),
     [
       color,
       flipped,
       opacity,
       reliefAnimation,
+      loadRevealAnimation,
       waveDelay,
       waveDistanceRange,
       waveOrigin,
@@ -558,6 +685,8 @@ function AnimatedReliefLineMaterial({
     materialRef.current.uniforms.uReliefMix.value = reliefAnimation.current.mix;
     materialRef.current.uniforms.uReliefVisibility.value =
       reliefAnimation.current.visibility;
+    materialRef.current.uniforms.uLoadRevealProgress.value =
+      loadRevealAnimation.current.progress;
     const fadeProgress = cameraFade
       ? THREE.MathUtils.smoothstep(
           camera.position.length(),
@@ -588,6 +717,7 @@ function SectorGridLayer({
   flatHeights = heights,
   stakedHeights = heights,
   reliefAnimation,
+  loadRevealAnimation,
   flipped,
   waveOrigin,
   waveDistanceRange,
@@ -693,6 +823,7 @@ function SectorGridLayer({
           color={color}
           opacity={innerOpacity}
           reliefAnimation={activeReliefAnimation}
+          loadRevealAnimation={loadRevealAnimation}
           flipped={flipped}
           waveOrigin={waveOrigin}
           waveDistanceRange={waveDistanceRange}
@@ -705,6 +836,7 @@ function SectorGridLayer({
           color={color}
           opacity={opacity}
           reliefAnimation={activeReliefAnimation}
+          loadRevealAnimation={loadRevealAnimation}
           flipped={flipped}
           waveOrigin={waveOrigin}
           waveDistanceRange={waveDistanceRange}
@@ -724,6 +856,7 @@ function AnimatedStripeSectorLayer({
   stripeOpacity,
   stripeAngleDegrees,
   scale,
+  loadRevealAnimation,
 }: {
   sectorIds: number[];
   heights?: ReadonlyMap<number, number>;
@@ -732,6 +865,7 @@ function AnimatedStripeSectorLayer({
   stripeOpacity: number;
   stripeAngleDegrees: number;
   scale: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const geometry = useMemo(
@@ -742,12 +876,20 @@ function AnimatedStripeSectorLayer({
     [sectorIds, heights]
   );
   const stripeAngleRadians = THREE.MathUtils.degToRad(stripeAngleDegrees);
+  const completedLoadRevealAnimation = useRef<SectorLoadRevealAnimationState>({
+    progress: 1,
+  });
+  const activeLoadRevealAnimation =
+    loadRevealAnimation ?? completedLoadRevealAnimation;
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
       uColor: { value: new THREE.Color(color) },
       uBaseOpacity: { value: baseOpacity },
       uStripeOpacity: { value: stripeOpacity },
+      uLoadRevealOpacity: {
+        value: sectorLoadRevealCompletionOpacity(activeLoadRevealAnimation),
+      },
       uStripeDirection: {
         value: new THREE.Vector2(
           Math.cos(stripeAngleRadians),
@@ -755,7 +897,13 @@ function AnimatedStripeSectorLayer({
         ),
       },
     }),
-    [baseOpacity, color, stripeAngleRadians, stripeOpacity]
+    [
+      baseOpacity,
+      color,
+      activeLoadRevealAnimation,
+      stripeAngleRadians,
+      stripeOpacity,
+    ]
   );
   const prefersReducedMotion = useMemo(
     () =>
@@ -767,8 +915,12 @@ function AnimatedStripeSectorLayer({
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame((_state, delta) => {
-    if (!materialRef.current || prefersReducedMotion) return;
-    materialRef.current.uniforms.uTime.value += delta;
+    if (!materialRef.current) return;
+    if (!prefersReducedMotion) {
+      materialRef.current.uniforms.uTime.value += delta;
+    }
+    materialRef.current.uniforms.uLoadRevealOpacity.value =
+      sectorLoadRevealCompletionOpacity(activeLoadRevealAnimation);
   });
 
   return (
@@ -790,10 +942,12 @@ export function SectorContestLayer({
   sectorIds,
   heights,
   color,
+  loadRevealAnimation,
 }: {
   sectorIds: number[];
   heights: ReadonlyMap<number, number>;
   color: THREE.ColorRepresentation;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
 }) {
   if (sectorIds.length === 0) return null;
 
@@ -806,6 +960,7 @@ export function SectorContestLayer({
       stripeOpacity={1}
       stripeAngleDegrees={45}
       scale={1.012}
+      loadRevealAnimation={loadRevealAnimation}
     />
   );
 }
@@ -846,6 +1001,7 @@ interface ExtrudedSectorLayerProps {
   flatHeights: ReadonlyMap<number, number>;
   stakedHeights: ReadonlyMap<number, number>;
   reliefAnimation: ReliefAnimationRef;
+  loadRevealAnimation: SectorLoadRevealAnimationRef;
   flipped: boolean;
   interactive: boolean;
   waveOrigin: THREE.Vector3;
@@ -872,6 +1028,7 @@ function FlippingSectorMaterial({
   waveDistanceRange,
   waveDelay,
   reliefAnimation,
+  loadRevealAnimation,
 }: {
   color: THREE.ColorRepresentation;
   backColor?: THREE.ColorRepresentation;
@@ -881,6 +1038,7 @@ function FlippingSectorMaterial({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   reliefAnimation: ReliefAnimationRef;
+  loadRevealAnimation: SectorLoadRevealAnimationRef;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const progressRef = useRef(flipped ? 1 : 0);
@@ -902,12 +1060,15 @@ function FlippingSectorMaterial({
       uWaveDelay: { value: waveDelay },
       uReliefMix: { value: reliefAnimation.current.mix },
       uReliefVisibility: { value: reliefAnimation.current.visibility },
+      uLoadRevealProgress: { value: loadRevealAnimation.current.progress },
+      uLoadRevealWaveDelay: { value: SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY },
     }),
     [
       backColor,
       color,
       flipped,
       reliefAnimation,
+      loadRevealAnimation,
       waveDelay,
       waveDistanceRange,
       waveOrigin,
@@ -930,6 +1091,8 @@ function FlippingSectorMaterial({
         reliefAnimation.current.mix;
       materialRef.current.uniforms.uReliefVisibility.value =
         reliefAnimation.current.visibility;
+      materialRef.current.uniforms.uLoadRevealProgress.value =
+        loadRevealAnimation.current.progress;
     }
   });
 
@@ -944,6 +1107,7 @@ function FlippingSectorMaterial({
           : SECTOR_SIDE_FLIP_FRAGMENT_SHADER
       }
       side={THREE.DoubleSide}
+      transparent
     />
   );
 }
@@ -955,6 +1119,7 @@ function ExtrudedSectorLayer({
   flatHeights,
   stakedHeights,
   reliefAnimation,
+  loadRevealAnimation,
   flipped,
   interactive,
   waveOrigin,
@@ -1105,6 +1270,7 @@ function ExtrudedSectorLayer({
           waveDistanceRange={waveDistanceRange}
           waveDelay={waveDelay}
           reliefAnimation={reliefAnimation}
+          loadRevealAnimation={loadRevealAnimation}
         />
       </mesh>
       <mesh
@@ -1143,6 +1309,7 @@ function ExtrudedSectorLayer({
           waveDistanceRange={waveDistanceRange}
           waveDelay={waveDelay}
           reliefAnimation={reliefAnimation}
+          loadRevealAnimation={loadRevealAnimation}
         />
       </mesh>
     </group>
@@ -1157,6 +1324,7 @@ interface ReliefContourLayerProps {
   flatHeights?: ReadonlyMap<number, number>;
   stakedHeights?: ReadonlyMap<number, number>;
   reliefAnimation?: ReliefAnimationRef;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   rimColor: THREE.ColorRepresentation;
   showBaseShadow: boolean;
 }
@@ -1174,6 +1342,7 @@ function PopulatedReliefContourLayer({
   flatHeights = heights,
   stakedHeights = heights,
   reliefAnimation,
+  loadRevealAnimation,
   rimColor,
   showBaseShadow,
 }: ReliefContourLayerProps) {
@@ -1182,6 +1351,11 @@ function PopulatedReliefContourLayer({
     visibility: 1,
   });
   const activeReliefAnimation = reliefAnimation ?? staticReliefAnimation;
+  const completedLoadRevealAnimation = useRef<SectorLoadRevealAnimationState>({
+    progress: 1,
+  });
+  const activeLoadRevealAnimation =
+    loadRevealAnimation ?? completedLoadRevealAnimation;
   const reliefGeometries = useMemo(() => {
     const createGeometry = (reliefHeights: ReadonlyMap<number, number>) => {
       if (!sectorGroups) {
@@ -1285,6 +1459,7 @@ function PopulatedReliefContourLayer({
   );
   const renderedReliefMixRef = useRef(-1);
   const renderedReliefVisibilityRef = useRef(-1);
+  const renderedLoadRevealProgressRef = useRef(-1);
   const reliefPositionArrays = useMemo(
     () => ({
       base: reliefGeometries.base.getAttribute('position')
@@ -1310,13 +1485,17 @@ function PopulatedReliefContourLayer({
     if (
       renderedReliefMixRef.current === activeReliefAnimation.current.mix &&
       renderedReliefVisibilityRef.current ===
-        activeReliefAnimation.current.visibility
+        activeReliefAnimation.current.visibility &&
+      renderedLoadRevealProgressRef.current ===
+        activeLoadRevealAnimation.current.progress
     ) {
       return;
     }
     renderedReliefMixRef.current = activeReliefAnimation.current.mix;
     renderedReliefVisibilityRef.current =
       activeReliefAnimation.current.visibility;
+    renderedLoadRevealProgressRef.current =
+      activeLoadRevealAnimation.current.progress;
     const easedMix = THREE.MathUtils.smoothstep(
       activeReliefAnimation.current.mix,
       0,
@@ -1349,12 +1528,24 @@ function PopulatedReliefContourLayer({
       stakedHasRelief ? 1 : 0,
       easedMix
     );
-    shadowMaterial.opacity = 0.86 * viewShadowOpacity * easedVisibility;
+    const contourRevealProgress = THREE.MathUtils.clamp(
+      (activeLoadRevealAnimation.current.progress -
+        SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY) /
+        (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY),
+      0,
+      1
+    );
+    const revealOpacity = sectorLoadRevealFlickerOpacity(contourRevealProgress);
+    shadowMaterial.opacity =
+      0.86 * viewShadowOpacity * easedVisibility * revealOpacity;
+    topEdgeMaterial.opacity = 0.94 * revealOpacity;
+    rimMaterial.opacity = revealOpacity;
   });
 
   useEffect(() => {
     renderedReliefMixRef.current = -1;
     renderedReliefVisibilityRef.current = -1;
+    renderedLoadRevealProgressRef.current = -1;
   }, [topLineGeometry]);
 
   useEffect(
@@ -1417,6 +1608,7 @@ interface SectorOwnershipLayersProps {
   waveOrigin?: THREE.Vector3;
   waveDistanceRange?: THREE.Vector2;
   waveDelay?: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
   onDoubleClickSector?: (
     sectorId: number,
@@ -1441,12 +1633,18 @@ export function SectorOwnershipLayers({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   onClickSector,
   onDoubleClickSector,
   onHoverSector,
   onPointerOut,
 }: SectorOwnershipLayersProps) {
   const reliefAnimation = useReliefAnimation(reliefTarget, reliefVisible);
+  const completedLoadRevealAnimation = useRef<SectorLoadRevealAnimationState>({
+    progress: 1,
+  });
+  const activeLoadRevealAnimation =
+    loadRevealAnimation ?? completedLoadRevealAnimation;
   const occupiedSectorIds = useMemo(
     () => [...ownedSectorIds, ...opponentSectorIds],
     [opponentSectorIds, ownedSectorIds]
@@ -1506,6 +1704,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         flipped={flipped}
         interactive={interactive}
         waveOrigin={activeWaveOrigin}
@@ -1526,6 +1725,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         flipped={flipped}
         interactive={interactive}
         waveOrigin={activeWaveOrigin}
@@ -1547,6 +1747,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         flipped={flipped}
         waveOrigin={activeWaveOrigin}
         waveDistanceRange={activeWaveDistanceRange}
@@ -1560,6 +1761,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         flipped={flipped}
         waveOrigin={activeWaveOrigin}
         waveDistanceRange={activeWaveDistanceRange}
@@ -1575,6 +1777,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         rimColor={SECTOR_COLORS.opponentReliefRim}
         showBaseShadow={opponentSectorsHaveRelief}
       />
@@ -1586,6 +1789,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
+        loadRevealAnimation={activeLoadRevealAnimation}
         rimColor={SECTOR_COLORS.ownedReliefRim}
         showBaseShadow={ownedSectorsHaveRelief}
       />
@@ -1625,9 +1829,12 @@ export function Planet({
     sectorOwnerGroups,
     sectorControlledSince,
     sectorCaptureForce,
+    hasLoadedSectorIndex,
     selectSector,
     selectSectors,
   } = useSectors();
+  const sectorLoadRevealAnimation =
+    useSectorLoadRevealAnimation(hasLoadedSectorIndex);
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const fullSphereGeometry = useMemo(() => createSectorGeometry(), []);
   const opponentSectorIdSet = useMemo(
@@ -2083,6 +2290,7 @@ export function Planet({
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
+        loadRevealAnimation={sectorLoadRevealAnimation}
         onClickSector={handleSectorClick}
         onDoubleClickSector={handleSectorDoubleClick}
         onHoverSector={handleSectorHover}
@@ -2127,6 +2335,7 @@ export function Planet({
         <SectorContestLayer
           sectorIds={visibleContestedSectorIds}
           heights={sectorHeights}
+          loadRevealAnimation={sectorLoadRevealAnimation}
           color={
             isConnected ? SECTOR_COLORS.contested : SECTOR_COLORS.neutralGrid
           }

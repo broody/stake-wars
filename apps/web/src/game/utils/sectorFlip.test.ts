@@ -13,12 +13,22 @@ import {
   randomVisibleOutsideSectorWaveOrigin,
   sectorFlipWaveDelayForCount,
   sectorFlipParameters,
+  sectorLoadRevealFlickerOpacity,
   sectorWaveDelay,
   sectorWaveDistanceRange,
   SECTOR_FLIP_MAX_WAVE_DELAY,
 } from './sectorFlip';
 
 describe('sector flip parameters', () => {
+  it('uses the Arbiter-style flicker before settling a loaded Sector', () => {
+    expect(sectorLoadRevealFlickerOpacity(0)).toBe(0);
+    expect(sectorLoadRevealFlickerOpacity(0.08)).toBeCloseTo(0.9);
+    expect(sectorLoadRevealFlickerOpacity(0.16)).toBeCloseTo(0.12);
+    expect(sectorLoadRevealFlickerOpacity(0.5)).toBe(1);
+    expect(sectorLoadRevealFlickerOpacity(0.62)).toBeCloseTo(0.48);
+    expect(sectorLoadRevealFlickerOpacity(1)).toBe(1);
+  });
+
   it('creates a repeatable unit-length wave origin from an injected source', () => {
     const values = [0.75, 0.25];
     const origin = randomSectorWaveOrigin(() => values.shift() ?? 0);

@@ -348,7 +348,7 @@ export function Staking() {
               {stakePhase === 'submitting'
                 ? 'AUTHORIZE STAKE…'
                 : stakePhase === 'confirming'
-                  ? 'CONFIRMING ON SEPOLIA…'
+                  ? 'CONFIRMING…'
                   : stakeDisabledReason ||
                     `STAKE ${formatStrk(parsedAmount.value ?? 0n, 18)} STRK`}
             </button>

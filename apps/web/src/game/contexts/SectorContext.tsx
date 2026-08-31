@@ -57,6 +57,7 @@ interface SectorContextValue {
   sectorError: string | null;
   operatorError: string | null;
   isSectorIndexLoading: boolean;
+  hasLoadedSectorIndex: boolean;
   sectorIndexError: string | null;
   changeControlView: (view: ControlView) => void;
   setProjectionVisible: (visible: boolean) => void;
@@ -117,6 +118,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [sectorError, setSectorError] = useState<string | null>(null);
   const [operatorError, setOperatorError] = useState<string | null>(null);
   const [isSectorIndexLoading, setSectorIndexLoading] = useState(false);
+  const [hasLoadedSectorIndex, setHasLoadedSectorIndex] = useState(false);
   const [sectorIndexError, setSectorIndexError] = useState<string | null>(null);
   const [sectorRevision, setSectorRevision] = useState(0);
   const [operatorRevision, setOperatorRevision] = useState(0);
@@ -325,6 +327,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         setIndexedSectors(
           new Map(sectors.map((sector) => [sector.id, sector]))
         );
+        setHasLoadedSectorIndex(true);
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -600,6 +603,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorError,
       operatorError,
       isSectorIndexLoading,
+      hasLoadedSectorIndex,
       sectorIndexError,
       changeControlView,
       setProjectionVisible,
@@ -641,6 +645,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorError,
       operatorError,
       isSectorIndexLoading,
+      hasLoadedSectorIndex,
       sectorIndexError,
       changeControlView,
       setProjectionVisible,

@@ -31,7 +31,7 @@ const STATUS_LABELS: Record<SplitTransactionStatus, string> = {
   queued: 'QUEUED',
   preparing: 'PREPARING',
   authorizing: 'AUTHORIZE IN WALLET',
-  confirming: 'CONFIRMING ON SEPOLIA',
+  confirming: 'CONFIRMING',
   confirmed: 'CONFIRMED',
   failed: 'FAILED',
 };

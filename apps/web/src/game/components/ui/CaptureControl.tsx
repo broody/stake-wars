@@ -436,7 +436,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
-        ? 'CONFIRMING ON SEPOLIA…'
+        ? 'CONFIRMING…'
         : primaryDisabledReason
           ? `${actionLabel} · ${primaryDisabledReason}`
           : action === 'reinforce'
