@@ -382,7 +382,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
         ) : null}
         {!isImageServiceLoading && !uploadsEnabled && !imageServiceError ? (
           <div className="mt-3 border border-neutral-700 px-3 py-2 text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
-            UPLOADS OFFLINE · IMAGE STORAGE IS NOT CONFIGURED
+            UPLOADS UNAVAILABLE · IMAGE STORAGE IS NOT CONFIGURED
           </div>
         ) : null}
         {uploadError ? (

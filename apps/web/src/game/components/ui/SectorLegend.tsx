@@ -63,7 +63,7 @@ export function SectorLegend() {
           role="status"
           aria-label={
             sectorIndexError
-              ? 'Torii Sector index offline'
+              ? 'Torii Sector index unavailable'
               : isSectorIndexLoading
                 ? 'Syncing Torii Sector index'
                 : 'Torii Sector index synced'
@@ -119,7 +119,7 @@ export function SectorLegend() {
           onClick={refreshSectorIndex}
           className="mt-2 w-full border-t border-neutral-800 pt-2 text-left text-amber-400 hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
-          INDEX OFFLINE · RETRY
+          INDEX UNAVAILABLE · RETRY
         </button>
       )}
     </section>
