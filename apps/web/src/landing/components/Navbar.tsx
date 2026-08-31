@@ -25,8 +25,8 @@ export const Navbar = () => {
 
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-max bg-black border border-dim p-4 shadow-xl z-50">
-            <div className="text-[0.8rem] text-dim animate-pulse-slow whitespace-nowrap">
-              SYSTEM STATUS: OFFLINE
+            <div className="text-[0.8rem] text-[#aaa] whitespace-nowrap">
+              SYSTEM STATUS: LIVE
             </div>
           </div>
         )}

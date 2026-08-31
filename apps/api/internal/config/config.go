@@ -40,6 +40,7 @@ type Config struct {
 	StarknetRPCURL             string
 	StarknetChainID            string
 	ToriiURL                   string
+	ToriiStakingPoolAddress    string
 	MaxImageBytes              int64
 	ChallengeTTL               time.Duration
 	SessionTTL                 time.Duration
@@ -184,6 +185,7 @@ func Load() (Config, error) {
 		StarknetRPCURL:             strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
 		StarknetChainID:            valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
 		ToriiURL:                   toriiURL,
+		ToriiStakingPoolAddress:    strings.TrimSpace(os.Getenv("TORII_STAKING_POOL_ADDRESS")),
 		MaxImageBytes:              maxImageBytes,
 		ChallengeTTL:               challengeTTL,
 		SessionTTL:                 sessionTTL,

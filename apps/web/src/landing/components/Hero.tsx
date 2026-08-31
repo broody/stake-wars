@@ -11,10 +11,16 @@ export const Hero = () => {
         <span className="hidden md:inline"> &nbsp; </span>
         <span className="block md:inline">/// YIELD: ACTIVE</span>
       </h2>
-      <button className="btn-wip px-10 py-4 text-[1.2rem] border border-dotted bg-black/50 text-[#aaa] font-mono uppercase cursor-default relative overflow-hidden transition-all duration-200">
-        <span>[ COMING SOON ]</span>
-        <span className="absolute top-0 left-0 bottom-0 w-0 bg-white/10 animate-loading" />
-      </button>
+      <a
+        href="/play"
+        className="group relative overflow-hidden border border-fg bg-black/70 px-10 py-4 font-mono text-[1.2rem] uppercase text-fg transition-colors duration-200 hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+      >
+        <span className="relative z-10">[ Enter the arena ]</span>
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 w-1 bg-fg transition-[width] duration-300 group-hover:w-full motion-reduce:transition-none"
+        />
+      </a>
     </section>
   );
 };

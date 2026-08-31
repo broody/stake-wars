@@ -13,6 +13,7 @@ import (
 	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/database"
+	"stakewars.com/api/internal/networkstats"
 )
 
 func TestHealth(t *testing.T) {
@@ -54,6 +55,46 @@ func TestReadinessAndPublicConfig(t *testing.T) {
 	}
 	if payload.MaxImageBytes != 2*1024*1024 {
 		t.Fatalf("unexpected image limit %d", payload.MaxImageBytes)
+	}
+}
+
+func TestNetworkStatsArePublicAndCacheable(t *testing.T) {
+	dependencies := testDependencies(t)
+	dependencies.NetworkStats = apiTestNetworkStats{snapshot: networkstats.Snapshot{
+		Network:         "SN_SEPOLIA",
+		TotalStaked:     "32000000000000000000",
+		ActiveOperators: 2,
+		OccupiedSectors: 47,
+		UpdatedAt:       time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
+	}}
+	request := httptest.NewRequest(http.MethodGet, "/v1/stats", nil)
+	response := httptest.NewRecorder()
+
+	NewHandler(dependencies).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected stats status, got %d: %s", response.Code, response.Body.String())
+	}
+	var snapshot networkstats.Snapshot
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.TotalStaked != "32000000000000000000" || snapshot.ActiveOperators != 2 || snapshot.OccupiedSectors != 47 {
+		t.Fatalf("unexpected stats response: %+v", snapshot)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "public, max-age=30, stale-while-revalidate=300" {
+		t.Fatalf("unexpected Cache-Control %q", got)
+	}
+}
+
+func TestNetworkStatsReportUnavailableWhenUnconfigured(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/v1/stats", nil)
+	response := httptest.NewRecorder()
+
+	NewHandler(testDependencies(t)).ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected unavailable stats, got %d", response.Code)
 	}
 }
 
@@ -249,6 +290,15 @@ type apiTestVerifier struct{}
 type apiTestArbiterHistory struct {
 	page arbiter.HistoryPage
 	err  error
+}
+
+type apiTestNetworkStats struct {
+	snapshot networkstats.Snapshot
+	err      error
+}
+
+func (s apiTestNetworkStats) Current(context.Context) (networkstats.Snapshot, error) {
+	return s.snapshot, s.err
 }
 
 func (h apiTestArbiterHistory) List(

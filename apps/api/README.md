@@ -73,6 +73,7 @@ leave the previous winner in control.
 | `STARKNET_RPC_URL` | unset | Starknet JSON-RPC endpoint used for wallet signature verification and authoritative reads. |
 | `STARKNET_CHAIN_ID` | `SN_MAIN` | SNIP-12 authentication domain and public network identifier. |
 | `TORII_URL` | unset | Internal Torii HTTP origin. Production uses `http://127.0.0.1:8081`. |
+| `TORII_STAKING_POOL_ADDRESS` | unset | Indexed staking pool used to derive cached public staking statistics. |
 | `TORII_WHISPER_ADDRESS` | unset | Whisper contract whose raw auction lifecycle events Torii indexes. |
 | `TORII_WHISPER_BLOCK` | unset | Whisper deployment block used as the event-indexing start. |
 | `ARBITER_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Arbiter rounds. Sepolia rehearsal environments currently set this to `5m`. |
@@ -105,6 +106,7 @@ the repository.
 GET  /healthz
 GET  /readyz
 GET  /v1/config
+GET  /v1/stats
 GET  /v1/arbiter
 GET  /v1/arbiter/history
 GET  /torii/health

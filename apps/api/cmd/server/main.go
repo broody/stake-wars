@@ -16,6 +16,7 @@ import (
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
+	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/objectstore"
 	"stakewars.com/api/internal/starknet"
 )
@@ -35,6 +36,14 @@ func run() error {
 		return err
 	}
 	toriiGateway, err := api.NewToriiGateway(configuration.ToriiURL)
+	if err != nil {
+		return err
+	}
+	statsReader, err := networkstats.NewToriiReader(
+		configuration.ToriiURL,
+		configuration.ToriiStakingPoolAddress,
+		configuration.StarknetChainID,
+	)
 	if err != nil {
 		return err
 	}
@@ -153,6 +162,7 @@ func run() error {
 				arbiterStore,
 				configuration.StarknetChainID,
 			),
+			NetworkStats: statsReader,
 			Config: api.PublicConfig{
 				Network:             configuration.StarknetChainID,
 				MaxImageBytes:       configuration.MaxImageBytes,

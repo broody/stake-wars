@@ -16,6 +16,7 @@ import (
 	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/images"
+	"stakewars.com/api/internal/networkstats"
 )
 
 const maxJSONBodyBytes = 64 * 1024
@@ -38,6 +39,7 @@ type Dependencies struct {
 	ArbiterImages  *images.ArbiterService
 	Arbiter        arbiterReader
 	ArbiterHistory arbiterHistoryReader
+	NetworkStats   networkstats.Reader
 }
 
 type arbiterReader interface {
@@ -55,6 +57,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
+	mux.HandleFunc("GET /v1/stats", server.networkStats)
 	mux.HandleFunc("GET /v1/arbiter", server.arbiterState)
 	mux.HandleFunc("GET /v1/arbiter/history", server.arbiterHistory)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
@@ -70,6 +73,21 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	}
 
 	return securityHeaders(cors(dependencies.AllowedOrigins, mux))
+}
+
+func (s *server) networkStats(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.NetworkStats == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "stats unavailable", "indexed staking statistics are not configured")
+		return
+	}
+	snapshot, err := s.dependencies.NetworkStats.Current(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "read network stats", "error", err)
+		writeProblem(w, http.StatusBadGateway, "stats unavailable", "could not read indexed staking statistics")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=30, stale-while-revalidate=300")
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func (s *server) arbiterHistory(w http.ResponseWriter, r *http.Request) {
