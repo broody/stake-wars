@@ -187,15 +187,13 @@ function LandingApp() {
 
               <FaqItem question="Can I stake or unstake directly through the official Starknet Staking contract instead of using the in-game UI?">
                 <p>
-                  Yes. Our contract operates in parallel with the official
-                  Starknet Staking contract and always reads the current
-                  delegate&rsquo;s staked position to determine how much FORCE
-                  the user has. Your FORCE balance updates in real time when you
-                  stake. However, if we detect that you have begun the unstaking
-                  withdrawal period, your address is permanently retired from
-                  Stake Wars. All Sectors and FORCE associated with the address
-                  are immediately zeroed, and the address can never participate
-                  in Stake Wars again.
+                  Yes. Stake Wars reads your current delegated stake from the
+                  official Starknet Staking contract, so your FORCE updates
+                  automatically no matter where you stake. However, beginning an
+                  unstaking withdrawal permanently retires your address because
+                  that FORCE may already have been spent. All its Sectors and
+                  FORCE are immediately zeroed, and the address cannot
+                  participate again.
                 </p>
               </FaqItem>
             </div>
