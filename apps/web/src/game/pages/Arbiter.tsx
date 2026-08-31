@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useProvider } from '@starknetfoundation/starknet-start-react';
 import { Link, useLocation } from 'react-router-dom';
+import { TransactionExecutionStatus } from 'starknet';
 import { ArbiterLogo } from '../components/3d/ArbiterLogo';
 import { ArbiterConsole } from '../components/ui/ArbiterModal';
+import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useArbiterHistory } from '../contexts/useArbiterHistory';
 import { useArbiter } from '../contexts/useArbiter';
 import { useWallet } from '../contexts/WalletContext';
@@ -15,7 +18,10 @@ import { submitArbiterBid } from '../services/whisperBid';
 
 export function Arbiter() {
   const location = useLocation();
+  const { provider } = useProvider();
   const { snapshot, isLoading, error, refresh } = useArbiter();
+  const { notifySubmitting, notifyConfirmed, notifyFailed } =
+    useTransactionToast();
   const {
     address,
     chainId,
@@ -114,6 +120,23 @@ export function Arbiter() {
         operatorUrl: config.whisperOperatorUrl,
         invokePrivateActions,
       });
+      notifySubmitting(receipt.transactionHash, 'ARBITER BID');
+      void provider
+        .waitForTransaction(receipt.transactionHash, {
+          errorStates: [TransactionExecutionStatus.REVERTED],
+        })
+        .then(() => {
+          notifyConfirmed(receipt.transactionHash);
+          refresh();
+        })
+        .catch((reason: unknown) => {
+          notifyFailed(
+            receipt.transactionHash,
+            reason instanceof Error
+              ? reason.message
+              : 'The Arbiter bid transaction failed.'
+          );
+        });
       let storageStatus: 'saved' | 'failed' = 'saved';
       try {
         const saved = await saveArbiterBid({
@@ -142,10 +165,19 @@ export function Arbiter() {
         storageStatus = 'failed';
         setOwnBidsError('BID SUBMITTED // COULD NOT SAVE ON THIS DEVICE');
       }
-      refresh();
       return { ...receipt, storageStatus };
     },
-    [address, chainId, invokePrivateActions, refresh, snapshot]
+    [
+      address,
+      chainId,
+      invokePrivateActions,
+      notifyConfirmed,
+      notifyFailed,
+      notifySubmitting,
+      provider,
+      refresh,
+      snapshot,
+    ]
   );
 
   return (

@@ -504,15 +504,6 @@ function AuctionPanel({
                     ? 'BID SUBMITTED'
                     : 'PLACE SEALED BID'}
               </button>
-              {receipt ? (
-                <p
-                  className="mt-2 text-[8px] tracking-[0.16em] text-fg"
-                  role="status"
-                >
-                  TRANSACTION {shortAddress(receipt.transactionHash)} // BID
-                  SUBMITTED
-                </p>
-              ) : null}
               {receipt?.storageStatus === 'failed' ? (
                 <p
                   className="mt-2 text-[9px] leading-4 text-red-400"
