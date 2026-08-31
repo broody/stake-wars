@@ -1,16 +1,18 @@
 # STRK20 Privacy Integration Plan — Stake Wars + Whisper sealed bidding
 
-Updated 2026-08-27 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Arbiter billboard.
+Updated 2026-08-31 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Arbiter billboard.
 
-**Status:** Phase A completed on 2026-08-24, its start-on-bid compatibility
-extension completed on 2026-08-26, and active Whisper raw-event indexing was
-verified locally on 2026-08-27. Live canonical history was implemented on
-2026-08-27. Whisper is linked at `vendor/whisper` as a pinned Git submodule.
-Ready Wallet bidding, five-minute settlement, recurring round creation, and
-automatic winner resolution were implemented and exercised on Sepolia on
-2026-08-27. Controller-gated billboard upload, publication, and 3D rendering
-are implemented locally; their integrated Sepolia rehearsal and the full
-72-hour rehearsal remain. No Mainnet transaction is approved by this plan.
+**Status:** Phases A through C are complete and the Phase D sprint release is
+live on Mainnet. Ready Wallet bidding, operator acceptance, force reveal,
+settlement, winner disclosure, automatic successor creation, controller-gated
+billboard upload, Tigris delivery, 3D rendering, and canonical auction history
+have all been exercised end to end. The production Whisper contract is
+`0x07e50e2acad557379785d671d6dde25cde4e18714470b6619f764233cc12b509`;
+completed rounds 1 and 2 are public in history, and 72-hour round 4 is active.
+The public product is `https://stakewars.gg/play`, the API is ready on
+`https://api.stakewars.gg`, and the published demo is intentionally left at
+5:44 despite the sprint's three-minute guidance. Independent review, durable
+operator recovery, and reduced-custody work remain post-sprint hardening.
 
 This plan supersedes the broader gameplay-edict exploration for the first
 Arbiter release. Winning a recurring Whisper auction grants one off-chain
@@ -34,57 +36,56 @@ form one submission without collapsing their ownership boundaries:
 | Reusable off-chain/ERC-20/ERC-721/ERC-1155 fulfillment primitives     | Stake Wars-specific off-chain controller entitlement                                          |
 | Independent releases, security review, deployments, and documentation | Public game deployment, demo, and root `strk20.json` submission evidence                      |
 
-`vendor/whisper` pins the exact Whisper source reviewed by Stake Wars. It is the
-source and cross-repository verification boundary, not an implicit production
-package release or co-location of the Whisper operator on the Stake Wars API
-Machine. Production frontend code should consume an exact tagged
-`@whisper-trade/sdk` release built from that pinned source, and the operator
-must remain a separately deployed service with its own database and secrets.
+`vendor/whisper` pins the exact Whisper source consumed and reviewed by Stake
+Wars. For the sprint build, Vite imports the pinned SDK source through the
+`@whisper-sdk` alias; publishing and consuming a tagged `@whisper-trade/sdk`
+package is deferred until after the deadline. The Whisper operator remains a
+separately deployed service with its own database and secrets rather than being
+co-located with the Fly.io Stake Wars API Machine.
 
-The root `strk20.json` is the single hackathon manifest. It may list the current
-Whisper Sepolia contract as progress evidence, but `transactions` remain empty
-until at least three successful **Mainnet** transactions touching the live
-STRK20 pool have been executed with explicit approval and independently
-verified. Sepolia hashes must not be presented as qualifying Mainnet evidence.
+The root `strk20.json` is the hackathon manifest. It lists the live Mainnet
+Whisper contract, three independently verified successful Mainnet transactions
+that touch both that contract and the canonical STRK20 pool, the public product,
+and the demo hosted at `assets.stakewars.gg`. The qualifying hashes are the
+Ready bids for auctions 1 and 2 plus the auction 1 settlement; all three are
+`SUCCEEDED` and `ACCEPTED_ON_L1`.
 
 ## 2 Project and dependency snapshot
 
-- Stake Wars already uses React 19, Vite, `starknet@10.7.0`, Wallet API
+- Stake Wars uses React 19, Vite, `starknet@10.7.0`, Wallet API
   `0.10.3`, the maintained Starknet Start React stack, and Ready-only wallet
-  selection. `apps/web/src/game/contexts/WalletContext.tsx` already constructs
-  `WalletAccountV6` after a capability-only version check.
-- `/play` already renders a clickable, camera-trackable Arbiter through
+  selection. `apps/web/src/game/contexts/WalletContext.tsx` constructs
+  `WalletAccountV6` after a capability-only version check and requests the
+  user's shielded STRK balance only when the bidding UI deliberately needs to
+  show it.
+- `/play` renders a clickable, camera-trackable Arbiter through
   `apps/web/src/game/components/3d/OrbitalArbiter.tsx`,
   `ArbiterCameraTracker.tsx`, and `ArbiterModal.tsx`. The tracking state is
   represented by `?tracking=arbiter` in `World.tsx`; the dedicated auction and
-  history routes are `/arbiter` and `/arbiter/history`.
-- The existing image pipeline already provides wallet authentication,
+  history URLs are `/play/arbiter` and `/play/arbiter/history`, with Vercel SPA
+  rewrites supporting direct navigation.
+- The image pipeline provides wallet authentication,
   short-lived direct object-store uploads, file-signature and dimension
-  validation, moderation state, and public image delivery. Its authorization is
-  currently tied specifically to Sector ownership and must not be reused
-  without a separate Arbiter-winner verifier.
-- `vendor/whisper` pins Whisper commit
-  `24974e012546b3d1a7bd154f6dead8f59cfb251b`. The active experimental Sepolia
-  v0.4 deployment is `0x02ca43bf2b1e68ae9f39a43e36fce239097444985b4b774b06d0f628a4d678c4`
-  from block `14134212`; its deployed source commit is `dd8b61a`, which includes
-  start-on-bid scheduling and the complete indexable event history. Auction 1
-  smoke-tested the full absolute-schedule lifecycle and all five expected
-  history events. A separate live first-bid smoke remains required to prove
-  `AuctionStarted` and the configured resolved deadline on this deployment.
-- Whisper's still-unreleased `@whisper-trade/sdk@0.3.0` source builds the
+  validation, reporting/removal state, and public image delivery. Arbiter
+  authorization is separate from Sector ownership and revalidates the current
+  controller both before issuing upload URLs and before publication.
+- `vendor/whisper` currently pins commit
+  `fede3b70c1557a31d09b6e7e2bb1a6fbb04121fd`. The Mainnet v0.4 contract was
+  deployed from source commit `24974e012546b3d1a7bd154f6dead8f59cfb251b`
+  at block `14068037` against the canonical pool. Its class hash and live
+  readback have been verified.
+- The vendored `@whisper-trade/sdk@0.3.0` source builds the
   standard private `transfer + invoke` bid actions, encrypted reveal capsule,
   and schedule encodings. The Whisper operator exposes public configuration
   and idempotent capsule upload. The Cairo contract exposes `get_auction` and
   `get_result`, and publishes accepted tranche counts and settlement results.
-- Whisper has completed a full Sepolia lifecycle using official SDK action
-  semantics, but the interactive Ready handoff and additive top-up flow remain
-  unverified. Whisper is experimental, custodial, and unaudited.
-- `contracts/torii_sepolia.toml` and the production Torii launcher register the
-  active Whisper deployment as an `OTHER` contract with raw events enabled.
-  Local Torii 1.8.15 indexed and matched `AuctionCreated`, `BidSubmitted`,
-  `BidFunded`, `BidRevealed`, and `AuctionSettled` for smoke auction 1. The
-  production configuration is committed but has not been deployed or
-  backfilled as part of this plan.
+- The Ready initial-bid path and the full low-value operator lifecycle are
+  verified on Mainnet. Additive top-up remains outside the sprint UI. Whisper
+  remains experimental, 1-of-1 operator-custodial, and unaudited.
+- Production Torii indexes the Mainnet Whisper contract as an `OTHER` contract
+  from block `14068037`. Direct RPC remains authoritative for current state;
+  Torii supplies rebuildable event history. The live API exposes completed
+  rounds 1 and 2, while round 4 is the current 72-hour auction.
 
 ## 3 Chosen integration route
 
@@ -92,7 +93,10 @@ Use the normal-dapp Wallet API path through Stake Wars' existing
 `WalletAccountV6`. The browser imports only Whisper's headless bidder builders,
 creates and encrypts the bid opening, uploads the ciphertext capsule, and asks
 Ready to execute the returned action array. The bid flow never requests or
-receives the user's viewing key, selected notes, proofs, or private balances.
+receives the user's viewing key, selected notes, or proofs. The UI deliberately
+uses the wallet's consent-gated `strk20Balances` call to display only the user's
+own shielded STRK balance; capability detection still uses `supportedWalletApi`
+and never probes balances.
 
 No new Cairo consumer contract is required for the first billboard because the
 prize is entirely off-chain. After `get_result` confirms settlement, the
@@ -121,10 +125,11 @@ risk; the UI should direct bidders to use already-mature private notes. For a
 pending auction, the first successful private bid also publicly fixes the
 configured deadline through `AuctionStarted`; later bids do not extend it.
 
-For the first canonical Sepolia rehearsal rounds, set
-`ARBITER_BIDDING_DURATION=5m`. This is a temporary test override: the default
-and production target remain 72 hours, and the override must be removed before
-the M2 full-duration rehearsal or any Mainnet auction.
+Short Sepolia and low-value Mainnet rehearsals used compressed schedules. The
+production configuration is now `ARBITER_BIDDING_DURATION=72h`,
+`ARBITER_ACCEPTANCE_DURATION=15m`, and
+`ARBITER_SETTLEMENT_DURATION=6h`; the first successful bid fixes those resolved
+deadlines and later bids do not extend them.
 
 ## 5 `/play` and Arbiter product shape
 
@@ -134,8 +139,9 @@ the existing top-right HUD position. The summary shows only the current phase,
 the deadline when one exists, the current controller, and one primary action,
 with a link to the dedicated `/arbiter` route. The dedicated page owns the
 full auction UI.
-If the connected wallet is the current controller, both surfaces may expose an
-image-upload affordance; upload behavior remains out of scope until its phase.
+If the connected wallet is the current controller, both surfaces expose the
+implemented image-upload flow. Selection is locked immediately after signing so
+the published crop cannot diverge from the authorized preview.
 
 Desktop composition:
 
@@ -206,9 +212,10 @@ ID or by taking the latest `AuctionCreated` event.
 The existing `arbiter_rounds` table and `GET /v1/arbiter` aggregate establish
 the canonical current round. Keep direct Whisper RPC as the authority for its
 current state and result; Torii is a rebuildable history/enrichment source and
-may lag without blocking round cycling. The smoke-tested Whisper auction 1 is
-protocol evidence, not a canonical Stake Wars round, and must not be imported
-into controller or winner history.
+may lag without blocking round cycling. The earlier Sepolia smoke-tested
+Whisper auction 1 is protocol evidence, not a canonical Stake Wars round, and
+must not be imported into controller or winner history. Mainnet auction 1 is a
+separate canonical Stake Wars round.
 
 Keep these durable records:
 
@@ -278,14 +285,12 @@ errors are logged, measured, and retried on the next tick; they must not stop
 the API worker loop. Invalid static configuration fails startup. A per-duty
 timeout prevents the other periodic duties from being starved.
 
-Do not create the first auction as an implicit API-startup side effect. An
-explicit bootstrap/admin command creates or registers the initial canonical
-pending auction, validates its full readback, and then enables normal
-reconciliation. `RoundRestarter` is the only component allowed to access the
-authorized creator through a secret-provider boundary. The production image
-currently has no Node runtime, so implement a narrow Go `RoundSubmitter` adapter
-or a separately deployed signing service; do not import Whisper operator keys
-or expose raw signing material to unrelated worker duties.
+Do not create the first auction as an implicit API-startup side effect. The
+initial Mainnet round was bootstrapped explicitly and validated by full
+readback before normal reconciliation was enabled. The implemented
+`OperatorRoundRestarter` calls a bearer-authenticated coordinator endpoint on
+the separately deployed Whisper operator; signing material remains inside that
+service and is never imported into the Fly.io API or unrelated worker duties.
 
 Do not put a mutable current auction ID in the Vite environment or require a
 frontend deployment for each round.
@@ -328,23 +333,25 @@ does not submit a separate claim or retain browser recovery material.
 
 ## 8 Billboard storage and rendering
 
-- Add Arbiter-specific authorization and completion endpoints; do not weaken
-  the existing Sector `CanManageImage` checks or pretend an auction winner owns
-  a Sector.
-- Reuse Tigris/MinIO, typed-data sessions, randomized versioned object keys,
-  MIME/signature checks, reporting, removal, and moderation status. Use a
-  separate key prefix such as `arbiter/<network>/<round>/<artwork-id>/...`.
-- Prepare one 16:9 display texture and thumbnail, initially no larger than
-  `512x288` and `256x144`. Preserve the existing 2 MB encoded-file ceiling and
+This phase is implemented in production:
+
+- Arbiter-specific authorization and completion endpoints preserve the
+  existing Sector `CanManageImage` checks and do not pretend an auction winner
+  owns a Sector.
+- Tigris/MinIO, typed-data sessions, randomized versioned object keys,
+  MIME/signature checks, reporting, removal, and moderation state are reused
+  under the separate `arbiter/<network>/<round>/<artwork-id>/...` prefix.
+- The client prepares a 16:9 display texture and thumbnail no larger than
+  `512x288` and `256x144`, preserving the 2 MB encoded-file ceiling and the
   WebP/JPEG/PNG allowlist.
-- Verify winner authority both before issuing upload URLs and before
+- Winner authority is verified before both upload authorization and
   publication. Replacement supersedes metadata only after the new object is
-  valid; never delete the previous object first.
+  valid; the previous object is never deleted first.
 - A resolved winner may replace the billboard during their term. The approved
   image remains active until the next **verified winner resolution**; a pending,
   resolving, settled-no-winner, disclosure-pending, or aborted auction leaves the
   previous approved billboard in place.
-- Render the approved texture as a child of `OrbitalArbiter`. The empty state is
+- The approved texture renders as a child of `OrbitalArbiter`. The empty state is
   a restrained `SIGNAL AVAILABLE` wireframe rather than a broken image or a
   generic loading skeleton.
 
@@ -356,13 +363,13 @@ standalone product and reach additional library milestones independently, but
 those do not advance the Stake Wars hackathon product until the paired
 acceptance gate passes.
 
-| Milestone                                  | Whisper deliverable and gate                                                                                                                                                                                             | Stake Wars deliverable and acceptance                                                                                                                                                                                                                                            | Status                                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| M0 — foundation and schedule compatibility | Pin the start-on-bid contract/ABI, SDK source, operator, and current public Sepolia metadata; keep the existing absolute-schedule smoke evidence distinct from new schedule support                                      | Pin Whisper under `vendor/whisper`; dual-decode the legacy and start-on-bid ABI; validate the configured duration (five minutes for initial Sepolia rehearsals, 72 hours by default); expose pending through terminal lifecycle states; keep controller lookup independent from the newest round                                               | Complete: canonical Sepolia auction 2 is pending and its creation event is indexed |
-| M1 — wallet bidder                         | Publish a reviewed SDK tag from the pinned source and pass a live Sepolia Ready test where the first private bid emits `AuctionStarted`; prove the resolved deadline matches the configured five-minute rehearsal window and later bids/top-ups do not move it | Pin that SDK release; submit least-privileged `transfer + invoke` actions; keep winner material out of browser storage; distinguish submitted from funded; recover transaction state by polling when the relayed transaction is slow | Complete for the five-minute Ready path; published SDK packaging and additive top-up remain |
-| M2 — recurring Sepolia product             | Run the separate operator with capsule controls, replay-note inventory, settlement, post-settlement winner disclosure, abort, recovery monitoring, and a full canonical three-day round | Start from a pending canonical round; bid from `/arbiter`; preserve the prior controller through bidding/resolution; settle, automatically resolve, publish, and render; then have the idempotent worker create and register exactly one next pending round | Five-minute settlement, next-round cycle, automatic winner resolution, and local billboard publishing/rendering are complete; integrated Sepolia and full-duration rehearsals remain |
-| M3 — Mainnet hackathon release             | Complete the approved security gate, deploy against the canonical Mainnet pool, and run a low-value operator rehearsal | Deploy the public product, complete a real auction/resolution/display/cycle flow, add at least three independently verified Mainnet pool transactions to root `strk20.json`, and publish the three-minute demo | Pending; requires explicit Mainnet approval |
-| M4 — post-sprint hardening                 | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible                                                                                                   | Incident UX, expanded monitoring and moderation, tested disaster recovery, and a policy for upgrading the pinned Whisper version                                                                                                                                                 | Post-sprint                                                            |
+| Milestone                                  | Whisper deliverable and gate | Stake Wars deliverable and acceptance | Status |
+| ------------------------------------------ | ---------------------------- | ------------------------------------- | ------ |
+| M0 — foundation and schedule compatibility | Pin the start-on-bid contract/ABI, SDK source, operator, and deployment metadata; preserve the complete indexable event stream | Pin Whisper under `vendor/whisper`; decode the schedule variants; expose pending through terminal lifecycle states; keep controller lookup independent from the newest round | ✅ Complete on Sepolia and Mainnet |
+| M1 — wallet bidder                         | Build standard Wallet API `transfer + invoke` actions and an authenticated encrypted capsule | Submit through Ready, show only the user's consented shielded balance, retain non-secret local receipts, distinguish submitted from funded, and handle wallet confirmation/rejection | ✅ Initial-bid path verified on Mainnet; additive top-up remains post-sprint |
+| M2 — recurring product                     | Run the separate operator with capsule controls, replay-note rotation, acceptance, settlement, winner disclosure, abort, and recovery paths | Preserve controller continuity, project immutable outcomes, authorize billboard publication, and idempotently create/register one successor | ✅ Short lifecycle and recurrence verified on Mainnet; first 72-hour round is active |
+| M3 — Mainnet hackathon release             | Deploy against the canonical Mainnet pool and complete a low-value operator rehearsal | Publish the app, API, image delivery, three verified Mainnet transactions, contract address, public demo, and auction history | ✅ Live 2026-08-31; 5:44 video retained as an accepted deviation from the three-minute guidance |
+| M4 — post-sprint hardening                 | Independent Cairo/capsule/operator review, durable recovery, then threshold or otherwise reduced custody when feasible | Incident UX, expanded monitoring and moderation, tested disaster recovery, and a policy for upgrading the pinned Whisper version | Post-sprint |
 
 ## 10 Stake Wars delivery phases
 
@@ -427,209 +434,144 @@ acceptance gate passes.
 
 ### Phase B — Ready Wallet private bid submission — ✅ verified on Mainnet 2026-08-30
 
-The mock selector and mock wallet have been removed, live auction reads refresh
-every five seconds, and the Ready submission adapter is implemented. The local
-stack now points at the ready Whisper operator, canonical Sepolia auction 2 is
-registered as a pending five-minute start-on-bid round, and Torii has indexed
-its creation event. Ready 5.33.9's separate prepare-and-submit path loses the
-cached paymaster fee target before the second confirmation and fails with
-`MISSING_FEE_TRANSFER_TO`, so the adapter uses the wallet's fee-aware one-shot
-`wallet_strk20InvokeTransaction` path. Mainnet verification on 2026-08-30
-confirmed that Ready resolves the request after both confirmation and rejection,
-so bid submission now relies exclusively on that wallet response; the temporary
-bid-count fallback has been removed. Bid display receipts survive reloads in
-wallet-, network-, and auction-scoped IndexedDB records encrypted with a
-non-extractable browser key; the bid-local record includes the amount, public
-handles, wallet-returned transaction hash, and timestamp, and claiming never
-depends on it. Mainnet auction 1 confirmed that the submitted tranche became
-funded, the first bid fixed the expected deadlines, and the operator completed
-force reveal and settlement. The 2026-08-27 freshness check found newer
-get-starknet tags and moved sub-account example packages, but neither changes
-this installed Wallet API route or the app-local receipt storage.
+The mock selector and wallet are gone, and the production bidder uses the
+fee-aware one-shot `wallet_strk20InvokeTransaction` path. Mainnet verification
+confirmed that Ready resolves both confirmation and rejection, so the UI no
+longer relies on the temporary public bid-count fallback.
 
-1. Establish a deployable SDK dependency. Publish a tagged, reviewed
-   `@whisper-trade/sdk` release from the exact `vendor/whisper` commit and pin it
-   exactly. Keep the vendor gitlink for review and verification; do not use a
-   local `link:` dependency for the Vercel application.
-   For the initial local Sepolia rehearsal only, the web adapter may import the
-   exact pinned source under `vendor/whisper/sdk`; replace it with the published
-   package before deployment.
-2. Before publishing, confirm browser support for the SDK's ES2024 output,
-   reconsider its Node `>=24` package engine for a browser-consumed package,
-   and align its `starknet@10.7.1` dependency with Stake Wars' `10.7.0` pin or
-   expose a compatible peer dependency to avoid duplicate Starknet runtimes.
-3. Expose a least-privileged WalletContext action that submits a supplied
-   `STRK20_ACTION[]` with `wallet_strk20InvokeTransaction`; do not expose the
-   wallet object or add a balance-read prompt. Treat only the wallet's resolved
-   confirmation callback as success and propagate its rejection callback.
-4. Add bid preparation in `services/whisperBid.ts`: random nonce, salt, refund
-   commitment, ephemeral winner commitment, reveal commitment, encrypted capsule, and
-   standard Whisper actions.
-5. Upload the encrypted capsule before invoking the wallet. Configure the
-   Whisper operator for the Stake Wars origin, strict body limits, rate limits,
-   and minimal logs. Do not authenticate capsule upload with the bidder's
-   public wallet, because that would directly link the wallet to the sealed bid.
-6. For a pending round, treat only a successful wallet transaction as the
-   schedule trigger. Poll `get_auction` until it reports `started_at`, verify
-   `bidding_deadline = started_at + configured duration` (five minutes for the
-   initial Sepolia rehearsal), and ensure later bids or additive top-ups do not
-   move any resolved deadline. A rejected or reverted first bid must leave the
-   auction pending.
-7. Save the returned amount and group/bid handles in encrypted IndexedDB scoped
-   to the connected wallet, network, Whisper deployment, and auction so the
-   user's own bid display survives reloads. Never save salts, winner secrets,
-   viewing keys, notes, or proofs, and never make claiming depend on browser
-   storage. Poll public `get_bid` state until the tranche is funded or the
-   acceptance window closes; a submitted transaction is not yet an accepted
-   bid.
-8. Keep additive top-ups out of the first UI until the interactive Ready initial
-   bid and top-up paths have both passed live Sepolia testing.
+1. The sprint web build imports the reviewed, pinned Whisper SDK source through
+   `@whisper-sdk`; publishing the package remains post-sprint distribution work.
+2. `WalletContext` exposes only least-privileged private invocation and an
+   intentional, consent-gated own-balance read. It never exposes wallet keys,
+   notes, proofs, or the wallet object to feature code.
+3. `services/whisperBid.ts` generates the random nonce, salt, refund commitment,
+   ephemeral winner commitment, reveal commitment, encrypted capsule, and
+   standard `transfer + invoke` actions.
+4. Capsule upload occurs before wallet invocation and is not authenticated with
+   the bidder's public wallet, avoiding a direct public-wallet-to-bid link.
+5. Only a successful wallet transaction starts a pending round. The app polls
+   the canonical auction, and the resolved deadline arithmetic is checked
+   against the configured duration.
+6. Non-secret bid display receipts are encrypted in wallet-, network-, and
+   auction-scoped IndexedDB. Salts, winner secrets, viewing keys, notes, proofs,
+   and capsules are never stored in the browser.
+7. Mainnet auction 1 proved submission, funding, deadline activation,
+   replay-protected acceptance, force reveal, and settlement. Additive top-up is
+   intentionally not exposed in the sprint UI.
 
-### Phase C — automatic winner resolution, billboard publishing, and recurring Sepolia operation
+### Phase C — automatic winner resolution, billboard publishing, and recurring operation — ✅ verified on Mainnet 2026-08-30
 
-1. Refactor the existing frontend wallet-session helper so Sector and Arbiter
-   uploads share authentication without sharing authorization rules.
-2. Consume Whisper's post-settlement winner disclosure in an idempotent worker
-   duty, verify it against the immutable result, and add upload-authorization,
-   upload-completion, list, and removal/reporting paths for Arbiter artwork.
-3. Re-read the canonical Whisper result and resolved controller at authorization
-   and completion; test disclosure mismatch, wrong wallet, superseded round,
-   concurrent resolution, replaced image, removed image, and storage failure cases.
-4. Add winner-only crop/preview/upload controls inside the Arbiter Console and
-   refresh the 3D texture only after the API publishes the approved record.
-5. Wire the existing Arbiter worker into API startup with an immediate pass and
-   a configurable ticker defaulting to 20 seconds. Give duties timeouts,
-   serialize reconciliation, keep the loop alive after transient failures, and
-   fail startup only for invalid static configuration.
-6. Project terminal results and create exactly one durable cycle job after
-   settled-with-winner, settled-without-winner, or aborted. Leave a bidless
-   pending start-on-bid round open indefinitely and ignore every non-terminal
-   active phase.
-7. Implement `RoundRestarter` behind an isolated authorized Go
-   `RoundSubmitter` or separate signing service. Limit raw creator-key access to
-   that boundary and never share Whisper operator signing material.
-8. Derive deterministic successor metadata, recover an already-submitted
-   successor from chain/Torii, and validate its creator and complete
-   configuration before registration. Persist the transaction hash, wait for
-   acceptance/finality, read the auction back from RPC, and atomically register
-   it. Fail closed if multiple matching successors exist.
-9. Create every successor with the approved payment token, reserve, capacity,
-   vault, off-chain fulfillment, winner domain, configured start-on-bid window,
-   and reviewed acceptance/settlement durations. Use an explicit bootstrap
-   command for the first canonical round; ordinary API startup must never
-   create it implicitly.
-10. Preserve the current controller and artwork until a later winner disclosure
-    is verified. Enforce monotonically increasing controller round IDs so
-    delayed processing cannot replace a newer controller.
-11. First verify a complete five-minute Sepolia rehearsal round using Ready,
-    including first-bid activation, settlement, automatic resolution, display, crash recovery
-    at every coordinator boundary, and creation of exactly one next pending
-    round before enabling any meaningful bid amount. Then restore 72 hours and
-    complete one full-duration M2 rehearsal before enabling any Mainnet auction.
+1. Sector and Arbiter uploads share wallet authentication but retain separate
+   authorization rules. Controller authority is re-read before both upload
+   authorization and publication.
+2. The idempotent worker verifies Whisper's winner disclosure against the
+   immutable onchain result, resolves the controller monotonically, and keeps
+   the prior controller through pending, aborted, no-winner, and
+   disclosure-pending states.
+3. Winner-only crop, preview, upload, replacement, and 3D projection are live.
+   Selection locks after signing, and Tigris objects are delivered through
+   `assets.stakewars.gg` only after signature, size, type, and dimension checks.
+4. The Fly.io API runs the coordinator duty at startup and on its ticker. It
+   projects terminal outcomes, creates one durable successor job, recovers
+   submitted transactions, validates full onchain readback, and registers one
+   canonical next round.
+5. The `OperatorRoundRestarter` delegates creation to the authenticated Whisper
+   coordinator, keeping creator and vault signing material outside the API.
+6. Mainnet rounds 1 and 2 settled and appear in public history. Their winners
+   were resolved, the controller changed without a gap, billboard publication
+   succeeded, and automatic successor creation was exercised.
+7. The production schedule was restored to 72 hours. Round 4 started from its
+   first successful bid and is the current public round; keeping the label as
+   round 4 preserves the operational history used for debugging.
 
-### Phase D — Mainnet hackathon release and hardening
+### Phase D — Mainnet hackathon release — ✅ live 2026-08-31
 
-Mainnet checkpoint 2026-08-30: the low-value auction 1 lifecycle completed from
-Ready Wallet bid through replay-protected operator acceptance, force reveal,
-settlement, verified winner disclosure, and automatic successor registration.
-The root `strk20.json` now records three independently verified successful
-Mainnet pool transactions, including Ready bids for auctions 1 and 2 and the
-auction 1 settlement. Public deployment, the three-minute demo, independent
-review, durable backups, replay inventory, and production monitoring remain.
-
-1. Confirm reserve, capacity, acceptance/settlement durations, proceeds
-   recipient, no-sale behavior, and the account authorized to create and
-   register the canonical next round. Bidding remains fixed at three days from
-   the first successful bid and control lasts until the next verified winner resolution.
-2. Add explicit round creation/registration tooling and monitoring for capsule
-   backlog, note acceptance, replay-note inventory, relayer fees, settlement,
-   abort deadline, winner disclosure, image moderation, and stale billboard state.
-3. Add durable operator database backup/recovery, key rotation, incident
-   procedures, capsule upload abuse controls, and a low-value rehearsal.
-4. Obtain independent Cairo, capsule-format, and operator-custody review before
-   Mainnet or meaningful funds. Whisper currently has no bidder-side reclaim
-   path and its operator can inspect bids early or withhold/misdirect refunds.
-5. After explicit Mainnet approval, run the combined low-value lifecycle and
-   independently verify every qualifying pool transaction before adding at
-   least three hashes to the root `strk20.json`.
-6. Publish a three-minute demo showing Whisper's reusable mechanics through the
-   Stake Wars bidder, settlement, winner-resolution, and billboard flow; keep the public
-   demo URL rooted in Stake Wars.
+1. Whisper v0.4 is deployed against the canonical Mainnet STRK20 pool, with its
+   class hash, source commit, vault registration, replay-note setup, and public
+   readback recorded in `vendor/whisper/deployments/mainnet.json`.
+2. The product is public at `https://stakewars.gg/play`; direct Arbiter routes
+   work under the `/play` basename, the Go API and supervised Torii are live on
+   Fly.io, and artwork plus the demo are served from `assets.stakewars.gg`.
+3. The root manifest contains the deployed contract and three independently
+   verified Mainnet transactions: two Ready bids and one operator settlement.
+4. The low-value lifecycle completed through bid, acceptance, force reveal,
+   settlement, winner disclosure, billboard publication, history projection,
+   and successor creation.
+5. The submitted video is 5:44. The team explicitly accepted the risk of
+   exceeding the sprint's three-minute guidance and chose not to recut it.
+6. Independent review, durable operator database recovery, key rotation,
+   replay-note inventory alerts, incident procedures, and a reduced-custody
+   design remain post-sprint. Until those exist, keep auction values low and
+   disclose that the 1-of-1 operator can inspect bids early or withhold or
+   misdirect refunds; Whisper has no bidder-side reclaim path.
 
 ## 11 Verification matrix
 
-- Web: disconnected, unsupported wallet, pending without a deadline, first-bid
-  activation, bidding, grace, settling, settled with and without winner,
-  disclosure pending, resolved winner, no-winner, aborted, API
-  unavailable, billboard unavailable, and reduced-motion tests.
-- API: canonical auction validation, felt/address normalization, ABI decoding,
-  legacy/new status mapping, pending zero timestamps, exact schedule arithmetic,
-  chain time rather than browser time, Torii event validation and lag, cursor
-  stability, controller continuity and monotonic resolution ordering, settlement
-  result validation, disclosure atomicity, authorization at both upload stages,
-  MIME/signature/dimension checks, moderation, and supersession tests.
-- Worker: ignore non-terminal rounds and leave bidless pending rounds open;
-  create one successor after settled-with-winner, settled-without-winner, or
-  aborted; retry safely across onchain discovery, submission, receipt
-  confirmation, readback, and database registration; retain the controller for
-  abort, no-winner, and disclosure-pending outcomes; recover after a crash at every
-  persisted boundary.
-- Whisper: verify the `vendor/whisper` gitlink matches the intended reviewed
-  commit, then run contract, SDK, operator, docs, deployment JSON, and
-  whitespace checks from the submodule before pinning a release.
-- Stake Wars: run `pnpm --filter @stakewars/web test`, build, lint, format check,
-  `pnpm --filter @stakewars/api test`, API build, and `git diff --check`.
-- Manual Sepolia: use the shared Sepolia Stake Wars environment, Ready Wallet,
-  already-mature private STRK notes, the configured Whisper operator, and the
-  real `/arbiter` view. Verify the first bid starts—not merely submits to—the
-  configured auction (five minutes for the initial rehearsal), the capsule
-  arrives, the tranche becomes funded, settlement
-  publishes the correct result, the operator discloses only the verified
-  winner, only that wallet can publish the visible billboard, the old
-  controller remains until resolution, and exactly one next pending round is registered.
+- Automated workspace verification on 2026-08-31 passed `pnpm test`,
+  `pnpm build`, `pnpm lint`, and `pnpm format:check`; the web suite reported 194
+  passing tests and the API suite passed.
+- Stake Wars Cairo passed 28/28 tests plus `sozo build` and `scarb fmt --check`.
+- Vendored Whisper passed 69/69 Cairo tests, 15/15 SDK tests, and 30/30 operator
+  tests; SDK/operator type checks and builds passed.
+- All three manifest transactions are `SUCCEEDED` and `ACCEPTED_ON_L1`. Each
+  receipt contains events from both the canonical STRK20 pool and the listed
+  Whisper contract. The deployed contract returns the expected live class hash.
+- `https://stakewars.gg`, `/play`, `/play/arbiter`, `/play/staking`, and
+  `/play/gallery` return successfully, including direct navigation. The demo
+  asset returns `video/mp4` and supports range requests.
+- The production API returns healthy and ready, reports `SN_MAIN`, and has image
+  uploads enabled. Fly.io has exactly one healthy `sjc` Machine with one shared
+  CPU, 512 MB RAM, and the encrypted 1 GB `stakewars_data` volume mounted at
+  `/data`.
+- Mainnet auction 1 completed the Ready bid, funding, replay-protected operator
+  acceptance, force reveal, settlement, winner disclosure, and successor path.
+  Public history contains completed rounds 1 and 2, and a winner has published
+  live Arbiter artwork. The developer separately confirmed the production
+  auction-bid flow end to end.
+- Round 4 was read from the live API on 2026-08-31 with the 72-hour schedule and
+  three submitted tranches. Its public funded count remains authoritative and
+  may stay below the submission count until the operator accepts notes.
 
-## 12 Decisions still required before transaction-capable phases
+## 12 Resolved sprint decisions and post-sprint work
 
-1. Every compatible Ready wallet may bid; Stake Wars Operator status is not a
-   bidder eligibility requirement. ✅ decided 2026-08-27
-2. Choose the reserve, maximum accepted tranches, acceptance duration,
-   settlement duration, and proceeds destination. The initial Sepolia test
-   override is five minutes; the production target remains three days and the
-   controller term ends only on a later verified winner resolution.
-3. Browser winner tickets are intentionally absent. ✅ decided 2026-08-27;
-   encrypted capsules remain durable only in the operator database.
-4. Decide when a new image becomes public: immediately after technical
-   validation, only after moderation approval, or immediately with a report and
-   removal path.
-5. Confirm package distribution for `@whisper-trade/sdk` and production hosting
-   for the Whisper operator. The package is still unpublished and no reachable
-   capsule-operator URL is configured; pinned-source imports are local
-   rehearsal-only. The current public Sepolia prover/discovery setup has no
-   published production availability commitment.
-6. Assign the authorized round-creator account and its secret-provider boundary.
-   The backend Arbiter worker owns orchestration, but its other permissionless
-   duties must not gain access to raw signing material.
-7. Choose the narrow transaction adapter: native Go account signing in the API
-   or a separately deployed signer. The existing production API image does not
-   include Node, and this choice must be made before `RoundRestarter` can submit
-   a successor.
-8. Approve the explicit initial canonical-round bootstrap configuration and
-   transaction. The existing smoke-tested auction is not a Stake Wars round,
-   and normal API startup will not create one automatically.
-9. Update Whisper's own `STRK20_INTEGRATION_PLAN.md` upstream to record the
-   start-on-bid schedule phase before publishing the SDK or deploying the new
-   class; do not patch the vendored copy independently.
+No sprint-blocking product or infrastructure decision remains open before the
+submission snapshot:
+
+1. Every compatible Ready wallet may bid; Stake Wars Operator status is not an
+   eligibility requirement.
+2. Mainnet rounds use STRK, a `0.1 STRK` reserve, 32 accepted tranches, a 72-hour
+   bidding window, 15-minute acceptance window, and six-hour settlement window.
+   Control lasts until a later winner is verified.
+3. Browser winner tickets are intentionally absent. Only non-secret bid display
+   receipts are stored locally; encrypted capsules remain durable in the
+   operator database. The own-balance read is an explicit consented UI feature,
+   not capability detection.
+4. Controller artwork publishes immediately after controller revalidation and
+   technical image validation, with reporting/removal support. A replacement
+   becomes active atomically without deleting the previous object first.
+5. The Vercel frontend consumes the pinned vendored SDK source. The Whisper
+   operator/prover is hosted separately, and Fly.io communicates with its
+   authenticated coordinator API without holding the operator's signing keys.
+6. The first Mainnet round was bootstrapped explicitly; ordinary API startup is
+   idempotent and does not create a duplicate. Automatic recurrence is live.
+7. `strk20.json` is populated, the demo and live product are public, and the
+   team accepted the 5:44 video-duration deviation.
+
+Post-sprint work is limited to hardening and distribution: publish a reviewed
+SDK package, add durable operator backup and recovery tests, improve replay-note
+and deadline alerting, document key rotation and incidents, obtain independent
+review, and evaluate threshold or otherwise reduced custody.
 
 ## 13 Freshness and references
 
-Freshness was rechecked again on 2026-08-27. Stake Wars' current wallet packages are
-already at or above the required STRK20-capable versions. The stable Wallet API
-remains `0.10.3`; a `0.10.4` release candidate is in flight. The get-starknet
-`next` tags have moved to discovery `6.0.4` and wallet-standard `6.0.5`; Stake
-Wars already pins wallet-standard `6.0.5`, and no dependency upgrade is required
-for the Whisper integration without a demonstrated compatibility need. The
-freshness checker also found upstream sub-account package movement, which does
-not affect this Wallet API bidder plus backend-owned SDK route.
+Freshness was rechecked on 2026-08-31. The stable Wallet API remains `0.10.3`,
+with `0.10.4-rc.1` in flight. The npm `next` tags are `starknet@10.7.1`,
+get-starknet discovery `6.0.4`, and wallet-standard `6.0.5`; Stake Wars pins
+`starknet@10.7.0`, wallet-standard `6.0.5`, and types `0.10.3`, and the deployed
+flow is compatible. Upstream removed `packages/sub_account_anonymizer` and added
+`packages/shadow_account_anonymizer`; neither affects this Wallet API bidder or
+backend-controlled operator route. No deadline-time dependency upgrade is
+required without a demonstrated compatibility need.
 
 - Wallet API overview: https://strk20-by-example.org/starknet-wallet-api/overview
 - Private DeFi composition: https://strk20-by-example.org/starknet-wallet-api/private-defi
