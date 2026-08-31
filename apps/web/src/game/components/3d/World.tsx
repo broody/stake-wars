@@ -345,6 +345,7 @@ export function World({ active = true }: { active?: boolean }) {
     opponentSectorIds,
     isSectorInteractionLocked,
     isImageUploadMode,
+    isProjectionVisible,
     selectSectors,
   } = useSectors();
   const { isPlacementLocked } = useSectorImages();
@@ -550,7 +551,10 @@ export function World({ active = true }: { active?: boolean }) {
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
-        <ArbiterCameraTracker active={active && isArbiterOpen} />
+        <ArbiterCameraTracker
+          active={active && isArbiterOpen}
+          projectionActive={isProjectionVisible}
+        />
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />

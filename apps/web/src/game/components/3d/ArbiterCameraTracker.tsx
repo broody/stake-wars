@@ -6,12 +6,23 @@ import { sampleArbiterOrbit } from '../../utils/arbiterOrbit';
 const CORE = new THREE.Vector3();
 const CAMERA_ORBIT_RADIUS = 25;
 const CAMERA_ORBIT_ELEVATION = 3.75;
+const PROJECTION_CAMERA_ORBIT_RADIUS = 22.5;
+const PROJECTION_CAMERA_PHASE_OFFSET = THREE.MathUtils.degToRad(18);
+const PROJECTION_CAMERA_DAMPING = 4.5;
 const TRANSITION_DURATION_SECONDS = 1.25;
 
-export function ArbiterCameraTracker({ active }: { active: boolean }) {
+export function ArbiterCameraTracker({
+  active,
+  projectionActive,
+}: {
+  active: boolean;
+  projectionActive: boolean;
+}) {
   const { camera } = useThree();
   const wasActive = useRef(false);
   const transitionElapsed = useRef(0);
+  const cameraOrbitRadius = useRef(CAMERA_ORBIT_RADIUS);
+  const projectionPhaseOffset = useRef(0);
   const startPosition = useRef(new THREE.Vector3());
   const startUp = useRef(new THREE.Vector3());
   const desiredPosition = useRef(new THREE.Vector3());
@@ -31,6 +42,8 @@ export function ArbiterCameraTracker({ active }: { active: boolean }) {
   useFrame(({ clock }, delta) => {
     if (!active) {
       wasActive.current = false;
+      cameraOrbitRadius.current = CAMERA_ORBIT_RADIUS;
+      projectionPhaseOffset.current = 0;
       return;
     }
 
@@ -41,15 +54,38 @@ export function ArbiterCameraTracker({ active }: { active: boolean }) {
       startUp.current.copy(camera.up);
     }
 
+    const targetProjectionPhaseOffset = projectionActive
+      ? PROJECTION_CAMERA_PHASE_OFFSET
+      : 0;
+    projectionPhaseOffset.current = prefersReducedMotion
+      ? targetProjectionPhaseOffset
+      : THREE.MathUtils.damp(
+          projectionPhaseOffset.current,
+          targetProjectionPhaseOffset,
+          PROJECTION_CAMERA_DAMPING,
+          delta
+        );
+    const targetCameraOrbitRadius = projectionActive
+      ? PROJECTION_CAMERA_ORBIT_RADIUS
+      : CAMERA_ORBIT_RADIUS;
+    cameraOrbitRadius.current = prefersReducedMotion
+      ? targetCameraOrbitRadius
+      : THREE.MathUtils.damp(
+          cameraOrbitRadius.current,
+          targetCameraOrbitRadius,
+          PROJECTION_CAMERA_DAMPING,
+          delta
+        );
+
     sampleArbiterOrbit(
       clock.getElapsedTime(),
       prefersReducedMotion,
-      0,
+      projectionPhaseOffset.current,
       desiredPosition.current,
       desiredUp.current
     );
     desiredPosition.current
-      .setLength(CAMERA_ORBIT_RADIUS)
+      .setLength(cameraOrbitRadius.current)
       .addScaledVector(desiredUp.current, CAMERA_ORBIT_ELEVATION);
 
     transitionElapsed.current += delta;

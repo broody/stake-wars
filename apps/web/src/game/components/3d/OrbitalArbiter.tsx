@@ -33,8 +33,6 @@ const PROJECTION_ORBIT_RADIUS = 15;
 const PROJECTION_FACE_OFFSET = 0.018;
 const PROJECTION_MARK_OFFSET = 0.032;
 const PROJECTION_ALIGNMENT_DAMPING = 5;
-const PROJECTION_OPACITY_DAMPING = 7;
-const PROJECTION_BODY_OPACITY = 0.18;
 const PROJECTION_ANIMATION_DURATION = 1.1;
 const PROJECTION_BRACKET_PHASE_END = 0.62;
 const PROJECTION_FLICKER_KEYFRAMES = [
@@ -84,7 +82,6 @@ export function OrbitalArbiter({
   const orbitSystemRef = useRef<THREE.Group>(null);
   const arbiterRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
-  const bodyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const orbitLineRef = useRef<THREE.LineLoop>(null);
   const orbitMaterialRef = useRef<THREE.LineDashedMaterial>(null);
   const orbitHighlightUntilRef = useRef(0);
@@ -209,22 +206,6 @@ export function OrbitalArbiter({
       }
     }
 
-    if (bodyMaterialRef.current) {
-      const targetOpacity = isProjectionSequenceActive
-        ? PROJECTION_BODY_OPACITY
-        : 1;
-      bodyMaterialRef.current.opacity = prefersReducedMotion
-        ? targetOpacity
-        : THREE.MathUtils.damp(
-            bodyMaterialRef.current.opacity,
-            targetOpacity,
-            PROJECTION_OPACITY_DAMPING,
-            delta
-          );
-      bodyMaterialRef.current.depthWrite =
-        bodyMaterialRef.current.opacity > 0.995;
-    }
-
     if (orbitMaterialRef.current) {
       const isOrbitHighlighted =
         isTracking ||
@@ -292,9 +273,7 @@ export function OrbitalArbiter({
         >
           <mesh geometry={arbiterGeometry} raycast={() => undefined}>
             <meshBasicMaterial
-              ref={bodyMaterialRef}
               color={SECTOR_COLORS.neutral}
-              transparent
               side={THREE.DoubleSide}
             />
           </mesh>
