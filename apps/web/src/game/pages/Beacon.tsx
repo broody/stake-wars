@@ -192,8 +192,8 @@ export function Beacon() {
             THE BEACON
           </h1>
           <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
-            Bid for control of the Beacon. The winning Operator may publish one
-            paid transmission.
+            Bid for control of the Beacon. The winning Operator controls the
+            image, description, and link it transmits.
           </p>
 
           <div className="absolute right-0 top-0 flex items-center gap-3">

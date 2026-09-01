@@ -230,7 +230,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Sector.
 6.  **As a Strategist:** I want to sacrifice another Sector to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
-8.  **As a Beacon winner:** I want to publish one paid transmission with an image, description, and destination link so visitors can inspect and follow it from the Core.
+8.  **As a Beacon winner:** I want to publish one transmission with an image, description, and destination link so visitors can inspect and follow it from the Core.
 
 ---
 
@@ -250,7 +250,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 *   **Phase 2: Whisper-Powered Beacon Auctions**
     *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, vault operator, and post-settlement winner disclosure, while Stake Wars owns the game UX, canonical round, automatic controller resolution, and billboard fulfillment.
     *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and automatically resolved, the current Beacon controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.
-    *   Give each newly confirmed controller one immutable paid transmission containing an image, a plain-text description of at most 280 characters, and an absolute HTTP(S) destination link. Clicking the Beacon or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot.
+    *   Give each newly confirmed controller one immutable transmission containing an image, a plain-text description of at most 280 characters, and an absolute HTTP(S) destination link. Clicking the Beacon or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot.
     *   Run auction cycling as an idempotent duty of the backend Beacon worker. After a terminal round, it creates and registers the next pending auction without changing controller state; the authorized onchain transaction builder remains isolated from the worker's other permissionless maintenance duties.
     *   Gate Stake Wars bidding, winner resolution, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
 *   **Phase 3: The Command Expansion**

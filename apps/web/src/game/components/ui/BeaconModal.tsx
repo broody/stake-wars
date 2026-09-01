@@ -29,6 +29,7 @@ import {
 } from '../../utils/beacon';
 import { addressesMatch, formatStrk, shortAddress } from '../../utils/format';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
+import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 
 interface BeaconModalProps {
   isOpen: boolean;
@@ -124,7 +125,7 @@ export function BeaconSummaryCard({
             id="beacon-summary-title"
             className="mt-1 text-base font-bold tracking-[-0.03em]"
           >
-            {snapshot?.billboard ? 'PAID TRANSMISSION' : 'THE BEACON'}
+            {snapshot?.billboard ? 'TRANSMISSION' : 'THE BEACON'}
           </h2>
         </div>
         <button
@@ -159,16 +160,11 @@ export function BeaconSummaryCard({
                 label="CURRENT CONTROLLER"
                 value={shortAddress(snapshot.controller.address)}
               />
-              <div className="text-right">
-                {isCurrentController ? (
-                  <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
-                    YOU
-                  </span>
-                ) : null}
-                <div className="mt-2 text-[8px] tracking-[0.12em] text-neutral-500">
-                  UNTIL NEXT WINNER
-                </div>
-              </div>
+              {isCurrentController ? (
+                <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
+                  YOU
+                </span>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -220,7 +216,7 @@ export function BeaconSummaryCard({
         to={{ pathname: '/beacon', search: `?${search.toString()}` }}
         className="flex items-center justify-between border-t border-grid px-4 py-3 text-[9px] tracking-[0.18em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-fg"
       >
-        <span>OPEN BEACON PAGE</span>
+        <span>BID FOR BEACON CONTROL</span>
         <span aria-hidden="true">↗</span>
       </Link>
     </aside>
@@ -823,8 +819,10 @@ function BeaconBillboard({
 }: {
   billboard: NonNullable<BeaconSnapshot['billboard']>;
 }) {
+  const destinationUrl = normalizeBeaconDestination(billboard.destinationUrl);
+
   return (
-    <section aria-label="Paid Beacon transmission">
+    <section aria-label="Beacon transmission">
       <div className="border border-neutral-700 bg-neutral-950 p-2">
         <BeaconBillboardImage
           key={`${billboard.imageUrl}:${billboard.thumbnailUrl}`}
@@ -837,16 +835,16 @@ function BeaconBillboard({
           {billboard.description}
         </p>
       ) : null}
-      {billboard.destinationUrl ? (
+      {isValidBeaconDestination(destinationUrl) ? (
         <a
-          href={billboard.destinationUrl}
+          href={destinationUrl}
           target="_blank"
           rel="noopener noreferrer sponsored"
           className="mt-3 flex items-center justify-between gap-3 border border-fg px-3 py-3 text-[9px] tracking-[0.14em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
-          title={billboard.destinationUrl}
+          title={destinationUrl}
         >
-          <span className="min-w-0 truncate">
-            {beaconDestinationLabel(billboard.destinationUrl)}
+          <span className="min-w-0 truncate underline decoration-neutral-500 underline-offset-4">
+            {destinationUrl}
           </span>
           <span className="shrink-0" aria-hidden="true">
             VISIT ↗
@@ -928,17 +926,13 @@ function BeaconControllerActions({ onSelect }: { onSelect: () => void }) {
   );
 }
 
-function beaconDestinationLabel(destinationUrl: string) {
-  try {
-    return new URL(destinationUrl).hostname.replace(/^www\./, '');
-  } catch {
-    return destinationUrl;
-  }
-}
-
 function isValidBeaconDestination(destinationUrl: string) {
   try {
-    const parsed = new URL(destinationUrl.trim());
+    const normalized = normalizeBeaconDestination(destinationUrl);
+    if (!normalized || normalized.length > BEACON_DESTINATION_MAX_LENGTH) {
+      return false;
+    }
+    const parsed = new URL(normalized);
     return (
       (parsed.protocol === 'https:' || parsed.protocol === 'http:') &&
       parsed.hostname.length > 0 &&
@@ -1080,12 +1074,13 @@ function BeaconProjectionUpload({
   }, [chooseFile, isUploading]);
 
   const upload = async () => {
+    const normalizedDestinationUrl = normalizeBeaconDestination(destinationUrl);
     if (
       !prepared ||
       !uploadsEnabled ||
       isUploading ||
       !description.trim() ||
-      !isValidBeaconDestination(destinationUrl)
+      !isValidBeaconDestination(normalizedDestinationUrl)
     ) {
       return;
     }
@@ -1096,7 +1091,7 @@ function BeaconProjectionUpload({
       await api.uploadBeaconArtwork({
         walletAddress,
         description: description.trim(),
-        destinationUrl: destinationUrl.trim(),
+        destinationUrl: normalizedDestinationUrl,
         prepared,
         signTypedData: signTypedDataAsync,
       });
@@ -1128,7 +1123,7 @@ function BeaconProjectionUpload({
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-            PAID TRANSMISSION
+            TRANSMISSION
           </div>
           <div className="mt-1 text-sm font-bold tracking-[-0.03em]">
             ONE-SHOT BROADCAST
@@ -1218,6 +1213,9 @@ function BeaconProjectionUpload({
           value={destinationUrl}
           disabled={isUploading}
           onChange={(event) => setDestinationUrl(event.target.value)}
+          onBlur={() =>
+            setDestinationUrl(normalizeBeaconDestination(destinationUrl))
+          }
           placeholder="https://example.com"
           className="mt-2 w-full border border-neutral-700 bg-black px-3 py-2 text-[11px] text-fg outline-none placeholder:text-neutral-700 focus:border-fg disabled:cursor-not-allowed disabled:opacity-60"
         />

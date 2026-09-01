@@ -3,6 +3,12 @@ import * as THREE from 'three';
 export const BEACON_ORBIT_RADIUS = 17;
 export const BEACON_ORBIT_SPEED = 0.14;
 export const BEACON_ORBIT_PRECESSION_SPEED = 0.018;
+export const BEACON_PROJECTION_CAMERA_PHASE_OFFSET =
+  THREE.MathUtils.degToRad(-18);
+
+export function beaconCameraPhaseOffset(projectionActive: boolean) {
+  return projectionActive ? BEACON_PROJECTION_CAMERA_PHASE_OFFSET : 0;
+}
 
 const FULL_TURN = Math.PI * 2;
 

@@ -129,7 +129,7 @@ objects for signature, MIME, dimensions, and size validation, rechecks current
 on-chain ownership for every target, and publishes generation-bound target
 metadata with the captured camera and placement transform.
 
-A Beacon controller may publish exactly one paid transmission during its
+A Beacon controller may publish exactly one transmission during its
 control term. The upload authorization binds a required plain-text description
 and absolute HTTP(S) destination URL to the image; completion rechecks current
 control and atomically locks the controller's publication slot.

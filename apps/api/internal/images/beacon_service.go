@@ -218,6 +218,9 @@ func normalizeBeaconAdvertisement(description, destinationURL string) (string, s
 			beaconDescriptionMaximumLength,
 		)
 	}
+	if destinationURL != "" && !strings.Contains(destinationURL, "://") {
+		destinationURL = "https://" + destinationURL
+	}
 	if destinationURL == "" || len(destinationURL) > beaconDestinationMaximumLength {
 		return "", "", fmt.Errorf(
 			"%w: destination URL must contain 1-%d characters",

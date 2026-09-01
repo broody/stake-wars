@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { BeaconSnapshot } from '../../services/api';
+import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 import { BeaconConsole, BeaconSummaryCard } from './BeaconModal';
 
 const biddingSnapshot: BeaconSnapshot = {
@@ -338,7 +339,8 @@ describe('BeaconSummaryCard', () => {
     expect(markup).not.toContain('WAITING FOR');
     expect(markup).not.toContain('NEXT CONTROL');
     expect(markup).not.toContain('CURRENT PROJECTION');
-    expect(markup).toContain('OPEN BEACON PAGE');
+    expect(markup).toContain('BID FOR BEACON CONTROL');
+    expect(markup).not.toContain('UNTIL NEXT WINNER');
     expect(markup).toContain('/beacon?tracking=beacon');
   });
 
@@ -405,7 +407,7 @@ describe('BeaconSummaryCard', () => {
     expect(markup).toContain('tracking=beacon');
   });
 
-  it('shows the paid transmission and locks further publication', () => {
+  it('shows the transmission and locks further publication', () => {
     const snapshot: BeaconSnapshot = {
       ...biddingSnapshot,
       controller: {
@@ -436,7 +438,8 @@ describe('BeaconSummaryCard', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain('PAID TRANSMISSION');
+    expect(markup).toContain('TRANSMISSION');
+    expect(markup).not.toContain('PAID TRANSMISSION');
     expect(markup).toContain('Fund the next expedition beyond the Core.');
     expect(markup).toContain('https://example.com/expedition');
     expect(markup).toContain('example.com');
@@ -444,5 +447,22 @@ describe('BeaconSummaryCard', () => {
     expect(markup).toContain('LOCKED');
     expect(markup).not.toContain('BUILD TRANSMISSION');
     expect(markup).not.toContain('16:9');
+  });
+});
+
+describe('normalizeBeaconDestination', () => {
+  it('adds HTTPS when the destination has no scheme', () => {
+    expect(normalizeBeaconDestination(' starknet.io ')).toBe(
+      'https://starknet.io'
+    );
+  });
+
+  it('preserves an explicit HTTP or HTTPS scheme', () => {
+    expect(normalizeBeaconDestination('https://starknet.io/')).toBe(
+      'https://starknet.io/'
+    );
+    expect(normalizeBeaconDestination('http://example.com')).toBe(
+      'http://example.com'
+    );
   });
 });

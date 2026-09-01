@@ -1,13 +1,15 @@
 import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { sampleBeaconOrbit } from '../../utils/beaconOrbit';
+import {
+  beaconCameraPhaseOffset,
+  sampleBeaconOrbit,
+} from '../../utils/beaconOrbit';
 
 const CORE = new THREE.Vector3();
 const CAMERA_ORBIT_RADIUS = 25;
 const CAMERA_ORBIT_ELEVATION = 3.75;
 const PROJECTION_CAMERA_ORBIT_RADIUS = 22.5;
-const PROJECTION_CAMERA_PHASE_OFFSET = THREE.MathUtils.degToRad(18);
 const PROJECTION_CAMERA_DAMPING = 4.5;
 const TRANSITION_DURATION_SECONDS = 1.25;
 
@@ -54,9 +56,8 @@ export function BeaconCameraTracker({
       startUp.current.copy(camera.up);
     }
 
-    const targetProjectionPhaseOffset = projectionActive
-      ? PROJECTION_CAMERA_PHASE_OFFSET
-      : 0;
+    const targetProjectionPhaseOffset =
+      beaconCameraPhaseOffset(projectionActive);
     projectionPhaseOffset.current = prefersReducedMotion
       ? targetProjectionPhaseOffset
       : THREE.MathUtils.damp(

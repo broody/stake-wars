@@ -153,13 +153,20 @@ func TestValidateBeaconAdvertisement(t *testing.T) {
 		destination != "https://example.com/campaign" {
 		t.Fatalf("unexpected normalized advertisement: %q, %q, %v", description, destination, err)
 	}
+	description, destination, err = normalizeBeaconAdvertisement(
+		"Explore Starknet.",
+		"starknet.io",
+	)
+	if err != nil || description != "Explore Starknet." ||
+		destination != "https://starknet.io" {
+		t.Fatalf("unexpected scheme-less advertisement: %q, %q, %v", description, destination, err)
+	}
 
 	for _, testCase := range []struct {
 		description string
 		destination string
 	}{
 		{description: "", destination: "https://example.com"},
-		{description: "Missing a scheme.", destination: "example.com"},
 		{description: "Unsafe scheme.", destination: "javascript:alert(1)"},
 		{description: "Credentials are not allowed.", destination: "https://user:pass@example.com"},
 	} {

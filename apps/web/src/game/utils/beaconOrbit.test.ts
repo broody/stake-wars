@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   BEACON_ORBIT_RADIUS,
+  BEACON_PROJECTION_CAMERA_PHASE_OFFSET,
+  beaconCameraPhaseOffset,
   beaconOrbitAngle,
   createBeaconOrbitLayout,
   positionOnBeaconOrbit,
@@ -66,5 +68,39 @@ describe('beacon orbit', () => {
     expect(cameraUp.y).toBeGreaterThanOrEqual(0);
     expect(cameraUp.dot(cameraPosition)).toBeCloseTo(0, 8);
     expect(beaconOrbitAngle(elapsedTime, false)).toBeGreaterThan(0);
+  });
+
+  it('places the projection camera on the opposite orbit side', () => {
+    const elapsedTime = 0;
+    const beaconPosition = new THREE.Vector3();
+    const cameraPosition = new THREE.Vector3();
+    const tangent = tangentOnBeaconOrbit(
+      beaconOrbitAngle(elapsedTime, false),
+      new THREE.Vector3()
+    );
+
+    sampleBeaconOrbit(
+      elapsedTime,
+      false,
+      0,
+      beaconPosition,
+      new THREE.Vector3()
+    );
+    sampleBeaconOrbit(
+      elapsedTime,
+      false,
+      BEACON_PROJECTION_CAMERA_PHASE_OFFSET,
+      cameraPosition,
+      new THREE.Vector3()
+    );
+
+    expect(cameraPosition.sub(beaconPosition).dot(tangent)).toBeLessThan(0);
+  });
+
+  it('keeps the normal camera behind the Beacon', () => {
+    expect(beaconCameraPhaseOffset(false)).toBe(0);
+    expect(beaconCameraPhaseOffset(true)).toBe(
+      BEACON_PROJECTION_CAMERA_PHASE_OFFSET
+    );
   });
 });
