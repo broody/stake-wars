@@ -443,8 +443,8 @@ describe('BeaconSummaryCard', () => {
     expect(markup).toContain('Fund the next expedition beyond the Core.');
     expect(markup).toContain('https://example.com/expedition');
     expect(markup).toContain('example.com');
-    expect(markup).toContain('TRANSMISSION STATUS');
-    expect(markup).toContain('LOCKED');
+    expect(markup).not.toContain('TRANSMISSION STATUS');
+    expect(markup).not.toContain('LOCKED');
     expect(markup).not.toContain('BUILD TRANSMISSION');
     expect(markup).not.toContain('16:9');
   });

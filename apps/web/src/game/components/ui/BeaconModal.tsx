@@ -206,10 +206,6 @@ export function BeaconSummaryCard({
             )}
           </>
         ) : null}
-
-        {isCurrentController && snapshot?.billboard ? (
-          <BeaconTransmissionLocked />
-        ) : null}
       </div>
 
       <Link
@@ -886,20 +882,6 @@ function BeaconBillboardImage({
         />
       )}
     </div>
-  );
-}
-
-function BeaconTransmissionLocked() {
-  return (
-    <section className="border-t border-grid pt-4">
-      <div className="flex items-center justify-between text-[8px] tracking-[0.18em]">
-        <span className="text-neutral-500">TRANSMISSION STATUS</span>
-        <span>LOCKED</span>
-      </div>
-      <p className="mt-2 text-[9px] leading-4 text-neutral-500">
-        Published for this control term. It cannot be edited or replaced.
-      </p>
-    </section>
   );
 }
 
