@@ -232,6 +232,102 @@ verified:
 Report the reset metadata row counts and the exact environment after completing
 the cutover.
 
+## Mainnet Dojo admin rule changes
+
+Changing an initialized `GameConfig` through `stakewars-admin` is an external
+mainnet transaction. Do not submit one unless the user explicitly approves the
+specific rule change. A rule change is not a World migration and does not use
+`sozo migrate`.
+
+Resolve the current World and Admin System from
+`contracts/manifest_release.json`. The expected game-admin account is
+`0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c`.
+Its matching local account is stored outside the repository at
+`~/.starknet_accounts/starknet_open_zeppelin_accounts.json`, under
+`alpha-mainnet.stakewars_mainnet_deployer_admin`. Keep that file owner-only
+(`0600`). Never print its private key, paste it into a command, copy it into the
+repository, or export it into a long-lived shell environment.
+
+The pinned Sozo 1.8.6 expects Starknet RPC 0.9. The public Cartridge mainnet
+endpoint currently reports a newer RPC version even through its `/rpc/v0_9`
+path, causing `sozo model get` and `sozo execute` to fail with
+`Unsupported Starknet RPC version`. Unless the toolchain is deliberately
+upgraded and revalidated, do not retry Sozo against that public endpoint.
+
+Before changing rules:
+
+- Read the indexed `stakewarsGameConfigModels` row from
+  `https://stakewars.fly.dev/torii/graphql` to obtain the current
+  `minimum_stake`, `challenge_period_seconds`, `sector_limit`, admin, and pause
+  state. Treat Torii as discovery, not canonical state.
+- Use the workspace's current `starknet` package from `apps/web` against the
+  public mainnet RPC to call `Control.required_stake` at `latest` for a Sector
+  confirmed neutral by Torii, establishing the canonical neutral-capture
+  minimum.
+- Verify locally, without printing either value, that the stored private key's
+  derived public key matches the onchain account's `get_public_key` result.
+  Confirm the account has enough STRK for fees.
+- `set_rules` writes all three rule fields. Preserve the exact live challenge
+  period and sector limit unless the user explicitly approved changing them too.
+  Express FORCE amounts in 18-decimal base units.
+
+For the transaction, use a temporary local SSH tunnel to the validator's
+private Pathfinder RPC 0.9 endpoint. This only transports the RPC connection;
+it does not modify the validator VPS. Require local port 19545 to be unused,
+keep the tunnel in a dedicated foreground process, and close it immediately
+after verification:
+
+```bash
+ssh -i "$HOME/.ssh/id_ed25519" \
+  -o ExitOnForwardFailure=yes \
+  -o BatchMode=yes \
+  -NT -L 19545:127.0.0.1:9545 \
+  root@199.33.121.220
+```
+
+In a separate shell from the repository root, resolve public addresses from the
+manifest, verify the local account address, and pass the private key only to the
+Sozo process. Substitute the explicitly approved minimum and the verified live
+values for the other two rule fields:
+
+```bash
+: "${stakewars_minimum_stake_base_units:?set the approved u128 value}"
+: "${stakewars_challenge_period_seconds:?set the verified live u64 value}"
+: "${stakewars_sector_limit:?set the verified live u32 value}"
+stakewars_account_file="$HOME/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+stakewars_admin_address="$(jq -er \
+  '.["alpha-mainnet"].stakewars_mainnet_deployer_admin.address' \
+  "$stakewars_account_file")"
+stakewars_world_address="$(jq -er '.world.address' \
+  contracts/manifest_release.json)"
+stakewars_admin_system="$(jq -er \
+  '.contracts[] | select(.tag == "stakewars-admin") | .address' \
+  contracts/manifest_release.json)"
+test "$stakewars_admin_address" = \
+  "0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c"
+DOJO_PRIVATE_KEY="$(jq -er \
+  '.["alpha-mainnet"].stakewars_mainnet_deployer_admin.private_key' \
+  "$stakewars_account_file")" \
+  sozo execute \
+    --manifest-path contracts/Scarb.toml \
+    --profile release \
+    --rpc-url http://127.0.0.1:19545/rpc/v0_9 \
+    --account-address "$stakewars_admin_address" \
+    --world "$stakewars_world_address" \
+    --wait \
+    "$stakewars_admin_system" set_rules \
+    "$stakewars_minimum_stake_base_units" \
+    "$stakewars_challenge_period_seconds" \
+    "$stakewars_sector_limit"
+```
+
+After execution, require the receipt to report both `ACCEPTED_ON_L2` and
+`SUCCEEDED`. Re-read `Control.required_stake` for a confirmed-neutral Sector
+directly onchain, then confirm Torii has indexed the new `GameConfig` while the
+unrequested rule fields remain unchanged. Report the transaction hash, block
+number, and final three rule values. A normal admin rule change does not require
+repository edits, a Torii restart, or a frontend redeployment.
+
 ## Fly.io production backend
 
 The production Fly resources already exist:
