@@ -18,6 +18,7 @@ import {
   tangentOnBeaconOrbit,
   upOnBeaconOrbit,
 } from '../../utils/beaconOrbit';
+import { nextBeaconProjectionAnimationProgress } from '../../utils/beaconProjection';
 import {
   BEACON_INITIAL_ROTATION,
   BEACON_RADIUS,
@@ -33,7 +34,6 @@ const PROJECTION_ORBIT_RADIUS = 15;
 const PROJECTION_FACE_OFFSET = 0.018;
 const PROJECTION_MARK_OFFSET = 0.032;
 const PROJECTION_ALIGNMENT_DAMPING = 5;
-const PROJECTION_ANIMATION_DURATION = 1.1;
 const PROJECTION_BRACKET_PHASE_END = 0.62;
 const PROJECTION_FLICKER_KEYFRAMES = [
   [0, 0],
@@ -77,7 +77,7 @@ export function OrbitalBeacon({
   isTracking: boolean;
   onInspect: () => void;
 }) {
-  const { snapshot } = useBeacon();
+  const { snapshot, isLoading } = useBeacon();
   const { isProjectionVisible } = useSectors();
   const orbitSystemRef = useRef<THREE.Group>(null);
   const beaconRef = useRef<THREE.Group>(null);
@@ -129,6 +129,7 @@ export function OrbitalBeacon({
   const bodyProjectionFrame = useMemo(() => new THREE.Quaternion(), []);
   const bodyProjectionTarget = useMemo(() => new THREE.Quaternion(), []);
   const projectionAnimationProgressRef = useRef(0);
+  const projectionImageReadyRef = useRef(false);
   const prefersReducedMotion = useMemo(
     () =>
       globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
@@ -165,14 +166,17 @@ export function OrbitalBeacon({
       beaconRef.current.position.copy(orbitPosition);
     }
 
-    projectionAnimationProgressRef.current = nextProjectionAnimationProgress(
-      projectionAnimationProgressRef.current,
-      isProjectionVisible,
-      prefersReducedMotion,
-      delta
-    );
+    projectionAnimationProgressRef.current =
+      nextBeaconProjectionAnimationProgress(
+        projectionAnimationProgressRef.current,
+        isProjectionVisible,
+        projectionImageReadyRef.current,
+        prefersReducedMotion,
+        delta
+      );
     const isProjectionSequenceActive =
-      isProjectionVisible || projectionAnimationProgressRef.current > 0;
+      (isProjectionVisible && projectionImageReadyRef.current) ||
+      projectionAnimationProgressRef.current > 0;
 
     if (bodyRef.current) {
       if (isProjectionSequenceActive) {
@@ -306,7 +310,10 @@ export function OrbitalBeacon({
 
       <BeaconProjection
         imageUrl={snapshot?.billboard?.imageUrl ?? null}
+        thumbnailUrl={snapshot?.billboard?.thumbnailUrl ?? null}
+        isSourceResolved={snapshot !== null || !isLoading}
         animationProgressRef={projectionAnimationProgressRef}
+        imageReadyRef={projectionImageReadyRef}
         prefersReducedMotion={prefersReducedMotion}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
@@ -318,14 +325,20 @@ export function OrbitalBeacon({
 
 function BeaconProjection({
   imageUrl,
+  thumbnailUrl,
+  isSourceResolved,
   animationProgressRef,
+  imageReadyRef,
   prefersReducedMotion,
   onPointerOver,
   onPointerOut,
   onClick,
 }: {
   imageUrl: string | null;
+  thumbnailUrl: string | null;
+  isSourceResolved: boolean;
   animationProgressRef: { current: number };
+  imageReadyRef: { current: boolean };
   prefersReducedMotion: boolean;
   onPointerOver: (event: { stopPropagation: () => void }) => void;
   onPointerOut: () => void;
@@ -346,50 +359,94 @@ function BeaconProjection({
   const backMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const emptyTexture = useMemo(createEmptyProjectionTexture, []);
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const imageSourceKey = JSON.stringify([imageUrl, thumbnailUrl]);
+  const [settledImageSourceKey, setSettledImageSourceKey] = useState<
+    string | null
+  >(null);
+  const isImageReady =
+    isSourceResolved && settledImageSourceKey === imageSourceKey;
   const [projectionSize, setProjectionSize] = useState(() =>
     projectionDimensions(PROJECTION_DEFAULT_ASPECT_RATIO, 1)
   );
 
   useLayoutEffect(() => {
-    if (projectionContentRef.current) {
+    imageReadyRef.current = isImageReady;
+    if (!isImageReady) {
+      animationProgressRef.current = 0;
+    }
+    if (!isImageReady && projectionContentRef.current) {
       projectionContentRef.current.visible = false;
     }
-  }, []);
+  }, [animationProgressRef, imageReadyRef, isImageReady]);
 
   useEffect(() => {
     setTexture(null);
+    setSettledImageSourceKey(null);
     setProjectionSize(projectionDimensions(PROJECTION_DEFAULT_ASPECT_RATIO, 1));
-    if (!imageUrl) return;
+
+    const imageSources = [imageUrl, thumbnailUrl].filter(
+      (source, index, sources): source is string =>
+        Boolean(source) && sources.indexOf(source) === index
+    );
+    if (imageSources.length === 0) {
+      setSettledImageSourceKey(imageSourceKey);
+      return;
+    }
 
     let active = true;
-    let loaded: THREE.Texture | null = null;
-    const next = new THREE.TextureLoader().load(imageUrl, (value) => {
-      if (!active) return value.dispose();
-      value.colorSpace = THREE.SRGBColorSpace;
-      value.minFilter = THREE.LinearMipmapLinearFilter;
-      loaded = value;
-      const source = value.image as {
-        naturalWidth?: number;
-        naturalHeight?: number;
-        width?: number;
-        height?: number;
-      };
-      setProjectionSize(
-        projectionDimensions(
-          source.naturalWidth ?? source.width ?? 0,
-          source.naturalHeight ?? source.height ?? 0
-        )
+    const requestedTextures = new Set<THREE.Texture>();
+    const loader = new THREE.TextureLoader();
+
+    const loadImageSource = (index: number) => {
+      const sourceUrl = imageSources[index];
+      if (!sourceUrl) {
+        if (active) setSettledImageSourceKey(imageSourceKey);
+        return;
+      }
+
+      const requestedTexture = loader.load(
+        sourceUrl,
+        (value) => {
+          if (!active) {
+            requestedTextures.delete(value);
+            value.dispose();
+            return;
+          }
+
+          value.colorSpace = THREE.SRGBColorSpace;
+          value.minFilter = THREE.LinearMipmapLinearFilter;
+          const source = value.image as {
+            naturalWidth?: number;
+            naturalHeight?: number;
+            width?: number;
+            height?: number;
+          };
+          setProjectionSize(
+            projectionDimensions(
+              source.naturalWidth ?? source.width ?? 0,
+              source.naturalHeight ?? source.height ?? 0
+            )
+          );
+          setTexture(value);
+          setSettledImageSourceKey(imageSourceKey);
+        },
+        undefined,
+        () => {
+          requestedTextures.delete(requestedTexture);
+          requestedTexture.dispose();
+          if (active) loadImageSource(index + 1);
+        }
       );
-      setTexture(value);
-    });
+      requestedTextures.add(requestedTexture);
+    };
+
+    loadImageSource(0);
 
     return () => {
       active = false;
-      loaded?.dispose();
-      if (next !== loaded) next.dispose();
-      setTexture(null);
+      requestedTextures.forEach((value) => value.dispose());
     };
-  }, [imageUrl]);
+  }, [imageSourceKey, imageUrl, thumbnailUrl]);
 
   useEffect(() => () => emptyTexture.dispose(), [emptyTexture]);
 
@@ -605,22 +662,6 @@ function setRegistrationMarksExpansion(
       0
     );
   });
-}
-
-function nextProjectionAnimationProgress(
-  current: number,
-  isProjectionVisible: boolean,
-  prefersReducedMotion: boolean,
-  delta: number
-) {
-  if (prefersReducedMotion) return isProjectionVisible ? 1 : 0;
-
-  return THREE.MathUtils.clamp(
-    current +
-      (isProjectionVisible ? delta : -delta) / PROJECTION_ANIMATION_DURATION,
-    0,
-    1
-  );
 }
 
 function projectionFlickerOpacity(progress: number) {
