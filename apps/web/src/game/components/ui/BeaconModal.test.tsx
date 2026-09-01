@@ -341,7 +341,7 @@ describe('BeaconSummaryCard', () => {
     expect(markup).not.toContain('CURRENT PROJECTION');
     expect(markup).toContain('BID FOR BEACON CONTROL');
     expect(markup).not.toContain('UNTIL NEXT WINNER');
-    expect(markup).toContain('/beacon?tracking=beacon');
+    expect(markup).toContain('/beacon?projection=1&amp;tracking=beacon');
   });
 
   it('shows the projection action only to the current controller', () => {
