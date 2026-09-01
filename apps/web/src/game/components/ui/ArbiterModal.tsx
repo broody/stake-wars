@@ -112,7 +112,7 @@ export function ArbiterSummaryCard({
       role="dialog"
       aria-labelledby="arbiter-summary-title"
       data-arbiter-console
-      className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 z-[80] max-h-[calc(100vh-6.5rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:bottom-4 sm:left-4 sm:right-auto sm:max-h-[calc(100vh-6rem)] sm:w-[24rem]"
+      className="activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100vh-6.5rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:left-auto sm:right-4 sm:w-[24rem]"
     >
       <header className="flex items-center justify-between border-b border-grid px-4 py-3">
         <div>
@@ -830,11 +830,7 @@ function ArbiterBillboard({
 }) {
   return (
     <section aria-label="Paid Arbiter transmission">
-      <div className="flex items-center justify-between border-y border-fg py-2 text-[8px] tracking-[0.2em]">
-        <span>PAID TRANSMISSION</span>
-        <span className="text-neutral-500">ONE-SHOT SIGNAL</span>
-      </div>
-      <div className="mt-3 border border-neutral-700 bg-neutral-950 p-2">
+      <div className="border border-neutral-700 bg-neutral-950 p-2">
         <ArbiterBillboardImage
           key={`${billboard.imageUrl}:${billboard.thumbnailUrl}`}
           imageUrl={billboard.imageUrl}
