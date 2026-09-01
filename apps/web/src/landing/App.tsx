@@ -8,6 +8,7 @@ import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
+import { BeaconLogo } from '../game/components/3d/BeaconLogo';
 
 function FaqItem({
   question,
@@ -134,24 +135,17 @@ function LandingApp() {
         {/* Secondary Beacon auction */}
         <section
           aria-labelledby="beacon-heading"
-          className="mb-16 grid border border-dim bg-black/60 md:grid-cols-[0.32fr_1fr_auto]"
+          className="mb-16 grid border border-dim bg-black/60 md:grid-cols-[0.32fr_1fr]"
         >
-          <div className="flex items-center border-b border-dim px-[30px] py-5 md:border-b-0 md:border-r">
-            <div>
-              <div className="text-[0.7rem] tracking-[0.22em] text-[#777]">
-                SECONDARY SYSTEM
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-[0.72rem] tracking-[0.16em] text-[#aaa]">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 bg-fg shadow-[0_0_8px_rgba(255,255,255,0.55)]"
-                />
-                SEALED SIGNAL AUCTION
-              </div>
-            </div>
-          </div>
+          <a
+            href="/play/beacon"
+            aria-label="View the Beacon"
+            className="group grid min-h-36 place-items-center border-b border-dim p-5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:border-b-0 md:border-r"
+          >
+            <BeaconLogo className="h-28 w-28 transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none" />
+          </a>
 
-          <div className="px-[30px] py-6 md:px-10">
+          <div className="flex flex-col justify-center px-[30px] py-6 md:px-10">
             <h2
               id="beacon-heading"
               className="text-[1.5rem] font-bold tracking-tight"
@@ -164,16 +158,6 @@ function LandingApp() {
               image, description, and link.
             </p>
           </div>
-
-          <a
-            href="/play/beacon"
-            className="group flex items-center justify-between gap-8 border-t border-dim px-[30px] py-5 text-[0.75rem] font-bold tracking-[0.16em] text-[#ccc] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:min-w-52 md:border-l md:border-t-0"
-          >
-            VIEW THE BEACON
-            <span aria-hidden="true" className="text-[1rem]">
-              →
-            </span>
-          </a>
         </section>
 
         {/* FAQ */}
