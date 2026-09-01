@@ -103,9 +103,9 @@ After startup, require all of the following:
 - MinIO accepts the browser CORS preflight and the `stakewars-art` bucket is
   publicly readable.
 
-## Local Arbiter bidding
+## Local Beacon bidding
 
-The Arbiter's sealed-bid flow requires both the local Sepolia API and the local
+The Beacon's sealed-bid flow requires both the local Sepolia API and the local
 Whisper capsule operator. When starting or restarting this flow, do not leave
 the frontend pointed at its default remote API: the remote API may serve a
 different network and may reject the `http://localhost:3000` browser origin,
@@ -141,7 +141,7 @@ Before testing a bid, require all of the following:
 
 - The local API health, readiness, and config checks in the previous section
   pass and report `SN_SEPOLIA`.
-- `GET http://127.0.0.1:8080/v1/arbiter` succeeds with an
+- `GET http://127.0.0.1:8080/v1/beacon` succeeds with an
   `Origin: http://localhost:3000` request, allows that origin, and reports a
   Sepolia auction round with a configured Whisper address.
 - `GET http://127.0.0.1:8082/healthz` returns `{"status":"ok"}` and
@@ -149,7 +149,7 @@ Before testing a bid, require all of the following:
 - The frontend's effective Vite environment reports both
   `VITE_API_DOMAIN: "http://127.0.0.1:8080"` and
   `VITE_WHISPER_OPERATOR_URL: "http://127.0.0.1:8082"`.
-- The Arbiter page shows the current verified round and no longer displays
+- The Beacon page shows the current verified round and no longer displays
   either `Verified data unavailable` or `Capsule operator not configured`.
 
 ## Sepolia Dojo migration
