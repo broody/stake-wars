@@ -131,6 +131,51 @@ function LandingApp() {
           ))}
         </div>
 
+        {/* Secondary Beacon auction */}
+        <section
+          aria-labelledby="beacon-heading"
+          className="mb-16 grid border border-dim bg-black/60 md:grid-cols-[0.32fr_1fr_auto]"
+        >
+          <div className="flex items-center border-b border-dim px-[30px] py-5 md:border-b-0 md:border-r">
+            <div>
+              <div className="text-[0.7rem] tracking-[0.22em] text-[#777]">
+                SECONDARY SYSTEM
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-[0.72rem] tracking-[0.16em] text-[#aaa]">
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 bg-fg shadow-[0_0_8px_rgba(255,255,255,0.55)]"
+                />
+                SEALED SIGNAL AUCTION
+              </div>
+            </div>
+          </div>
+
+          <div className="px-[30px] py-6 md:px-10">
+            <h2
+              id="beacon-heading"
+              className="text-[1.5rem] font-bold tracking-tight"
+            >
+              THE BEACON
+            </h2>
+            <p className="mt-2 max-w-2xl text-[0.95rem] leading-[1.65] text-[#aaa]">
+              Alongside the staking war, Operators may bid for control of the
+              Beacon. The winner may publish one paid transmission with an
+              image, description, and link.
+            </p>
+          </div>
+
+          <a
+            href="/play/beacon"
+            className="group flex items-center justify-between gap-8 border-t border-dim px-[30px] py-5 text-[0.75rem] font-bold tracking-[0.16em] text-[#ccc] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:min-w-52 md:border-l md:border-t-0"
+          >
+            VIEW THE BEACON
+            <span aria-hidden="true" className="text-[1rem]">
+              →
+            </span>
+          </a>
+        </section>
+
         {/* FAQ */}
         <section
           aria-labelledby="faq-heading"
