@@ -153,9 +153,9 @@ function LandingApp() {
               THE BEACON
             </h2>
             <p className="mt-2 max-w-2xl text-[0.95rem] leading-[1.65] text-[#aaa]">
-              Alongside the staking war, Operators may bid for control of the
-              Beacon. The winner may publish one paid transmission with an
-              image, description, and link.
+              Operators can vie for control of the Beacon through the on-chain
+              sealed-bid auction. The winner is allowed to publish an image,
+              description, and link visible from the Core.
             </p>
           </div>
         </section>
