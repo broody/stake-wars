@@ -103,6 +103,55 @@ After startup, require all of the following:
 - MinIO accepts the browser CORS preflight and the `stakewars-art` bucket is
   publicly readable.
 
+## Local Arbiter bidding
+
+The Arbiter's sealed-bid flow requires both the local Sepolia API and the local
+Whisper capsule operator. When starting or restarting this flow, do not leave
+the frontend pointed at its default remote API: the remote API may serve a
+different network and may reject the `http://localhost:3000` browser origin,
+which appears in the UI as `Verified data unavailable` even when the capsule
+operator itself is healthy.
+
+First start the local API as described above, then start the operator from the
+repository root with:
+
+```bash
+pnpm dev:whisper
+```
+
+Always use this launcher rather than starting the operator package directly.
+It validates the required owner-only secret files, configures the shared
+Sepolia Whisper deployment, and permits the `http://localhost:3000` origin.
+Never print, copy into the repository, or persist the populated secret values
+from those files.
+
+Then start or restart the frontend with both local endpoints explicitly set:
+
+```bash
+VITE_API_DOMAIN=http://127.0.0.1:8080 \
+VITE_WHISPER_OPERATOR_URL=http://127.0.0.1:8082 \
+pnpm dev:web:sepolia
+```
+
+Vite captures both values at process startup. An already-running frontend must
+be stopped and restarted with the complete command above; starting only the
+operator does not update the browser configuration.
+
+Before testing a bid, require all of the following:
+
+- The local API health, readiness, and config checks in the previous section
+  pass and report `SN_SEPOLIA`.
+- `GET http://127.0.0.1:8080/v1/arbiter` succeeds with an
+  `Origin: http://localhost:3000` request, allows that origin, and reports a
+  Sepolia auction round with a configured Whisper address.
+- `GET http://127.0.0.1:8082/healthz` returns `{"status":"ok"}` and
+  `GET http://127.0.0.1:8082/readyz` returns `{"status":"ready"}`.
+- The frontend's effective Vite environment reports both
+  `VITE_API_DOMAIN: "http://127.0.0.1:8080"` and
+  `VITE_WHISPER_OPERATOR_URL: "http://127.0.0.1:8082"`.
+- The Arbiter page shows the current verified round and no longer displays
+  either `Verified data unavailable` or `Capsule operator not configured`.
+
 ## Sepolia Dojo migration
 
 `sozo migrate --profile sepolia` updates the shared Sepolia World and is an
