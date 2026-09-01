@@ -381,7 +381,7 @@ describe('ArbiterSummaryCard', () => {
 
     expect(markup).toContain('YOU');
     expect(markup).toContain('CONTROLLER ACTIONS');
-    expect(markup).toContain('SELECT IMAGE');
+    expect(markup).toContain('BUILD TRANSMISSION');
     expect(markup).toContain('01 AVAILABLE');
     expect(markup).not.toContain('16:9');
     expect(markup).not.toContain('SET SIGNAL // SOON');
@@ -405,7 +405,7 @@ describe('ArbiterSummaryCard', () => {
     expect(markup).toContain('tracking=arbiter');
   });
 
-  it('labels the first projection action as a replacement when one exists', () => {
+  it('shows the paid transmission and locks further publication', () => {
     const snapshot: ArbiterSnapshot = {
       ...biddingSnapshot,
       controller: {
@@ -417,6 +417,8 @@ describe('ArbiterSummaryCard', () => {
       billboard: {
         imageUrl: 'https://images.example/arbiter.webp',
         thumbnailUrl: 'https://images.example/arbiter-thumbnail.webp',
+        description: 'Fund the next expedition beyond the Core.',
+        destinationUrl: 'https://example.com/expedition',
         updatedAt: '2026-08-24T11:05:00Z',
       },
     };
@@ -434,7 +436,13 @@ describe('ArbiterSummaryCard', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain('SELECT REPLACEMENT');
+    expect(markup).toContain('PAID TRANSMISSION');
+    expect(markup).toContain('Fund the next expedition beyond the Core.');
+    expect(markup).toContain('https://example.com/expedition');
+    expect(markup).toContain('example.com');
+    expect(markup).toContain('TRANSMISSION STATUS');
+    expect(markup).toContain('LOCKED');
+    expect(markup).not.toContain('BUILD TRANSMISSION');
     expect(markup).not.toContain('16:9');
   });
 });

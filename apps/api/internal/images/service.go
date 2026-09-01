@@ -31,9 +31,11 @@ const (
 )
 
 var (
-	ErrForbidden         = errors.New("image management is not permitted")
-	ErrInvalidImage      = errors.New("invalid image")
-	ErrUploadUnavailable = errors.New("image upload is unavailable")
+	ErrForbidden               = errors.New("image management is not permitted")
+	ErrInvalidImage            = errors.New("invalid image")
+	ErrInvalidAdvertisement    = errors.New("invalid Arbiter advertisement")
+	ErrUploadUnavailable       = errors.New("image upload is unavailable")
+	ErrArbiterAlreadyPublished = errors.New("Arbiter transmission has already been published")
 )
 
 type AuthorizeInput struct {

@@ -75,6 +75,8 @@ export interface ArbiterSnapshot {
   billboard: {
     imageUrl: string;
     thumbnailUrl: string;
+    description: string;
+    destinationUrl: string;
     updatedAt: string;
   } | null;
 }
@@ -104,6 +106,8 @@ export interface ArbiterArtwork {
   network: string;
   controllerRoundId: number;
   ownerAddress: string;
+  description: string;
+  destinationUrl: string;
   imageUrl: string;
   thumbnailUrl: string;
   contentHash: string;
@@ -283,10 +287,14 @@ export const api = {
 
   async uploadArbiterArtwork({
     walletAddress,
+    description,
+    destinationUrl,
     prepared,
     signTypedData,
   }: {
     walletAddress: string;
+    description: string;
+    destinationUrl: string;
     prepared: PreparedArbiterImage;
     signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
   }): Promise<ArbiterArtwork> {
@@ -295,6 +303,8 @@ export const api = {
       '/v1/arbiter/artwork/uploads',
       jsonRequest(
         {
+          description,
+          destinationUrl,
           contentType: prepared.contentType,
           detailSize: prepared.detail.size,
           thumbnailSize: prepared.thumbnail.size,

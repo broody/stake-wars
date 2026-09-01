@@ -13,6 +13,8 @@ type ArbiterUpload struct {
 	Network            string
 	ControllerRoundID  uint64
 	OwnerAddress       string
+	Description        string
+	DestinationURL     string
 	ContentType        string
 	DetailObjectKey    string
 	DetailSize         int64
@@ -28,6 +30,8 @@ type ArbiterArtwork struct {
 	Network           string    `json:"network"`
 	ControllerRoundID uint64    `json:"controllerRoundId"`
 	OwnerAddress      string    `json:"ownerAddress"`
+	Description       string    `json:"description"`
+	DestinationURL    string    `json:"destinationUrl"`
 	ImageURL          string    `json:"imageUrl"`
 	ThumbnailURL      string    `json:"thumbnailUrl"`
 	ContentHash       string    `json:"contentHash"`
@@ -37,12 +41,14 @@ type ArbiterArtwork struct {
 func (s *Store) CreateArbiterUpload(ctx context.Context, upload ArbiterUpload) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO arbiter_image_uploads(
-			id, network, controller_round_id, owner_address, content_type,
+			id, network, controller_round_id, owner_address, description,
+			destination_url, content_type,
 			detail_object_key, detail_size, thumbnail_object_key, thumbnail_size,
 			created_at, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, upload.ID, upload.Network, upload.ControllerRoundID, upload.OwnerAddress,
-		upload.ContentType, upload.DetailObjectKey, upload.DetailSize,
+		upload.Description, upload.DestinationURL, upload.ContentType,
+		upload.DetailObjectKey, upload.DetailSize,
 		upload.ThumbnailObjectKey, upload.ThumbnailSize, upload.CreatedAt.Unix(),
 		upload.ExpiresAt.Unix())
 	if err != nil {
@@ -56,12 +62,14 @@ func (s *Store) ArbiterUpload(ctx context.Context, id string) (ArbiterUpload, er
 	var createdAt, expiresAt int64
 	var completedAt sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, network, controller_round_id, owner_address, content_type,
+		SELECT id, network, controller_round_id, owner_address, description,
+			destination_url, content_type,
 			detail_object_key, detail_size, thumbnail_object_key, thumbnail_size,
 			created_at, expires_at, completed_at
 		FROM arbiter_image_uploads WHERE id = ?
 	`, id).Scan(&upload.ID, &upload.Network, &upload.ControllerRoundID,
-		&upload.OwnerAddress, &upload.ContentType, &upload.DetailObjectKey,
+		&upload.OwnerAddress, &upload.Description, &upload.DestinationURL,
+		&upload.ContentType, &upload.DetailObjectKey,
 		&upload.DetailSize, &upload.ThumbnailObjectKey, &upload.ThumbnailSize,
 		&createdAt, &expiresAt, &completedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -128,24 +136,20 @@ func (s *Store) PublishArbiter(
 		return fmt.Errorf("read active Arbiter artwork: %w", err)
 	}
 	if previousArtwork.Valid && previousArtwork.String != "" {
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE arbiter_artworks
-			SET moderation_status = 'superseded', updated_at = ?
-			WHERE id = ? AND network = ? AND moderation_status = 'approved'
-		`, completedAt.Unix(), previousArtwork.String, upload.Network); err != nil {
-			return fmt.Errorf("supersede Arbiter artwork: %w", err)
-		}
+		return ErrArbiterAlreadyPublished
 	}
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO arbiter_artworks(
-			id, network, controller_round_id, owner_address, image_url, object_key,
-			thumbnail_url, thumbnail_object_key, content_hash, moderation_status,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)
+			id, network, controller_round_id, owner_address, description,
+			destination_url, image_url, object_key, thumbnail_url,
+			thumbnail_object_key, content_hash, moderation_status, created_at,
+			updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)
 	`, artwork.ID, artwork.Network, artwork.ControllerRoundID, artwork.OwnerAddress,
-		artwork.ImageURL, upload.DetailObjectKey, artwork.ThumbnailURL,
-		upload.ThumbnailObjectKey, artwork.ContentHash, completedAt.Unix(),
+		artwork.Description, artwork.DestinationURL, artwork.ImageURL,
+		upload.DetailObjectKey, artwork.ThumbnailURL, upload.ThumbnailObjectKey,
+		artwork.ContentHash, completedAt.Unix(),
 		completedAt.Unix())
 	if err != nil {
 		return fmt.Errorf("publish Arbiter artwork: %w", err)
@@ -154,12 +158,13 @@ func (s *Store) PublishArbiter(
 		UPDATE arbiter_rounds
 		SET active_artwork_id = ?, updated_at = unixepoch()
 		WHERE network = ? AND round_id = ? AND claimed_controller = ?
+			AND active_artwork_id IS NULL
 	`, artwork.ID, upload.Network, upload.ControllerRoundID, upload.OwnerAddress)
 	if err != nil {
 		return fmt.Errorf("activate Arbiter artwork: %w", err)
 	}
 	if updated, rowsErr := result.RowsAffected(); rowsErr != nil || updated != 1 {
-		return ErrForbidden
+		return ErrArbiterAlreadyPublished
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit Arbiter artwork publish: %w", err)

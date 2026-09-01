@@ -294,9 +294,11 @@ func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		ContentType   string `json:"contentType"`
-		DetailSize    int64  `json:"detailSize"`
-		ThumbnailSize int64  `json:"thumbnailSize"`
+		Description    string `json:"description"`
+		DestinationURL string `json:"destinationUrl"`
+		ContentType    string `json:"contentType"`
+		DetailSize     int64  `json:"detailSize"`
+		ThumbnailSize  int64  `json:"thumbnailSize"`
 	}
 	if err := decodeJSON(w, r, &input); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
@@ -306,6 +308,7 @@ func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		session.WalletAddress,
 		images.ArbiterAuthorizeInput{
+			Description: input.Description, DestinationURL: input.DestinationURL,
 			ContentType: input.ContentType, DetailSize: input.DetailSize,
 			ThumbnailSize: input.ThumbnailSize,
 		},
@@ -316,6 +319,10 @@ func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, authorization)
 	case errors.Is(err, images.ErrInvalidImage):
 		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrInvalidAdvertisement):
+		writeProblem(w, http.StatusBadRequest, "invalid advertisement", err.Error())
+	case errors.Is(err, images.ErrArbiterAlreadyPublished):
+		writeProblem(w, http.StatusConflict, "transmission locked", "the current Arbiter controller has already published its one transmission")
 	case errors.Is(err, images.ErrForbidden), errors.Is(err, arbiter.ErrNoController):
 		writeProblem(w, http.StatusForbidden, "controller required", "only the current Arbiter controller can project an image")
 	case errors.Is(err, images.ErrUploadUnavailable):
@@ -349,6 +356,10 @@ func (s *server) completeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, artwork)
 	case errors.Is(err, images.ErrInvalidImage):
 		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
+	case errors.Is(err, images.ErrInvalidAdvertisement):
+		writeProblem(w, http.StatusBadRequest, "invalid advertisement", err.Error())
+	case errors.Is(err, images.ErrArbiterAlreadyPublished):
+		writeProblem(w, http.StatusConflict, "transmission locked", "the current Arbiter controller has already published its one transmission")
 	case errors.Is(err, images.ErrForbidden), errors.Is(err, images.ErrUploadNotFound),
 		errors.Is(err, arbiter.ErrNoController):
 		writeProblem(w, http.StatusForbidden, "upload unavailable", "the upload is expired, completed, or no longer controlled by this wallet")

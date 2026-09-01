@@ -116,6 +116,8 @@ POST /v1/auth/sessions
 GET  /v1/sector-artworks
 POST /v1/sector-artworks/uploads
 POST /v1/sector-artworks/uploads/{uploadId}/complete
+POST /v1/arbiter/artwork/uploads
+POST /v1/arbiter/artwork/uploads/{uploadId}/complete
 ```
 
 Image uploads are enabled only when all object-storage settings are present.
@@ -126,6 +128,11 @@ and calls the completion endpoint. Completion downloads only those bounded
 objects for signature, MIME, dimensions, and size validation, rechecks current
 on-chain ownership for every target, and publishes generation-bound target
 metadata with the captured camera and placement transform.
+
+An Arbiter controller may publish exactly one paid transmission during its
+control term. The upload authorization binds a required plain-text description
+and absolute HTTP(S) destination URL to the image; completion rechecks current
+control and atomically locks the controller's publication slot.
 
 The image bucket must allow public `GET` requests and browser `PUT` CORS from
 the configured Stake Wars origins, including the `Content-Type` request header.

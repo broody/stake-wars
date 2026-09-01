@@ -41,9 +41,11 @@ type ControllerRecord struct {
 }
 
 type BillboardRecord struct {
-	ImageURL     string
-	ThumbnailURL string
-	UpdatedAt    time.Time
+	ImageURL       string
+	ThumbnailURL   string
+	Description    string
+	DestinationURL string
+	UpdatedAt      time.Time
 }
 
 type SettlementProjection struct {
@@ -301,12 +303,12 @@ func (s *Store) Controller(ctx context.Context, network string) (ControllerRecor
 func (s *Store) CurrentController(
 	ctx context.Context,
 	network string,
-) (uint64, string, error) {
+) (uint64, string, string, error) {
 	controller, err := s.Controller(ctx, network)
 	if err != nil {
-		return 0, "", err
+		return 0, "", "", err
 	}
-	return controller.RoundID, controller.Address, nil
+	return controller.RoundID, controller.Address, controller.ActiveArtworkID, nil
 }
 
 func (s *Store) Billboard(
@@ -317,11 +319,12 @@ func (s *Store) Billboard(
 	var billboard BillboardRecord
 	var updatedAt int64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT image_url, thumbnail_url, updated_at
+		SELECT image_url, thumbnail_url, description, destination_url, updated_at
 		FROM arbiter_artworks
 		WHERE network = ? AND id = ? AND moderation_status = 'approved'
 	`, network, artworkID).Scan(
-		&billboard.ImageURL, &billboard.ThumbnailURL, &updatedAt,
+		&billboard.ImageURL, &billboard.ThumbnailURL, &billboard.Description,
+		&billboard.DestinationURL, &updatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return BillboardRecord{}, ErrNoBillboard

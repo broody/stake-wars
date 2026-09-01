@@ -97,8 +97,10 @@ export function ArbiterSummaryCard({
   );
 
   useEffect(() => {
-    if (!isOpen || !isCurrentController) setProjectionFile(null);
-  }, [isCurrentController, isOpen]);
+    if (!isOpen || !isCurrentController || snapshot?.billboard) {
+      setProjectionFile(null);
+    }
+  }, [isCurrentController, isOpen, snapshot?.billboard]);
 
   if (!isOpen) return null;
 
@@ -110,7 +112,7 @@ export function ArbiterSummaryCard({
       role="dialog"
       aria-labelledby="arbiter-summary-title"
       data-arbiter-console
-      className="pointer-events-auto absolute left-3 right-3 top-20 z-[80] overflow-hidden border border-neutral-600 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:left-auto sm:right-4 sm:w-[22rem]"
+      className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 z-[80] max-h-[calc(100vh-6.5rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:bottom-4 sm:left-4 sm:right-auto sm:max-h-[calc(100vh-6rem)] sm:w-[24rem]"
     >
       <header className="flex items-center justify-between border-b border-grid px-4 py-3">
         <div>
@@ -122,7 +124,7 @@ export function ArbiterSummaryCard({
             id="arbiter-summary-title"
             className="mt-1 text-base font-bold tracking-[-0.03em]"
           >
-            ARBITER CONTROL
+            {snapshot?.billboard ? 'PAID TRANSMISSION' : 'ARBITER CONTROL'}
           </h2>
         </div>
         <button
@@ -144,6 +146,10 @@ export function ArbiterSummaryCard({
           <p className="py-5 text-center text-[9px] tracking-[0.2em] text-neutral-500">
             VERIFYING STATE…
           </p>
+        ) : null}
+
+        {snapshot?.billboard ? (
+          <ArbiterBillboard billboard={snapshot.billboard} />
         ) : null}
 
         {snapshot?.controller ? (
@@ -179,7 +185,7 @@ export function ArbiterSummaryCard({
           </p>
         ) : null}
 
-        {isCurrentController && viewerAddress ? (
+        {isCurrentController && viewerAddress && !snapshot?.billboard ? (
           <>
             <input
               ref={projectionInputRef}
@@ -201,11 +207,14 @@ export function ArbiterSummaryCard({
               />
             ) : (
               <ArbiterControllerActions
-                replacing={Boolean(snapshot?.billboard)}
                 onSelect={() => projectionInputRef.current?.click()}
               />
             )}
           </>
+        ) : null}
+
+        {isCurrentController && snapshot?.billboard ? (
+          <ArbiterTransmissionLocked />
         ) : null}
       </div>
 
@@ -814,13 +823,98 @@ function ErrorNotice({
   );
 }
 
-function ArbiterControllerActions({
-  replacing,
-  onSelect,
+function ArbiterBillboard({
+  billboard,
 }: {
-  replacing: boolean;
-  onSelect: () => void;
+  billboard: NonNullable<ArbiterSnapshot['billboard']>;
 }) {
+  return (
+    <section aria-label="Paid Arbiter transmission">
+      <div className="flex items-center justify-between border-y border-fg py-2 text-[8px] tracking-[0.2em]">
+        <span>PAID TRANSMISSION</span>
+        <span className="text-neutral-500">ONE-SHOT SIGNAL</span>
+      </div>
+      <div className="mt-3 border border-neutral-700 bg-neutral-950 p-2">
+        <ArbiterBillboardImage
+          key={`${billboard.imageUrl}:${billboard.thumbnailUrl}`}
+          imageUrl={billboard.imageUrl}
+          thumbnailUrl={billboard.thumbnailUrl}
+        />
+      </div>
+      {billboard.description ? (
+        <p className="mt-3 whitespace-pre-line text-[11px] leading-5 text-neutral-200">
+          {billboard.description}
+        </p>
+      ) : null}
+      {billboard.destinationUrl ? (
+        <a
+          href={billboard.destinationUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          className="mt-3 flex items-center justify-between gap-3 border border-fg px-3 py-3 text-[9px] tracking-[0.14em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+          title={billboard.destinationUrl}
+        >
+          <span className="min-w-0 truncate">
+            {arbiterDestinationLabel(billboard.destinationUrl)}
+          </span>
+          <span className="shrink-0" aria-hidden="true">
+            VISIT ↗
+          </span>
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
+function ArbiterBillboardImage({
+  imageUrl,
+  thumbnailUrl,
+}: {
+  imageUrl: string;
+  thumbnailUrl: string;
+}) {
+  const [source, setSource] = useState(imageUrl);
+  const [isUnavailable, setUnavailable] = useState(false);
+
+  return (
+    <div className="grid min-h-36 max-h-64 place-items-center overflow-hidden bg-black">
+      {isUnavailable ? (
+        <span className="text-[8px] tracking-[0.18em] text-neutral-600">
+          IMAGE SIGNAL UNAVAILABLE
+        </span>
+      ) : (
+        <img
+          src={source}
+          alt="Arbiter advertisement artwork"
+          className="h-auto max-h-64 max-w-full object-contain"
+          onError={() => {
+            if (source !== thumbnailUrl && thumbnailUrl) {
+              setSource(thumbnailUrl);
+              return;
+            }
+            setUnavailable(true);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ArbiterTransmissionLocked() {
+  return (
+    <section className="border-t border-grid pt-4">
+      <div className="flex items-center justify-between text-[8px] tracking-[0.18em]">
+        <span className="text-neutral-500">TRANSMISSION STATUS</span>
+        <span>LOCKED</span>
+      </div>
+      <p className="mt-2 text-[9px] leading-4 text-neutral-500">
+        Published for this control term. It cannot be edited or replaced.
+      </p>
+    </section>
+  );
+}
+
+function ArbiterControllerActions({ onSelect }: { onSelect: () => void }) {
   return (
     <section className="border-t border-grid pt-4">
       <div className="flex items-center justify-between text-[8px] tracking-[0.18em] text-neutral-500">
@@ -833,7 +927,7 @@ function ArbiterControllerActions({
         className="mt-3 flex w-full items-center justify-between border border-fg bg-fg px-3 py-3 text-left text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
       >
         <span className="text-[10px] font-semibold tracking-[0.18em]">
-          {replacing ? 'SELECT REPLACEMENT' : 'SELECT IMAGE'}
+          BUILD TRANSMISSION
         </span>
         <span aria-hidden="true" className="text-base">
           →
@@ -843,7 +937,31 @@ function ArbiterControllerActions({
   );
 }
 
+function arbiterDestinationLabel(destinationUrl: string) {
+  try {
+    return new URL(destinationUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return destinationUrl;
+  }
+}
+
+function isValidArbiterDestination(destinationUrl: string) {
+  try {
+    const parsed = new URL(destinationUrl.trim());
+    return (
+      (parsed.protocol === 'https:' || parsed.protocol === 'http:') &&
+      parsed.hostname.length > 0 &&
+      !parsed.username &&
+      !parsed.password
+    );
+  } catch {
+    return false;
+  }
+}
+
 const DEFAULT_MAXIMUM_IMAGE_BYTES = 2 * 1024 * 1024;
+const ARBITER_DESCRIPTION_MAX_LENGTH = 280;
+const ARBITER_DESTINATION_MAX_LENGTH = 2048;
 
 function ArbiterProjectionUpload({
   initialFile,
@@ -863,6 +981,8 @@ function ArbiterProjectionUpload({
   const [prepared, setPrepared] = useState<PreparedArbiterImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [description, setDescription] = useState('');
+  const [destinationUrl, setDestinationUrl] = useState('');
   const [maximumImageBytes, setMaximumImageBytes] = useState(
     DEFAULT_MAXIMUM_IMAGE_BYTES
   );
@@ -969,17 +1089,27 @@ function ArbiterProjectionUpload({
   }, [chooseFile, isUploading]);
 
   const upload = async () => {
-    if (!prepared || !uploadsEnabled || isUploading) return;
+    if (
+      !prepared ||
+      !uploadsEnabled ||
+      isUploading ||
+      !description.trim() ||
+      !isValidArbiterDestination(destinationUrl)
+    ) {
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     setUploadNotice(null);
     try {
       await api.uploadArbiterArtwork({
         walletAddress,
+        description: description.trim(),
+        destinationUrl: destinationUrl.trim(),
         prepared,
         signTypedData: signTypedDataAsync,
       });
-      setUploadNotice('IMAGE PROJECTED');
+      setUploadNotice('TRANSMISSION PUBLISHED');
       onPublished();
     } catch (failure) {
       setUploadError(
@@ -995,17 +1125,22 @@ function ArbiterProjectionUpload({
     isPreparing ||
     isUploading ||
     !uploadsEnabled ||
-    !prepared;
+    !prepared ||
+    !description.trim() ||
+    !isValidArbiterDestination(destinationUrl);
 
   return (
-    <section className="border-t border-grid pt-4" aria-label="Project image">
+    <section
+      className="border-t border-grid pt-4"
+      aria-label="Publish Arbiter transmission"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-            PROJECT IMAGE
+            PAID TRANSMISSION
           </div>
           <div className="mt-1 text-sm font-bold tracking-[-0.03em]">
-            CORE TRANSMISSION
+            ONE-SHOT BROADCAST
           </div>
         </div>
         <button
@@ -1058,6 +1193,49 @@ function ArbiterProjectionUpload({
         </span>
       </button>
 
+      <label className="mt-3 block" htmlFor="arbiter-ad-description">
+        <span className="flex items-center justify-between text-[8px] tracking-[0.16em] text-neutral-500">
+          <span>DESCRIPTION</span>
+          <span>
+            {description.length}/{ARBITER_DESCRIPTION_MAX_LENGTH}
+          </span>
+        </span>
+        <textarea
+          id="arbiter-ad-description"
+          rows={3}
+          maxLength={ARBITER_DESCRIPTION_MAX_LENGTH}
+          value={description}
+          disabled={isUploading}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Tell players what this transmission is promoting."
+          className="mt-2 w-full resize-none border border-neutral-700 bg-black px-3 py-2 text-[11px] leading-5 text-fg outline-none placeholder:text-neutral-700 focus:border-fg disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </label>
+
+      <label className="mt-3 block" htmlFor="arbiter-ad-destination">
+        <span className="text-[8px] tracking-[0.16em] text-neutral-500">
+          DESTINATION LINK
+        </span>
+        <input
+          id="arbiter-ad-destination"
+          type="url"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={ARBITER_DESTINATION_MAX_LENGTH}
+          value={destinationUrl}
+          disabled={isUploading}
+          onChange={(event) => setDestinationUrl(event.target.value)}
+          placeholder="https://example.com"
+          className="mt-2 w-full border border-neutral-700 bg-black px-3 py-2 text-[11px] text-fg outline-none placeholder:text-neutral-700 focus:border-fg disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </label>
+
+      <p className="mt-3 border-l border-fg pl-3 text-[9px] leading-4 text-neutral-500">
+        Publishing locks the image, description, and link until the next winner.
+      </p>
+
       {!isCheckingService && !uploadsEnabled && !uploadError ? (
         <div className="mt-3 border border-neutral-700 px-3 py-2 text-[9px] leading-4 text-neutral-500">
           UPLOADS UNAVAILABLE · IMAGE STORAGE IS NOT CONFIGURED
@@ -1091,10 +1269,14 @@ function ArbiterProjectionUpload({
           : isPreparing
             ? 'PREPARING IMAGE…'
             : isUploading
-              ? 'PROJECTING IMAGE…'
+              ? 'PUBLISHING TRANSMISSION…'
               : !prepared
                 ? 'CHOOSE IMAGE'
-                : 'PROJECT IMAGE'}
+                : !description.trim()
+                  ? 'ADD DESCRIPTION'
+                  : !isValidArbiterDestination(destinationUrl)
+                    ? 'ADD VALID LINK'
+                    : 'PUBLISH TRANSMISSION'}
       </button>
     </section>
   );

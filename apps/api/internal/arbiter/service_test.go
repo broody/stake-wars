@@ -84,9 +84,11 @@ func TestServiceReturnsCurrentControllerBillboard(t *testing.T) {
 		fakeRoundStore{
 			round: round,
 			billboard: &BillboardRecord{
-				ImageURL:     "https://images.example/arbiter.webp",
-				ThumbnailURL: "https://images.example/arbiter-thumb.webp",
-				UpdatedAt:    updatedAt,
+				ImageURL:       "https://images.example/arbiter.webp",
+				ThumbnailURL:   "https://images.example/arbiter-thumb.webp",
+				Description:    "A public campaign message.",
+				DestinationURL: "https://example.com/campaign",
+				UpdatedAt:      updatedAt,
 			},
 		},
 		reader,
@@ -101,6 +103,8 @@ func TestServiceReturnsCurrentControllerBillboard(t *testing.T) {
 	if snapshot.Billboard == nil ||
 		snapshot.Billboard.ImageURL != "https://images.example/arbiter.webp" ||
 		snapshot.Billboard.ThumbnailURL != "https://images.example/arbiter-thumb.webp" ||
+		snapshot.Billboard.Description != "A public campaign message." ||
+		snapshot.Billboard.DestinationURL != "https://example.com/campaign" ||
 		!snapshot.Billboard.UpdatedAt.Equal(updatedAt) {
 		t.Fatalf("unexpected billboard snapshot: %+v", snapshot.Billboard)
 	}

@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"stakewars.com/api/internal/objectstore"
 )
@@ -18,16 +20,25 @@ import (
 const (
 	arbiterDetailMaximumDimension    = 512
 	arbiterThumbnailMaximumDimension = 256
+	arbiterDescriptionMaximumLength  = 280
+	arbiterDestinationMaximumLength  = 2048
 )
 
 type ArbiterControllerReader interface {
-	CurrentController(ctx context.Context, network string) (roundID uint64, address string, err error)
+	CurrentController(ctx context.Context, network string) (
+		roundID uint64,
+		address string,
+		activeArtworkID string,
+		err error,
+	)
 }
 
 type ArbiterAuthorizeInput struct {
-	ContentType   string
-	DetailSize    int64
-	ThumbnailSize int64
+	Description    string
+	DestinationURL string
+	ContentType    string
+	DetailSize     int64
+	ThumbnailSize  int64
 }
 
 type ArbiterService struct {
@@ -61,17 +72,27 @@ func (s *ArbiterService) Authorize(
 	if s == nil || s.store == nil || s.objects == nil || s.controllers == nil {
 		return Authorization{}, ErrUploadUnavailable
 	}
+	description, destinationURL, err := normalizeArbiterAdvertisement(
+		input.Description,
+		input.DestinationURL,
+	)
+	if err != nil {
+		return Authorization{}, err
+	}
 	if !supportedContentType(input.ContentType) || input.DetailSize <= 0 ||
 		input.DetailSize > s.maximumSize || input.ThumbnailSize <= 0 ||
 		input.ThumbnailSize > s.maximumSize {
 		return Authorization{}, ErrInvalidImage
 	}
-	roundID, controller, err := s.controllers.CurrentController(ctx, s.network)
+	roundID, controller, activeArtworkID, err := s.controllers.CurrentController(ctx, s.network)
 	if err != nil {
 		return Authorization{}, fmt.Errorf("verify Arbiter controller: %w", err)
 	}
 	if controller != owner {
 		return Authorization{}, ErrForbidden
+	}
+	if activeArtworkID != "" {
+		return Authorization{}, ErrArbiterAlreadyPublished
 	}
 	id, err := randomHex(s.random, 16)
 	if err != nil {
@@ -99,6 +120,7 @@ func (s *ArbiterService) Authorize(
 	}
 	upload := ArbiterUpload{
 		ID: id, Network: s.network, ControllerRoundID: roundID, OwnerAddress: owner,
+		Description: description, DestinationURL: destinationURL,
 		ContentType: input.ContentType, DetailObjectKey: detailKey, DetailSize: input.DetailSize,
 		ThumbnailObjectKey: thumbnailKey, ThumbnailSize: input.ThumbnailSize,
 		CreatedAt: now, ExpiresAt: expiresAt.UTC().Truncate(time.Second),
@@ -135,12 +157,15 @@ func (s *ArbiterService) Complete(
 	if upload.OwnerAddress != owner || upload.CompletedAt != nil || upload.ExpiresAt.Before(now) {
 		return ArbiterArtwork{}, ErrForbidden
 	}
-	roundID, controller, err := s.controllers.CurrentController(ctx, s.network)
+	roundID, controller, activeArtworkID, err := s.controllers.CurrentController(ctx, s.network)
 	if err != nil {
 		return ArbiterArtwork{}, fmt.Errorf("verify Arbiter controller: %w", err)
 	}
 	if controller != owner || roundID != upload.ControllerRoundID {
 		return ArbiterArtwork{}, ErrForbidden
+	}
+	if activeArtworkID != "" {
+		return ArbiterArtwork{}, ErrArbiterAlreadyPublished
 	}
 	detail, err := s.objects.Read(ctx, upload.DetailObjectKey, upload.DetailSize)
 	if err != nil {
@@ -170,14 +195,45 @@ func (s *ArbiterService) Complete(
 	}
 	artwork := ArbiterArtwork{
 		ID: id, Network: upload.Network, ControllerRoundID: upload.ControllerRoundID,
-		OwnerAddress: owner, ImageURL: s.objects.PublicURL(upload.DetailObjectKey),
-		ThumbnailURL: s.objects.PublicURL(upload.ThumbnailObjectKey),
-		ContentHash:  hex.EncodeToString(hash[:]), UpdatedAt: now,
+		OwnerAddress: owner, Description: upload.Description,
+		DestinationURL: upload.DestinationURL,
+		ImageURL:       s.objects.PublicURL(upload.DetailObjectKey),
+		ThumbnailURL:   s.objects.PublicURL(upload.ThumbnailObjectKey),
+		ContentHash:    hex.EncodeToString(hash[:]), UpdatedAt: now,
 	}
 	if err := s.store.PublishArbiter(ctx, upload, artwork, now); err != nil {
 		return ArbiterArtwork{}, err
 	}
 	return artwork, nil
+}
+
+func normalizeArbiterAdvertisement(description, destinationURL string) (string, string, error) {
+	description = strings.TrimSpace(description)
+	destinationURL = strings.TrimSpace(destinationURL)
+	if description == "" || !utf8.ValidString(description) ||
+		utf8.RuneCountInString(description) > arbiterDescriptionMaximumLength {
+		return "", "", fmt.Errorf(
+			"%w: description must contain 1-%d characters",
+			ErrInvalidAdvertisement,
+			arbiterDescriptionMaximumLength,
+		)
+	}
+	if destinationURL == "" || len(destinationURL) > arbiterDestinationMaximumLength {
+		return "", "", fmt.Errorf(
+			"%w: destination URL must contain 1-%d characters",
+			ErrInvalidAdvertisement,
+			arbiterDestinationMaximumLength,
+		)
+	}
+	parsed, err := url.Parse(destinationURL)
+	if err != nil || parsed.Hostname() == "" || parsed.User != nil ||
+		(parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return "", "", fmt.Errorf(
+			"%w: destination URL must be an absolute HTTP or HTTPS URL without credentials",
+			ErrInvalidAdvertisement,
+		)
+	}
+	return description, parsed.String(), nil
 }
 
 func validateArbiterImage(data []byte, contentType string, maximumDimension int) error {

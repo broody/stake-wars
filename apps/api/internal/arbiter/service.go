@@ -79,9 +79,11 @@ type ControllerView struct {
 }
 
 type BillboardView struct {
-	ImageURL     string    `json:"imageUrl"`
-	ThumbnailURL string    `json:"thumbnailUrl"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ImageURL       string    `json:"imageUrl"`
+	ThumbnailURL   string    `json:"thumbnailUrl"`
+	Description    string    `json:"description"`
+	DestinationURL string    `json:"destinationUrl"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type roundStore interface {
@@ -232,6 +234,7 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 			}
 			snapshot.Billboard = &BillboardView{
 				ImageURL: billboard.ImageURL, ThumbnailURL: billboard.ThumbnailURL,
+				Description: billboard.Description, DestinationURL: billboard.DestinationURL,
 				UpdatedAt: billboard.UpdatedAt,
 			}
 		}
