@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStakeCalls,
+  buildSwitchDelegationCalls,
   buildUnstakeAllCalls,
   buildWithdrawUnstakedCall,
 } from './staking';
@@ -81,5 +82,40 @@ describe('staking exit calls', () => {
       entrypoint: 'exit_delegation_pool_action',
       calldata: ['0xoperator'],
     });
+  });
+});
+
+describe('delegation switch calls', () => {
+  it('moves a source position to the Stake Wars pool in one account transaction', () => {
+    expect(
+      buildSwitchDelegationCalls({
+        sourcePoolAddress: '0xsource',
+        targetStakerAddress: '0xstakewars',
+        targetPoolAddress: '0xtarget',
+        amount: 900n,
+      })
+    ).toEqual([
+      {
+        contractAddress: '0xsource',
+        entrypoint: 'exit_delegation_pool_intent',
+        calldata: ['900'],
+      },
+      {
+        contractAddress: '0xsource',
+        entrypoint: 'switch_delegation_pool',
+        calldata: ['0xstakewars', '0xtarget', '900'],
+      },
+    ]);
+  });
+
+  it('rejects empty switch positions', () => {
+    expect(() =>
+      buildSwitchDelegationCalls({
+        sourcePoolAddress: '0xsource',
+        targetStakerAddress: '0xstakewars',
+        targetPoolAddress: '0xtarget',
+        amount: 0n,
+      })
+    ).toThrow('delegation switch amount must be positive');
   });
 });
