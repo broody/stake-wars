@@ -5,6 +5,7 @@ import {
   BEACON_PROJECTION_CAMERA_PHASE_OFFSET,
   beaconCameraPhaseOffset,
   beaconOrbitAngle,
+  beaconProjectionCameraPhaseOffsetForOrbit,
   createBeaconOrbitLayout,
   positionOnBeaconOrbit,
   sampleBeaconOrbit,
@@ -70,31 +71,53 @@ describe('beacon orbit', () => {
     expect(beaconOrbitAngle(elapsedTime, false)).toBeGreaterThan(0);
   });
 
-  it('places the projection camera on the opposite orbit side', () => {
-    const elapsedTime = 0;
+  it('adapts the projection camera offset to the upright orbit direction', () => {
+    const orbitNormal = new THREE.Vector3(0, 0, 1);
+
+    expect(
+      beaconProjectionCameraPhaseOffsetForOrbit(
+        orbitNormal,
+        new THREE.Vector3(0, 0, 1)
+      )
+    ).toBeGreaterThan(0);
+    expect(
+      beaconProjectionCameraPhaseOffsetForOrbit(
+        orbitNormal,
+        new THREE.Vector3(0, 0, -1)
+      )
+    ).toBeLessThan(0);
+  });
+
+  it('keeps the Beacon on the camera left throughout its orbit', () => {
     const beaconPosition = new THREE.Vector3();
     const cameraPosition = new THREE.Vector3();
-    const tangent = tangentOnBeaconOrbit(
-      beaconOrbitAngle(elapsedTime, false),
-      new THREE.Vector3()
-    );
+    const cameraUp = new THREE.Vector3();
+    const cameraForward = new THREE.Vector3();
+    const cameraRight = new THREE.Vector3();
+    const cameraToBeacon = new THREE.Vector3();
 
-    sampleBeaconOrbit(
-      elapsedTime,
-      false,
-      0,
-      beaconPosition,
-      new THREE.Vector3()
-    );
-    sampleBeaconOrbit(
-      elapsedTime,
-      false,
-      BEACON_PROJECTION_CAMERA_PHASE_OFFSET,
-      cameraPosition,
-      new THREE.Vector3()
-    );
+    for (let elapsedTime = 0; elapsedTime < 48; elapsedTime += 2) {
+      sampleBeaconOrbit(
+        elapsedTime,
+        false,
+        0,
+        beaconPosition,
+        new THREE.Vector3()
+      );
+      sampleBeaconOrbit(
+        elapsedTime,
+        false,
+        BEACON_PROJECTION_CAMERA_PHASE_OFFSET,
+        cameraPosition,
+        cameraUp
+      );
+      cameraPosition.setLength(22.5).addScaledVector(cameraUp, 3.75);
+      cameraForward.copy(cameraPosition).negate().normalize();
+      cameraRight.crossVectors(cameraForward, cameraUp).normalize();
+      cameraToBeacon.subVectors(beaconPosition, cameraPosition);
 
-    expect(cameraPosition.sub(beaconPosition).dot(tangent)).toBeLessThan(0);
+      expect(cameraToBeacon.dot(cameraRight)).toBeLessThan(0);
+    }
   });
 
   it('keeps the normal camera behind the Beacon', () => {

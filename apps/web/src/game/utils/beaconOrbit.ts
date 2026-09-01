@@ -3,12 +3,7 @@ import * as THREE from 'three';
 export const BEACON_ORBIT_RADIUS = 17;
 export const BEACON_ORBIT_SPEED = 0.14;
 export const BEACON_ORBIT_PRECESSION_SPEED = 0.018;
-export const BEACON_PROJECTION_CAMERA_PHASE_OFFSET =
-  THREE.MathUtils.degToRad(-18);
-
-export function beaconCameraPhaseOffset(projectionActive: boolean) {
-  return projectionActive ? BEACON_PROJECTION_CAMERA_PHASE_OFFSET : 0;
-}
+const BEACON_PROJECTION_CAMERA_PHASE_MAGNITUDE = THREE.MathUtils.degToRad(18);
 
 const FULL_TURN = Math.PI * 2;
 
@@ -35,10 +30,25 @@ const ORBIT_Y_AXIS = new THREE.Vector3(
   Math.cos(ORBIT_TILT) * Math.cos(ORBIT_ROLL),
   Math.sin(ORBIT_TILT)
 );
-const ORBIT_UP = new THREE.Vector3()
+const ORBIT_NORMAL = new THREE.Vector3()
   .crossVectors(ORBIT_X_AXIS, ORBIT_Y_AXIS)
   .normalize();
+const ORBIT_UP = ORBIT_NORMAL.clone();
 if (ORBIT_UP.dot(WORLD_UP) < 0) ORBIT_UP.negate();
+export const BEACON_PROJECTION_CAMERA_PHASE_OFFSET =
+  beaconProjectionCameraPhaseOffsetForOrbit(ORBIT_NORMAL, ORBIT_UP);
+
+export function beaconProjectionCameraPhaseOffsetForOrbit(
+  orbitNormal: THREE.Vector3,
+  cameraUp: THREE.Vector3
+) {
+  const phaseDirection = orbitNormal.dot(cameraUp) >= 0 ? 1 : -1;
+  return BEACON_PROJECTION_CAMERA_PHASE_MAGNITUDE * phaseDirection;
+}
+
+export function beaconCameraPhaseOffset(projectionActive: boolean) {
+  return projectionActive ? BEACON_PROJECTION_CAMERA_PHASE_OFFSET : 0;
+}
 
 export function beaconOrbitAngle(
   elapsedTime: number,
