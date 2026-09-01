@@ -13,8 +13,8 @@
       "permanent": true
     },
     {
-      "source": "/arbiter/:path*",
-      "destination": "/play/arbiter/:path*",
+      "source": "/beacon/:path*",
+      "destination": "/play/beacon/:path*",
       "permanent": true
     },
     {

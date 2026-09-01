@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
+	"stakewars.com/api/internal/beacon"
 	"stakewars.com/api/internal/images"
 	"stakewars.com/api/internal/networkstats"
 )
@@ -36,18 +36,18 @@ type Dependencies struct {
 	AllowedOrigins []string
 	Torii          *ToriiGateway
 	Images         *images.Service
-	ArbiterImages  *images.ArbiterService
-	Arbiter        arbiterReader
-	ArbiterHistory arbiterHistoryReader
+	BeaconImages   *images.BeaconService
+	Beacon         beaconReader
+	BeaconHistory  beaconHistoryReader
 	NetworkStats   networkstats.Reader
 }
 
-type arbiterReader interface {
-	Current(ctx context.Context) (arbiter.Snapshot, error)
+type beaconReader interface {
+	Current(ctx context.Context) (beacon.Snapshot, error)
 }
 
-type arbiterHistoryReader interface {
-	List(ctx context.Context, limit int, cursor string) (arbiter.HistoryPage, error)
+type beaconHistoryReader interface {
+	List(ctx context.Context, limit int, cursor string) (beacon.HistoryPage, error)
 }
 
 // NewHandler returns the API's HTTP routes.
@@ -58,15 +58,15 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("GET /v1/stats", server.networkStats)
-	mux.HandleFunc("GET /v1/arbiter", server.arbiterState)
-	mux.HandleFunc("GET /v1/arbiter/history", server.arbiterHistory)
+	mux.HandleFunc("GET /v1/beacon", server.beaconState)
+	mux.HandleFunc("GET /v1/beacon/history", server.beaconHistory)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
 	mux.HandleFunc("POST /v1/auth/sessions", server.createSession)
 	mux.HandleFunc("GET /v1/sector-artworks", server.listSectorImages)
 	mux.HandleFunc("POST /v1/sector-artworks/uploads", server.authorizeSectorImage)
 	mux.HandleFunc("POST /v1/sector-artworks/uploads/{uploadID}/complete", server.completeSectorImage)
-	mux.HandleFunc("POST /v1/arbiter/artwork/uploads", server.authorizeArbiterImage)
-	mux.HandleFunc("POST /v1/arbiter/artwork/uploads/{uploadID}/complete", server.completeArbiterImage)
+	mux.HandleFunc("POST /v1/beacon/artwork/uploads", server.authorizeBeaconImage)
+	mux.HandleFunc("POST /v1/beacon/artwork/uploads/{uploadID}/complete", server.completeBeaconImage)
 	if dependencies.Torii != nil {
 		mux.Handle("/torii/graphql", dependencies.Torii)
 		mux.Handle("/torii/health", dependencies.Torii)
@@ -90,10 +90,10 @@ func (s *server) networkStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
-func (s *server) arbiterHistory(w http.ResponseWriter, r *http.Request) {
-	if s.dependencies.ArbiterHistory == nil {
+func (s *server) beaconHistory(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.BeaconHistory == nil {
 		w.Header().Set("Cache-Control", "public, max-age=10")
-		writeJSON(w, http.StatusOK, arbiter.HistoryPage{Entries: []arbiter.HistoryEntry{}})
+		writeJSON(w, http.StatusOK, beacon.HistoryPage{Entries: []beacon.HistoryEntry{}})
 		return
 	}
 	limit := 0
@@ -105,22 +105,22 @@ func (s *server) arbiterHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = parsed
 	}
-	page, err := s.dependencies.ArbiterHistory.List(
+	page, err := s.dependencies.BeaconHistory.List(
 		r.Context(),
 		limit,
 		r.URL.Query().Get("cursor"),
 	)
-	if errors.Is(err, arbiter.ErrInvalidHistoryQuery) {
+	if errors.Is(err, beacon.ErrInvalidHistoryQuery) {
 		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
 	if err != nil {
-		slog.ErrorContext(r.Context(), "read Arbiter history", "error", err)
+		slog.ErrorContext(r.Context(), "read Beacon history", "error", err)
 		writeProblem(
 			w,
 			http.StatusInternalServerError,
-			"Arbiter history unavailable",
-			"could not read verified Arbiter history",
+			"Beacon history unavailable",
+			"could not read verified Beacon history",
 		)
 		return
 	}
@@ -128,24 +128,24 @@ func (s *server) arbiterHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, page)
 }
 
-func (s *server) arbiterState(w http.ResponseWriter, r *http.Request) {
-	if s.dependencies.Arbiter == nil {
+func (s *server) beaconState(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Beacon == nil {
 		w.Header().Set("Cache-Control", "public, max-age=5")
-		writeJSON(w, http.StatusOK, arbiter.Snapshot{
+		writeJSON(w, http.StatusOK, beacon.Snapshot{
 			Network:    s.dependencies.Config.Network,
-			Phase:      arbiter.PhaseNone,
+			Phase:      beacon.PhaseNone,
 			ObservedAt: time.Now().UTC(),
 		})
 		return
 	}
-	snapshot, err := s.dependencies.Arbiter.Current(r.Context())
+	snapshot, err := s.dependencies.Beacon.Current(r.Context())
 	if err != nil {
-		slog.ErrorContext(r.Context(), "read Arbiter state", "error", err)
+		slog.ErrorContext(r.Context(), "read Beacon state", "error", err)
 		writeProblem(
 			w,
 			http.StatusBadGateway,
-			"Arbiter unavailable",
-			"could not verify the current Arbiter round",
+			"Beacon unavailable",
+			"could not verify the current Beacon round",
 		)
 		return
 	}
@@ -284,12 +284,12 @@ func (s *server) completeSectorImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
+func (s *server) authorizeBeaconImage(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.authenticate(w, r)
 	if !ok {
 		return
 	}
-	if s.dependencies.ArbiterImages == nil {
+	if s.dependencies.BeaconImages == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
 		return
 	}
@@ -304,10 +304,10 @@ func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
-	authorization, err := s.dependencies.ArbiterImages.Authorize(
+	authorization, err := s.dependencies.BeaconImages.Authorize(
 		r.Context(),
 		session.WalletAddress,
-		images.ArbiterAuthorizeInput{
+		images.BeaconAuthorizeInput{
 			Description: input.Description, DestinationURL: input.DestinationURL,
 			ContentType: input.ContentType, DetailSize: input.DetailSize,
 			ThumbnailSize: input.ThumbnailSize,
@@ -321,24 +321,24 @@ func (s *server) authorizeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
 	case errors.Is(err, images.ErrInvalidAdvertisement):
 		writeProblem(w, http.StatusBadRequest, "invalid advertisement", err.Error())
-	case errors.Is(err, images.ErrArbiterAlreadyPublished):
-		writeProblem(w, http.StatusConflict, "transmission locked", "the current Arbiter controller has already published its one transmission")
-	case errors.Is(err, images.ErrForbidden), errors.Is(err, arbiter.ErrNoController):
-		writeProblem(w, http.StatusForbidden, "controller required", "only the current Arbiter controller can project an image")
+	case errors.Is(err, images.ErrBeaconAlreadyPublished):
+		writeProblem(w, http.StatusConflict, "transmission locked", "the current Beacon controller has already published its one transmission")
+	case errors.Is(err, images.ErrForbidden), errors.Is(err, beacon.ErrNoController):
+		writeProblem(w, http.StatusForbidden, "controller required", "only the current Beacon controller can project an image")
 	case errors.Is(err, images.ErrUploadUnavailable):
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
 	default:
-		slog.ErrorContext(r.Context(), "authorize Arbiter image", "error", err)
-		writeProblem(w, http.StatusBadGateway, "upload authorization failed", "could not authorize the Arbiter image upload")
+		slog.ErrorContext(r.Context(), "authorize Beacon image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload authorization failed", "could not authorize the Beacon image upload")
 	}
 }
 
-func (s *server) completeArbiterImage(w http.ResponseWriter, r *http.Request) {
+func (s *server) completeBeaconImage(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.authenticate(w, r)
 	if !ok {
 		return
 	}
-	if s.dependencies.ArbiterImages == nil {
+	if s.dependencies.BeaconImages == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image storage is not configured")
 		return
 	}
@@ -347,7 +347,7 @@ func (s *server) completeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid request", "upload ID is required")
 		return
 	}
-	artwork, err := s.dependencies.ArbiterImages.Complete(
+	artwork, err := s.dependencies.BeaconImages.Complete(
 		r.Context(), uploadID, session.WalletAddress,
 	)
 	switch {
@@ -358,16 +358,16 @@ func (s *server) completeArbiterImage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid image", err.Error())
 	case errors.Is(err, images.ErrInvalidAdvertisement):
 		writeProblem(w, http.StatusBadRequest, "invalid advertisement", err.Error())
-	case errors.Is(err, images.ErrArbiterAlreadyPublished):
-		writeProblem(w, http.StatusConflict, "transmission locked", "the current Arbiter controller has already published its one transmission")
+	case errors.Is(err, images.ErrBeaconAlreadyPublished):
+		writeProblem(w, http.StatusConflict, "transmission locked", "the current Beacon controller has already published its one transmission")
 	case errors.Is(err, images.ErrForbidden), errors.Is(err, images.ErrUploadNotFound),
-		errors.Is(err, arbiter.ErrNoController):
+		errors.Is(err, beacon.ErrNoController):
 		writeProblem(w, http.StatusForbidden, "upload unavailable", "the upload is expired, completed, or no longer controlled by this wallet")
 	case errors.Is(err, images.ErrUploadUnavailable):
 		writeProblem(w, http.StatusServiceUnavailable, "uploads unavailable", "image uploads are not configured")
 	default:
-		slog.ErrorContext(r.Context(), "complete Arbiter image", "error", err)
-		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the Arbiter image")
+		slog.ErrorContext(r.Context(), "complete Beacon image", "error", err)
+		writeProblem(w, http.StatusBadGateway, "upload validation failed", "could not validate the Beacon image")
 	}
 }
 

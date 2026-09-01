@@ -9,7 +9,7 @@ game token or moving custody away from Starknet's staking system.
 Stake Wars' STRK20 integration is focused exclusively on
 [Whisper](https://github.com/broody/whisper), a standalone library for private
 Vickrey auctions. Whisper provides the sealed-bidding mechanics used to assign
-control of the Arbiter billboard without publishing bids before settlement. The
+control of the Beacon billboard without publishing bids before settlement. The
 current controller remains until a later qualifying winner is confirmed; the
 next three-day auction starts with its first sealed bid. Normal Stake Wars
 delegation and territory gameplay remain public.

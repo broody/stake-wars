@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { STRK20_ACTION } from 'starknet';
-import type { ArbiterRound } from './api';
-import { submitArbiterBid } from './whisperBid';
+import type { BeaconRound } from './api';
+import { submitBeaconBid } from './whisperBid';
 
-const round: ArbiterRound = {
+const round: BeaconRound = {
   id: 1,
   whisperAddress: '0x123',
   auctionId: 2,
@@ -55,7 +55,7 @@ describe('Whisper Ready bid submission', () => {
       calls.push('wallet');
       return { transactionHash: '0xfeed' };
     });
-    const receipt = await submitArbiterBid({
+    const receipt = await submitBeaconBid({
       amount: '1.25',
       network: 'SN_SEPOLIA',
       round,
@@ -91,7 +91,7 @@ describe('Whisper Ready bid submission', () => {
     const invokePrivateActions = vi.fn();
 
     await expect(
-      submitArbiterBid({
+      submitBeaconBid({
         amount: '1',
         network: 'SN_SEPOLIA',
         round,
@@ -116,7 +116,7 @@ describe('Whisper Ready bid submission', () => {
     const invokePrivateActions = vi.fn();
 
     await expect(
-      submitArbiterBid({
+      submitBeaconBid({
         amount: '1',
         network: 'SN_SEPOLIA',
         round,
@@ -143,7 +143,7 @@ describe('Whisper Ready bid submission', () => {
     });
 
     await expect(
-      submitArbiterBid({
+      submitBeaconBid({
         amount: '1',
         network: 'SN_SEPOLIA',
         round,

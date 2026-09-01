@@ -1,23 +1,23 @@
 import { Planet } from './Planet';
 import { Stars } from './Stars';
 import { ShootingStars } from './ShootingStars';
-import { OrbitalArbiter } from './OrbitalArbiter';
+import { OrbitalBeacon } from './OrbitalBeacon';
 
 export function Scene({
-  isArbiterTracking,
-  onInspectArbiter,
+  isBeaconTracking,
+  onInspectBeacon,
 }: {
-  isArbiterTracking: boolean;
-  onInspectArbiter: () => void;
+  isBeaconTracking: boolean;
+  onInspectBeacon: () => void;
 }) {
   return (
     <>
       <Stars />
       <ShootingStars />
       <Planet />
-      <OrbitalArbiter
-        isTracking={isArbiterTracking}
-        onInspect={onInspectArbiter}
+      <OrbitalBeacon
+        isTracking={isBeaconTracking}
+        onInspect={onInspectBeacon}
       />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1} />

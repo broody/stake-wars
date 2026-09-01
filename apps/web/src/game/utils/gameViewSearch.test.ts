@@ -18,21 +18,21 @@ describe('game view search parameters', () => {
 
   it('updates projection mode without dropping other URL state', () => {
     const enabled = setProjectionMode(
-      new URLSearchParams('tracking=arbiter&campaign=launch'),
+      new URLSearchParams('tracking=beacon&campaign=launch'),
       true
     );
     expect(enabled.toString()).toBe(
-      'tracking=arbiter&campaign=launch&projection=1'
+      'tracking=beacon&campaign=launch&projection=1'
     );
 
     const disabled = setProjectionMode(enabled, false);
-    expect(disabled.toString()).toBe('tracking=arbiter&campaign=launch');
+    expect(disabled.toString()).toBe('tracking=beacon&campaign=launch');
   });
 
   it('preserves only shareable game view state across navigation', () => {
     const shared = shareableGameViewSearch(
-      new URLSearchParams('campaign=launch&projection=1&tracking=arbiter')
+      new URLSearchParams('campaign=launch&projection=1&tracking=beacon')
     );
-    expect(shared.toString()).toBe('tracking=arbiter&projection=1');
+    expect(shared.toString()).toBe('tracking=beacon&projection=1');
   });
 });

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
+	"stakewars.com/api/internal/beacon"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/networkstats"
 )
@@ -98,15 +98,15 @@ func TestNetworkStatsReportUnavailableWhenUnconfigured(t *testing.T) {
 	}
 }
 
-func TestArbiterHasStableNoRoundResponse(t *testing.T) {
+func TestBeaconHasStableNoRoundResponse(t *testing.T) {
 	handler := NewHandler(testDependencies(t))
-	request := httptest.NewRequest(http.MethodGet, "/v1/arbiter", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/beacon", nil)
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("expected Arbiter status, got %d: %s", response.Code, response.Body.String())
+		t.Fatalf("expected Beacon status, got %d: %s", response.Code, response.Body.String())
 	}
 	var payload struct {
 		Network string          `json:"network"`
@@ -124,18 +124,18 @@ func TestArbiterHasStableNoRoundResponse(t *testing.T) {
 	}
 }
 
-func TestArbiterHistoryIsPaginatedAndPublic(t *testing.T) {
+func TestBeaconHistoryIsPaginatedAndPublic(t *testing.T) {
 	dependencies := testDependencies(t)
 	winner := "0x777"
-	dependencies.ArbiterHistory = apiTestArbiterHistory{
-		page: arbiter.HistoryPage{
-			Entries: []arbiter.HistoryEntry{{
+	dependencies.BeaconHistory = apiTestBeaconHistory{
+		page: beacon.HistoryPage{
+			Entries: []beacon.HistoryEntry{{
 				RoundID: 4, WinnerAddress: &winner, BidCount: 3, WinningBid: "100",
 			}},
 		},
 	}
 	handler := NewHandler(dependencies)
-	request := httptest.NewRequest(http.MethodGet, "/v1/arbiter/history?limit=25", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/beacon/history?limit=25", nil)
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -143,7 +143,7 @@ func TestArbiterHistoryIsPaginatedAndPublic(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected history status, got %d: %s", response.Code, response.Body.String())
 	}
-	var payload arbiter.HistoryPage
+	var payload beacon.HistoryPage
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestArbiterHistoryIsPaginatedAndPublic(t *testing.T) {
 		t.Fatalf("unexpected Cache-Control %q", got)
 	}
 
-	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/arbiter/history?limit=nope", nil)
+	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/beacon/history?limit=nope", nil)
 	invalidResponse := httptest.NewRecorder()
 	handler.ServeHTTP(invalidResponse, invalidRequest)
 	if invalidResponse.Code != http.StatusBadRequest {
@@ -287,8 +287,8 @@ func testDependencies(t *testing.T) Dependencies {
 
 type apiTestVerifier struct{}
 
-type apiTestArbiterHistory struct {
-	page arbiter.HistoryPage
+type apiTestBeaconHistory struct {
+	page beacon.HistoryPage
 	err  error
 }
 
@@ -301,11 +301,11 @@ func (s apiTestNetworkStats) Current(context.Context) (networkstats.Snapshot, er
 	return s.snapshot, s.err
 }
 
-func (h apiTestArbiterHistory) List(
+func (h apiTestBeaconHistory) List(
 	context.Context,
 	int,
 	string,
-) (arbiter.HistoryPage, error) {
+) (beacon.HistoryPage, error) {
 	return h.page, h.err
 }
 

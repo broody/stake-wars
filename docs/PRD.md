@@ -34,7 +34,7 @@ An Operator captures a neutral Sector by choosing how much FORCE, backed by dele
 *   **Leading Force:** The visible highest cumulative force commitment currently locked against a Challenge.
 *   **Response Window:** The configurable time allowed for another Operator to commit enough force to take the lead. Every valid new leader resets the full window; there is no overall deadline.
 *   **Sector Sacrifice:** Voluntarily giving up another owned, uncontested Sector while initiating or escalating a Challenge. The sector becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the sector.
-*   **Arbiter:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Arbiter cannot select winners, alter commitments, or bypass contract validation.
+*   **Keeper:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Keeper cannot select winners, alter commitments, or bypass contract validation.
 
 ---
 
@@ -50,7 +50,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **No Double Backing:** One unit of Live Delegation can support only one garrison, active Challenge position, or spent position at a time. An Operator with 3,000 delegated STRK has 3,000 FORCE, may deploy 1,000 FORCE to one Sector, and retains 2,000 Available Force; the same 1,000 FORCE cannot back another action.
 *   **Explicit Amounts:** Capture, reinforcement, and Challenge calls specify visible FORCE amounts. An initiating Challenge locks its exact commitment; a returning participant locks only the increase over that Operator's prior commitment.
 *   **Desynchronization Penalty:** If Live Delegation falls below recorded obligations, the Operator address is permanently retired and all of its holdings and challenge positions are invalidated. Ownership generations make all affected Sectors neutral without iterating over all 2,000 sectors.
-*   **Arbiter Synchronization:** The Arbiter periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the Stake Wars application. Every normal force-sensitive game action performs the same authoritative check independently.
+*   **Keeper Synchronization:** The Keeper periodically calls `sync_operators` for known active Operators. This detects unpooling initiated directly through the official staking contract even when the Operator never returns to the Stake Wars application. Every normal force-sensitive game action performs the same authoritative check independently.
 *   **No Custody:** Stake Wars contracts never transfer, escrow, or withdraw an Operator's STRK.
 
 #### 3.1.2. Capture, Reinforcement, and Release
@@ -77,7 +77,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   After a full response window passes without a lead change, any account may call `settle_challenge`. The contract derives the result from its current leader; there is no settlement authority or off-chain ranking.
 *   A valid leader's exact commitment becomes the target Sector's Capture Force. If the leader has invalidated its staking position before settlement, the sector becomes neutral.
 *   Every non-winner loses its own highest cumulative commitment. Settlement resolves the winner, incumbent, and final runner-up in constant work. Because participation is unbounded, older losing positions are finalized permissionlessly one at a time; until resolved, they remain locked and reduce Available Force by the same amount.
-*   **Arbiter Maintenance:** The Arbiter monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Arbiter is delayed or offline.
+*   **Keeper Maintenance:** The Keeper monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Keeper is delayed or offline.
 *   Stake Wars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
 *   **Public Deployment:** Operator identities, direct delegation, cumulative commitments, incremental additions, Challenge timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
 *   **STRK20 Scope:** Stake Wars uses STRK20 only through Whisper's sealed-bid auction flow. Direct delegation, FORCE commitments, Challenge activity, and Sector control remain public onchain.
@@ -160,13 +160,13 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 *   **Runtime:** A Go API service deployed on Fly.io at `api.stakewars.gg`. The initial target is one shared-CPU Machine with 512 MB RAM in the `sjc` region. CPU and memory may be increased if observed load requires it.
 *   **Responsibilities:**
     *   Verify wallet challenges and current on-chain Sector ownership.
-    *   Run the unprivileged Arbiter loop that settles expired Challenges, resolves remaining losing positions, and synchronizes known active Operators against the official staking contract.
+    *   Run the unprivileged Keeper loop that settles expired Challenges, resolves remaining losing positions, and synchronizes known active Operators against the official staking contract.
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
     *   Serve game metadata and apply rate limits per wallet and IP address.
 *   **Initial Topology:** Run exactly one active API Machine while SQLite is the system of record. The Machine mounts a persistent Fly Volume at `/data`; normal deploys and restarts must preserve that volume. Do not add a second active API Machine that writes to the same SQLite database.
 *   **Storage Boundary:** Uploaded images are never stored on the Machine or Fly Volume. The volume contains only the SQLite database and its related files; image bytes are uploaded directly to Tigris.
-*   **Security:** Wallet challenges use short-lived, single-use nonces. Storage credentials are server-only secrets and must never be sent to the browser, logs, repository, or public configuration. The Arbiter has no privileged game role or settlement discretion: every submitted maintenance transaction is independently validated by the Dojo World, and no backend decryption key exists.
+*   **Security:** Wallet challenges use short-lived, single-use nonces. Storage credentials are server-only secrets and must never be sent to the browser, logs, repository, or public configuration. The Keeper has no privileged game role or settlement discretion: every submitted maintenance transaction is independently validated by the Dojo World, and no backend decryption key exists.
 
 ### 5.3. Image Storage (Tigris)
 *   **Service:** Tigris S3-compatible object storage, provisioned through Fly.io.
@@ -230,7 +230,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 5.  **As a Visitor:** I want Control mode to show ownership tenure as stable terrain so I can recognize entrenched positions without opening every Sector.
 6.  **As a Strategist:** I want to sacrifice another Sector to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
-8.  **As an Arbiter winner:** I want to publish one paid transmission with an image, description, and destination link so visitors can inspect and follow it from the Core.
+8.  **As a Beacon winner:** I want to publish one paid transmission with an image, description, and destination link so visitors can inspect and follow it from the Core.
 
 ---
 
@@ -247,11 +247,11 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
-*   **Phase 2: Whisper-Powered Arbiter Auctions**
+*   **Phase 2: Whisper-Powered Beacon Auctions**
     *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, vault operator, and post-settlement winner disclosure, while Stake Wars owns the game UX, canonical round, automatic controller resolution, and billboard fulfillment.
-    *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and automatically resolved, the current Arbiter controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.
-    *   Give each newly confirmed controller one immutable paid transmission containing an image, a plain-text description of at most 280 characters, and an absolute HTTP(S) destination link. Clicking the Arbiter or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot.
-    *   Run auction cycling as an idempotent duty of the backend Arbiter worker. After a terminal round, it creates and registers the next pending auction without changing controller state; the authorized onchain transaction builder remains isolated from the worker's other permissionless maintenance duties.
+    *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and automatically resolved, the current Beacon controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.
+    *   Give each newly confirmed controller one immutable paid transmission containing an image, a plain-text description of at most 280 characters, and an absolute HTTP(S) destination link. Clicking the Beacon or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot.
+    *   Run auction cycling as an idempotent duty of the backend Beacon worker. After a terminal round, it creates and registers the next pending auction without changing controller state; the authorized onchain transaction builder remains isolated from the worker's other permissionless maintenance duties.
     *   Gate Stake Wars bidding, winner resolution, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.

@@ -25,8 +25,8 @@ import { MAX_SECTOR_SELECTION } from '../../services/sectorLimits';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
-import { ArbiterModal } from '../ui/ArbiterModal';
-import { ArbiterCameraTracker } from './ArbiterCameraTracker';
+import { BeaconModal } from '../ui/BeaconModal';
+import { BeaconCameraTracker } from './BeaconCameraTracker';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 const PLACEMENT_CORNERS = [
@@ -352,22 +352,22 @@ export function World({ active = true }: { active?: boolean }) {
   const { notifyWarning } = useTransactionToast();
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
-  const ignoreArbiterInspectRef = useRef(false);
+  const ignoreBeaconInspectRef = useRef(false);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
   );
-  const isArbiterOpen = searchParams.get('tracking') === 'arbiter';
-  const setArbiterTracking = useCallback(
+  const isBeaconOpen = searchParams.get('tracking') === 'beacon';
+  const setBeaconTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
         (current) => {
           const next = new URLSearchParams(current);
           if (isTracking) {
-            next.set('tracking', 'arbiter');
-          } else if (next.get('tracking') === 'arbiter') {
+            next.set('tracking', 'beacon');
+          } else if (next.get('tracking') === 'beacon') {
             next.delete('tracking');
           }
           return next;
@@ -377,37 +377,37 @@ export function World({ active = true }: { active?: boolean }) {
     },
     [setSearchParams]
   );
-  const openArbiterBriefing = useCallback(() => {
-    if (ignoreArbiterInspectRef.current) return;
+  const openBeaconBriefing = useCallback(() => {
+    if (ignoreBeaconInspectRef.current) return;
     selectSectors([]);
-    setArbiterTracking(true);
-  }, [selectSectors, setArbiterTracking]);
-  const closeArbiterBriefing = useCallback(
-    () => setArbiterTracking(false),
-    [setArbiterTracking]
+    setBeaconTracking(true);
+  }, [selectSectors, setBeaconTracking]);
+  const closeBeaconBriefing = useCallback(
+    () => setBeaconTracking(false),
+    [setBeaconTracking]
   );
 
   useEffect(() => {
-    if (!active || !isArbiterOpen) return;
+    if (!active || !isBeaconOpen) return;
 
     const stopTrackingOnClick = (event: MouseEvent) => {
       const target = event.target;
       if (
         target instanceof Element &&
-        target.closest('[data-arbiter-console], [data-preserve-core-tracking]')
+        target.closest('[data-beacon-console], [data-preserve-core-tracking]')
       ) {
         return;
       }
-      ignoreArbiterInspectRef.current = true;
-      setArbiterTracking(false);
+      ignoreBeaconInspectRef.current = true;
+      setBeaconTracking(false);
       queueMicrotask(() => {
-        ignoreArbiterInspectRef.current = false;
+        ignoreBeaconInspectRef.current = false;
       });
     };
 
     window.addEventListener('click', stopTrackingOnClick, true);
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
-  }, [active, isArbiterOpen, setArbiterTracking]);
+  }, [active, isBeaconOpen, setBeaconTracking]);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
@@ -417,7 +417,7 @@ export function World({ active = true }: { active?: boolean }) {
     selectedSectorIds.length > 0 ||
     imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
-    isArbiterOpen ||
+    isBeaconOpen ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -523,8 +523,8 @@ export function World({ active = true }: { active?: boolean }) {
       >
         <Suspense fallback={null}>
           <Scene
-            isArbiterTracking={isArbiterOpen}
-            onInspectArbiter={openArbiterBriefing}
+            isBeaconTracking={isBeaconOpen}
+            onInspectBeacon={openBeaconBriefing}
           />
         </Suspense>
 
@@ -542,7 +542,7 @@ export function World({ active = true }: { active?: boolean }) {
           enabled={
             active &&
             marqueeStart === null &&
-            !isArbiterOpen &&
+            !isBeaconOpen &&
             !isPlacementLocked
           }
         />
@@ -551,15 +551,15 @@ export function World({ active = true }: { active?: boolean }) {
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
-        <ArbiterCameraTracker
-          active={active && isArbiterOpen}
+        <BeaconCameraTracker
+          active={active && isBeaconOpen}
           projectionActive={isProjectionVisible}
         />
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />
 
-      <ArbiterModal isOpen={isArbiterOpen} onClose={closeArbiterBriefing} />
+      <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />
 
       {activeMarquee ? (
         <div

@@ -21,7 +21,7 @@ vi.mock('../../contexts/SectorImageContext', () => ({
 import { CoreViewSwitch } from './CoreViewSwitch';
 
 describe('CoreViewSwitch', () => {
-  it('preserves Arbiter camera tracking when projection is toggled', () => {
+  it('preserves Beacon camera tracking when projection is toggled', () => {
     const markup = renderToStaticMarkup(<CoreViewSwitch />);
 
     expect(markup).toContain('data-preserve-core-tracking="true"');

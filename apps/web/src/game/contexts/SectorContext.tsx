@@ -164,7 +164,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
   }, [isProjectionVisible]);
 
   // Normal projection changes drive the wave flip. Keep an explicit setter so
-  // a future Arbiter ability can control the visual state independently.
+  // a future Beacon ability can control the visual state independently.
   const setCoreWaveFlipped = useCallback((flipped: boolean) => {
     setCoreWaveFlipState(flipped);
   }, []);

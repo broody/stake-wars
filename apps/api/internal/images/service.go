@@ -31,11 +31,11 @@ const (
 )
 
 var (
-	ErrForbidden               = errors.New("image management is not permitted")
-	ErrInvalidImage            = errors.New("invalid image")
-	ErrInvalidAdvertisement    = errors.New("invalid Arbiter advertisement")
-	ErrUploadUnavailable       = errors.New("image upload is unavailable")
-	ErrArbiterAlreadyPublished = errors.New("Arbiter transmission has already been published")
+	ErrForbidden              = errors.New("image management is not permitted")
+	ErrInvalidImage           = errors.New("invalid image")
+	ErrInvalidAdvertisement   = errors.New("invalid Beacon advertisement")
+	ErrUploadUnavailable      = errors.New("image upload is unavailable")
+	ErrBeaconAlreadyPublished = errors.New("Beacon transmission has already been published")
 )
 
 type AuthorizeInput struct {

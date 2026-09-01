@@ -1,6 +1,6 @@
 # STRK20 Privacy Integration Plan — Stake Wars + Whisper sealed bidding
 
-Updated 2026-08-31 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Arbiter billboard.
+Updated 2026-08-31 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Beacon billboard.
 
 **Status:** Phases A through C are complete and the Phase D sprint release is
 live on Mainnet. Ready Wallet bidding, operator acceptance, force reveal,
@@ -15,9 +15,9 @@ The public product is `https://stakewars.gg/play`, the API is ready on
 operator recovery, and reduced-custody work remain post-sprint hardening.
 
 This plan supersedes the broader gameplay-edict exploration for the first
-Arbiter release. Winning a recurring Whisper auction grants one off-chain
+Beacon release. Winning a recurring Whisper auction grants one off-chain
 privilege: control of the image displayed on a floating billboard in front of
-the orbiting Arbiter. The controller keeps that privilege until a later
+the orbiting Beacon. The controller keeps that privilege until a later
 qualifying winner is resolved; an idle, resolving, aborted, or no-winner auction
 does not create a control gap. It does not alter FORCE, Sector rules, staking,
 the Dojo World, or administrative configuration.
@@ -30,7 +30,7 @@ form one submission without collapsing their ownership boundaries:
 
 | Whisper — standalone library                                          | Stake Wars — consuming dapp                                                                   |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Cairo Vickrey auction, start-on-bid scheduling, and STRK20 callbacks  | Arbiter auction, continuous-controller policy, and billboard UX                               |
+| Cairo Vickrey auction, start-on-bid scheduling, and STRK20 callbacks  | Beacon auction, continuous-controller policy, and billboard UX                               |
 | Headless bidder SDK and encrypted reveal capsule                      | Ready Wallet connection, consent, and action submission                                       |
 | Vault operator, discovery, acceptance, settlement, winner disclosure, and recovery | Canonical round registry, public read model, automatic controller resolution, artwork authorization, and display |
 | Reusable off-chain/ERC-20/ERC-721/ERC-1155 fulfillment primitives     | Stake Wars-specific off-chain controller entitlement                                          |
@@ -58,15 +58,15 @@ Ready bids for auctions 1 and 2 plus the auction 1 settlement; all three are
   `WalletAccountV6` after a capability-only version check and requests the
   user's shielded STRK balance only when the bidding UI deliberately needs to
   show it.
-- `/play` renders a clickable, camera-trackable Arbiter through
-  `apps/web/src/game/components/3d/OrbitalArbiter.tsx`,
-  `ArbiterCameraTracker.tsx`, and `ArbiterModal.tsx`. The tracking state is
-  represented by `?tracking=arbiter` in `World.tsx`; the dedicated auction and
-  history URLs are `/play/arbiter` and `/play/arbiter/history`, with Vercel SPA
+- `/play` renders a clickable, camera-trackable Beacon through
+  `apps/web/src/game/components/3d/OrbitalBeacon.tsx`,
+  `BeaconCameraTracker.tsx`, and `BeaconModal.tsx`. The tracking state is
+  represented by `?tracking=beacon` in `World.tsx`; the dedicated auction and
+  history URLs are `/play/beacon` and `/play/beacon/history`, with Vercel SPA
   rewrites supporting direct navigation.
 - The image pipeline provides wallet authentication,
   short-lived direct object-store uploads, file-signature and dimension
-  validation, reporting/removal state, and public image delivery. Arbiter
+  validation, reporting/removal state, and public image delivery. Beacon
   authorization is separate from Sector ownership and revalidates the current
   controller both before issuing upload URLs and before publication.
 - `vendor/whisper` currently pins commit
@@ -103,7 +103,7 @@ prize is entirely off-chain. After `get_result` confirms settlement, the
 Whisper operator decrypts only the winning group's authenticated capsule and
 publishes its refund recipient; the Go API matches the disclosed group and
 winner commitment to the immutable result before activating that address.
-Reconsider an on-chain Arbiter registry only if the prize later controls
+Reconsider an on-chain Beacon registry only if the prize later controls
 on-chain gameplay.
 
 ## 4 Privacy boundary
@@ -126,18 +126,18 @@ pending auction, the first successful private bid also publicly fixes the
 configured deadline through `AuctionStarted`; later bids do not extend it.
 
 Short Sepolia and low-value Mainnet rehearsals used compressed schedules. The
-production configuration is now `ARBITER_BIDDING_DURATION=72h`,
-`ARBITER_ACCEPTANCE_DURATION=15m`, and
-`ARBITER_SETTLEMENT_DURATION=6h`; the first successful bid fixes those resolved
+production configuration is now `BEACON_BIDDING_DURATION=72h`,
+`BEACON_ACCEPTANCE_DURATION=15m`, and
+`BEACON_SETTLEMENT_DURATION=6h`; the first successful bid fixes those resolved
 deadlines and later bids do not extend them.
 
-## 5 `/play` and Arbiter product shape
+## 5 `/play` and Beacon product shape
 
-Use `Core | Force | Arbiter | Operator` as the primary navigation. Clicking the
-in-world Arbiter keeps camera tracking in `/play` and opens a compact summary in
+Use `Core | Force | Beacon | Operator` as the primary navigation. Clicking the
+in-world Beacon keeps camera tracking in `/play` and opens a compact summary in
 the existing top-right HUD position. The summary shows only the current phase,
 the deadline when one exists, the current controller, and one primary action,
-with a link to the dedicated `/arbiter` route. The dedicated page owns the
+with a link to the dedicated `/beacon` route. The dedicated page owns the
 full auction UI.
 If the connected wallet is the current controller, both surfaces expose the
 implemented image-upload flow. Selection is locked immediately after signing so
@@ -147,15 +147,15 @@ Desktop composition:
 
 ```text
 +--------------------------------------------------------------------------+
-| STAKE//WARS     CORE       FORCE       ARBITER       OPERATOR      WALLET |
+| STAKE//WARS     CORE       FORCE       BEACON       OPERATOR      WALLET |
 +--------------------------------------------------------------------------+
 |                                                                          |
 |                         THE CORE                                         |
 |                    o                                                     |
-|                 ARBITER  [ floating 16:9 transmission plate ]            |
+|                 BEACON  [ floating 16:9 transmission plate ]            |
 |                                                                          |
 |                                              +-------------------------+ |
-|                                              | ARBITER // BIDDING      | |
+|                                              | BEACON // BIDDING      | |
 |                                              | ROUND 07      01:42:19 | |
 |                                              | CONTROLLER  0x04…beef | |
 |                                              | [ OPEN AUCTION UI  → ] | |
@@ -164,17 +164,17 @@ Desktop composition:
 ```
 
 The memorable visual element is the **transmission plate**: a thin 16:9 image
-plane floating between the Core and the tetrahedral Arbiter, closer to the
-Arbiter and synchronized to its trajectory, framed by four terminal registration
+plane floating between the Core and the tetrahedral Beacon, closer to the
+Beacon and synchronized to its trajectory, framed by four terminal registration
 marks. It remains in the existing monochrome palette and gains no new accent
-color. Its front faces the Arbiter, its horizontal axis follows the orbit tangent,
+color. Its front faces the Beacon, its horizontal axis follows the orbit tangent,
 and its roll therefore matches the ring instead of the camera. When `SHOW
-PROJECTION` is enabled, the Arbiter eases out of its free rotation and holds one
+PROJECTION` is enabled, the Beacon eases out of its free rotation and holds one
 tetrahedral face toward the Core and transmission plane; disabling projection
 resumes the multi-axis rotation from that orientation. Reduced-motion mode snaps
 to the aligned state. The registration brackets remain visible in Control mode,
 but the two-sided image surface and its texture load are enabled only by the
-existing `SHOW PROJECTION` control. The Arbiter-facing artwork is mirrored;
+existing `SHOW PROJECTION` control. The Beacon-facing artwork is mirrored;
 the same flipped texture cancels the reverse geometry when viewed from the Core,
 so the Core-facing side reads normally while empty-state utility text remains
 legible.
@@ -209,7 +209,7 @@ Whisper permits anyone to create auctions and does not define a canonical
 Stake Wars round. The frontend must therefore not select an auction merely by
 ID or by taking the latest `AuctionCreated` event.
 
-The existing `arbiter_rounds` table and `GET /v1/arbiter` aggregate establish
+The existing `beacon_rounds` table and `GET /v1/beacon` aggregate establish
 the canonical current round. Keep direct Whisper RPC as the authority for its
 current state and result; Torii is a rebuildable history/enrichment source and
 may lag without blocking round cycling. The earlier Sepolia smoke-tested
@@ -219,23 +219,23 @@ separate canonical Stake Wars round.
 
 Keep these durable records:
 
-- `arbiter_rounds`: network, monotonically increasing Stake Wars round ID,
+- `beacon_rounds`: network, monotonically increasing Stake Wars round ID,
   Whisper address and auction ID, expected creator, payment token, metadata
   hash, winner-payload domain, vault, expected schedule/configuration, optional
   resolved controller, activation timestamp, and active artwork ID;
-- `arbiter_round_outcomes`: one immutable terminal projection per canonical
+- `beacon_round_outcomes`: one immutable terminal projection per canonical
   round, including terminal status, whether a winner exists, winner commitment,
   winning bid, clearing price, funded bid count, settlement transaction, and
   terminal/projected timestamps; and
-- `arbiter_cycle_jobs`: one unique successor job per terminal predecessor,
+- `beacon_cycle_jobs`: one unique successor job per terminal predecessor,
   including expected next round/configuration/metadata hash, state, transaction
   hash, attempts, last error, and timestamps.
 
 Expose these public endpoints:
 
 ```text
-GET /v1/arbiter
-GET /v1/arbiter/history?limit=<n>&cursor=<opaque>
+GET /v1/beacon
+GET /v1/beacon/history?limit=<n>&cursor=<opaque>
 ```
 
 The current endpoint returns the canonical round, validated on-chain state and
@@ -302,7 +302,7 @@ secret and commit to:
 
 ```text
 Poseidon(
-  "STAKEWARS_ARBITER_V1",
+  "STAKEWARS_BEACON_V1",
   chain_id,
   whisper_address,
   auction_id,
@@ -335,12 +335,12 @@ does not submit a separate claim or retain browser recovery material.
 
 This phase is implemented in production:
 
-- Arbiter-specific authorization and completion endpoints preserve the
+- Beacon-specific authorization and completion endpoints preserve the
   existing Sector `CanManageImage` checks and do not pretend an auction winner
   owns a Sector.
 - Tigris/MinIO, typed-data sessions, randomized versioned object keys,
   MIME/signature checks, reporting, removal, and moderation state are reused
-  under the separate `arbiter/<network>/<round>/<artwork-id>/...` prefix.
+  under the separate `beacon/<network>/<round>/<artwork-id>/...` prefix.
 - The client prepares a 16:9 display texture and thumbnail no larger than
   `512x288` and `256x144`, preserving the 2 MB encoded-file ceiling and the
   WebP/JPEG/PNG allowlist.
@@ -351,7 +351,7 @@ This phase is implemented in production:
   image remains active until the next **verified winner resolution**; a pending,
   resolving, settled-no-winner, disclosure-pending, or aborted auction leaves the
   previous approved billboard in place.
-- The approved texture renders as a child of `OrbitalArbiter`. The empty state is
+- The approved texture renders as a child of `OrbitalBeacon`. The empty state is
   a restrained `SIGNAL AVAILABLE` wireframe rather than a broken image or a
   generic loading skeleton.
 
@@ -373,20 +373,20 @@ acceptance gate passes.
 
 ## 10 Stake Wars delivery phases
 
-### Phase A — read-only Arbiter surfaces — ✅ done 2026-08-24
+### Phase A — read-only Beacon surfaces — ✅ done 2026-08-24
 
-1. Add typed Arbiter round/result models and `api.getArbiter()` in
+1. Add typed Beacon round/result models and `api.getBeacon()` in
    `apps/web/src/game/services/api.ts`.
-2. Replace the static `ArbiterModal.tsx` briefing with a compact state-driven
-   `/play` summary and a full `/arbiter` console for every lifecycle state,
-   preserving `?tracking=arbiter`, Escape, focus visibility, and camera tracking.
-3. Add an `ArbiterContext` that polls the aggregate endpoint at a modest
+2. Replace the static `BeaconModal.tsx` briefing with a compact state-driven
+   `/play` summary and a full `/beacon` console for every lifecycle state,
+   preserving `?tracking=beacon`, Escape, focus visibility, and camera tracking.
+3. Add an `BeaconContext` that polls the aggregate endpoint at a modest
    interval and on transaction refresh. Keep it independent from Sector image
    polling.
 4. Keep the in-world transmission plate hidden in Phase A. Surface light status
-   details in the top-right Arbiter card and full detail on `/arbiter`.
+   details in the top-right Beacon card and full detail on `/beacon`.
 5. Implement the Go read model, Whisper RPC decoder, canonical-round database
-   migration, and `GET /v1/arbiter` endpoint with fixture-backed tests.
+   migration, and `GET /v1/beacon` endpoint with fixture-backed tests.
 6. Verify desktop and mobile layouts on `http://localhost:3000/play`; no bidding,
    winner resolution, upload, deployment, or external transaction is part of Phase A.
 
@@ -397,11 +397,11 @@ acceptance gate passes.
    start-on-bid response without treating zero pending timestamps as dates.
 2. Require canonical start-on-bid rounds to use the configured bidding duration,
    validate their resolved duration arithmetic after the first bid, and expose
-   the schedule plus nullable timestamps through `GET /v1/arbiter`.
+   the schedule plus nullable timestamps through `GET /v1/beacon`.
 3. Resolve the current controller independently from the newest canonical
    round, so pending, resolving, aborted, no-winner, and disclosure-pending rounds do not
    blank or prematurely replace the active controller.
-4. Redesign the Arbiter surfaces around the `WAITING`, configured auction,
+4. Redesign the Beacon surfaces around the `WAITING`, configured auction,
    `RESOLVING`, and `CONTROL` stages using the existing theme and font, with
    details kept secondary.
 5. Add and test the periodic worker and idempotent `RoundRestarter` boundary.
@@ -413,18 +413,18 @@ acceptance gate passes.
 
 ### Phase A.2 — live canonical auction history — ✅ done 2026-08-27
 
-1. Add `arbiter_round_outcomes` and `arbiter_cycle_jobs` migrations with unique
+1. Add `beacon_round_outcomes` and `beacon_cycle_jobs` migrations with unique
    predecessor, round, and Whisper-auction constraints. Keep the existing
    canonical round rows as the allowlist for every projection.
 2. Add a Torii raw-event client and settlement projector with strict address,
    selector, key, data-length, transaction, pagination, and felt validation.
    Use direct RPC for current state and allow Torii enrichment to retry when it
    is behind.
-3. Add cursor-paginated `GET /v1/arbiter/history`, returning only canonical
+3. Add cursor-paginated `GET /v1/beacon/history`, returning only canonical
    settled rounds with a winner. Join the resolved controller by round; return
    `winnerAddress: null` while disclosure is pending and never return a
    commitment in its place.
-4. Add `api.getArbiterHistory()` and a route-scoped history query refreshed on
+4. Add `api.getBeaconHistory()` and a route-scoped history query refreshed on
    focus and about every 30 seconds. Replace the live page's empty array with
    API data; render `VERIFYING`, `BIDS`, and the winning bid.
 5. Test Torii lag, malformed/unrelated events, duplicate projection, cursor
@@ -461,7 +461,7 @@ longer relies on the temporary public bid-count fallback.
 
 ### Phase C — automatic winner resolution, billboard publishing, and recurring operation — ✅ verified on Mainnet 2026-08-30
 
-1. Sector and Arbiter uploads share wallet authentication but retain separate
+1. Sector and Beacon uploads share wallet authentication but retain separate
    authorization rules. Controller authority is re-read before both upload
    authorization and publication.
 2. The idempotent worker verifies Whisper's winner disclosure against the
@@ -489,7 +489,7 @@ longer relies on the temporary public bid-count fallback.
 1. Whisper v0.4 is deployed against the canonical Mainnet STRK20 pool, with its
    class hash, source commit, vault registration, replay-note setup, and public
    readback recorded in `vendor/whisper/deployments/mainnet.json`.
-2. The product is public at `https://stakewars.gg/play`; direct Arbiter routes
+2. The product is public at `https://stakewars.gg/play`; direct Beacon routes
    work under the `/play` basename, the Go API and supervised Torii are live on
    Fly.io, and artwork plus the demo are served from `assets.stakewars.gg`.
 3. The root manifest contains the deployed contract and three independently
@@ -516,7 +516,7 @@ longer relies on the temporary public bid-count fallback.
 - All three manifest transactions are `SUCCEEDED` and `ACCEPTED_ON_L1`. Each
   receipt contains events from both the canonical STRK20 pool and the listed
   Whisper contract. The deployed contract returns the expected live class hash.
-- `https://stakewars.gg`, `/play`, `/play/arbiter`, `/play/staking`, and
+- `https://stakewars.gg`, `/play`, `/play/beacon`, `/play/staking`, and
   `/play/gallery` return successfully, including direct navigation. The demo
   asset returns `video/mp4` and supports range requests.
 - The production API returns healthy and ready, reports `SN_MAIN`, and has image
@@ -526,7 +526,7 @@ longer relies on the temporary public bid-count fallback.
 - Mainnet auction 1 completed the Ready bid, funding, replay-protected operator
   acceptance, force reveal, settlement, winner disclosure, and successor path.
   Public history contains completed rounds 1 and 2, and a winner has published
-  live Arbiter artwork. The developer separately confirmed the production
+  live Beacon artwork. The developer separately confirmed the production
   auction-bid flow end to end.
 - Round 4 was read from the live API on 2026-08-31 with the 72-hour schedule and
   three submitted tranches. Its public funded count remains authoritative and

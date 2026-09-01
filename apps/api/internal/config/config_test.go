@@ -22,57 +22,57 @@ func TestLoadUsesConfigurableImageLimit(t *testing.T) {
 	}
 }
 
-func TestLoadUsesConfigurableArbiterBiddingDuration(t *testing.T) {
-	t.Setenv("ARBITER_BIDDING_DURATION", "5m")
+func TestLoadUsesConfigurableBeaconBiddingDuration(t *testing.T) {
+	t.Setenv("BEACON_BIDDING_DURATION", "5m")
 
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.ArbiterBiddingDuration != 5*time.Minute {
-		t.Fatalf("expected five minutes, got %s", configuration.ArbiterBiddingDuration)
+	if configuration.BeaconBiddingDuration != 5*time.Minute {
+		t.Fatalf("expected five minutes, got %s", configuration.BeaconBiddingDuration)
 	}
 }
 
-func TestLoadDefaultsArbiterBiddingDurationToThreeDays(t *testing.T) {
+func TestLoadDefaultsBeaconBiddingDurationToThreeDays(t *testing.T) {
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.ArbiterBiddingDuration != 72*time.Hour {
-		t.Fatalf("expected three days, got %s", configuration.ArbiterBiddingDuration)
+	if configuration.BeaconBiddingDuration != 72*time.Hour {
+		t.Fatalf("expected three days, got %s", configuration.BeaconBiddingDuration)
 	}
 }
 
-func TestLoadRejectsInvalidArbiterBiddingDuration(t *testing.T) {
-	t.Setenv("ARBITER_BIDDING_DURATION", "500ms")
+func TestLoadRejectsInvalidBeaconBiddingDuration(t *testing.T) {
+	t.Setenv("BEACON_BIDDING_DURATION", "500ms")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected sub-second bidding duration to fail")
 	}
 }
 
-func TestLoadConfiguresArbiterCoordinator(t *testing.T) {
-	t.Setenv("ARBITER_COORDINATOR_URL", "http://127.0.0.1:8082")
-	t.Setenv("ARBITER_COORDINATOR_TOKEN", "0123456789abcdef0123456789abcdef")
-	t.Setenv("ARBITER_PAYMENT_TOKEN", "0x123")
-	t.Setenv("ARBITER_ACCEPTANCE_DURATION", "3m")
-	t.Setenv("ARBITER_SETTLEMENT_DURATION", "22m")
+func TestLoadConfiguresBeaconCoordinator(t *testing.T) {
+	t.Setenv("BEACON_COORDINATOR_URL", "http://127.0.0.1:8082")
+	t.Setenv("BEACON_COORDINATOR_TOKEN", "0123456789abcdef0123456789abcdef")
+	t.Setenv("BEACON_PAYMENT_TOKEN", "0x123")
+	t.Setenv("BEACON_ACCEPTANCE_DURATION", "3m")
+	t.Setenv("BEACON_SETTLEMENT_DURATION", "22m")
 
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !configuration.ArbiterCoordinatorEnabled() ||
-		configuration.ArbiterAcceptanceDuration != 3*time.Minute ||
-		configuration.ArbiterSettlementDuration != 22*time.Minute {
-		t.Fatalf("unexpected Arbiter coordinator config: %+v", configuration)
+	if !configuration.BeaconCoordinatorEnabled() ||
+		configuration.BeaconAcceptanceDuration != 3*time.Minute ||
+		configuration.BeaconSettlementDuration != 22*time.Minute {
+		t.Fatalf("unexpected Beacon coordinator config: %+v", configuration)
 	}
 }
 
-func TestLoadRejectsPartialArbiterCoordinator(t *testing.T) {
-	t.Setenv("ARBITER_COORDINATOR_URL", "http://127.0.0.1:8082")
+func TestLoadRejectsPartialBeaconCoordinator(t *testing.T) {
+	t.Setenv("BEACON_COORDINATOR_URL", "http://127.0.0.1:8082")
 	if _, err := Load(); err == nil {
-		t.Fatal("expected partial Arbiter coordinator config to fail")
+		t.Fatal("expected partial Beacon coordinator config to fail")
 	}
 }
 
