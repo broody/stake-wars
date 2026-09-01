@@ -8,6 +8,7 @@ import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
+import { BeaconLogo } from '../game/components/3d/BeaconLogo';
 
 function FaqItem({
   question,
@@ -130,6 +131,34 @@ function LandingApp() {
             />
           ))}
         </div>
+
+        {/* Secondary Beacon auction */}
+        <section
+          aria-labelledby="beacon-heading"
+          className="mb-16 grid border border-dim bg-black/60 md:grid-cols-[0.32fr_1fr]"
+        >
+          <a
+            href="/play/beacon"
+            aria-label="View the Beacon"
+            className="group grid min-h-36 place-items-center border-b border-dim p-5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:border-b-0 md:border-r"
+          >
+            <BeaconLogo className="h-28 w-28 transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none" />
+          </a>
+
+          <div className="flex flex-col justify-center px-[30px] py-6 md:px-10">
+            <h2
+              id="beacon-heading"
+              className="text-[1.5rem] font-bold tracking-tight"
+            >
+              THE BEACON
+            </h2>
+            <p className="mt-2 max-w-2xl text-[0.95rem] leading-[1.65] text-[#aaa]">
+              Operators can vie for control of the Beacon through the on-chain
+              sealed-bid auction. The winner is allowed to publish an image,
+              description, and link visible from the Core.
+            </p>
+          </div>
+        </section>
 
         {/* FAQ */}
         <section

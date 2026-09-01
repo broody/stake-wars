@@ -10,20 +10,20 @@ import (
 )
 
 const (
-	defaultPort                       = "8080"
-	defaultDatabasePath               = "./stakewars.db"
-	defaultStarknetChainID            = "SN_MAIN"
-	defaultMaxImageBytes              = int64(2 * 1024 * 1024)
-	defaultChallengeTTL               = 5 * time.Minute
-	defaultSessionTTL                 = 15 * time.Minute
-	defaultArbiterBiddingDuration     = 72 * time.Hour
-	defaultArbiterAcceptanceDuration  = 15 * time.Minute
-	defaultArbiterSettlementDuration  = 6 * time.Hour
-	defaultArbiterReservePrice        = "100000000000000000"
-	defaultArbiterMaxBids             = 32
-	defaultArbiterWinnerPayloadDomain = "0x5354414b45574152535f415242495445525f5631"
-	maxConfiguredImageBytes           = int64(100 * 1024 * 1024)
-	productionEnvironmentName         = "production"
+	defaultPort                      = "8080"
+	defaultDatabasePath              = "./stakewars.db"
+	defaultStarknetChainID           = "SN_MAIN"
+	defaultMaxImageBytes             = int64(2 * 1024 * 1024)
+	defaultChallengeTTL              = 5 * time.Minute
+	defaultSessionTTL                = 15 * time.Minute
+	defaultBeaconBiddingDuration     = 72 * time.Hour
+	defaultBeaconAcceptanceDuration  = 15 * time.Minute
+	defaultBeaconSettlementDuration  = 6 * time.Hour
+	defaultBeaconReservePrice        = "100000000000000000"
+	defaultBeaconMaxBids             = 32
+	defaultBeaconWinnerPayloadDomain = "0x5354414b45574152535f424541434f4e5f5631"
+	maxConfiguredImageBytes          = int64(100 * 1024 * 1024)
+	productionEnvironmentName        = "production"
 )
 
 var productionOrigins = []string{
@@ -34,33 +34,33 @@ var productionOrigins = []string{
 // Config contains runtime settings. Secrets are read from the environment and
 // never persisted by this package.
 type Config struct {
-	Environment                string
-	Port                       string
-	DatabasePath               string
-	StarknetRPCURL             string
-	StarknetChainID            string
-	ToriiURL                   string
-	ToriiStakingPoolAddress    string
-	MaxImageBytes              int64
-	ChallengeTTL               time.Duration
-	SessionTTL                 time.Duration
-	ArbiterBiddingDuration     time.Duration
-	ArbiterAcceptanceDuration  time.Duration
-	ArbiterSettlementDuration  time.Duration
-	ArbiterCoordinatorURL      string
-	ArbiterCoordinatorToken    string
-	ArbiterPaymentToken        string
-	ArbiterReservePrice        string
-	ArbiterMaxBids             uint32
-	ArbiterWinnerPayloadDomain string
-	AllowedOrigins             []string
-	ControlSystemAddress       string
-	ImageBucket                string
-	ImagePublicURL             string
-	S3Endpoint                 string
-	S3Region                   string
-	S3AccessKeyID              string
-	S3SecretAccessKey          string
+	Environment               string
+	Port                      string
+	DatabasePath              string
+	StarknetRPCURL            string
+	StarknetChainID           string
+	ToriiURL                  string
+	ToriiStakingPoolAddress   string
+	MaxImageBytes             int64
+	ChallengeTTL              time.Duration
+	SessionTTL                time.Duration
+	BeaconBiddingDuration     time.Duration
+	BeaconAcceptanceDuration  time.Duration
+	BeaconSettlementDuration  time.Duration
+	BeaconCoordinatorURL      string
+	BeaconCoordinatorToken    string
+	BeaconPaymentToken        string
+	BeaconReservePrice        string
+	BeaconMaxBids             uint32
+	BeaconWinnerPayloadDomain string
+	AllowedOrigins            []string
+	ControlSystemAddress      string
+	ImageBucket               string
+	ImagePublicURL            string
+	S3Endpoint                string
+	S3Region                  string
+	S3AccessKeyID             string
+	S3SecretAccessKey         string
 }
 
 // Load reads and validates runtime configuration from the environment.
@@ -91,49 +91,49 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("AUTH_SESSION_TTL must be positive")
 	}
 
-	arbiterBiddingDuration, err := durationValue("ARBITER_BIDDING_DURATION", defaultArbiterBiddingDuration)
+	beaconBiddingDuration, err := durationValue("BEACON_BIDDING_DURATION", defaultBeaconBiddingDuration)
 	if err != nil {
 		return Config{}, err
 	}
-	arbiterAcceptanceDuration, err := durationValue("ARBITER_ACCEPTANCE_DURATION", defaultArbiterAcceptanceDuration)
+	beaconAcceptanceDuration, err := durationValue("BEACON_ACCEPTANCE_DURATION", defaultBeaconAcceptanceDuration)
 	if err != nil {
 		return Config{}, err
 	}
-	arbiterSettlementDuration, err := durationValue("ARBITER_SETTLEMENT_DURATION", defaultArbiterSettlementDuration)
+	beaconSettlementDuration, err := durationValue("BEACON_SETTLEMENT_DURATION", defaultBeaconSettlementDuration)
 	if err != nil {
 		return Config{}, err
 	}
-	if arbiterAcceptanceDuration <= 0 || arbiterAcceptanceDuration%time.Second != 0 ||
-		arbiterSettlementDuration <= 0 || arbiterSettlementDuration%time.Second != 0 {
-		return Config{}, fmt.Errorf("Arbiter acceptance and settlement durations must be positive whole seconds")
+	if beaconAcceptanceDuration <= 0 || beaconAcceptanceDuration%time.Second != 0 ||
+		beaconSettlementDuration <= 0 || beaconSettlementDuration%time.Second != 0 {
+		return Config{}, fmt.Errorf("Beacon acceptance and settlement durations must be positive whole seconds")
 	}
-	arbiterCoordinatorURL := strings.TrimRight(strings.TrimSpace(os.Getenv("ARBITER_COORDINATOR_URL")), "/")
-	arbiterCoordinatorToken := strings.TrimSpace(os.Getenv("ARBITER_COORDINATOR_TOKEN"))
-	arbiterPaymentToken := strings.TrimSpace(os.Getenv("ARBITER_PAYMENT_TOKEN"))
+	beaconCoordinatorURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BEACON_COORDINATOR_URL")), "/")
+	beaconCoordinatorToken := strings.TrimSpace(os.Getenv("BEACON_COORDINATOR_TOKEN"))
+	beaconPaymentToken := strings.TrimSpace(os.Getenv("BEACON_PAYMENT_TOKEN"))
 	configuredCoordinatorValues := 0
-	for _, value := range []string{arbiterCoordinatorURL, arbiterCoordinatorToken, arbiterPaymentToken} {
+	for _, value := range []string{beaconCoordinatorURL, beaconCoordinatorToken, beaconPaymentToken} {
 		if value != "" {
 			configuredCoordinatorValues++
 		}
 	}
 	if configuredCoordinatorValues != 0 && configuredCoordinatorValues != 3 {
-		return Config{}, fmt.Errorf("ARBITER_COORDINATOR_URL, ARBITER_COORDINATOR_TOKEN, and ARBITER_PAYMENT_TOKEN must be configured together")
+		return Config{}, fmt.Errorf("BEACON_COORDINATOR_URL, BEACON_COORDINATOR_TOKEN, and BEACON_PAYMENT_TOKEN must be configured together")
 	}
-	if arbiterCoordinatorURL != "" {
-		parsed, err := url.Parse(arbiterCoordinatorURL)
+	if beaconCoordinatorURL != "" {
+		parsed, err := url.Parse(beaconCoordinatorURL)
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-			return Config{}, fmt.Errorf("ARBITER_COORDINATOR_URL must be an absolute HTTP(S) URL")
+			return Config{}, fmt.Errorf("BEACON_COORDINATOR_URL must be an absolute HTTP(S) URL")
 		}
-		if len(arbiterCoordinatorToken) < 32 {
-			return Config{}, fmt.Errorf("ARBITER_COORDINATOR_TOKEN must contain at least 32 characters")
+		if len(beaconCoordinatorToken) < 32 {
+			return Config{}, fmt.Errorf("BEACON_COORDINATOR_TOKEN must contain at least 32 characters")
 		}
 	}
-	arbiterMaxBidsValue, err := int64Value("ARBITER_MAX_BIDS", defaultArbiterMaxBids)
-	if err != nil || arbiterMaxBidsValue < 1 || arbiterMaxBidsValue > 256 {
-		return Config{}, fmt.Errorf("ARBITER_MAX_BIDS must be between 1 and 256")
+	beaconMaxBidsValue, err := int64Value("BEACON_MAX_BIDS", defaultBeaconMaxBids)
+	if err != nil || beaconMaxBidsValue < 1 || beaconMaxBidsValue > 256 {
+		return Config{}, fmt.Errorf("BEACON_MAX_BIDS must be between 1 and 256")
 	}
-	if arbiterBiddingDuration <= 0 || arbiterBiddingDuration%time.Second != 0 {
-		return Config{}, fmt.Errorf("ARBITER_BIDDING_DURATION must be a positive whole number of seconds")
+	if beaconBiddingDuration <= 0 || beaconBiddingDuration%time.Second != 0 {
+		return Config{}, fmt.Errorf("BEACON_BIDDING_DURATION must be a positive whole number of seconds")
 	}
 
 	origins := productionOrigins
@@ -179,38 +179,38 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Environment:                environment,
-		Port:                       valueOrDefault("PORT", defaultPort),
-		DatabasePath:               valueOrDefault("DATABASE_PATH", defaultDatabasePath),
-		StarknetRPCURL:             strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
-		StarknetChainID:            valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
-		ToriiURL:                   toriiURL,
-		ToriiStakingPoolAddress:    strings.TrimSpace(os.Getenv("TORII_STAKING_POOL_ADDRESS")),
-		MaxImageBytes:              maxImageBytes,
-		ChallengeTTL:               challengeTTL,
-		SessionTTL:                 sessionTTL,
-		ArbiterBiddingDuration:     arbiterBiddingDuration,
-		ArbiterAcceptanceDuration:  arbiterAcceptanceDuration,
-		ArbiterSettlementDuration:  arbiterSettlementDuration,
-		ArbiterCoordinatorURL:      arbiterCoordinatorURL,
-		ArbiterCoordinatorToken:    arbiterCoordinatorToken,
-		ArbiterPaymentToken:        arbiterPaymentToken,
-		ArbiterReservePrice:        valueOrDefault("ARBITER_RESERVE_PRICE", defaultArbiterReservePrice),
-		ArbiterMaxBids:             uint32(arbiterMaxBidsValue),
-		ArbiterWinnerPayloadDomain: valueOrDefault("ARBITER_WINNER_PAYLOAD_DOMAIN", defaultArbiterWinnerPayloadDomain),
-		AllowedOrigins:             origins,
-		ControlSystemAddress:       strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
-		ImageBucket:                imageBucket,
-		ImagePublicURL:             imagePublicURL,
-		S3Endpoint:                 s3Endpoint,
-		S3Region:                   valueOrDefault("AWS_REGION", "auto"),
-		S3AccessKeyID:              s3AccessKeyID,
-		S3SecretAccessKey:          s3SecretAccessKey,
+		Environment:               environment,
+		Port:                      valueOrDefault("PORT", defaultPort),
+		DatabasePath:              valueOrDefault("DATABASE_PATH", defaultDatabasePath),
+		StarknetRPCURL:            strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
+		StarknetChainID:           valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
+		ToriiURL:                  toriiURL,
+		ToriiStakingPoolAddress:   strings.TrimSpace(os.Getenv("TORII_STAKING_POOL_ADDRESS")),
+		MaxImageBytes:             maxImageBytes,
+		ChallengeTTL:              challengeTTL,
+		SessionTTL:                sessionTTL,
+		BeaconBiddingDuration:     beaconBiddingDuration,
+		BeaconAcceptanceDuration:  beaconAcceptanceDuration,
+		BeaconSettlementDuration:  beaconSettlementDuration,
+		BeaconCoordinatorURL:      beaconCoordinatorURL,
+		BeaconCoordinatorToken:    beaconCoordinatorToken,
+		BeaconPaymentToken:        beaconPaymentToken,
+		BeaconReservePrice:        valueOrDefault("BEACON_RESERVE_PRICE", defaultBeaconReservePrice),
+		BeaconMaxBids:             uint32(beaconMaxBidsValue),
+		BeaconWinnerPayloadDomain: valueOrDefault("BEACON_WINNER_PAYLOAD_DOMAIN", defaultBeaconWinnerPayloadDomain),
+		AllowedOrigins:            origins,
+		ControlSystemAddress:      strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
+		ImageBucket:               imageBucket,
+		ImagePublicURL:            imagePublicURL,
+		S3Endpoint:                s3Endpoint,
+		S3Region:                  valueOrDefault("AWS_REGION", "auto"),
+		S3AccessKeyID:             s3AccessKeyID,
+		S3SecretAccessKey:         s3SecretAccessKey,
 	}, nil
 }
 
-func (c Config) ArbiterCoordinatorEnabled() bool {
-	return c.ArbiterCoordinatorURL != ""
+func (c Config) BeaconCoordinatorEnabled() bool {
+	return c.BeaconCoordinatorURL != ""
 }
 
 func (c Config) ImageStorageEnabled() bool {

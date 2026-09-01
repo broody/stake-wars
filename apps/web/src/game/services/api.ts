@@ -16,7 +16,7 @@ export interface StakeWarsApiConfig {
   supportedImageTypes: string[];
 }
 
-export type ArbiterPhase =
+export type BeaconPhase =
   | 'none'
   | 'pending'
   | 'bidding'
@@ -26,7 +26,7 @@ export type ArbiterPhase =
   | 'settled'
   | 'aborted';
 
-export interface ArbiterRoundResult {
+export interface BeaconRoundResult {
   hasWinner: boolean;
   winnerCommitment: string;
   winningBid: string;
@@ -35,7 +35,7 @@ export interface ArbiterRoundResult {
   settledAt: string;
 }
 
-export interface ArbiterRound {
+export interface BeaconRound {
   id: number;
   whisperAddress: string;
   auctionId: number;
@@ -58,14 +58,14 @@ export interface ArbiterRound {
   submissionCount: number;
   fundedTrancheCount: number;
   status: 'pending' | 'bidding' | 'settled' | 'aborted';
-  result: ArbiterRoundResult | null;
+  result: BeaconRoundResult | null;
 }
 
-export interface ArbiterSnapshot {
+export interface BeaconSnapshot {
   network: string;
-  phase: ArbiterPhase;
+  phase: BeaconPhase;
   observedAt: string;
-  round: ArbiterRound | null;
+  round: BeaconRound | null;
   controller: {
     address: string;
     claimedAt: string;
@@ -75,19 +75,21 @@ export interface ArbiterSnapshot {
   billboard: {
     imageUrl: string;
     thumbnailUrl: string;
+    description: string;
+    destinationUrl: string;
     updatedAt: string;
   } | null;
 }
 
-export interface ArbiterHistoryEntry {
+export interface BeaconHistoryEntry {
   roundId: number;
   winnerAddress: string | null;
   bidCount: number;
   winningBid: string;
 }
 
-export interface ArbiterHistoryPage {
-  entries: ArbiterHistoryEntry[];
+export interface BeaconHistoryPage {
+  entries: BeaconHistoryEntry[];
   nextCursor: string | null;
 }
 
@@ -97,13 +99,15 @@ export interface PreparedSectorImage {
   thumbnail: Blob;
 }
 
-export type PreparedArbiterImage = PreparedSectorImage;
+export type PreparedBeaconImage = PreparedSectorImage;
 
-export interface ArbiterArtwork {
+export interface BeaconArtwork {
   id: string;
   network: string;
   controllerRoundId: number;
   ownerAddress: string;
+  description: string;
+  destinationUrl: string;
   imageUrl: string;
   thumbnailUrl: string;
   contentHash: string;
@@ -211,12 +215,12 @@ export const api = {
     return requestJSON('/v1/config', { signal });
   },
 
-  getArbiter(signal?: AbortSignal): Promise<ArbiterSnapshot> {
-    return requestJSON('/v1/arbiter', { signal, cache: 'no-store' });
+  getBeacon(signal?: AbortSignal): Promise<BeaconSnapshot> {
+    return requestJSON('/v1/beacon', { signal, cache: 'no-store' });
   },
 
-  getArbiterHistory(signal?: AbortSignal): Promise<ArbiterHistoryPage> {
-    return requestJSON('/v1/arbiter/history?limit=100', { signal });
+  getBeaconHistory(signal?: AbortSignal): Promise<BeaconHistoryPage> {
+    return requestJSON('/v1/beacon/history?limit=100', { signal });
   },
 
   async getSectorArtworks(signal?: AbortSignal): Promise<SectorArtwork[]> {
@@ -281,20 +285,26 @@ export const api = {
     );
   },
 
-  async uploadArbiterArtwork({
+  async uploadBeaconArtwork({
     walletAddress,
+    description,
+    destinationUrl,
     prepared,
     signTypedData,
   }: {
     walletAddress: string;
-    prepared: PreparedArbiterImage;
+    description: string;
+    destinationUrl: string;
+    prepared: PreparedBeaconImage;
     signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
-  }): Promise<ArbiterArtwork> {
+  }): Promise<BeaconArtwork> {
     const session = await imageSession(walletAddress, signTypedData);
     const authorization = await requestJSON<ImageUploadAuthorization>(
-      '/v1/arbiter/artwork/uploads',
+      '/v1/beacon/artwork/uploads',
       jsonRequest(
         {
+          description,
+          destinationUrl,
           contentType: prepared.contentType,
           detailSize: prepared.detail.size,
           thumbnailSize: prepared.thumbnail.size,
@@ -306,8 +316,8 @@ export const api = {
       putObject(authorization.detail, prepared.detail),
       putObject(authorization.thumbnail, prepared.thumbnail),
     ]);
-    return requestJSON<ArbiterArtwork>(
-      `/v1/arbiter/artwork/uploads/${encodeURIComponent(
+    return requestJSON<BeaconArtwork>(
+      `/v1/beacon/artwork/uploads/${encodeURIComponent(
         authorization.uploadId
       )}/complete`,
       jsonRequest({}, session.token)

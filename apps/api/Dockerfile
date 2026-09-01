@@ -9,11 +9,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
         -o /out/stakewars-api ./cmd/server \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
-        -o /out/stakewars-arbiter-backfill ./cmd/arbiter-backfill \
+        -o /out/stakewars-beacon-backfill ./cmd/beacon-backfill \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
-        -o /out/stakewars-arbiter-round-repair ./cmd/arbiter-round-repair \
+        -o /out/stakewars-beacon-round-repair ./cmd/beacon-round-repair \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
-        -o /out/stakewars-arbiter-bootstrap ./cmd/arbiter-bootstrap
+        -o /out/stakewars-beacon-bootstrap ./cmd/beacon-bootstrap
 
 FROM alpine:3.22 AS torii-download
 
@@ -46,9 +46,9 @@ RUN apt-get update \
     && install -d -o stakewars -g stakewars /data /data/torii
 
 COPY --from=build /out/stakewars-api /usr/local/bin/stakewars-api
-COPY --from=build /out/stakewars-arbiter-backfill /usr/local/bin/stakewars-arbiter-backfill
-COPY --from=build /out/stakewars-arbiter-round-repair /usr/local/bin/stakewars-arbiter-round-repair
-COPY --from=build /out/stakewars-arbiter-bootstrap /usr/local/bin/stakewars-arbiter-bootstrap
+COPY --from=build /out/stakewars-beacon-backfill /usr/local/bin/stakewars-beacon-backfill
+COPY --from=build /out/stakewars-beacon-round-repair /usr/local/bin/stakewars-beacon-round-repair
+COPY --from=build /out/stakewars-beacon-bootstrap /usr/local/bin/stakewars-beacon-bootstrap
 COPY --from=torii-download /out/torii /usr/local/bin/torii
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --chmod=0755 stakewars-runtime.sh /usr/local/bin/stakewars-runtime

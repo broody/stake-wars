@@ -16,7 +16,7 @@
     "dev:web:e2e": "./scripts/run-web-e2e-local.sh",
     "dev:api": "./scripts/run-api-local.sh",
     "dev:whisper": "./scripts/run-whisper-operator-local.sh",
-    "arbiter:bootstrap": "./scripts/run-api-local.sh bootstrap",
+    "beacon:bootstrap": "./scripts/run-api-local.sh bootstrap",
     "dev:torii": "./scripts/run-torii-sepolia.sh",
     "dev:katana": "cd contracts && katana --dev --dev.no-fee --cartridge.paymaster --http.cors_origins '*'",
     "contracts:build": "cd contracts && sozo build",

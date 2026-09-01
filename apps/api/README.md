@@ -13,7 +13,7 @@ From the repository root:
 pnpm dev:api
 ```
 
-For the complete local Sepolia Arbiter rehearsal, keep Torii and the Whisper
+For the complete local Sepolia Beacon rehearsal, keep Torii and the Whisper
 operator running, bootstrap the first round explicitly, and launch the web app
 with its local API/operator overrides:
 
@@ -21,7 +21,7 @@ with its local API/operator overrides:
 pnpm dev:torii
 pnpm dev:whisper
 pnpm dev:api
-pnpm arbiter:bootstrap
+pnpm beacon:bootstrap
 pnpm dev:web:e2e
 ```
 
@@ -51,7 +51,7 @@ launcher enables debug output and mirrors timestamped logs under
 `contracts/.torii/logs/`. In addition to the Stake Wars World, the Sepolia
 configuration indexes raw events from the staking pool and the active Whisper
 deployment. Those events remain available for indexed inspection, but Torii is
-not authoritative for Arbiter control or history. The API reconciles each
+not authoritative for Beacon control or history. The API reconciles each
 canonical round from Whisper's onchain auction and result views through direct
 Starknet RPC.
 
@@ -76,15 +76,15 @@ leave the previous winner in control.
 | `TORII_STAKING_POOL_ADDRESS` | unset | Indexed staking pool used to derive cached public staking statistics. |
 | `TORII_WHISPER_ADDRESS` | unset | Whisper contract whose raw auction lifecycle events Torii indexes. |
 | `TORII_WHISPER_BLOCK` | unset | Whisper deployment block used as the event-indexing start. |
-| `ARBITER_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Arbiter rounds. Sepolia rehearsal environments currently set this to `5m`. |
-| `ARBITER_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
-| `ARBITER_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
-| `ARBITER_COORDINATOR_URL` | unset | Whisper operator origin used by recurring auction creation and post-settlement winner resolution. |
-| `ARBITER_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation and winner-disclosure endpoints. |
-| `ARBITER_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Arbiter rounds. |
-| `ARBITER_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
-| `ARBITER_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |
-| `ARBITER_WINNER_PAYLOAD_DOMAIN` | Stake Wars v1 felt | Fixed application domain for opaque winner commitments. |
+| `BEACON_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Beacon rounds. Sepolia rehearsal environments currently set this to `5m`. |
+| `BEACON_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
+| `BEACON_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
+| `BEACON_COORDINATOR_URL` | unset | Whisper operator origin used by recurring auction creation and post-settlement winner resolution. |
+| `BEACON_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation and winner-disclosure endpoints. |
+| `BEACON_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Beacon rounds. |
+| `BEACON_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
+| `BEACON_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |
+| `BEACON_WINNER_PAYLOAD_DOMAIN` | `STAKEWARS_BEACON_V1` felt | Fixed application domain for opaque winner commitments. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
@@ -107,8 +107,8 @@ GET  /healthz
 GET  /readyz
 GET  /v1/config
 GET  /v1/stats
-GET  /v1/arbiter
-GET  /v1/arbiter/history
+GET  /v1/beacon
+GET  /v1/beacon/history
 GET  /torii/health
 POST /torii/graphql
 POST /v1/auth/challenges
@@ -116,6 +116,8 @@ POST /v1/auth/sessions
 GET  /v1/sector-artworks
 POST /v1/sector-artworks/uploads
 POST /v1/sector-artworks/uploads/{uploadId}/complete
+POST /v1/beacon/artwork/uploads
+POST /v1/beacon/artwork/uploads/{uploadId}/complete
 ```
 
 Image uploads are enabled only when all object-storage settings are present.
@@ -126,6 +128,11 @@ and calls the completion endpoint. Completion downloads only those bounded
 objects for signature, MIME, dimensions, and size validation, rechecks current
 on-chain ownership for every target, and publishes generation-bound target
 metadata with the captured camera and placement transform.
+
+A Beacon controller may publish exactly one paid transmission during its
+control term. The upload authorization binds a required plain-text description
+and absolute HTTP(S) destination URL to the image; completion rechecks current
+control and atomically locks the controller's publication slot.
 
 The image bucket must allow public `GET` requests and browser `PUT` CORS from
 the configured Stake Wars origins, including the `Content-Type` request header.

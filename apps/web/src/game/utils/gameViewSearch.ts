@@ -21,8 +21,8 @@ export function shareableGameViewSearch(
   search: URLSearchParams
 ): URLSearchParams {
   const next = new URLSearchParams();
-  if (search.get('tracking') === 'arbiter') {
-    next.set('tracking', 'arbiter');
+  if (search.get('tracking') === 'beacon') {
+    next.set('tracking', 'beacon');
   }
   if (isProjectionModeEnabled(search)) {
     next.set(PROJECTION_SEARCH_PARAM, '1');

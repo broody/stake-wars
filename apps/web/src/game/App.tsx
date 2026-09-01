@@ -11,14 +11,14 @@ import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Home } from './pages/Home';
 import { Gallery } from './pages/Gallery';
-import { Arbiter } from './pages/Arbiter';
+import { Beacon } from './pages/Beacon';
 import { Operator } from './pages/Operator';
 import { Staking } from './pages/Staking';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
 import { SectorImageProvider } from './contexts/SectorImageContext';
-import { ArbiterProvider } from './contexts/ArbiterContext';
+import { BeaconProvider } from './contexts/BeaconContext';
 
 const CoreLab = lazy(() =>
   import('./pages/OwnershipLab').then((module) => ({
@@ -51,8 +51,8 @@ function GamePages() {
           <Routes>
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/staking" element={<Staking />} />
-            <Route path="/arbiter" element={<Arbiter />} />
-            <Route path="/arbiter/history" element={<Arbiter />} />
+            <Route path="/beacon" element={<Beacon />} />
+            <Route path="/beacon/history" element={<Beacon />} />
             <Route path="/operator" element={<Operator />} />
             <Route
               path="/core-lab"
@@ -78,13 +78,13 @@ function GameApp({ basename }: GameAppProps) {
             <TransactionToastProvider>
               <SectorProvider>
                 <SectorImageProvider>
-                  <ArbiterProvider>
+                  <BeaconProvider>
                     <YieldProvider>
                       <Layout>
                         <GamePages />
                       </Layout>
                     </YieldProvider>
-                  </ArbiterProvider>
+                  </BeaconProvider>
                 </SectorImageProvider>
               </SectorProvider>
             </TransactionToastProvider>

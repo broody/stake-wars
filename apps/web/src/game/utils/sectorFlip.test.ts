@@ -20,7 +20,7 @@ import {
 } from './sectorFlip';
 
 describe('sector flip parameters', () => {
-  it('uses the Arbiter-style flicker before settling a loaded Sector', () => {
+  it('uses the Beacon-style flicker before settling a loaded Sector', () => {
     expect(sectorLoadRevealFlickerOpacity(0)).toBe(0);
     expect(sectorLoadRevealFlickerOpacity(0.08)).toBeCloseTo(0.9);
     expect(sectorLoadRevealFlickerOpacity(0.16)).toBeCloseTo(0.12);

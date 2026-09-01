@@ -7,7 +7,7 @@ import {
 } from '@whisper-sdk/hashes.ts';
 import { encryptWhisperBidCapsule } from '@whisper-sdk/capsule.ts';
 import type { WhisperEncryptedCapsule } from '@whisper-sdk/capsule.ts';
-import type { ArbiterRound } from './api';
+import type { BeaconRound } from './api';
 import { parseStrk } from '../utils/format';
 
 const MAX_FELT = (1n << 251n) + 17n * (1n << 192n);
@@ -21,10 +21,10 @@ interface WhisperOperatorConfig {
   revealPublicKey: string;
 }
 
-export interface SubmitArbiterBidInput {
+export interface SubmitBeaconBidInput {
   amount: string;
   network: string;
-  round: ArbiterRound;
+  round: BeaconRound;
   walletAddress: string;
   walletChainId: string;
   expectedPaymentToken: string;
@@ -36,7 +36,7 @@ export interface SubmitArbiterBidInput {
   fetcher?: typeof fetch;
 }
 
-export interface ArbiterBidReceipt {
+export interface BeaconBidReceipt {
   amount: string;
   transactionHash: string;
   storageStatus?: 'saved' | 'failed';
@@ -44,7 +44,7 @@ export interface ArbiterBidReceipt {
   bidHandle: string;
 }
 
-export async function submitArbiterBid({
+export async function submitBeaconBid({
   amount,
   network,
   round,
@@ -55,7 +55,7 @@ export async function submitArbiterBid({
   operatorUrl,
   invokePrivateActions,
   fetcher = fetch,
-}: SubmitArbiterBidInput): Promise<ArbiterBidReceipt> {
+}: SubmitBeaconBidInput): Promise<BeaconBidReceipt> {
   if (round.submissionCount >= round.maxBids) {
     throw new Error('This auction has reached its bid limit.');
   }
@@ -209,7 +209,7 @@ async function getOperatorConfig(
 
 function validateOperatorConfig(
   operator: WhisperOperatorConfig,
-  round: ArbiterRound,
+  round: BeaconRound,
   chainId: bigint,
   expectedPoolAddress: string
 ) {

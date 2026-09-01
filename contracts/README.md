@@ -34,7 +34,7 @@ event indexing enabled. The Whisper address and deployment block mirror
 `vendor/whisper/deployments/sepolia.json`.
 
 Torii indexes keyed `AuctionSettled` events from the configured Whisper
-contract for inspection and rebuildable queries. Arbiter control and API
+contract for inspection and rebuildable queries. Beacon control and API
 history do not wait for this index: the API reads the canonical auction and
 result directly through Starknet RPC, then verifies the operator's winning
 address disclosure against the onchain winning group and commitment.

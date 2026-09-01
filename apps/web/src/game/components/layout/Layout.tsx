@@ -21,7 +21,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navLinks = [
     { path: '/', label: 'CORE' },
     { path: '/staking', label: 'FORCE' },
-    { path: '/arbiter', label: 'ARBITER' },
+    { path: '/beacon', label: 'BEACON' },
     { path: '/operator', label: 'OPERATOR' },
   ];
 

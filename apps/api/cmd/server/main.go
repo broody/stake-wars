@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"stakewars.com/api/internal/api"
-	"stakewars.com/api/internal/arbiter"
 	"stakewars.com/api/internal/auth"
+	"stakewars.com/api/internal/beacon"
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
@@ -58,41 +58,41 @@ func run() error {
 
 	verifier := starknet.NewVerifier(configuration.StarknetRPCURL, configuration.StarknetChainID)
 	whisperReader := starknet.NewWhisperReader(configuration.StarknetRPCURL)
-	arbiterStore := arbiter.NewStore(db)
-	arbiterBiddingDurationSeconds := uint64(configuration.ArbiterBiddingDuration / time.Second)
-	var arbiterWorker *arbiter.Worker
-	arbiterDuties := make([]arbiter.Duty, 0, 3)
+	beaconStore := beacon.NewStore(db)
+	beaconBiddingDurationSeconds := uint64(configuration.BeaconBiddingDuration / time.Second)
+	var beaconWorker *beacon.Worker
+	beaconDuties := make([]beacon.Duty, 0, 3)
 	if configuration.StarknetRPCURL != "" {
-		arbiterDuties = append(arbiterDuties,
-			arbiter.NewOnchainSettlementProjector(
-				arbiterStore,
+		beaconDuties = append(beaconDuties,
+			beacon.NewOnchainSettlementProjector(
+				beaconStore,
 				whisperReader,
 				configuration.StarknetChainID,
-				arbiterBiddingDurationSeconds,
+				beaconBiddingDurationSeconds,
 			),
 		)
 	}
-	if configuration.ArbiterCoordinatorEnabled() {
-		arbiterDuties = append(arbiterDuties, arbiter.NewWinnerProjector(
-			arbiterStore,
-			arbiter.NewOperatorCoordinatorClient(
-				configuration.ArbiterCoordinatorURL,
-				configuration.ArbiterCoordinatorToken,
+	if configuration.BeaconCoordinatorEnabled() {
+		beaconDuties = append(beaconDuties, beacon.NewWinnerProjector(
+			beaconStore,
+			beacon.NewOperatorCoordinatorClient(
+				configuration.BeaconCoordinatorURL,
+				configuration.BeaconCoordinatorToken,
 			),
 			configuration.StarknetChainID,
 		))
 	}
-	if configuration.ArbiterCoordinatorEnabled() {
-		restarter, err := newArbiterRestarter(configuration, arbiterStore, whisperReader)
+	if configuration.BeaconCoordinatorEnabled() {
+		restarter, err := newBeaconRestarter(configuration, beaconStore, whisperReader)
 		if err != nil {
 			return err
 		}
-		arbiterDuties = append(arbiterDuties, arbiter.NewAuctionCycleDuty(
-			arbiterStore, whisperReader, restarter, configuration.StarknetChainID,
+		beaconDuties = append(beaconDuties, beacon.NewAuctionCycleDuty(
+			beaconStore, whisperReader, restarter, configuration.StarknetChainID,
 		))
 	}
-	if len(arbiterDuties) > 0 {
-		arbiterWorker = arbiter.NewWorker(20*time.Second, arbiterDuties...)
+	if len(beaconDuties) > 0 {
+		beaconWorker = beacon.NewWorker(20*time.Second, beaconDuties...)
 	}
 	if configuration.StarknetRPCURL == "" {
 		slog.Warn("STARKNET_RPC_URL is not configured; session creation is disabled")
@@ -106,7 +106,7 @@ func run() error {
 		},
 	)
 	var imageService *images.Service
-	var arbiterImageService *images.ArbiterService
+	var beaconImageService *images.BeaconService
 	if configuration.ImageStorageEnabled() {
 		if configuration.StarknetRPCURL == "" || configuration.ControlSystemAddress == "" {
 			return errors.New("STARKNET_RPC_URL and CONTROL_SYSTEM_ADDRESS are required when image storage is enabled")
@@ -134,10 +134,10 @@ func run() error {
 			imageStore, objectStore, controlReader,
 			configuration.StarknetChainID, configuration.MaxImageBytes,
 		)
-		arbiterImageService = images.NewArbiterService(
+		beaconImageService = images.NewBeaconService(
 			imageStore,
 			objectStore,
-			arbiterStore,
+			beaconStore,
 			configuration.StarknetChainID,
 			configuration.MaxImageBytes,
 		)
@@ -147,19 +147,19 @@ func run() error {
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
 		Handler: api.NewHandler(api.Dependencies{
-			DB:            db,
-			Auth:          authService,
-			Torii:         toriiGateway,
-			Images:        imageService,
-			ArbiterImages: arbiterImageService,
-			Arbiter: arbiter.NewService(
-				arbiterStore,
+			DB:           db,
+			Auth:         authService,
+			Torii:        toriiGateway,
+			Images:       imageService,
+			BeaconImages: beaconImageService,
+			Beacon: beacon.NewService(
+				beaconStore,
 				whisperReader,
 				configuration.StarknetChainID,
-				arbiterBiddingDurationSeconds,
+				beaconBiddingDurationSeconds,
 			),
-			ArbiterHistory: arbiter.NewHistoryService(
-				arbiterStore,
+			BeaconHistory: beacon.NewHistoryService(
+				beaconStore,
 				configuration.StarknetChainID,
 			),
 			NetworkStats: statsReader,
@@ -184,10 +184,10 @@ func run() error {
 		syscall.SIGTERM,
 	)
 	defer stop()
-	if arbiterWorker != nil {
+	if beaconWorker != nil {
 		go func() {
-			if err := arbiterWorker.Run(ctx); err != nil {
-				slog.ErrorContext(ctx, "Arbiter worker stopped", "error", err)
+			if err := beaconWorker.Run(ctx); err != nil {
+				slog.ErrorContext(ctx, "Beacon worker stopped", "error", err)
 			}
 		}()
 	}
@@ -212,27 +212,27 @@ func run() error {
 	return server.Shutdown(shutdownCtx)
 }
 
-func newArbiterRestarter(
+func newBeaconRestarter(
 	configuration config.Config,
-	store *arbiter.Store,
+	store *beacon.Store,
 	reader starknet.WhisperReader,
-) (*arbiter.OperatorRoundRestarter, error) {
-	return arbiter.NewOperatorRoundRestarter(
+) (*beacon.OperatorRoundRestarter, error) {
+	return beacon.NewOperatorRoundRestarter(
 		store,
 		reader,
-		arbiter.NewOperatorCoordinatorClient(
-			configuration.ArbiterCoordinatorURL,
-			configuration.ArbiterCoordinatorToken,
+		beacon.NewOperatorCoordinatorClient(
+			configuration.BeaconCoordinatorURL,
+			configuration.BeaconCoordinatorToken,
 		),
-		arbiter.CoordinatorConfig{
+		beacon.CoordinatorConfig{
 			Network:                   configuration.StarknetChainID,
-			PaymentToken:              configuration.ArbiterPaymentToken,
-			ReservePrice:              configuration.ArbiterReservePrice,
-			MaxBids:                   configuration.ArbiterMaxBids,
-			WinnerPayloadDomain:       configuration.ArbiterWinnerPayloadDomain,
-			BiddingDurationSeconds:    uint64(configuration.ArbiterBiddingDuration / time.Second),
-			AcceptanceDurationSeconds: uint64(configuration.ArbiterAcceptanceDuration / time.Second),
-			SettlementDurationSeconds: uint64(configuration.ArbiterSettlementDuration / time.Second),
+			PaymentToken:              configuration.BeaconPaymentToken,
+			ReservePrice:              configuration.BeaconReservePrice,
+			MaxBids:                   configuration.BeaconMaxBids,
+			WinnerPayloadDomain:       configuration.BeaconWinnerPayloadDomain,
+			BiddingDurationSeconds:    uint64(configuration.BeaconBiddingDuration / time.Second),
+			AcceptanceDurationSeconds: uint64(configuration.BeaconAcceptanceDuration / time.Second),
+			SettlementDurationSeconds: uint64(configuration.BeaconSettlementDuration / time.Second),
 		},
 	)
 }

@@ -1,0 +1,173 @@
+package images
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+)
+
+type BeaconUpload struct {
+	ID                 string
+	Network            string
+	ControllerRoundID  uint64
+	OwnerAddress       string
+	Description        string
+	DestinationURL     string
+	ContentType        string
+	DetailObjectKey    string
+	DetailSize         int64
+	ThumbnailObjectKey string
+	ThumbnailSize      int64
+	CreatedAt          time.Time
+	ExpiresAt          time.Time
+	CompletedAt        *time.Time
+}
+
+type BeaconArtwork struct {
+	ID                string    `json:"id"`
+	Network           string    `json:"network"`
+	ControllerRoundID uint64    `json:"controllerRoundId"`
+	OwnerAddress      string    `json:"ownerAddress"`
+	Description       string    `json:"description"`
+	DestinationURL    string    `json:"destinationUrl"`
+	ImageURL          string    `json:"imageUrl"`
+	ThumbnailURL      string    `json:"thumbnailUrl"`
+	ContentHash       string    `json:"contentHash"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+func (s *Store) CreateBeaconUpload(ctx context.Context, upload BeaconUpload) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO beacon_image_uploads(
+			id, network, controller_round_id, owner_address, description,
+			destination_url, content_type,
+			detail_object_key, detail_size, thumbnail_object_key, thumbnail_size,
+			created_at, expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, upload.ID, upload.Network, upload.ControllerRoundID, upload.OwnerAddress,
+		upload.Description, upload.DestinationURL, upload.ContentType,
+		upload.DetailObjectKey, upload.DetailSize,
+		upload.ThumbnailObjectKey, upload.ThumbnailSize, upload.CreatedAt.Unix(),
+		upload.ExpiresAt.Unix())
+	if err != nil {
+		return fmt.Errorf("create Beacon image upload: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) BeaconUpload(ctx context.Context, id string) (BeaconUpload, error) {
+	var upload BeaconUpload
+	var createdAt, expiresAt int64
+	var completedAt sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, network, controller_round_id, owner_address, description,
+			destination_url, content_type,
+			detail_object_key, detail_size, thumbnail_object_key, thumbnail_size,
+			created_at, expires_at, completed_at
+		FROM beacon_image_uploads WHERE id = ?
+	`, id).Scan(&upload.ID, &upload.Network, &upload.ControllerRoundID,
+		&upload.OwnerAddress, &upload.Description, &upload.DestinationURL,
+		&upload.ContentType, &upload.DetailObjectKey,
+		&upload.DetailSize, &upload.ThumbnailObjectKey, &upload.ThumbnailSize,
+		&createdAt, &expiresAt, &completedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BeaconUpload{}, ErrUploadNotFound
+	}
+	if err != nil {
+		return BeaconUpload{}, fmt.Errorf("read Beacon image upload: %w", err)
+	}
+	upload.CreatedAt = time.Unix(createdAt, 0).UTC()
+	upload.ExpiresAt = time.Unix(expiresAt, 0).UTC()
+	if completedAt.Valid {
+		completed := time.Unix(completedAt.Int64, 0).UTC()
+		upload.CompletedAt = &completed
+	}
+	return upload, nil
+}
+
+func (s *Store) PublishBeacon(
+	ctx context.Context,
+	upload BeaconUpload,
+	artwork BeaconArtwork,
+	completedAt time.Time,
+) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin Beacon artwork publish: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var currentRoundID uint64
+	var currentController string
+	err = tx.QueryRowContext(ctx, `
+		SELECT round_id, claimed_controller
+		FROM beacon_rounds
+		WHERE network = ? AND claimed_controller IS NOT NULL
+		ORDER BY round_id DESC LIMIT 1
+	`, upload.Network).Scan(&currentRoundID, &currentController)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrForbidden
+	}
+	if err != nil {
+		return fmt.Errorf("read current Beacon controller: %w", err)
+	}
+	if currentRoundID != upload.ControllerRoundID || currentController != upload.OwnerAddress {
+		return ErrForbidden
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE beacon_image_uploads SET completed_at = ?
+		WHERE id = ? AND completed_at IS NULL AND expires_at >= ?
+	`, completedAt.Unix(), upload.ID, completedAt.Unix())
+	if err != nil {
+		return fmt.Errorf("complete Beacon image upload: %w", err)
+	}
+	if updated, rowsErr := result.RowsAffected(); rowsErr != nil || updated != 1 {
+		return ErrUploadNotFound
+	}
+
+	var previousArtwork sql.NullString
+	if err := tx.QueryRowContext(ctx, `
+		SELECT active_artwork_id FROM beacon_rounds
+		WHERE network = ? AND round_id = ?
+	`, upload.Network, upload.ControllerRoundID).Scan(&previousArtwork); err != nil {
+		return fmt.Errorf("read active Beacon artwork: %w", err)
+	}
+	if previousArtwork.Valid && previousArtwork.String != "" {
+		return ErrBeaconAlreadyPublished
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO beacon_artworks(
+			id, network, controller_round_id, owner_address, description,
+			destination_url, image_url, object_key, thumbnail_url,
+			thumbnail_object_key, content_hash, moderation_status, created_at,
+			updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)
+	`, artwork.ID, artwork.Network, artwork.ControllerRoundID, artwork.OwnerAddress,
+		artwork.Description, artwork.DestinationURL, artwork.ImageURL,
+		upload.DetailObjectKey, artwork.ThumbnailURL, upload.ThumbnailObjectKey,
+		artwork.ContentHash, completedAt.Unix(),
+		completedAt.Unix())
+	if err != nil {
+		return fmt.Errorf("publish Beacon artwork: %w", err)
+	}
+	result, err = tx.ExecContext(ctx, `
+		UPDATE beacon_rounds
+		SET active_artwork_id = ?, updated_at = unixepoch()
+		WHERE network = ? AND round_id = ? AND claimed_controller = ?
+			AND active_artwork_id IS NULL
+	`, artwork.ID, upload.Network, upload.ControllerRoundID, upload.OwnerAddress)
+	if err != nil {
+		return fmt.Errorf("activate Beacon artwork: %w", err)
+	}
+	if updated, rowsErr := result.RowsAffected(); rowsErr != nil || updated != 1 {
+		return ErrBeaconAlreadyPublished
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit Beacon artwork publish: %w", err)
+	}
+	return nil
+}
