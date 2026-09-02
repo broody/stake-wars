@@ -27,7 +27,7 @@ import {
 } from '../../utils/sectorTenure';
 import { sectorStakeHeights } from '../../utils/sectorStakeRelief';
 import {
-  SectorDetailImageLayer,
+  SectorDetailImageLayers,
   SectorImageLayer,
   PlacementPreviewLayer,
 } from './SectorImageLayer';
@@ -55,7 +55,6 @@ const TENURE_SURFACE_RADIUS = CORE_RADIUS * 1.004;
 const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 const SECTOR_GRID_FULL_DISTANCE = 10;
 const SECTOR_GRID_FADE_DISTANCE = 22;
-const DETAIL_IMAGE_CAMERA_DISTANCE = 10.5;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
 const EMPTY_SECTOR_IDS: number[] = [];
 const CORE_WAVE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
@@ -2023,28 +2022,27 @@ export function Planet({
   const sectorHeights = useMemo(() => {
     return controlView === 'staked' ? stakedSectorHeights : flatSectorHeights;
   }, [controlView, flatSectorHeights, stakedSectorHeights]);
-  const detailArtwork = useMemo(() => {
-    if (!shouldShowProjection) return null;
+  const priorityDetailArtworkIds = useMemo(() => {
+    if (!shouldShowProjection) return [];
+    const ids: string[] = [];
     if (isImageUploadMode && featuredArtworkId) {
       const featured = visibleArtworks.find(
         (artwork) => artwork.id === featuredArtworkId
       );
-      if (featured) return featured;
+      if (featured) ids.push(featured.id);
     }
     const selectedArtwork =
       selectedSectorId !== null
         ? artworkForSector(visibleArtworks, selectedSectorId)
         : null;
-    if (selectedArtwork) return selectedArtwork;
-    if (
-      hoveredSectorId !== null &&
-      camera.position.length() <= DETAIL_IMAGE_CAMERA_DISTANCE
-    ) {
-      return artworkForSector(visibleArtworks, hoveredSectorId);
-    }
-    return null;
+    if (selectedArtwork) ids.push(selectedArtwork.id);
+    const hoveredArtwork =
+      hoveredSectorId !== null
+        ? artworkForSector(visibleArtworks, hoveredSectorId)
+        : null;
+    if (hoveredArtwork) ids.push(hoveredArtwork.id);
+    return [...new Set(ids)];
   }, [
-    camera,
     hoveredSectorId,
     visibleArtworks,
     featuredArtworkId,
@@ -2251,9 +2249,10 @@ export function Planet({
         onLoadingChange={setThumbnailAtlasLoading}
       />
 
-      {projectionSurfaceVisible && detailArtwork ? (
-        <SectorDetailImageLayer
-          artwork={detailArtwork}
+      {shouldShowProjection && projectionSurfaceVisible ? (
+        <SectorDetailImageLayers
+          artworks={visibleArtworks}
+          priorityArtworkIds={priorityDetailArtworkIds}
           heights={imageHeights}
           flipped={waveFlipActive}
           visibleOnBothFaces={isImageUploadMode}

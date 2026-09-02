@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
+import {
+  measureArtworkDetailCandidates,
+  selectArtworkDetailIds,
+} from '../../utils/sectorArtworkLod';
 import {
   artworkAtlasSourceKey,
   artworkAtlasSourcesFromKey,
@@ -14,6 +18,7 @@ const ATLAS_CELL_SIZE = 256;
 const ATLAS_MAX_COLUMNS = 16;
 const ATLAS_PAGE_CAPACITY = 256;
 const IMAGE_LOAD_CONCURRENCY = 16;
+const DETAIL_LOD_SAMPLE_INTERVAL_SECONDS = 0.2;
 
 const vertexShader = `
   attribute vec3 projectorClip;
@@ -460,6 +465,83 @@ export function SectorDetailImageLayer({
       atlasRows={1}
     />
   );
+}
+
+export function SectorDetailImageLayers({
+  artworks,
+  priorityArtworkIds,
+  heights,
+  flipped,
+  waveOrigin,
+  waveDistanceRange,
+  waveDelay,
+  visibleOnBothFaces = false,
+}: {
+  artworks: readonly SectorArtwork[];
+  priorityArtworkIds: readonly string[];
+  heights: ReadonlyMap<number, number>;
+  flipped: boolean;
+  waveOrigin: THREE.Vector3;
+  waveDistanceRange: THREE.Vector2;
+  waveDelay: number;
+  visibleOnBothFaces?: boolean;
+}) {
+  const { camera, gl } = useThree();
+  const [detailArtworkIds, setDetailArtworkIds] = useState<string[]>([]);
+  const detailArtworkIdsRef = useRef<readonly string[]>([]);
+  const sampleElapsedRef = useRef(DETAIL_LOD_SAMPLE_INTERVAL_SECONDS);
+  const drawingBufferSizeRef = useRef(new THREE.Vector2());
+  const priorityArtworkIdSet = useMemo(
+    () => new Set(priorityArtworkIds),
+    [priorityArtworkIds]
+  );
+  const artworkById = useMemo(
+    () => new Map(artworks.map((artwork) => [artwork.id, artwork])),
+    [artworks]
+  );
+
+  useFrame((_state, delta) => {
+    sampleElapsedRef.current += delta;
+    if (sampleElapsedRef.current < DETAIL_LOD_SAMPLE_INTERVAL_SECONDS) return;
+    sampleElapsedRef.current = 0;
+
+    const viewport = gl.getDrawingBufferSize(drawingBufferSizeRef.current);
+    const nextIds = selectArtworkDetailIds(
+      measureArtworkDetailCandidates(
+        artworks,
+        priorityArtworkIdSet,
+        heights,
+        camera,
+        viewport
+      ),
+      detailArtworkIdsRef.current
+    );
+    if (
+      nextIds.length === detailArtworkIdsRef.current.length &&
+      nextIds.every((id, index) => id === detailArtworkIdsRef.current[index])
+    ) {
+      return;
+    }
+    detailArtworkIdsRef.current = nextIds;
+    setDetailArtworkIds(nextIds);
+  });
+
+  return detailArtworkIds.map((artworkId) => {
+    const artwork = artworkById.get(artworkId);
+    if (!artwork) return null;
+    return (
+      <SectorDetailImageLayer
+        key={artwork.id}
+        artwork={artwork}
+        heights={heights}
+        flipped={flipped}
+        waveOrigin={waveOrigin}
+        waveDistanceRange={waveDistanceRange}
+        waveDelay={waveDelay}
+        visibleOnBothFaces={visibleOnBothFaces}
+      />
+    );
+  });
 }
 
 export function PlacementPreviewLayer({
