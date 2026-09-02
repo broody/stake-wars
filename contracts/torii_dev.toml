@@ -14,4 +14,12 @@ historical = [
   "stakewars-ChallengePositionResolved",
   "stakewars-OperatorDisqualified",
   "stakewars-OperatorRetired",
+  "stakewars-Jackpot",
+  "stakewars-JackpotSectorSnapshot",
+  "stakewars-JackpotOperatorSnapshot",
+  "stakewars-JackpotCreated",
+  "stakewars-JackpotLocked",
+  "stakewars-JackpotRolledOver",
+  "stakewars-JackpotSettled",
+  "stakewars-JackpotClaimed",
 ]

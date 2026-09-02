@@ -13,7 +13,7 @@
 
 Players, known as **Operators**, compete to capture territories (**Sectors**) on a 3D spherical map (**The Core**). STRK is delegated to the Stake Wars validator through Starknet's native delegation protocol. Inside the game, that delegation becomes **FORCE**, which Operators allocate to Sectors and Challenges without creating a separate token. The experience is wrapped in a stark, monochrome "Command Terminal" aesthetic.
 
-An Operator captures a neutral Sector by choosing how much FORCE, backed by delegated STRK, to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes.
+An Operator captures a neutral Sector by choosing how much FORCE, backed by delegated STRK, to commit. Taking an occupied sector initiates an open ascending Challenge: every force commitment is public, must exceed the current lead by at least 10%, and restarts a configurable response window set to 3 minutes on Sepolia for testing and initially 3 hours on Mainnet. Each Operator maintains one cumulative commitment and locks only the increment when escalating it. Losing the lead does not spend either position; when the Challenge expires, the winner's commitment becomes the new garrison and every losing Operator's highest commitment becomes Spent Force. Any eligible Operator may participate, there is no absolute Challenge-duration cap, and settlement is permissionless once a full response window passes without an escalation. The current Controller may display a custom image on that face until ownership changes. Admin-sponsored Jackpots periodically select one Sector and award an escrowed ERC-20, ERC-721, or ERC-1155 prize to the wallet that controlled it at the round deadline.
 
 ---
 
@@ -34,7 +34,9 @@ An Operator captures a neutral Sector by choosing how much FORCE, backed by dele
 *   **Leading Force:** The visible highest cumulative force commitment currently locked against a Challenge.
 *   **Response Window:** The configurable time allowed for another Operator to commit enough force to take the lead. Every valid new leader resets the full window; there is no overall deadline.
 *   **Sector Sacrifice:** Voluntarily giving up another owned, uncontested Sector while initiating or escalating a Challenge. The sector becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the sector.
-*   **Keeper:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, and Operator synchronization. The Keeper cannot select winners, alter commitments, or bypass contract validation.
+*   **Jackpot:** A time-bounded, sponsor-funded reward round that selects one Sector using committed future-block-hash pseudo-randomness and pays the wallet that controlled it at the round deadline.
+*   **Jackpot Sponsor:** The game admin that creates a Jackpot and escrows its complete token prize before the round begins. The initial release supports only this admin sponsor and one active Jackpot at a time.
+*   **Keeper:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, Operator synchronization, and Jackpot locking and settlement. The Keeper cannot select winners, alter commitments, or bypass contract validation.
 
 ---
 
@@ -89,6 +91,16 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Latency:** Funds remain subject to the official Starknet unbonding period. Retirement applies immediately when the unpool intent is detected; the UI may continue showing the official unlock timestamp.
 *   **New Identity:** A player may use another address, but it starts with no history or tenure. Address tenure is expected to influence future gameplay and cannot be transferred from a retired address.
 
+#### 3.1.7. Sector Jackpots
+*   **Single Active Round:** The initial release permits one active Jackpot. Each Jackpot has its own ID and isolated state so the design can later be extended to concurrent rounds without changing historical records.
+*   **Upfront Escrow:** The game admin supplies a positive duration and one ERC-20, ERC-721, or ERC-1155 prize. The Jackpot System pulls the complete prize into its own contract before activating the round, verifies the resulting balance or ownership, and rejects fee-on-transfer or otherwise non-conforming assets. Jackpot escrow never moves an Operator's delegated STRK or FORCE.
+*   **Control Cutoff:** The winning wallet is the wallet that controlled the selected Sector at the round deadline. Gameplay does not pause. Before the first post-deadline change to a Sector or Operator, the Control System lazily records its pre-change state for that Jackpot and draw count. Unchanged state is read directly at settlement. The configured staking-pool address and Sector limit are snapshotted when the Jackpot is created.
+*   **Permissionless Randomness Lock:** After expiry, any account may lock the draw. Locking commits to the block ten blocks in the future, before its hash is known. Settlement becomes available ten blocks after that target block so the Starknet block-hash syscall can read it. The Keeper should submit both transactions, but has no privileged role.
+*   **Selection:** The Jackpot System domain-separates and Poseidon-hashes the committed block hash with the Jackpot ID, draw count, and round deadline, then maps the result into the snapshotted Sector range. It resolves that Sector's Controller from the deadline state. If a Challenge was active at the deadline, the incumbent Controller wins regardless of how or when that Challenge later settles. A release, capture, retirement, or disqualification after the deadline cannot redirect or revoke the prize.
+*   **Rollover:** A selected Sector that was neutral or whose recorded ownership generation was already stale at the deadline has no winner. The prize remains escrowed and the same Jackpot immediately begins another full-duration round with a fresh cutoff, incrementing its public draw count.
+*   **Payout:** Settlement records the deadline Controller and finalizes the Jackpot while normal territory play continues. The winner then calls `claim_prize` to transfer the exact escrowed token amount or token ID to a chosen nonzero recipient. Keeping payout separate prevents a rejecting token or recipient from blocking Jackpot finalization; failed claims remain retryable.
+*   **Randomness Boundary:** Future block hashes are suitable only for this transparent MVP incentive. They are not bias-resistant against the Starknet block producer. A production launch with materially valuable prizes requires a contract security review, an economic/manipulation review, and migration to an audited Starknet randomness source or verifiable random function when available.
+
 ### 3.2. Controller Image Loop
 Control of a face is the visible reward for taking the High Ground.
 
@@ -99,7 +111,7 @@ Control of a face is the visible reward for taking the High Ground.
 *   **Storage Boundary:** Image bytes and moderation metadata remain off-chain. The Dojo World remains authoritative for who may display an image.
 
 ### 3.3. Initial Product Scope
-The first release intentionally excludes passive territory decay, recurring maintenance actions, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Sector NFTs. These mechanics may be reconsidered only after observing whether allocation, capture, challenge, settlement, image, and reinforcement loops are understandable and fun on Mainnet.
+The first release intentionally excludes passive territory decay, recurring Operator maintenance requirements, CAPTCHA challenges, timing bonuses, secondary game tokens, and freely transferable Sector NFTs. These mechanics may be reconsidered only after observing whether allocation, capture, challenge, settlement, image, reinforcement, and Jackpot loops are understandable and fun on Mainnet.
 
 ---
 
@@ -149,18 +161,22 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   `Sector`: Sector ID, Controller address, Controller generation, Capture Force, ownership generation, ownership timestamp, and active challenge ID.
     *   `Challenge`: Challenge ID, target Sector, incumbent, current leader and generation, Leading Force, latest displaced Operator and amount, resettable deadline, lead-change and participant counts, winner, and settlement timestamp.
     *   `ChallengeParticipant`: Per-Challenge Operator position, cumulative committed force, included incumbent garrison, Operator generation, and resolution result.
+    *   `JackpotCounter`: Monotonic Jackpot ID and the single currently active Jackpot ID.
+    *   `Jackpot`: Sponsor, standard token prize, snapshotted staking pool and Sector limit, schedule, draw commitment, last randomness and selected Sector, rollover count, winner, and settlement state.
+    *   `JackpotSectorSnapshot` and `JackpotOperatorSnapshot`: Lazy per-draw cutoff records used only when post-deadline gameplay changes ownership-relevant state before settlement.
 *   **Control System:** Implements Capture, Reinforce, Release, incremental open ascending Challenges, deferred losing-commitment spending, Sector Sacrifice, permissionless settlement and position resolution, permanent retirement, and Operator synchronization.
+*   **Jackpot System:** Escrows standard ERC-20, ERC-721, and ERC-1155 prizes; accepts only expected safe NFT receipts; locks future-block randomness; resolves the selected Sector's deadline Controller from lazy snapshots; rolls over no-winner draws; finalizes without an external payout call; and lets the recorded winner claim to a chosen recipient.
 *   **Staking Adapter:** Uses the official delegation pool's read-only `get_pool_member_info_v1` interface and treats its `amount`, `unpool_amount`, and `unpool_time` fields as authoritative delegation and exit state.
 *   **Admin System:** Provides narrowly scoped pause and configuration operations protected by Dojo World ownership. Production ownership should be held by a multisig.
 *   **Permissions:** Systems receive writer permission only for the specific models they modify. Reads are permissionless.
-*   **Events:** Capture, Reinforcement, Release, Challenge Initiated, Challenge Escalated, Sector Sacrificed, Challenge Settled, Challenge Position Resolved, Retirement, and Disqualification events drive Torii, the HUD ticker, and historical views.
-*   **Custody Boundary:** The Dojo World never holds or transfers staking assets.
+*   **Events:** Capture, Reinforcement, Release, Challenge Initiated, Challenge Escalated, Sector Sacrificed, Challenge Settled, Challenge Position Resolved, Retirement, Disqualification, Jackpot Created, Jackpot Locked, Jackpot Rolled Over, Jackpot Settled, and Jackpot Claimed events drive Torii, the HUD ticker, and historical views.
+*   **Custody Boundary:** The Dojo World never holds or transfers an Operator's staking assets. The Jackpot System separately escrows only the admin-sponsored reward asset declared for its active round.
 
 ### 5.2. Backend API (Fly.io)
 *   **Runtime:** A Go API service deployed on Fly.io at `api.stakewars.gg`. The initial target is one shared-CPU Machine with 512 MB RAM in the `sjc` region. CPU and memory may be increased if observed load requires it.
 *   **Responsibilities:**
     *   Verify wallet challenges and current on-chain Sector ownership.
-    *   Run the unprivileged Keeper loop that settles expired Challenges, resolves remaining losing positions, and synchronizes known active Operators against the official staking contract.
+    *   Run the unprivileged Keeper loop that settles expired Challenges, resolves remaining losing positions, synchronizes known active Operators against the official staking contract, and locks and settles expired Jackpots.
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
     *   Serve game metadata and apply rate limits per wallet and IP address.
@@ -231,6 +247,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 6.  **As a Strategist:** I want to sacrifice another Sector to fund a higher Challenge commitment without duplicating its backing, accepting that the abandoned territory becomes contestable.
 7.  **As an Exiting Operator:** I want the UI to clearly warn that beginning an unstake permanently retires this address from the game.
 8.  **As a Beacon winner:** I want to publish one transmission with an image, description, and destination link so visitors can inspect and follow it from the Core.
+9.  **As an Operator:** I want every Sector I control at a Jackpot deadline to give me a transparent chance at the advertised escrowed prize, even if its Challenge settles later.
 
 ---
 
@@ -247,6 +264,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
+    *   One admin-sponsored Sector Jackpot at a time with ERC-20, ERC-721, or ERC-1155 escrow, permissionless future-block-hash drawing, no-winner rollover, and Keeper maintenance.
 *   **Phase 2: Whisper-Powered Beacon Auctions**
     *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, vault operator, and post-settlement winner disclosure, while Stake Wars owns the game UX, canonical round, automatic controller resolution, and billboard fulfillment.
     *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and automatically resolved, the current Beacon controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.

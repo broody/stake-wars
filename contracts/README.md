@@ -1,10 +1,12 @@
 # Stake Wars contracts
 
-The Stake Wars game layer is a Dojo World. It never holds or transfers STRK. It
-reads each Operator's live delegation and unpooling state from the official
-Stake Wars delegation pool. Game capacity is derived as live delegation minus
-Sector garrisons, active cumulative challenge commitments, and
-permanently spent game force.
+The Stake Wars game layer is a Dojo World. It never holds or transfers an
+Operator's delegated STRK. It reads each Operator's live delegation and
+unpooling state from the official Stake Wars delegation pool. Game capacity is
+derived as live delegation minus Sector garrisons, active cumulative challenge
+commitments, and permanently spent game force. The separate Jackpot System may
+escrow an admin-sponsored ERC-20, ERC-721, or ERC-1155 reward for its active
+round; that escrow is never sourced from Operator delegation or FORCE.
 
 ## Local commands
 
@@ -101,6 +103,29 @@ duplicated or automatically spent.
 Spent force is permanent accounting for that Operator address. The contracts do
 not slash, escrow, or transfer the underlying STRK, which remains in the official
 delegation pool under its normal staking and reward rules.
+
+## Jackpot System
+
+The game admin may create one Jackpot at a time by approving and fully funding
+an ERC-20, ERC-721, or ERC-1155 prize. After the configured deadline, gameplay
+continues and any account may call `lock_jackpot`. That entrypoint commits to a
+future block hash; `settle_jackpot` becomes callable after the hash is available
+through Starknet's block-hash syscall. The resulting Poseidon hash selects one
+Sector from the round's snapshotted Sector range.
+
+The wallet controlling the selected Sector at the exact round deadline wins.
+An active Challenge does not displace that Controller: if the Challenge settles
+after the deadline, the incumbent still receives the Jackpot. Control lazily
+records the pre-change Sector and Operator state the first time either changes
+after expiry, so releases, captures, Challenge settlements, stake
+disqualifications, and retirements can continue without redirecting the prize.
+A Sector that was neutral or already stale at the deadline has no winner and
+rolls the escrow into another full-duration round. A valid selection records
+the winner, who then calls `claim_prize` to transfer the exact escrowed prize to
+a chosen recipient. This keeps a rejecting token or recipient from blocking
+Jackpot finalization. The
+future-block-hash scheme is transparent pseudo-randomness, not a substitute for
+an audited VRF for high-value Mainnet prizes.
 
 `retire` permanently retires an address. An unpool intent made directly through
 the official pool is detected by game actions and synchronization and causes the

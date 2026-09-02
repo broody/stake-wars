@@ -2,11 +2,21 @@ use starknet::ContractAddress;
 
 pub const CONFIG_ID: u8 = 0;
 pub const CHALLENGE_COUNTER_ID: u8 = 0;
+pub const JACKPOT_COUNTER_ID: u8 = 0;
 pub const MAX_SECTORS: u32 = 2_000;
 pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
 pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
 pub const SEPOLIA_CHALLENGE_PERIOD_SECONDS: u64 = 180; // 3 minutes
 pub const MAINNET_CHALLENGE_PERIOD_SECONDS: u64 = 10_800; // 3 hours
+
+pub const JACKPOT_PRIZE_ERC20: u8 = 1;
+pub const JACKPOT_PRIZE_ERC721: u8 = 2;
+pub const JACKPOT_PRIZE_ERC1155: u8 = 3;
+
+pub const JACKPOT_STATUS_FUNDING: u8 = 1;
+pub const JACKPOT_STATUS_ACTIVE: u8 = 2;
+pub const JACKPOT_STATUS_DRAWING: u8 = 3;
+pub const JACKPOT_STATUS_SETTLED: u8 = 4;
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -92,4 +102,68 @@ pub struct ChallengeParticipant {
     pub joined: bool,
     pub resolved: bool,
     pub won: bool,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct JackpotCounter {
+    #[key]
+    pub id: u8,
+    pub next_id: u64,
+    pub active_id: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct Jackpot {
+    #[key]
+    pub id: u64,
+    pub status: u8,
+    pub sponsor: ContractAddress,
+    pub prize_kind: u8,
+    pub token: ContractAddress,
+    pub token_id: u256,
+    pub amount: u256,
+    pub staking_pool_snapshot: ContractAddress,
+    pub sector_limit_snapshot: u32,
+    pub duration_seconds: u64,
+    pub started_at: u64,
+    pub ends_at: u64,
+    pub randomness_block: u64,
+    pub last_randomness: felt252,
+    pub last_drawn_sector_id: u32,
+    pub draw_count: u32,
+    pub winner: ContractAddress,
+    pub settled_at: u64,
+    pub claimed: bool,
+    pub claimed_by: ContractAddress,
+    pub claimed_at: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct JackpotSectorSnapshot {
+    #[key]
+    pub jackpot_id: u64,
+    #[key]
+    pub draw_count: u32,
+    #[key]
+    pub sector_id: u32,
+    pub initialized: bool,
+    pub controller: ContractAddress,
+    pub controller_generation: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct JackpotOperatorSnapshot {
+    #[key]
+    pub jackpot_id: u64,
+    #[key]
+    pub draw_count: u32,
+    #[key]
+    pub operator: ContractAddress,
+    pub initialized: bool,
+    pub generation: u64,
+    pub retired: bool,
 }

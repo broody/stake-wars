@@ -10,7 +10,8 @@ mod tests {
         CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_CHALLENGE_PERIOD_SECONDS,
         MAINNET_MINIMUM_STAKE, OperatorState, SEPOLIA_CHALLENGE_PERIOD_SECONDS,
         SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter, m_ChallengeParticipant,
-        m_GameConfig, m_OperatorState, m_Sector,
+        m_GameConfig, m_Jackpot, m_JackpotCounter, m_JackpotOperatorSnapshot,
+        m_JackpotSectorSnapshot, m_OperatorState, m_Sector,
     };
     use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
     use stakewars::systems::control::{
@@ -52,6 +53,10 @@ mod tests {
                 TestResource::Model(m_ChallengeCounter::TEST_CLASS_HASH),
                 TestResource::Model(m_Challenge::TEST_CLASS_HASH),
                 TestResource::Model(m_ChallengeParticipant::TEST_CLASS_HASH),
+                TestResource::Model(m_JackpotCounter::TEST_CLASS_HASH),
+                TestResource::Model(m_Jackpot::TEST_CLASS_HASH),
+                TestResource::Model(m_JackpotSectorSnapshot::TEST_CLASS_HASH),
+                TestResource::Model(m_JackpotOperatorSnapshot::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_ConfigInitialized::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_PauseChanged::TEST_CLASS_HASH),
                 TestResource::Event(admin::e_RulesChanged::TEST_CLASS_HASH),
@@ -97,10 +102,11 @@ mod tests {
             resource_selector(@"OperatorState"), resource_selector(@"Sector"),
             resource_selector(@"ChallengeCounter"), resource_selector(@"Challenge"),
             resource_selector(@"ChallengeParticipant"), resource_selector(@"SectorCaptured"),
-            resource_selector(@"SectorReinforced"), resource_selector(@"SectorReleased"),
-            resource_selector(@"ChallengeInitiated"), resource_selector(@"ChallengeEscalated"),
-            resource_selector(@"SectorSacrificed"), resource_selector(@"ChallengeSettled"),
-            resource_selector(@"ChallengePositionResolved"),
+            resource_selector(@"JackpotSectorSnapshot"),
+            resource_selector(@"JackpotOperatorSnapshot"), resource_selector(@"SectorReinforced"),
+            resource_selector(@"SectorReleased"), resource_selector(@"ChallengeInitiated"),
+            resource_selector(@"ChallengeEscalated"), resource_selector(@"SectorSacrificed"),
+            resource_selector(@"ChallengeSettled"), resource_selector(@"ChallengePositionResolved"),
             resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRetired"),
         ]
             .span()

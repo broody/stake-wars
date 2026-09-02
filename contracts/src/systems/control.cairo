@@ -117,7 +117,8 @@ pub mod control {
     use dojo::model::ModelStorage;
     use stakewars::models::{
         CHALLENGE_COUNTER_ID, CONFIG_ID, Challenge, ChallengeCounter, ChallengeParticipant,
-        GameConfig, OperatorState, Sector,
+        GameConfig, JACKPOT_COUNTER_ID, JACKPOT_STATUS_ACTIVE, JACKPOT_STATUS_DRAWING, Jackpot,
+        JackpotCounter, JackpotOperatorSnapshot, JackpotSectorSnapshot, OperatorState, Sector,
     };
     use stakewars::staking::{DelegationState, delegation_state};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
@@ -347,6 +348,7 @@ pub mod control {
             self.assert_controller(sector, caller, operator);
             assert(sector.active_challenge_id == 0, 'sector challenged');
             let released_force = sector.capture_force;
+            self.snapshot_sector_at_jackpot_expiry(sector);
             self.release_sector(ref operator, ref sector);
             world.write_model(@operator);
             world.write_model(@sector);
@@ -423,6 +425,7 @@ pub mod control {
                 self.resolve_losing_position(config, challenge, challenge.last_loser);
             }
 
+            self.snapshot_sector_at_jackpot_expiry(sector);
             if winner.is_zero() {
                 clear_sector(ref sector);
             } else {
@@ -616,6 +619,70 @@ pub mod control {
             config
         }
 
+        fn expired_jackpot(self: @ContractState) -> Option<Jackpot> {
+            let world = self.world_default();
+            let counter: JackpotCounter = world.read_model(JACKPOT_COUNTER_ID);
+            if counter.active_id == 0 {
+                return Option::None;
+            }
+            let current: Jackpot = world.read_model(counter.active_id);
+            let snapshot_open = current.status == JACKPOT_STATUS_ACTIVE
+                || current.status == JACKPOT_STATUS_DRAWING;
+            if snapshot_open && get_block_timestamp() >= current.ends_at {
+                Option::Some(current)
+            } else {
+                Option::None
+            }
+        }
+
+        fn snapshot_sector_at_jackpot_expiry(self: @ContractState, sector: Sector) {
+            match self.expired_jackpot() {
+                Option::Some(current) => {
+                    let mut world = self.world_default();
+                    let snapshot: JackpotSectorSnapshot = world
+                        .read_model((current.id, current.draw_count, sector.id));
+                    if !snapshot.initialized {
+                        world
+                            .write_model(
+                                @JackpotSectorSnapshot {
+                                    jackpot_id: current.id,
+                                    draw_count: current.draw_count,
+                                    sector_id: sector.id,
+                                    initialized: true,
+                                    controller: sector.controller,
+                                    controller_generation: sector.controller_generation,
+                                },
+                            );
+                    }
+                },
+                Option::None => {},
+            }
+        }
+
+        fn snapshot_operator_at_jackpot_expiry(self: @ContractState, operator: OperatorState) {
+            match self.expired_jackpot() {
+                Option::Some(current) => {
+                    let mut world = self.world_default();
+                    let snapshot: JackpotOperatorSnapshot = world
+                        .read_model((current.id, current.draw_count, operator.operator));
+                    if !snapshot.initialized {
+                        world
+                            .write_model(
+                                @JackpotOperatorSnapshot {
+                                    jackpot_id: current.id,
+                                    draw_count: current.draw_count,
+                                    operator: operator.operator,
+                                    initialized: true,
+                                    generation: operator.generation,
+                                    retired: operator.retired,
+                                },
+                            );
+                    }
+                },
+                Option::None => {},
+            }
+        }
+
         fn assert_sector_id(self: @ContractState, config: GameConfig, id: u32) {
             assert(id < config.sector_limit, 'invalid sector');
         }
@@ -729,15 +796,18 @@ pub mod control {
             let delegation = delegation_state(staking_pool, operator_address);
 
             if !operator.retired && delegation.exiting {
+                self.snapshot_operator_at_jackpot_expiry(operator);
                 self.retire_state(ref operator);
                 changed = true;
             } else if !operator.retired && operator.generation > 0 && delegation.amount == 0 {
+                self.snapshot_operator_at_jackpot_expiry(operator);
                 self.retire_state(ref operator);
                 changed = true;
             } else if !operator.retired && delegation.amount < total_obligations(operator) {
                 let previous_generation = operator.generation;
                 let invalidated_force = total_obligations(operator);
                 let invalidated_sector_count = operator.controlled_sector_count;
+                self.snapshot_operator_at_jackpot_expiry(operator);
                 self.retire_state(ref operator);
                 changed = true;
                 world
@@ -791,6 +861,7 @@ pub mod control {
             );
             operator.sector_force += allocation;
             operator.controlled_sector_count += 1;
+            self.snapshot_sector_at_jackpot_expiry(sector);
             sector.controller = caller;
             sector.controller_generation = operator.generation;
             sector.capture_force = allocation;
@@ -1027,6 +1098,7 @@ pub mod control {
                     self.assert_controller(source, operator.operator, operator);
                     assert(source.active_challenge_id == 0, 'sacrifice challenged');
                     let force = source.capture_force;
+                    self.snapshot_sector_at_jackpot_expiry(source);
                     self.release_sector(ref operator, ref source);
                     world.write_model(@source);
                     world
@@ -1115,6 +1187,7 @@ pub mod control {
             if operator.retired {
                 return;
             }
+            self.snapshot_operator_at_jackpot_expiry(operator);
             let previous_generation = operator.generation;
             let invalidated_force = total_obligations(operator);
             let released_sector_count = operator.controlled_sector_count;
