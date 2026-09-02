@@ -535,15 +535,17 @@ function OwnBidsPanel({
 }) {
   if (!isLoading && bids.length === 0 && !error) return null;
 
+  const totalCommitted = bids
+    .reduce((total, bid) => total + BigInt(bid.amount), 0n)
+    .toString();
+
   return (
     <section
       aria-label="Your sealed bids"
       className="mt-5 border-l border-fg bg-white/[0.035] px-4 py-3"
     >
       <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.2em]">
-        <span className="text-neutral-500">
-          {bids.length === 1 ? 'YOUR SEALED BID' : 'YOUR SEALED BIDS'}
-        </span>
+        <span className="text-neutral-500">YOUR COMMITTED TOTAL</span>
         <span className="text-neutral-600">SAVED ON THIS DEVICE</span>
       </div>
       {isLoading ? (
@@ -552,20 +554,13 @@ function OwnBidsPanel({
         </div>
       ) : null}
       {!isLoading && bids.length > 0 ? (
-        <div className="mt-2 divide-y divide-grid">
-          {bids.map((bid, index) => (
-            <div
-              key={bid.bidHandle}
-              className="flex items-center justify-between gap-4 py-2 first:pt-1 last:pb-0"
-            >
-              <span className="text-xl font-bold tabular-nums tracking-[-0.04em] text-fg">
-                {formatBeaconAmount(bid.amount)}
-              </span>
-              <span className="text-[8px] tracking-[0.16em] text-neutral-500">
-                BID {String(bids.length - index).padStart(2, '0')}
-              </span>
-            </div>
-          ))}
+        <div className="mt-2 flex items-end justify-between gap-4">
+          <span className="text-2xl font-bold tabular-nums tracking-[-0.05em] text-fg">
+            {formatBeaconAmount(totalCommitted)}
+          </span>
+          <span className="pb-1 text-right text-[8px] tracking-[0.16em] text-neutral-500">
+            {bids.length} SEALED {bids.length === 1 ? 'BID' : 'BIDS'}
+          </span>
         </div>
       ) : null}
       {error ? (

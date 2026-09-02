@@ -89,7 +89,7 @@ describe('BeaconConsole', () => {
     expect(markup).not.toContain('WINNING BID');
   });
 
-  it('shows the connected wallet bids restored for the current round', () => {
+  it('shows the connected wallet total committed for the current round', () => {
     const markup = renderToStaticMarkup(
       <BeaconConsole
         isOpen
@@ -112,12 +112,28 @@ describe('BeaconConsole', () => {
             transactionHash: null,
             submittedAt: '2026-08-27T22:00:00.000Z',
           },
+          {
+            version: 1,
+            network: 'SN_SEPOLIA',
+            walletAddress: '0x999',
+            roundId: 4,
+            auctionId: 7,
+            whisperAddress: '0x123',
+            amount: '1750000000000000000',
+            groupHandle: '0xabc',
+            bidHandle: '0xdef',
+            transactionHash: '0x111',
+            submittedAt: '2026-08-27T22:05:00.000Z',
+          },
         ]}
       />
     );
 
-    expect(markup).toContain('YOUR SEALED BID');
-    expect(markup).toContain('2.25 [STRK]');
+    expect(markup).toContain('YOUR COMMITTED TOTAL');
+    expect(markup).toContain('4 [STRK]');
+    expect(markup).toContain('2 SEALED BIDS');
+    expect(markup).not.toContain('2.25 [STRK]');
+    expect(markup).not.toContain('1.75 [STRK]');
     expect(markup).toContain('SAVED ON THIS DEVICE');
   });
 
