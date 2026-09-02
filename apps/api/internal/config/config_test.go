@@ -76,6 +76,27 @@ func TestLoadRejectsPartialBeaconCoordinator(t *testing.T) {
 	}
 }
 
+func TestLoadConfiguresJackpotKeeper(t *testing.T) {
+	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
+	t.Setenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("JACKPOT_KEEPER_PRIVATE_KEY", "0x789")
+
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configuration.JackpotKeeperEnabled() {
+		t.Fatalf("unexpected jackpot keeper config")
+	}
+}
+
+func TestLoadRejectsPartialJackpotKeeper(t *testing.T) {
+	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected partial jackpot keeper config to fail")
+	}
+}
+
 func TestLoadRejectsInvalidImageLimit(t *testing.T) {
 	t.Setenv("MAX_IMAGE_BYTES", "0")
 

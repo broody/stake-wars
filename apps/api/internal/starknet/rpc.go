@@ -79,8 +79,18 @@ func (c *rpcClient) call(
 }
 
 func (c *rpcClient) latestBlockTimestamp(ctx context.Context) (uint64, error) {
+	header, err := c.latestBlockHeader(ctx)
+	return header.Timestamp, err
+}
+
+type blockHeader struct {
+	Number    uint64
+	Timestamp uint64
+}
+
+func (c *rpcClient) latestBlockHeader(ctx context.Context) (blockHeader, error) {
 	if c.url == "" {
-		return 0, ErrUnavailable
+		return blockHeader{}, ErrUnavailable
 	}
 	requestBody := struct {
 		JSONRPC string            `json:"jsonrpc"`
@@ -95,45 +105,48 @@ func (c *rpcClient) latestBlockTimestamp(ctx context.Context) (uint64, error) {
 	}
 	encoded, err := json.Marshal(requestBody)
 	if err != nil {
-		return 0, fmt.Errorf("marshal latest block request: %w", err)
+		return blockHeader{}, fmt.Errorf("marshal latest block request: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(encoded))
 	if err != nil {
-		return 0, fmt.Errorf("create latest block request: %w", err)
+		return blockHeader{}, fmt.Errorf("create latest block request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := c.client.Do(request)
 	if err != nil {
-		return 0, fmt.Errorf("read latest Starknet block: %w", err)
+		return blockHeader{}, fmt.Errorf("read latest Starknet block: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("Starknet RPC returned HTTP %d", response.StatusCode)
+		return blockHeader{}, fmt.Errorf("Starknet RPC returned HTTP %d", response.StatusCode)
 	}
 
 	var rpcResponse struct {
 		Result struct {
-			Timestamp uint64 `json:"timestamp"`
+			BlockNumber uint64 `json:"block_number"`
+			Timestamp   uint64 `json:"timestamp"`
 		} `json:"result"`
 		Error *rpcError `json:"error"`
 	}
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 1024*1024))
 	if err := decoder.Decode(&rpcResponse); err != nil {
-		return 0, fmt.Errorf("decode latest Starknet block: %w", err)
+		return blockHeader{}, fmt.Errorf("decode latest Starknet block: %w", err)
 	}
 	if rpcResponse.Error != nil {
-		return 0, fmt.Errorf(
+		return blockHeader{}, fmt.Errorf(
 			"Starknet RPC error %d: %s",
 			rpcResponse.Error.Code,
 			rpcResponse.Error.Message,
 		)
 	}
 	if rpcResponse.Result.Timestamp == 0 {
-		return 0, fmt.Errorf("latest Starknet block has no timestamp")
+		return blockHeader{}, fmt.Errorf("latest Starknet block has no timestamp")
 	}
-	return rpcResponse.Result.Timestamp, nil
+	return blockHeader{
+		Number: rpcResponse.Result.BlockNumber, Timestamp: rpcResponse.Result.Timestamp,
+	}, nil
 }
 
 type rpcRequest struct {

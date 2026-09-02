@@ -16,8 +16,11 @@ mod tests {
         m_ChallengeParticipant, m_GameConfig, m_Jackpot, m_JackpotCounter,
         m_JackpotOperatorSnapshot, m_JackpotSectorSnapshot, m_OperatorState, m_Sector,
     };
+    use stakewars::systems::admin::{IRolesDispatcher, IRolesDispatcherTrait, admin as admin_system};
     use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
-    use stakewars::systems::jackpot::{IJackpotDispatcher, IJackpotDispatcherTrait, jackpot};
+    use stakewars::systems::jackpot::{
+        IJackpotDispatcher, IJackpotDispatcherTrait, JACKPOT_CREATOR_ROLE, jackpot,
+    };
     use stakewars::tests::mock_staking_pool::{
         IMockStakingPoolDispatcher, IMockStakingPoolDispatcherTrait, mock_staking_pool,
     };
@@ -49,6 +52,14 @@ mod tests {
         0x333.try_into().unwrap()
     }
 
+    fn creator_one() -> ContractAddress {
+        0x444.try_into().unwrap()
+    }
+
+    fn creator_two() -> ContractAddress {
+        0x555.try_into().unwrap()
+    }
+
     fn namespace_def() -> NamespaceDef {
         NamespaceDef {
             namespace: "stakewars",
@@ -78,6 +89,7 @@ mod tests {
                 TestResource::Event(jackpot::e_JackpotRolledOver::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotSettled::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotClaimed::TEST_CLASS_HASH),
+                TestResource::Contract(admin_system::TEST_CLASS_HASH),
                 TestResource::Contract(control::TEST_CLASS_HASH),
                 TestResource::Contract(jackpot::TEST_CLASS_HASH),
             ]
@@ -87,6 +99,7 @@ mod tests {
 
     fn contract_defs() -> Span<ContractDef> {
         [
+            ContractDefTrait::new(@"stakewars", @"admin"),
             ContractDefTrait::new(@"stakewars", @"control")
                 .with_writer_of(control_writer_selectors()),
             ContractDefTrait::new(@"stakewars", @"jackpot")
@@ -128,7 +141,6 @@ mod tests {
         WorldStorage, IControlDispatcher, IJackpotDispatcher, IMockStakingPoolDispatcher,
     ) {
         let mut world = spawn_test_world(world::TEST_CLASS_HASH, [namespace_def()].span());
-        world.sync_perms_and_inits(contract_defs());
         let (pool_address, _) = deploy_syscall(
             mock_staking_pool::TEST_CLASS_HASH.try_into().unwrap(), 0, [].span(), false,
         )
@@ -146,6 +158,7 @@ mod tests {
                     paused: false,
                 },
             );
+        world.sync_perms_and_inits(contract_defs());
         let (control_address, _) = world.dns(@"control").unwrap();
         let (jackpot_address, _) = world.dns(@"jackpot").unwrap();
         testing::set_block_timestamp(STARTED_AT);
@@ -155,6 +168,11 @@ mod tests {
             IJackpotDispatcher { contract_address: jackpot_address },
             IMockStakingPoolDispatcher { contract_address: pool_address },
         )
+    }
+
+    fn roles(world: @WorldStorage) -> IRolesDispatcher {
+        let (contract_address, _) = world.dns(@"admin").unwrap();
+        IRolesDispatcher { contract_address }
     }
 
     fn capture_only_sector(control: IControlDispatcher, pool: IMockStakingPoolDispatcher) {
@@ -415,13 +433,70 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected: ('not game admin', 'ENTRYPOINT_FAILED'))]
+    #[should_panic(expected: ('not jackpot creator', 'ENTRYPOINT_FAILED'))]
     #[available_gas(900000000)]
-    fn only_the_game_admin_can_sponsor_a_jackpot() {
+    fn wallet_without_creator_role_cannot_sponsor_a_jackpot() {
         let (_, _, jackpot, _) = setup();
         let token_address = deploy_erc20(admin(), 1_000);
         testing::set_contract_address(operator());
         jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC20, token_address, 0, 500);
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn multiple_creator_role_members_are_authorized() {
+        let (world, _, jackpot, _) = setup();
+        let roles = roles(@world);
+        testing::set_contract_address(admin());
+        roles.grant_role(JACKPOT_CREATOR_ROLE, creator_one());
+        roles.grant_role(JACKPOT_CREATOR_ROLE, creator_two());
+
+        assert!(roles.has_role(JACKPOT_CREATOR_ROLE, creator_one()));
+        assert!(roles.has_role(JACKPOT_CREATOR_ROLE, creator_two()));
+        assert!(jackpot.can_create_jackpot(creator_one()));
+        assert!(jackpot.can_create_jackpot(creator_two()));
+        assert_eq!(jackpot.jackpot_creator_role(), JACKPOT_CREATOR_ROLE);
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn creator_role_member_can_fund_and_create_a_jackpot() {
+        let (world, _, jackpot, _) = setup();
+        testing::set_contract_address(admin());
+        roles(@world).grant_role(JACKPOT_CREATOR_ROLE, creator_one());
+
+        let token_address = deploy_erc20(creator_one(), 1_000);
+        testing::set_contract_address(creator_one());
+        IMockERC20ControlDispatcher { contract_address: token_address }
+            .approve(jackpot.contract_address, 500);
+        let jackpot_id = jackpot
+            .create_jackpot(DURATION, JACKPOT_PRIZE_ERC20, token_address, 0, 500);
+
+        assert_eq!(jackpot.get_jackpot(jackpot_id).sponsor, creator_one());
+    }
+
+    #[test]
+    #[should_panic(expected: ('not jackpot creator', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn revoked_creator_cannot_create_a_jackpot() {
+        let (world, _, jackpot, _) = setup();
+        let roles = roles(@world);
+        testing::set_contract_address(admin());
+        roles.grant_role(JACKPOT_CREATOR_ROLE, creator_one());
+        roles.revoke_role(JACKPOT_CREATOR_ROLE, creator_one());
+
+        let token_address = deploy_erc20(creator_one(), 1_000);
+        testing::set_contract_address(creator_one());
+        jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC20, token_address, 0, 500);
+    }
+
+    #[test]
+    #[should_panic(expected: ('not admin', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn non_admin_cannot_grant_creator_role() {
+        let (world, _, _, _) = setup();
+        testing::set_contract_address(operator());
+        roles(@world).grant_role(JACKPOT_CREATOR_ROLE, creator_one());
     }
 
     #[test]

@@ -27,8 +27,17 @@ import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { BeaconModal } from '../ui/BeaconModal';
 import { BeaconCameraTracker } from './BeaconCameraTracker';
+import { JackpotDrawPanel } from '../ui/JackpotDrawPanel';
+import {
+  getJackpots,
+  isJackpotDrawPending,
+  latestJackpotDraw,
+} from '../../services/jackpot';
+import type { Jackpot } from '../../types';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
+const JACKPOT_REFRESH_INTERVAL_MS = 10_000;
+const JACKPOT_PENDING_REFRESH_INTERVAL_MS = 1_500;
 const PLACEMENT_CORNERS = [
   {
     horizontal: -1,
@@ -337,6 +346,53 @@ function marqueeBounds(
   };
 }
 
+function useCoreJackpotDraw(active: boolean): Jackpot | null {
+  const [draw, setDraw] = useState<Jackpot | null>(null);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const controller = new AbortController();
+    let refreshTimer: number | undefined;
+    let refreshInterval = JACKPOT_REFRESH_INTERVAL_MS;
+
+    getJackpots(controller.signal)
+      .then((jackpots) => {
+        if (!controller.signal.aborted) {
+          const nextDraw = latestJackpotDraw(jackpots);
+          setDraw(nextDraw);
+          if (nextDraw) {
+            const millisecondsUntilDraw = nextDraw.endsAt * 1_000 - Date.now();
+            if (isJackpotDrawPending(nextDraw)) {
+              refreshInterval = JACKPOT_PENDING_REFRESH_INTERVAL_MS;
+            } else if (nextDraw.status === 2 && millisecondsUntilDraw > 0) {
+              refreshInterval = Math.min(
+                JACKPOT_REFRESH_INTERVAL_MS,
+                Math.max(500, millisecondsUntilDraw + 100)
+              );
+            }
+          }
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          refreshTimer = window.setTimeout(
+            () => setRevision((current) => current + 1),
+            refreshInterval
+          );
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+    };
+  }, [active, revision]);
+
+  return draw;
+}
+
 export function World({ active = true }: { active?: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -353,6 +409,8 @@ export function World({ active = true }: { active?: boolean }) {
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
   const ignoreBeaconInspectRef = useRef(false);
+  const ignoreJackpotInspectRef = useRef(false);
+  const jackpotDraw = useCoreJackpotDraw(active);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
@@ -360,6 +418,7 @@ export function World({ active = true }: { active?: boolean }) {
     null
   );
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
+  const isJackpotOpen = searchParams.get('tracking') === 'jackpot';
   const setBeaconTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
@@ -386,6 +445,32 @@ export function World({ active = true }: { active?: boolean }) {
     () => setBeaconTracking(false),
     [setBeaconTracking]
   );
+  const setJackpotTracking = useCallback(
+    (isTracking: boolean) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (isTracking) {
+            next.set('tracking', 'jackpot');
+          } else if (next.get('tracking') === 'jackpot') {
+            next.delete('tracking');
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+  const openJackpotDraw = useCallback(() => {
+    if (ignoreJackpotInspectRef.current) return;
+    selectSectors([]);
+    setJackpotTracking(true);
+  }, [selectSectors, setJackpotTracking]);
+  const closeJackpotDraw = useCallback(
+    () => setJackpotTracking(false),
+    [setJackpotTracking]
+  );
 
   useEffect(() => {
     if (!active || !isBeaconOpen) return;
@@ -408,6 +493,30 @@ export function World({ active = true }: { active?: boolean }) {
     window.addEventListener('click', stopTrackingOnClick, true);
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
   }, [active, isBeaconOpen, setBeaconTracking]);
+
+  useEffect(() => {
+    if (!active || !isJackpotOpen) return;
+
+    const stopTrackingOnClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          '[data-jackpot-console], [data-preserve-core-tracking], [data-preserve-jackpot-tracking]'
+        )
+      ) {
+        return;
+      }
+      ignoreJackpotInspectRef.current = true;
+      setJackpotTracking(false);
+      queueMicrotask(() => {
+        ignoreJackpotInspectRef.current = false;
+      });
+    };
+
+    window.addEventListener('click', stopTrackingOnClick, true);
+    return () => window.removeEventListener('click', stopTrackingOnClick, true);
+  }, [active, isJackpotOpen, setJackpotTracking]);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
@@ -418,6 +527,7 @@ export function World({ active = true }: { active?: boolean }) {
     imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
     isBeaconOpen ||
+    isJackpotOpen ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -518,6 +628,7 @@ export function World({ active = true }: { active?: boolean }) {
       onPointerCancelCapture={cancelMarquee}
     >
       <Canvas
+        data-preserve-jackpot-tracking
         camera={{ position: [0, 0, 15], fov: 75 }}
         style={{ width: '100%', height: '100%', background: '#000000' }}
       >
@@ -525,6 +636,9 @@ export function World({ active = true }: { active?: boolean }) {
           <Scene
             isBeaconTracking={isBeaconOpen}
             onInspectBeacon={openBeaconBriefing}
+            jackpotDraw={jackpotDraw}
+            isJackpotTracking={isJackpotOpen}
+            onInspectJackpot={openJackpotDraw}
           />
         </Suspense>
 
@@ -560,6 +674,11 @@ export function World({ active = true }: { active?: boolean }) {
       <PlacementGuide containerRef={worldRef} />
 
       <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />
+      <JackpotDrawPanel
+        jackpot={jackpotDraw}
+        isOpen={isJackpotOpen}
+        onClose={closeJackpotDraw}
+      />
 
       {activeMarquee ? (
         <div

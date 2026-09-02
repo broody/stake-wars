@@ -12,6 +12,7 @@ export const config = {
     (import.meta.env.DEV ? 'KATANA' : 'SN_MAIN'),
   dojoWorldAddress: import.meta.env.VITE_DOJO_WORLD_ADDRESS || '',
   controlSystemAddress: import.meta.env.VITE_CONTROL_SYSTEM_ADDRESS || '',
+  jackpotSystemAddress: import.meta.env.VITE_JACKPOT_SYSTEM_ADDRESS || '',
   strkTokenAddress: import.meta.env.VITE_STRK_TOKEN_ADDRESS || '',
   strk20PoolAddress: import.meta.env.VITE_STRK20_POOL_ADDRESS || '',
   stakingPoolAddress: import.meta.env.VITE_STAKING_POOL_ADDRESS || '',

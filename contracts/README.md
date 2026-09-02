@@ -5,7 +5,7 @@ Operator's delegated STRK. It reads each Operator's live delegation and
 unpooling state from the official Stake Wars delegation pool. Game capacity is
 derived as live delegation minus Sector garrisons, active cumulative challenge
 commitments, and permanently spent game force. The separate Jackpot System may
-escrow an admin-sponsored ERC-20, ERC-721, or ERC-1155 reward for its active
+escrow a role-authorized ERC-20, ERC-721, or ERC-1155 reward for its active
 round; that escrow is never sourced from Operator delegation or FORCE.
 
 ## Local commands
@@ -106,10 +106,13 @@ delegation pool under its normal staking and reward rules.
 
 ## Jackpot System
 
-The game admin may create one Jackpot at a time by approving and fully funding
-an ERC-20, ERC-721, or ERC-1155 prize. After the configured deadline, gameplay
-continues and any account may call `lock_jackpot`. That entrypoint commits to a
-future block hash; `settle_jackpot` becomes callable after the hash is available
+The game admin and any number of wallets holding OpenZeppelin's
+`JACKPOT_CREATOR_ROLE` may create a Jackpot by approving and fully funding an
+ERC-20, ERC-721, or ERC-1155 prize. The Admin System's standard AccessControl
+entrypoints grant and revoke creators, while the one-active-Jackpot limit
+continues to apply globally. After the configured deadline, gameplay continues
+and any account may call `lock_jackpot`. That entrypoint commits to a future
+block hash; `settle_jackpot` becomes callable after the hash is available
 through Starknet's block-hash syscall. The resulting Poseidon hash selects one
 Sector from the round's snapshotted Sector range.
 

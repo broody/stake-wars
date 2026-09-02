@@ -10,12 +10,12 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
-// Duty is one idempotent piece of periodic Beacon maintenance.
+// Duty is one idempotent piece of periodic maintenance.
 type Duty interface {
 	Reconcile(ctx context.Context) error
 }
 
-// Worker runs Beacon duties immediately and then at a fixed interval.
+// Worker runs maintenance duties immediately and then at a fixed interval.
 type Worker struct {
 	interval    time.Duration
 	dutyTimeout time.Duration
@@ -28,7 +28,7 @@ func NewWorker(interval time.Duration, duties ...Duty) *Worker {
 
 func (w *Worker) Run(ctx context.Context) error {
 	if w.interval <= 0 {
-		return fmt.Errorf("Beacon worker interval must be positive")
+		return fmt.Errorf("maintenance worker interval must be positive")
 	}
 	w.reconcileAndReport(ctx)
 	ticker := time.NewTicker(w.interval)
@@ -45,7 +45,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 func (w *Worker) reconcileAndReport(ctx context.Context) {
 	if err := w.reconcile(ctx); err != nil && ctx.Err() == nil {
-		slog.ErrorContext(ctx, "Beacon worker reconciliation failed", "error", err)
+		slog.ErrorContext(ctx, "Maintenance worker reconciliation failed", "error", err)
 	}
 }
 

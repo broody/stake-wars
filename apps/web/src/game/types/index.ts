@@ -176,6 +176,31 @@ export interface YieldSummary {
   claims: YieldClaim[];
 }
 
+export type JackpotPrizeKind = 1 | 2 | 3;
+export type JackpotStatus = 1 | 2 | 3 | 4;
+
+export interface Jackpot {
+  id: bigint;
+  status: JackpotStatus;
+  sponsor: string;
+  prizeKind: JackpotPrizeKind;
+  token: string;
+  tokenId: bigint;
+  amount: bigint;
+  sectorLimitSnapshot: number;
+  durationSeconds: number;
+  startedAt: number;
+  endsAt: number;
+  randomnessBlock: bigint;
+  lastDrawnSectorId: number;
+  drawCount: number;
+  winner: string;
+  settledAt: number | null;
+  claimed: boolean;
+  claimedBy: string;
+  claimedAt: number | null;
+}
+
 export type ControlView = 'flat' | 'staked';
 
 export interface WalletState {

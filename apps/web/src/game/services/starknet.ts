@@ -135,6 +135,23 @@ async function callControlSystem(
   );
 }
 
+async function callJackpotSystem(
+  entrypoint: string,
+  calldata: string[],
+  signal?: AbortSignal
+): Promise<string[]> {
+  if (!config.jackpotSystemAddress) {
+    throw new Error('VITE_JACKPOT_SYSTEM_ADDRESS is not configured');
+  }
+
+  return callContract(
+    config.jackpotSystemAddress,
+    entrypoint,
+    calldata,
+    signal
+  );
+}
+
 function decodeFeltShortString(value: string): string {
   const hex = value.startsWith('0x') ? value.slice(2) : value;
   if (hex.length === 0 || hex.length % 2 !== 0) {
@@ -178,6 +195,21 @@ export async function checkStarknetConnection(
   }
 
   return { blockNumber, chainId, worldClassHash };
+}
+
+export async function canCreateJackpot(
+  account: string,
+  signal?: AbortSignal
+): Promise<boolean> {
+  const result = await callJackpotSystem(
+    'can_create_jackpot',
+    [account],
+    signal
+  );
+  if (result.length !== 1) {
+    throw new Error('Jackpot System returned invalid creator authorization');
+  }
+  return parseFelt(result[0], 'creator authorization') !== 0n;
 }
 
 export async function getSectorStatus(

@@ -20,15 +20,57 @@ pub trait IAdmin<TContractState> {
     fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
 }
 
+#[starknet::interface]
+pub trait IRoles<TContractState> {
+    fn has_role(self: @TContractState, role: felt252, account: ContractAddress) -> bool;
+    fn get_role_admin(self: @TContractState, role: felt252) -> felt252;
+    fn grant_role(ref self: TContractState, role: felt252, account: ContractAddress);
+    fn revoke_role(ref self: TContractState, role: felt252, account: ContractAddress);
+    fn renounce_role(ref self: TContractState, role: felt252, account: ContractAddress);
+}
+
 #[dojo::contract]
 pub mod admin {
     use core::num::traits::Zero;
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use dojo::world::IWorldDispatcherTrait;
+    use openzeppelin_access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
+    use openzeppelin_introspection::src5::SRC5Component;
     use stakewars::models::{CONFIG_ID, GameConfig, MAX_SECTORS};
     use starknet::{ContractAddress, get_caller_address};
-    use super::IAdmin;
+    use super::{IAdmin, IRoles};
+
+    component!(path: AccessControlComponent, storage: accesscontrol, event: AccessControlEvent);
+    component!(path: SRC5Component, storage: src5, event: SRC5Event);
+
+    #[abi(embed_v0)]
+    impl SRC5Impl = SRC5Component::SRC5Impl<ContractState>;
+
+    #[storage]
+    struct Storage {
+        #[substorage(v0)]
+        accesscontrol: AccessControlComponent::Storage,
+        #[substorage(v0)]
+        src5: SRC5Component::Storage,
+    }
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        #[flat]
+        AccessControlEvent: AccessControlComponent::Event,
+        #[flat]
+        SRC5Event: SRC5Component::Event,
+    }
+
+    fn dojo_init(ref self: ContractState) {
+        self.accesscontrol.initializer();
+        let config: GameConfig = self.world_default().read_model(CONFIG_ID);
+        if config.initialized {
+            self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, config.admin);
+        }
+    }
 
     #[derive(Copy, Drop, Serde)]
     #[dojo::event]
@@ -110,6 +152,8 @@ pub mod admin {
                         paused: false,
                     },
                 );
+            self.accesscontrol.initializer();
+            self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, caller);
             world
                 .emit_event(
                     @ConfigInitialized {
@@ -173,9 +217,48 @@ pub mod admin {
             let mut world = self.world_default();
             let mut config = self.assert_admin();
             let previous_admin = config.admin;
+            if previous_admin != new_admin {
+                self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, new_admin);
+                self.accesscontrol._revoke_role(DEFAULT_ADMIN_ROLE, previous_admin);
+            }
             config.admin = new_admin;
             world.write_model(@config);
             world.emit_event(@AdminTransferred { previous_admin, new_admin });
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl RolesImpl of IRoles<ContractState> {
+        fn has_role(self: @ContractState, role: felt252, account: ContractAddress) -> bool {
+            if role == DEFAULT_ADMIN_ROLE {
+                let config: GameConfig = self.world_default().read_model(CONFIG_ID);
+                return config.initialized && config.admin == account;
+            }
+            self.accesscontrol.is_role_effective(role, account)
+        }
+
+        fn get_role_admin(self: @ContractState, role: felt252) -> felt252 {
+            let _ = role;
+            DEFAULT_ADMIN_ROLE
+        }
+
+        fn grant_role(ref self: ContractState, role: felt252, account: ContractAddress) {
+            assert(role != DEFAULT_ADMIN_ROLE, 'default admin managed');
+            assert(!account.is_zero(), 'zero role account');
+            self.assert_admin();
+            self.accesscontrol._grant_role(role, account);
+        }
+
+        fn revoke_role(ref self: ContractState, role: felt252, account: ContractAddress) {
+            assert(role != DEFAULT_ADMIN_ROLE, 'default admin managed');
+            self.assert_admin();
+            self.accesscontrol._revoke_role(role, account);
+        }
+
+        fn renounce_role(ref self: ContractState, role: felt252, account: ContractAddress) {
+            assert(role != DEFAULT_ADMIN_ROLE, 'default admin managed');
+            assert(account == get_caller_address(), 'not role account');
+            self.accesscontrol._revoke_role(role, account);
         }
     }
 
@@ -193,6 +276,7 @@ pub mod admin {
             config
         }
     }
+    use AccessControlComponent::InternalTrait as AccessControlInternalTrait;
 
     fn validate_rules(minimum_stake: u128, challenge_period_seconds: u64, sector_limit: u32) {
         assert(minimum_stake > 0, 'zero minimum stake');

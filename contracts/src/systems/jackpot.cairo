@@ -3,6 +3,7 @@ use starknet::ContractAddress;
 
 pub const RANDOMNESS_COMMIT_DELAY_BLOCKS: u64 = 10;
 pub const BLOCK_HASH_AVAILABILITY_DELAY_BLOCKS: u64 = 10;
+pub const JACKPOT_CREATOR_ROLE: felt252 = selector!("JACKPOT_CREATOR_ROLE");
 
 #[starknet::interface]
 pub trait IJackpot<TContractState> {
@@ -19,6 +20,8 @@ pub trait IJackpot<TContractState> {
     fn claim_prize(ref self: TContractState, jackpot_id: u64, recipient: ContractAddress);
     fn get_jackpot(self: @TContractState, jackpot_id: u64) -> Jackpot;
     fn get_active_jackpot(self: @TContractState) -> Jackpot;
+    fn can_create_jackpot(self: @TContractState, account: ContractAddress) -> bool;
+    fn jackpot_creator_role(self: @TContractState) -> felt252;
 }
 
 #[dojo::contract]
@@ -28,6 +31,7 @@ pub mod jackpot {
     use core::poseidon::PoseidonTrait;
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
+    use dojo::world::WorldStorageTrait;
     use stakewars::assets::{
         IERC1155AssetDispatcher, IERC1155AssetDispatcherTrait, IERC1155Receiver,
         IERC1155_RECEIVER_ID, IERC20AssetDispatcher, IERC20AssetDispatcherTrait,
@@ -40,12 +44,16 @@ pub mod jackpot {
         JACKPOT_STATUS_SETTLED, Jackpot, JackpotCounter, JackpotOperatorSnapshot,
         JackpotSectorSnapshot, OperatorState, Sector,
     };
+    use stakewars::systems::admin::{IRolesDispatcher, IRolesDispatcherTrait};
     use starknet::syscalls::get_block_hash_syscall;
     use starknet::{
         ContractAddress, SyscallResultTrait, get_block_number, get_block_timestamp,
         get_caller_address, get_contract_address,
     };
-    use super::{BLOCK_HASH_AVAILABILITY_DELAY_BLOCKS, IJackpot, RANDOMNESS_COMMIT_DELAY_BLOCKS};
+    use super::{
+        BLOCK_HASH_AVAILABILITY_DELAY_BLOCKS, IJackpot, JACKPOT_CREATOR_ROLE,
+        RANDOMNESS_COMMIT_DELAY_BLOCKS,
+    };
 
     const JACKPOT_RANDOMNESS_DOMAIN: felt252 = 'STAKEWARS_JACKPOT_V1';
 
@@ -122,7 +130,7 @@ pub mod jackpot {
             let sponsor = get_caller_address();
             assert(config.initialized, 'not initialized');
             assert(!config.paused, 'game paused');
-            assert(config.admin == sponsor, 'not game admin');
+            assert(self.can_create(config, sponsor), 'not jackpot creator');
             assert(!config.staking_pool.is_zero(), 'zero staking pool');
             assert(config.sector_limit > 0, 'zero sector limit');
             assert(duration_seconds > 0, 'zero duration');
@@ -301,6 +309,16 @@ pub mod jackpot {
             assert(counter.active_id > 0, 'no active jackpot');
             world.read_model(counter.active_id)
         }
+
+        fn can_create_jackpot(self: @ContractState, account: ContractAddress) -> bool {
+            let world = self.world_default();
+            let config: GameConfig = world.read_model(CONFIG_ID);
+            config.initialized && self.can_create(config, account)
+        }
+
+        fn jackpot_creator_role(self: @ContractState) -> felt252 {
+            JACKPOT_CREATOR_ROLE
+        }
     }
 
     #[abi(embed_v0)]
@@ -383,6 +401,16 @@ pub mod jackpot {
             let current: Jackpot = world.read_model(jackpot_id);
             assert(current.id == jackpot_id, 'jackpot not found');
             current
+        }
+
+        fn can_create(self: @ContractState, config: GameConfig, account: ContractAddress) -> bool {
+            if config.admin == account {
+                return true;
+            }
+            let world = self.world_default();
+            let admin_address = world.dns_address(@"admin").expect('admin system missing');
+            IRolesDispatcher { contract_address: admin_address }
+                .has_role(JACKPOT_CREATOR_ROLE, account)
         }
 
         fn expected_funding(self: @ContractState) -> Jackpot {

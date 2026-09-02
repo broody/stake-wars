@@ -6,6 +6,7 @@ mod tests {
         ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
         spawn_test_world,
     };
+    use openzeppelin_access::accesscontrol::DEFAULT_ADMIN_ROLE;
     use stakewars::models::{
         CONFIG_ID, Challenge, ChallengeParticipant, GameConfig, MAINNET_CHALLENGE_PERIOD_SECONDS,
         MAINNET_MINIMUM_STAKE, OperatorState, SEPOLIA_CHALLENGE_PERIOD_SECONDS,
@@ -13,7 +14,9 @@ mod tests {
         m_GameConfig, m_Jackpot, m_JackpotCounter, m_JackpotOperatorSnapshot,
         m_JackpotSectorSnapshot, m_OperatorState, m_Sector,
     };
-    use stakewars::systems::admin::{IAdminDispatcher, IAdminDispatcherTrait, admin};
+    use stakewars::systems::admin::{
+        IAdminDispatcher, IAdminDispatcherTrait, IRolesDispatcher, IRolesDispatcherTrait, admin,
+    };
     use stakewars::systems::control::{
         CaptureRequest, IControlDispatcher, IControlDispatcherTrait, ReinforcementRequest, control,
     };
@@ -164,6 +167,55 @@ mod tests {
         let config: GameConfig = world.read_model(CONFIG_ID);
         assert_eq!(config.challenge_period_seconds, CHALLENGE_PERIOD);
         assert_eq!(config.minimum_stake, MINIMUM_STAKE);
+    }
+
+    #[test]
+    #[available_gas(400000000)]
+    fn game_admin_transfer_moves_access_control_admin_role() {
+        let (world, admin, pool) = setup_uninitialized();
+        let first_admin = player_one();
+        let next_admin = player_two();
+        world.dispatcher.grant_owner(dojo::utils::bytearray_hash(@"stakewars"), first_admin);
+        testing::set_contract_address(first_admin);
+        admin.initialize(pool.contract_address, MINIMUM_STAKE, CHALLENGE_PERIOD, SECTOR_LIMIT);
+        let roles = IRolesDispatcher { contract_address: admin.contract_address };
+        assert!(roles.has_role(DEFAULT_ADMIN_ROLE, first_admin));
+
+        admin.transfer_admin(next_admin);
+
+        assert!(!roles.has_role(DEFAULT_ADMIN_ROLE, first_admin));
+        assert!(roles.has_role(DEFAULT_ADMIN_ROLE, next_admin));
+        testing::set_contract_address(next_admin);
+        roles.grant_role(123, player_three());
+        assert!(roles.has_role(123, player_three()));
+    }
+
+    #[test]
+    #[should_panic(expected: ('default admin managed', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(400000000)]
+    fn default_admin_role_cannot_be_granted_directly() {
+        let (world, admin, pool) = setup_uninitialized();
+        let game_admin = player_one();
+        world.dispatcher.grant_owner(dojo::utils::bytearray_hash(@"stakewars"), game_admin);
+        testing::set_contract_address(game_admin);
+        admin.initialize(pool.contract_address, MINIMUM_STAKE, CHALLENGE_PERIOD, SECTOR_LIMIT);
+
+        IRolesDispatcher { contract_address: admin.contract_address }
+            .grant_role(DEFAULT_ADMIN_ROLE, player_two());
+    }
+
+    #[test]
+    #[should_panic(expected: ('default admin managed', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(400000000)]
+    fn default_admin_role_cannot_be_renounced_directly() {
+        let (world, admin, pool) = setup_uninitialized();
+        let game_admin = player_one();
+        world.dispatcher.grant_owner(dojo::utils::bytearray_hash(@"stakewars"), game_admin);
+        testing::set_contract_address(game_admin);
+        admin.initialize(pool.contract_address, MINIMUM_STAKE, CHALLENGE_PERIOD, SECTOR_LIMIT);
+
+        IRolesDispatcher { contract_address: admin.contract_address }
+            .renounce_role(DEFAULT_ADMIN_ROLE, game_admin);
     }
 
     #[test]

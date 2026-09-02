@@ -16,6 +16,7 @@ import (
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
+	"stakewars.com/api/internal/jackpot"
 	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/objectstore"
 	"stakewars.com/api/internal/starknet"
@@ -60,10 +61,10 @@ func run() error {
 	whisperReader := starknet.NewWhisperReader(configuration.StarknetRPCURL)
 	beaconStore := beacon.NewStore(db)
 	beaconBiddingDurationSeconds := uint64(configuration.BeaconBiddingDuration / time.Second)
-	var beaconWorker *beacon.Worker
-	beaconDuties := make([]beacon.Duty, 0, 3)
+	var maintenanceWorker *beacon.Worker
+	maintenanceDuties := make([]beacon.Duty, 0, 4)
 	if configuration.StarknetRPCURL != "" {
-		beaconDuties = append(beaconDuties,
+		maintenanceDuties = append(maintenanceDuties,
 			beacon.NewOnchainSettlementProjector(
 				beaconStore,
 				whisperReader,
@@ -73,7 +74,7 @@ func run() error {
 		)
 	}
 	if configuration.BeaconCoordinatorEnabled() {
-		beaconDuties = append(beaconDuties, beacon.NewWinnerProjector(
+		maintenanceDuties = append(maintenanceDuties, beacon.NewWinnerProjector(
 			beaconStore,
 			beacon.NewOperatorCoordinatorClient(
 				configuration.BeaconCoordinatorURL,
@@ -87,12 +88,45 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		beaconDuties = append(beaconDuties, beacon.NewAuctionCycleDuty(
+		maintenanceDuties = append(maintenanceDuties, beacon.NewAuctionCycleDuty(
 			beaconStore, whisperReader, restarter, configuration.StarknetChainID,
 		))
 	}
-	if len(beaconDuties) > 0 {
-		beaconWorker = beacon.NewWorker(20*time.Second, beaconDuties...)
+	if configuration.JackpotKeeperEnabled() {
+		slog.Info(
+			"Jackpot keeper enabled",
+			"account", configuration.JackpotKeeperAccount,
+			"system", configuration.JackpotSystemAddress,
+		)
+		jackpotReader, err := starknet.NewJackpotReader(
+			configuration.StarknetRPCURL,
+			configuration.ToriiURL,
+			configuration.JackpotSystemAddress,
+		)
+		if err != nil {
+			return err
+		}
+		keeperStartupContext, cancelKeeperStartup := context.WithTimeout(
+			context.Background(), 30*time.Second,
+		)
+		jackpotSubmitter, err := starknet.NewJackpotSubmitter(
+			keeperStartupContext,
+			configuration.StarknetRPCURL,
+			configuration.JackpotSystemAddress,
+			configuration.JackpotKeeperAccount,
+			configuration.JackpotKeeperPrivateKey,
+		)
+		cancelKeeperStartup()
+		if err != nil {
+			return err
+		}
+		maintenanceDuties = append(
+			maintenanceDuties,
+			jackpot.NewDuty(jackpotReader, jackpotSubmitter),
+		)
+	}
+	if len(maintenanceDuties) > 0 {
+		maintenanceWorker = beacon.NewWorker(20*time.Second, maintenanceDuties...)
 	}
 	if configuration.StarknetRPCURL == "" {
 		slog.Warn("STARKNET_RPC_URL is not configured; session creation is disabled")
@@ -184,10 +218,10 @@ func run() error {
 		syscall.SIGTERM,
 	)
 	defer stop()
-	if beaconWorker != nil {
+	if maintenanceWorker != nil {
 		go func() {
-			if err := beaconWorker.Run(ctx); err != nil {
-				slog.ErrorContext(ctx, "Beacon worker stopped", "error", err)
+			if err := maintenanceWorker.Run(ctx); err != nil {
+				slog.ErrorContext(ctx, "Maintenance worker stopped", "error", err)
 			}
 		}()
 	}

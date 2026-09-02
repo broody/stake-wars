@@ -55,6 +55,9 @@ type Config struct {
 	BeaconWinnerPayloadDomain string
 	AllowedOrigins            []string
 	ControlSystemAddress      string
+	JackpotSystemAddress      string
+	JackpotKeeperAccount      string
+	JackpotKeeperPrivateKey   string
 	ImageBucket               string
 	ImagePublicURL            string
 	S3Endpoint                string
@@ -136,6 +139,22 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("BEACON_BIDDING_DURATION must be a positive whole number of seconds")
 	}
 
+	jackpotSystemAddress := strings.TrimSpace(os.Getenv("JACKPOT_SYSTEM_ADDRESS"))
+	jackpotKeeperAccount := strings.TrimSpace(os.Getenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS"))
+	jackpotKeeperPrivateKey := strings.TrimSpace(os.Getenv("JACKPOT_KEEPER_PRIVATE_KEY"))
+	configuredJackpotKeeperValues := 0
+	for _, value := range []string{
+		jackpotSystemAddress,
+		jackpotKeeperAccount,
+		jackpotKeeperPrivateKey,
+	} {
+		if value != "" {
+			configuredJackpotKeeperValues++
+		}
+	}
+	if configuredJackpotKeeperValues != 0 && configuredJackpotKeeperValues != 3 {
+		return Config{}, fmt.Errorf("JACKPOT_SYSTEM_ADDRESS, JACKPOT_KEEPER_ACCOUNT_ADDRESS, and JACKPOT_KEEPER_PRIVATE_KEY must be configured together")
+	}
 	origins := productionOrigins
 	if environment != productionEnvironmentName {
 		origins = append(append([]string{}, productionOrigins...), "http://localhost:3000")
@@ -200,6 +219,9 @@ func Load() (Config, error) {
 		BeaconWinnerPayloadDomain: valueOrDefault("BEACON_WINNER_PAYLOAD_DOMAIN", defaultBeaconWinnerPayloadDomain),
 		AllowedOrigins:            origins,
 		ControlSystemAddress:      strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
+		JackpotSystemAddress:      jackpotSystemAddress,
+		JackpotKeeperAccount:      jackpotKeeperAccount,
+		JackpotKeeperPrivateKey:   jackpotKeeperPrivateKey,
 		ImageBucket:               imageBucket,
 		ImagePublicURL:            imagePublicURL,
 		S3Endpoint:                s3Endpoint,
@@ -215,6 +237,10 @@ func (c Config) BeaconCoordinatorEnabled() bool {
 
 func (c Config) ImageStorageEnabled() bool {
 	return c.ImageBucket != ""
+}
+
+func (c Config) JackpotKeeperEnabled() bool {
+	return c.JackpotSystemAddress != ""
 }
 
 func valueOrDefault(key, fallback string) string {

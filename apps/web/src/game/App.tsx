@@ -14,6 +14,7 @@ import { Gallery } from './pages/Gallery';
 import { Beacon } from './pages/Beacon';
 import { Operator } from './pages/Operator';
 import { Staking } from './pages/Staking';
+import { Jackpot } from './pages/Jackpot';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
@@ -23,6 +24,12 @@ import { BeaconProvider } from './contexts/BeaconContext';
 const CoreLab = lazy(() =>
   import('./pages/OwnershipLab').then((module) => ({
     default: module.CoreLab,
+  }))
+);
+
+const JackpotCreator = lazy(() =>
+  import('./pages/JackpotCreator').then((module) => ({
+    default: module.JackpotCreator,
   }))
 );
 
@@ -54,6 +61,15 @@ function GamePages() {
             <Route path="/beacon" element={<Beacon />} />
             <Route path="/beacon/history" element={<Beacon />} />
             <Route path="/operator" element={<Operator />} />
+            <Route path="/jackpot" element={<Jackpot />} />
+            <Route
+              path="/jackpot/create"
+              element={
+                <Suspense fallback={null}>
+                  <JackpotCreator />
+                </Suspense>
+              }
+            />
             <Route
               path="/core-lab"
               element={
