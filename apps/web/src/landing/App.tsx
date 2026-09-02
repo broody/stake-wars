@@ -8,6 +8,7 @@ import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
+import { JackpotFeature } from './components/JackpotFeature';
 import { BeaconLogo } from '../game/components/3d/BeaconLogo';
 
 function FaqItem({
@@ -131,6 +132,9 @@ function LandingApp() {
             />
           ))}
         </div>
+
+        {/* Live Jackpot */}
+        <JackpotFeature />
 
         {/* Secondary Beacon auction */}
         <section
