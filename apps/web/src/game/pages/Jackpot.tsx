@@ -212,7 +212,7 @@ export function Jackpot() {
               JACKPOT
             </h1>
             <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
-              One Sector is drawn after expiry. Its controller at the expiry
+              One Sector is drawn after expiry. Its operator at the expiry
               snapshot wins the escrowed prize.
             </p>
           </div>
@@ -318,7 +318,7 @@ export function Jackpot() {
                       ? `The draw is locked to block ${current.randomnessBlock.toString()}. Settlement can complete once randomness is ready.`
                       : current.endsAt * 1_000 <= now
                         ? 'The control snapshot is fixed. The winning Sector is waiting to be drawn and settled.'
-                        : `Control is recorded at ${formatDate(current.endsAt)}. An active contest preserves the incumbent controller.`}
+                        : `Operator is recorded at ${formatDate(current.endsAt)}.`}
                   </p>
                 </div>
               </section>
