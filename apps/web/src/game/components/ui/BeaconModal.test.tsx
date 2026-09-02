@@ -333,6 +333,7 @@ describe('BeaconSummaryCard', () => {
         claimedAt: '2026-08-24T11:00:00Z',
         startsAt: '2026-08-24T11:00:00Z',
         expiresAt: null,
+        hasPublished: false,
       },
     };
     const markup = renderToStaticMarkup(
@@ -369,6 +370,7 @@ describe('BeaconSummaryCard', () => {
         claimedAt: '2026-08-24T11:00:00Z',
         startsAt: '2026-08-24T11:00:00Z',
         expiresAt: null,
+        hasPublished: false,
       },
       round: {
         ...biddingSnapshot.round!,
@@ -431,6 +433,7 @@ describe('BeaconSummaryCard', () => {
         claimedAt: '2026-08-24T11:00:00Z',
         startsAt: '2026-08-24T11:00:00Z',
         expiresAt: null,
+        hasPublished: true,
       },
       billboard: {
         imageUrl: 'https://images.example/beacon.webp',
@@ -463,6 +466,43 @@ describe('BeaconSummaryCard', () => {
     expect(markup).not.toContain('LOCKED');
     expect(markup).not.toContain('BUILD TRANSMISSION');
     expect(markup).not.toContain('16:9');
+  });
+
+  it('keeps the prior transmission while the new winner can replace it', () => {
+    const snapshot: BeaconSnapshot = {
+      ...biddingSnapshot,
+      controller: {
+        address: '0x888',
+        claimedAt: '2026-08-25T11:00:00Z',
+        startsAt: '2026-08-25T11:00:00Z',
+        expiresAt: null,
+        hasPublished: false,
+      },
+      billboard: {
+        imageUrl: 'https://images.example/previous.webp',
+        thumbnailUrl: 'https://images.example/previous-thumbnail.webp',
+        description: 'The previous winner remains on the air.',
+        destinationUrl: 'https://example.com/previous',
+        updatedAt: '2026-08-24T11:05:00Z',
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <BeaconSummaryCard
+          isOpen
+          snapshot={snapshot}
+          isLoading={false}
+          error={null}
+          viewerAddress={snapshot.controller!.address}
+          onClose={() => undefined}
+          onRefresh={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('The previous winner remains on the air.');
+    expect(markup).toContain('BUILD TRANSMISSION');
+    expect(markup).toContain('01 AVAILABLE');
   });
 });
 

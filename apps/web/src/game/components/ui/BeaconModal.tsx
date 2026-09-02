@@ -96,12 +96,14 @@ export function BeaconSummaryCard({
       snapshot?.controller &&
       addressesMatch(viewerAddress, snapshot.controller.address)
   );
+  const currentControllerHasPublished =
+    snapshot?.controller?.hasPublished ?? Boolean(snapshot?.billboard);
 
   useEffect(() => {
-    if (!isOpen || !isCurrentController || snapshot?.billboard) {
+    if (!isOpen || !isCurrentController || currentControllerHasPublished) {
       setProjectionFile(null);
     }
-  }, [isCurrentController, isOpen, snapshot?.billboard]);
+  }, [currentControllerHasPublished, isCurrentController, isOpen]);
 
   if (!isOpen) return null;
 
@@ -179,7 +181,9 @@ export function BeaconSummaryCard({
           <p className="py-3 text-neutral-400">No Beacon state is available.</p>
         ) : null}
 
-        {isCurrentController && viewerAddress && !snapshot?.billboard ? (
+        {isCurrentController &&
+        viewerAddress &&
+        !currentControllerHasPublished ? (
           <>
             <input
               ref={projectionInputRef}

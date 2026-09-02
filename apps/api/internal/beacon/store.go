@@ -336,6 +336,38 @@ func (s *Store) Billboard(
 	return billboard, nil
 }
 
+// CurrentBillboard returns the newest published signal independently from the
+// current controller. A newly resolved winner has an empty publication slot,
+// so the prior signal remains active until the winner publishes a replacement.
+func (s *Store) CurrentBillboard(
+	ctx context.Context,
+	network string,
+) (BillboardRecord, error) {
+	var billboard BillboardRecord
+	var updatedAt int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT a.image_url, a.thumbnail_url, a.description, a.destination_url,
+			a.updated_at
+		FROM beacon_rounds r
+		JOIN beacon_artworks a
+			ON a.network = r.network AND a.id = r.active_artwork_id
+		WHERE r.network = ? AND a.moderation_status = 'approved'
+		ORDER BY r.round_id DESC
+		LIMIT 1
+	`, network).Scan(
+		&billboard.ImageURL, &billboard.ThumbnailURL, &billboard.Description,
+		&billboard.DestinationURL, &updatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BillboardRecord{}, ErrNoBillboard
+	}
+	if err != nil {
+		return BillboardRecord{}, fmt.Errorf("read current Beacon billboard: %w", err)
+	}
+	billboard.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+	return billboard, nil
+}
+
 func (s *Store) UnprojectedRounds(
 	ctx context.Context,
 	network string,

@@ -105,8 +105,45 @@ func TestServiceReturnsCurrentControllerBillboard(t *testing.T) {
 		snapshot.Billboard.ThumbnailURL != "https://images.example/beacon-thumb.webp" ||
 		snapshot.Billboard.Description != "A public campaign message." ||
 		snapshot.Billboard.DestinationURL != "https://example.com/campaign" ||
-		!snapshot.Billboard.UpdatedAt.Equal(updatedAt) {
+		!snapshot.Billboard.UpdatedAt.Equal(updatedAt) ||
+		snapshot.Controller == nil || !snapshot.Controller.HasPublished {
 		t.Fatalf("unexpected billboard snapshot: %+v", snapshot.Billboard)
+	}
+}
+
+func TestServiceKeepsPreviousBillboardForNewController(t *testing.T) {
+	round := canonicalRoundFixture()
+	claimedAt := time.Unix(140, 0).UTC()
+	round.ClaimedController = "0x888"
+	round.ClaimedAt = &claimedAt
+	reader := &fakeWhisperReader{
+		auction:        whisperAuctionFixture(starknet.WhisperStatusBidding),
+		chainTimestamp: 50,
+	}
+	service := NewService(
+		fakeRoundStore{
+			round: round,
+			billboard: &BillboardRecord{
+				ImageURL:       "https://images.example/previous.webp",
+				ThumbnailURL:   "https://images.example/previous-thumb.webp",
+				Description:    "Previous signal",
+				DestinationURL: "https://example.com/previous",
+				UpdatedAt:      time.Unix(135, 0).UTC(),
+			},
+		},
+		reader,
+		"SN_SEPOLIA",
+		defaultBiddingDurationSeconds,
+	)
+
+	snapshot, err := service.Current(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Controller == nil || snapshot.Controller.Address != "0x888" ||
+		snapshot.Controller.HasPublished || snapshot.Billboard == nil ||
+		snapshot.Billboard.Description != "Previous signal" {
+		t.Fatalf("unexpected controller transition snapshot: %+v", snapshot)
 	}
 }
 
@@ -257,9 +294,8 @@ func (s fakeRoundStore) Controller(context.Context, string) (ControllerRecord, e
 	}, nil
 }
 
-func (s fakeRoundStore) Billboard(
+func (s fakeRoundStore) CurrentBillboard(
 	context.Context,
-	string,
 	string,
 ) (BillboardRecord, error) {
 	if s.billboard == nil {

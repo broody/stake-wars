@@ -72,10 +72,11 @@ type ResultView struct {
 }
 
 type ControllerView struct {
-	Address   string     `json:"address"`
-	ClaimedAt time.Time  `json:"claimedAt"`
-	StartsAt  *time.Time `json:"startsAt"`
-	ExpiresAt *time.Time `json:"expiresAt"`
+	Address      string     `json:"address"`
+	ClaimedAt    time.Time  `json:"claimedAt"`
+	StartsAt     *time.Time `json:"startsAt"`
+	ExpiresAt    *time.Time `json:"expiresAt"`
+	HasPublished bool       `json:"hasPublished"`
 }
 
 type BillboardView struct {
@@ -89,7 +90,7 @@ type BillboardView struct {
 type roundStore interface {
 	Current(ctx context.Context, network string) (CanonicalRound, error)
 	Controller(ctx context.Context, network string) (ControllerRecord, error)
-	Billboard(ctx context.Context, network string, artworkID string) (BillboardRecord, error)
+	CurrentBillboard(ctx context.Context, network string) (BillboardRecord, error)
 }
 
 type Service struct {
@@ -221,22 +222,22 @@ func (s *Service) Current(ctx context.Context) (Snapshot, error) {
 		}
 		snapshot.Controller = &ControllerView{
 			Address: controller, ClaimedAt: controllerRecord.ClaimedAt,
-			StartsAt: controllerRecord.StartsAt,
+			StartsAt:     controllerRecord.StartsAt,
+			HasPublished: controllerRecord.ActiveArtworkID != "",
 		}
-		if controllerRecord.ActiveArtworkID != "" {
-			billboard, err := s.store.Billboard(
-				ctx,
-				s.network,
-				controllerRecord.ActiveArtworkID,
-			)
-			if err != nil {
-				return Snapshot{}, fmt.Errorf("read current Beacon billboard: %w", err)
-			}
-			snapshot.Billboard = &BillboardView{
-				ImageURL: billboard.ImageURL, ThumbnailURL: billboard.ThumbnailURL,
-				Description: billboard.Description, DestinationURL: billboard.DestinationURL,
-				UpdatedAt: billboard.UpdatedAt,
-			}
+	}
+	// A controller receives a fresh publication slot, but the prior signal stays
+	// active until that slot is used. Resolve the billboard independently from
+	// the newest controller so a winner transition does not create a blank gap.
+	billboard, err := s.store.CurrentBillboard(ctx, s.network)
+	if err != nil && !errors.Is(err, ErrNoBillboard) {
+		return Snapshot{}, fmt.Errorf("read active Beacon billboard: %w", err)
+	}
+	if err == nil {
+		snapshot.Billboard = &BillboardView{
+			ImageURL: billboard.ImageURL, ThumbnailURL: billboard.ThumbnailURL,
+			Description: billboard.Description, DestinationURL: billboard.DestinationURL,
+			UpdatedAt: billboard.UpdatedAt,
 		}
 	}
 	return snapshot, nil

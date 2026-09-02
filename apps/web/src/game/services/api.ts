@@ -71,6 +71,7 @@ export interface BeaconSnapshot {
     claimedAt: string;
     startsAt: string | null;
     expiresAt: string | null;
+    hasPublished?: boolean;
   } | null;
   billboard: {
     imageUrl: string;

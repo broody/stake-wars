@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -75,6 +76,69 @@ func TestStoreReturnsLatestRoundForNetwork(t *testing.T) {
 	_, err = store.Controller(context.Background(), "SN_INTEGRATION")
 	if !errors.Is(err, ErrNoController) {
 		t.Fatalf("expected ErrNoController, got %v", err)
+	}
+}
+
+func TestStoreKeepsLatestPublishedBillboardUntilReplacement(t *testing.T) {
+	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	for roundID := 1; roundID <= 2; roundID++ {
+		if _, err := db.Exec(`
+			INSERT INTO beacon_rounds(
+				network, round_id, whisper_address, auction_id, expected_creator,
+				payment_token, metadata_hash, winner_payload_domain, vault_address,
+				claimed_controller, claimed_at
+			) VALUES ('SN_SEPOLIA', ?, '0x1', ?, '0x2', '0x3', '0x4', '0x5',
+				'0x6', ?, 100)
+		`, roundID, roundID, fmt.Sprintf("0x%d", roundID)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insertBillboard := func(roundID int, id, description string, updatedAt int64) {
+		t.Helper()
+		if _, err := db.Exec(`
+			INSERT INTO beacon_artworks(
+				id, network, controller_round_id, owner_address, description,
+				destination_url, image_url, object_key, thumbnail_url,
+				thumbnail_object_key, content_hash, moderation_status, created_at,
+				updated_at
+			) VALUES (?, 'SN_SEPOLIA', ?, ?, ?, 'https://example.com', ?, ?, ?, ?,
+				'hash', 'approved', ?, ?)
+		`, id, roundID, fmt.Sprintf("0x%d", roundID), description,
+			"https://images.example/"+id+".webp", id+"-detail",
+			"https://images.example/"+id+"-thumb.webp", id+"-thumb",
+			updatedAt, updatedAt); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`
+			UPDATE beacon_rounds SET active_artwork_id = ?
+			WHERE network = 'SN_SEPOLIA' AND round_id = ?
+		`, id, roundID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	store := NewStore(db)
+	insertBillboard(1, "previous", "Previous signal", 110)
+	billboard, err := store.CurrentBillboard(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if billboard.Description != "Previous signal" || billboard.UpdatedAt.Unix() != 110 {
+		t.Fatalf("unexpected retained billboard: %+v", billboard)
+	}
+
+	insertBillboard(2, "replacement", "Replacement signal", 120)
+	billboard, err = store.CurrentBillboard(context.Background(), "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if billboard.Description != "Replacement signal" || billboard.UpdatedAt.Unix() != 120 {
+		t.Fatalf("unexpected replacement billboard: %+v", billboard)
 	}
 }
 
