@@ -9,7 +9,6 @@ import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
 import { JackpotFeature } from './components/JackpotFeature';
-import { BeaconLogo } from '../game/components/3d/BeaconLogo';
 
 function FaqItem({
   question,
@@ -136,31 +135,60 @@ function LandingApp() {
         {/* Live Jackpot */}
         <JackpotFeature />
 
-        {/* Secondary Beacon auction */}
+        {/* Beacon auction */}
         <section
           aria-labelledby="beacon-heading"
-          className="mb-16 grid border border-dim bg-black/60 md:grid-cols-[0.32fr_1fr]"
+          className="mb-16 overflow-hidden border border-dim bg-black/70 lg:grid lg:grid-cols-[1.35fr_0.65fr]"
         >
           <a
             href="/play/beacon"
             aria-label="View the Beacon"
-            className="group grid min-h-36 place-items-center border-b border-dim p-5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:border-b-0 md:border-r"
+            className="relative block min-h-72 overflow-hidden border-b border-dim bg-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white lg:border-b-0 lg:border-r"
           >
-            <BeaconLogo className="h-28 w-28 transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none" />
+            <img
+              src="https://assets.stakewars.gg/site/beacon/v1/beacon-orbit-poster.jpg"
+              alt="The Stake Wars Core with the Beacon orbiting above it"
+              loading="lazy"
+              className="h-full min-h-72 w-full object-cover"
+            />
+            <video
+              aria-hidden="true"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              poster="https://assets.stakewars.gg/site/beacon/v1/beacon-orbit-poster.jpg"
+              className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
+            >
+              <source
+                src="https://assets.stakewars.gg/site/beacon/v1/beacon-orbit.mp4"
+                type="video/mp4"
+              />
+            </video>
           </a>
 
-          <div className="flex flex-col justify-center px-[30px] py-6 md:px-10">
+          <div className="flex flex-col justify-center px-[30px] py-10 md:px-10 lg:py-12">
             <h2
               id="beacon-heading"
-              className="text-[1.5rem] font-bold tracking-tight"
+              className="text-[2.4rem] font-bold leading-none tracking-[-0.05em]"
             >
               THE BEACON
             </h2>
-            <p className="mt-2 max-w-2xl text-[0.95rem] leading-[1.65] text-[#aaa]">
-              Operators can vie for control of the Beacon through the on-chain
-              sealed-bid auction. The winner is allowed to publish an image,
-              description, and link visible from the Core.
+            <p className="mt-6 text-[1.15rem] leading-[1.55] text-fg">
+              Win the signal above the Core.
             </p>
+            <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
+              Operators compete in an on-chain sealed-bid auction for the
+              Beacon—the lone broadcast orbiting the battlefield. The winner
+              publishes an image, message, and link for every commander to see.
+            </p>
+            <a
+              href="/play/beacon"
+              className="mt-8 w-fit border border-[#d6a84b]/70 px-5 py-3 text-[0.72rem] tracking-[0.18em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[#d6a84b]"
+            >
+              OPEN THE BEACON
+            </a>
           </div>
         </section>
 
