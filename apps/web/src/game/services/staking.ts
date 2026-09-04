@@ -93,3 +93,35 @@ export function buildWithdrawUnstakedCall(
     calldata: [operator],
   };
 }
+
+export function buildSwitchDelegationCalls({
+  sourcePoolAddress,
+  targetStakerAddress,
+  targetPoolAddress,
+  amount,
+}: {
+  sourcePoolAddress: string;
+  targetStakerAddress: string;
+  targetPoolAddress: string;
+  amount: bigint;
+}): Call[] {
+  if (!sourcePoolAddress || !targetStakerAddress || !targetPoolAddress) {
+    throw new Error('The delegation switch contracts are not configured');
+  }
+  if (amount <= 0n) {
+    throw new RangeError('The delegation switch amount must be positive');
+  }
+
+  return [
+    {
+      contractAddress: sourcePoolAddress,
+      entrypoint: 'exit_delegation_pool_intent',
+      calldata: [amount.toString()],
+    },
+    {
+      contractAddress: sourcePoolAddress,
+      entrypoint: 'switch_delegation_pool',
+      calldata: [targetStakerAddress, targetPoolAddress, amount.toString()],
+    },
+  ];
+}

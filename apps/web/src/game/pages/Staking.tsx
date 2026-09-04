@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
+import { DelegationSwitchPanel } from '../components/ui/DelegationSwitchPanel';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
@@ -107,10 +108,15 @@ export function Staking() {
     unstakePhase,
     withdrawPhase,
     stakingError,
+    externalDelegations,
+    switchPhase,
+    switchingPoolAddress,
+    switchError,
     stake,
     claimYield,
     unstakeAll,
     withdrawUnstaked,
+    switchDelegation,
   } = useYield();
   const [amount, setAmount] = useState(() =>
     stakeAmountFromSearch(searchParams)
@@ -126,7 +132,8 @@ export function Staking() {
     stakePhase !== 'idle' ||
     claimPhase !== 'idle' ||
     unstakePhase !== 'idle' ||
-    withdrawPhase !== 'idle';
+    withdrawPhase !== 'idle' ||
+    switchPhase !== 'idle';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -268,8 +275,8 @@ export function Staking() {
           <ValidatorLink />
         </header>
 
-        <section className="mt-8 grid border-l border-t border-grid lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="border-b border-r border-grid p-5 sm:p-8">
+        <section className="mt-8 grid min-w-0 grid-cols-[minmax(0,1fr)] border-l border-t border-grid lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="min-w-0 border-b border-r border-grid p-5 sm:p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg tracking-[0.12em] text-white">
@@ -360,7 +367,7 @@ export function Staking() {
             ) : null}
           </div>
 
-          <div className="border-b border-r border-grid">
+          <div className="min-w-0 border-b border-r border-grid">
             <div className="border-l border-t border-grid">
               <Metric
                 label="AVAILABLE FORCE"
@@ -384,6 +391,25 @@ export function Staking() {
             </div>
           </div>
         </section>
+
+        {externalDelegations.length > 0 ? (
+          <DelegationSwitchPanel
+            positions={externalDelegations}
+            targetRewardAddress={summary?.rewardAddress ?? null}
+            phase={switchPhase}
+            switchingPoolAddress={switchingPoolAddress}
+            error={switchError}
+            disabledReason={
+              operatorStatus?.retired
+                ? 'ADDRESS PERMANENTLY RETIRED'
+                : operatorStatus?.exiting
+                  ? 'EXIT ALREADY IN PROGRESS'
+                  : null
+            }
+            isBusy={isBusy}
+            onSwitch={(position) => void switchDelegation(position)}
+          />
+        ) : null}
 
         <section className="mt-8 border border-grid p-5 sm:p-7">
           <div>
