@@ -33,17 +33,20 @@ const vertexShader = `
   attribute vec3 projectorClip;
   attribute vec4 placement;
   attribute float viewportAspect;
+  attribute float imageAspect;
   attribute vec4 atlasRect;
   attribute vec3 sectorCenter;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
+  varying float vImageAspect;
   varying vec4 vAtlasRect;
   varying vec3 vSectorCenter;
   void main() {
     vProjectorClip = projectorClip;
     vPlacement = placement;
     vViewportAspect = viewportAspect;
+    vImageAspect = imageAspect;
     vAtlasRect = atlasRect;
     vSectorCenter = sectorCenter;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -65,6 +68,7 @@ const fragmentShader = `
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
+  varying float vImageAspect;
   varying vec4 vAtlasRect;
   varying vec3 vSectorCenter;
   void main() {
@@ -122,7 +126,8 @@ const fragmentShader = `
     float c = cos(-vPlacement.w);
     float s = sin(-vPlacement.w);
     vec2 local = mat2(c, -s, s, c) * delta;
-    vec2 uv = local / (2.0 * vPlacement.z) + 0.5;
+    vec2 uv = vec2(local.x / vImageAspect, local.y)
+      / (2.0 * vPlacement.z) + 0.5;
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
     vec2 atlasUv = vAtlasRect.xy + uv * vAtlasRect.zw;
     vec4 color = texture2D(artworkMap, atlasUv);

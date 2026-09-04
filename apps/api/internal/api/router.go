@@ -230,6 +230,10 @@ func (s *server) authorizeSectorImage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
+	// Preserve square placement for clients deployed before imageAspect existed.
+	if input.Placement.ImageAspect == 0 {
+		input.Placement.ImageAspect = 1
+	}
 	authorization, err := s.dependencies.Images.Authorize(
 		r.Context(), session.WalletAddress, images.AuthorizeInput{
 			Targets: input.Targets, Placement: input.Placement,

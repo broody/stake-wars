@@ -104,7 +104,12 @@ function PlacementCameraCapture() {
     lastProjectorRef.current = { matrix, aspect };
     if (!placementDraft.placement) {
       capturePlacement(
-        suggestedPlacement(matrix, aspect, imageUploadSectorIds)
+        suggestedPlacement(
+          matrix,
+          aspect,
+          placementDraft.imageAspect,
+          imageUploadSectorIds
+        )
       );
       return;
     }
@@ -143,9 +148,10 @@ function PlacementGuide({
   const bounds = containerRef.current?.getBoundingClientRect();
   const width = bounds?.width ?? 1;
   const height = bounds?.height ?? 1;
-  const size = placement.scale * height;
-  const left = ((placement.centerX + 1) / 2) * width - size / 2;
-  const top = ((1 - placement.centerY) / 2) * height - size / 2;
+  const guideHeight = placement.scale * height;
+  const guideWidth = guideHeight * placement.imageAspect;
+  const left = ((placement.centerX + 1) / 2) * width - guideWidth / 2;
+  const top = ((1 - placement.centerY) / 2) * height - guideHeight / 2;
 
   return (
     <div
@@ -157,8 +163,8 @@ function PlacementGuide({
       style={{
         left,
         top,
-        width: size,
-        height: size,
+        width: guideWidth,
+        height: guideHeight,
         transform: `rotate(${placement.rotation}rad)`,
       }}
       role="application"
@@ -228,14 +234,15 @@ function PlacementGuide({
               (bounds?.left ?? 0) + ((placement.centerX + 1) / 2) * width;
             const centerY =
               (bounds?.top ?? 0) + ((1 - placement.centerY) / 2) * height;
-            const inverseSqrtTwo = 1 / Math.sqrt(2);
-            const localUnitX = corner.horizontal * inverseSqrtTwo;
-            const localUnitY = corner.vertical * inverseSqrtTwo;
+            const diagonalAspect = Math.hypot(placement.imageAspect, 1);
+            const localUnitX =
+              (corner.horizontal * placement.imageAspect) / diagonalAspect;
+            const localUnitY = corner.vertical / diagonalAspect;
             const cosine = Math.cos(placement.rotation);
             const sine = Math.sin(placement.rotation);
             const unitX = localUnitX * cosine - localUnitY * sine;
             const unitY = localUnitX * sine + localUnitY * cosine;
-            const centerToCorner = size * inverseSqrtTwo;
+            const centerToCorner = (guideHeight * diagonalAspect) / 2;
             resizeRef.current = {
               oppositeX: centerX - unitX * centerToCorner,
               oppositeY: centerY - unitY * centerToCorner,
@@ -248,13 +255,14 @@ function PlacementGuide({
             event.stopPropagation();
             const resize = resizeRef.current;
             if (!resize) return;
+            const diagonalAspect = Math.hypot(placement.imageAspect, 1);
             const diagonal = THREE.MathUtils.clamp(
               (event.clientX - resize.oppositeX) * resize.unitX +
                 (event.clientY - resize.oppositeY) * resize.unitY,
-              0.05 * height * Math.sqrt(2),
-              2 * height * Math.sqrt(2)
+              0.05 * height * diagonalAspect,
+              2 * height * diagonalAspect
             );
-            const nextSize = diagonal / Math.sqrt(2);
+            const nextHeight = diagonal / diagonalAspect;
             const nextCenterX =
               resize.oppositeX + (resize.unitX * diagonal) / 2;
             const nextCenterY =
@@ -262,7 +270,7 @@ function PlacementGuide({
             updatePlacement({
               centerX: ((nextCenterX - (bounds?.left ?? 0)) / width) * 2 - 1,
               centerY: 1 - ((nextCenterY - (bounds?.top ?? 0)) / height) * 2,
-              scale: nextSize / height,
+              scale: nextHeight / height,
             });
           }}
           onPointerUp={(event) => {

@@ -111,7 +111,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
           if (current) URL.revokeObjectURL(current);
           return nextPreviewUrl;
         });
-        beginPlacement(nextPreviewUrl);
+        beginPlacement(nextPreviewUrl, next.imageAspect);
       } catch (failure) {
         if (preparationVersion !== preparationVersionRef.current) return;
         setUploadError(
@@ -336,7 +336,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
               <img
                 src={previewUrl}
                 alt="Prepared Sector image preview"
-                className="h-[58px] w-[58px] object-cover"
+                className="max-h-[58px] max-w-[58px]"
               />
             ) : (
               <span
@@ -358,7 +358,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
             </span>
             {prepared ? (
               <span className="mt-1 block text-[8px] tracking-[0.1em] text-neutral-500">
-                512 PX · {formatMebibytes(prepared.detail.size)}
+                MAX 512 PX · {formatMebibytes(prepared.detail.size)}
               </span>
             ) : null}
           </span>

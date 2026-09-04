@@ -79,7 +79,8 @@ func validPlacement(placement Placement) bool {
 		!finite(placement.CenterY) || !finite(placement.Scale) || placement.Scale <= 0 ||
 		placement.Scale > 4 || !finite(placement.Rotation) ||
 		!finite(placement.ViewportAspect) || placement.ViewportAspect <= 0 ||
-		placement.ViewportAspect > 10 {
+		placement.ViewportAspect > 10 || !finite(placement.ImageAspect) ||
+		placement.ImageAspect <= 0 || placement.ImageAspect > maximumDetailDimension {
 		return false
 	}
 	for _, value := range placement.ProjectorMatrix {

@@ -23,6 +23,7 @@ type Placement struct {
 	Scale           float64   `json:"scale"`
 	Rotation        float64   `json:"rotation"`
 	ViewportAspect  float64   `json:"viewportAspect"`
+	ImageAspect     float64   `json:"imageAspect"`
 }
 
 type Upload struct {
@@ -72,13 +73,14 @@ func (s *Store) CreateUpload(ctx context.Context, upload Upload) error {
 			id, network, owner_address, content_type, detail_object_key,
 			detail_size, thumbnail_object_key, thumbnail_size, projector_matrix,
 			placement_center_x, placement_center_y, placement_scale,
-			placement_rotation, viewport_aspect, created_at, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			placement_rotation, viewport_aspect, image_aspect, created_at, expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, upload.ID, upload.Network, upload.OwnerAddress, upload.ContentType,
 		upload.DetailObjectKey, upload.DetailSize, upload.ThumbnailObjectKey,
 		upload.ThumbnailSize, string(matrix), upload.Placement.CenterX,
 		upload.Placement.CenterY, upload.Placement.Scale, upload.Placement.Rotation,
-		upload.Placement.ViewportAspect, upload.CreatedAt.Unix(), upload.ExpiresAt.Unix())
+		upload.Placement.ViewportAspect, upload.Placement.ImageAspect,
+		upload.CreatedAt.Unix(), upload.ExpiresAt.Unix())
 	if err != nil {
 		return fmt.Errorf("create image upload: %w", err)
 	}
@@ -105,13 +107,14 @@ func (s *Store) Upload(ctx context.Context, id string) (Upload, error) {
 		SELECT id, network, owner_address, content_type, detail_object_key,
 			detail_size, thumbnail_object_key, thumbnail_size, projector_matrix,
 			placement_center_x, placement_center_y, placement_scale,
-			placement_rotation, viewport_aspect, created_at, expires_at, completed_at
+			placement_rotation, viewport_aspect, image_aspect, created_at, expires_at, completed_at
 		FROM image_uploads WHERE id = ?
 	`, id).Scan(&upload.ID, &upload.Network, &upload.OwnerAddress,
 		&upload.ContentType, &upload.DetailObjectKey, &upload.DetailSize,
 		&upload.ThumbnailObjectKey, &upload.ThumbnailSize, &matrix,
 		&upload.Placement.CenterX, &upload.Placement.CenterY, &upload.Placement.Scale,
 		&upload.Placement.Rotation, &upload.Placement.ViewportAspect,
+		&upload.Placement.ImageAspect,
 		&createdAt, &expiresAt, &completedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Upload{}, ErrUploadNotFound
@@ -168,13 +171,15 @@ func (s *Store) Publish(ctx context.Context, upload Upload, artwork Artwork, com
 			id, network, owner_address, image_url, object_key, thumbnail_url,
 			thumbnail_object_key, content_hash, projector_matrix, placement_center_x,
 			placement_center_y, placement_scale, placement_rotation, viewport_aspect,
+			image_aspect,
 			moderation_status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)
 	`, artwork.ID, artwork.Network, artwork.OwnerAddress, artwork.ImageURL,
 		upload.DetailObjectKey, artwork.ThumbnailURL, upload.ThumbnailObjectKey,
 		artwork.ContentHash, string(matrix), artwork.Placement.CenterX,
 		artwork.Placement.CenterY, artwork.Placement.Scale, artwork.Placement.Rotation,
-		artwork.Placement.ViewportAspect, completedAt.Unix(), completedAt.Unix())
+		artwork.Placement.ViewportAspect, artwork.Placement.ImageAspect,
+		completedAt.Unix(), completedAt.Unix())
 	if err != nil {
 		return fmt.Errorf("publish artwork: %w", err)
 	}
@@ -206,7 +211,7 @@ func (s *Store) Approved(ctx context.Context, network string) ([]Artwork, error)
 		SELECT a.id, a.network, a.owner_address, a.image_url, a.thumbnail_url,
 			a.content_hash, a.projector_matrix, a.placement_center_x,
 			a.placement_center_y, a.placement_scale, a.placement_rotation,
-			a.viewport_aspect, a.updated_at, t.sector_id,
+			a.viewport_aspect, a.image_aspect, a.updated_at, t.sector_id,
 			t.ownership_generation
 		FROM sector_artworks a
 		JOIN sector_artwork_targets t ON t.artwork_id = a.id
@@ -228,7 +233,8 @@ func (s *Store) Approved(ctx context.Context, network string) ([]Artwork, error)
 			&artwork.ImageURL, &artwork.ThumbnailURL, &artwork.ContentHash, &matrix,
 			&artwork.Placement.CenterX, &artwork.Placement.CenterY,
 			&artwork.Placement.Scale, &artwork.Placement.Rotation,
-			&artwork.Placement.ViewportAspect, &updatedAt, &target.SectorID,
+			&artwork.Placement.ViewportAspect, &artwork.Placement.ImageAspect,
+			&updatedAt, &target.SectorID,
 			&target.OwnershipGeneration); err != nil {
 			return nil, fmt.Errorf("scan artwork: %w", err)
 		}

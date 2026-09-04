@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 9 {
-		t.Fatalf("expected nine migrations, got %d", migrations)
+	if migrations != 10 {
+		t.Fatalf("expected ten migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`

@@ -39,14 +39,16 @@ func TestAuthorizeAndPublishSectorImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(published.Targets) != 2 || published.Targets[0].SectorID != 42 ||
-		published.ImageURL == "" || published.ThumbnailURL == "" {
+		published.ImageURL == "" || published.ThumbnailURL == "" ||
+		published.Placement.ImageAspect != 1.25 {
 		t.Fatalf("unexpected published image: %+v", published)
 	}
 	approved, err := service.Approved(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(approved) != 1 || approved[0].ID != published.ID {
+	if len(approved) != 1 || approved[0].ID != published.ID ||
+		approved[0].Placement.ImageAspect != 1.25 {
 		t.Fatalf("unexpected approved images: %+v", approved)
 	}
 	if control.checks != 4 {
@@ -86,7 +88,7 @@ func TestCompleteRejectsMismatchedImageSignature(t *testing.T) {
 func testPlacement() Placement {
 	return Placement{
 		ProjectorMatrix: []float64{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
-		Scale:           0.5, ViewportAspect: 1.5,
+		Scale:           0.5, ViewportAspect: 1.5, ImageAspect: 1.25,
 	}
 }
 

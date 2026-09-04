@@ -21,6 +21,7 @@ describe('image upload authorization', () => {
       contentType: 'image/webp',
       detail,
       thumbnail,
+      imageAspect: 1.5,
     };
     let requestIndex = 0;
     const responses = [
@@ -63,6 +64,7 @@ describe('image upload authorization', () => {
           scale: 0.5,
           rotation: 0,
           viewportAspect: 1,
+          imageAspect: 1.5,
         },
         imageUrl: 'https://images.example/detail',
         thumbnailUrl: 'https://images.example/thumbnail',
@@ -90,6 +92,7 @@ describe('image upload authorization', () => {
       scale: 0.75,
       rotation: 0.1,
       viewportAspect: 1.5,
+      imageAspect: 1.5,
     };
 
     await api.uploadSectorArtwork({
@@ -102,6 +105,7 @@ describe('image upload authorization', () => {
         scale: 0.5,
         rotation: 0,
         viewportAspect: 1,
+        imageAspect: 1.5,
       },
       prepared,
       signTypedData: async () => {

@@ -3,6 +3,8 @@ import type { SectorArtwork } from '../types';
 import {
   artworkAtlasSourceKey,
   artworkAtlasSourcesFromKey,
+  createProjectedArtworkGeometry,
+  suggestedPlacement,
   type ArtworkAtlasSlot,
 } from './sectorArtworkProjection';
 
@@ -19,6 +21,7 @@ function artwork(thumbnailUrl: string): SectorArtwork {
       scale: 1,
       rotation: 0,
       viewportAspect: 1,
+      imageAspect: 1,
     },
     imageUrl: 'https://images.example/detail.webp',
     thumbnailUrl,
@@ -76,5 +79,28 @@ describe('artwork atlas source key', () => {
         row: 0,
       },
     ]);
+  });
+
+  it('carries the source aspect ratio into projected geometry', () => {
+    const rectangular = artwork('https://images.example/wide.webp');
+    rectangular.placement.imageAspect = 1.75;
+    const geometry = createProjectedArtworkGeometry(
+      [{ artwork: rectangular, column: 0, row: 0 }],
+      new Map(),
+      1,
+      1
+    );
+
+    expect(geometry.getAttribute('imageAspect').getX(0)).toBeCloseTo(1.75);
+    geometry.dispose();
+  });
+
+  it('fits a wide image to the same selected surface at a lower height', () => {
+    const projectorMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const square = suggestedPlacement(projectorMatrix, 10, 1, [1977]);
+    const wide = suggestedPlacement(projectorMatrix, 10, 2, [1977]);
+
+    expect(wide.imageAspect).toBe(2);
+    expect(wide.scale).toBeLessThan(square.scale);
   });
 });

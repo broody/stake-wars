@@ -98,9 +98,14 @@ export interface PreparedSectorImage {
   contentType: string;
   detail: Blob;
   thumbnail: Blob;
+  imageAspect: number;
 }
 
-export type PreparedBeaconImage = PreparedSectorImage;
+export interface PreparedBeaconImage {
+  contentType: string;
+  detail: Blob;
+  thumbnail: Blob;
+}
 
 export interface BeaconArtwork {
   id: string;

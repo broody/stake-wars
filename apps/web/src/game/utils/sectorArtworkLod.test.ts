@@ -37,6 +37,7 @@ function artwork(sectorId: number): SectorArtwork {
       scale: 1,
       rotation: 0,
       viewportAspect: 1,
+      imageAspect: 1,
     },
     imageUrl: 'https://images.example/detail.webp',
     thumbnailUrl: 'https://images.example/thumbnail.webp',

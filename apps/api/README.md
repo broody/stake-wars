@@ -131,8 +131,9 @@ POST /v1/beacon/artwork/uploads/{uploadId}/complete
 ```
 
 Image uploads are enabled only when all object-storage settings are present.
-The browser creates one 256 px atlas image and one 512 px detail image for
-each camera-projected artwork, obtains
+The browser preserves the source aspect ratio while fitting each
+camera-projected artwork into one 256 px atlas image and one 512 px detail
+image, obtains
 object-specific five-minute PUT URLs, uploads both objects directly to storage,
 and calls the completion endpoint. Completion downloads only those bounded
 objects for signature, MIME, dimensions, and size validation, rechecks current

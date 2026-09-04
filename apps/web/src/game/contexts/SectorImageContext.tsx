@@ -15,6 +15,7 @@ import { useSectors } from './SectorContext';
 
 export interface PlacementDraft {
   previewUrl: string;
+  imageAspect: number;
   placement: ArtworkPlacement | null;
 }
 
@@ -28,7 +29,7 @@ interface SectorImageContextValue {
   featuredArtworkId: string | null;
   placementDraft: PlacementDraft | null;
   isPlacementLocked: boolean;
-  beginPlacement: (previewUrl: string) => void;
+  beginPlacement: (previewUrl: string, imageAspect: number) => void;
   capturePlacement: (placement: ArtworkPlacement) => void;
   updatePlacement: (changes: Partial<ArtworkPlacement>) => void;
   lockPlacement: () => ArtworkPlacement | null;
@@ -91,9 +92,9 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
     setPlacementLockedState(locked);
   }, []);
   const beginPlacement = useCallback(
-    (previewUrl: string) => {
+    (previewUrl: string, imageAspect: number) => {
       setPlacementLocked(false);
-      const next = { previewUrl, placement: null };
+      const next = { previewUrl, imageAspect, placement: null };
       placementDraftRef.current = next;
       setPlacementDraft(next);
     },

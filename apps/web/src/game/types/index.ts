@@ -50,6 +50,7 @@ export interface ArtworkPlacement {
   scale: number;
   rotation: number;
   viewportAspect: number;
+  imageAspect: number;
 }
 
 export interface SectorArtwork {

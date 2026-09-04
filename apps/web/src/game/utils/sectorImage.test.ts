@@ -1,27 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { centeredSquareCrop, clipboardImageFile } from './sectorImage';
+import { clipboardImageFile, containedImageDimensions } from './sectorImage';
 
 describe('Sector image preparation', () => {
-  it('centers a landscape source', () => {
-    expect(centeredSquareCrop(1200, 800)).toEqual({
-      sourceX: 200,
-      sourceY: 0,
-      sourceWidth: 800,
-      sourceHeight: 800,
+  it('fits a landscape source without cropping', () => {
+    expect(containedImageDimensions(1200, 800, 512)).toEqual({
+      width: 512,
+      height: 341,
     });
   });
 
-  it('centers a portrait source', () => {
-    expect(centeredSquareCrop(600, 1000)).toEqual({
-      sourceX: 0,
-      sourceY: 200,
-      sourceWidth: 600,
-      sourceHeight: 600,
+  it('fits a portrait source without cropping', () => {
+    expect(containedImageDimensions(600, 1000, 512)).toEqual({
+      width: 307,
+      height: 512,
+    });
+  });
+
+  it('does not upscale a smaller source', () => {
+    expect(containedImageDimensions(320, 180, 512)).toEqual({
+      width: 320,
+      height: 180,
     });
   });
 
   it('rejects invalid dimensions', () => {
-    expect(() => centeredSquareCrop(0, 100)).toThrow(RangeError);
+    expect(() => containedImageDimensions(0, 100, 512)).toThrow(RangeError);
   });
 
   it('extracts an image item from clipboard data', () => {

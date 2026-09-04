@@ -44,6 +44,7 @@ export function createProjectedArtworkGeometry(
   const projectorClips: number[] = [];
   const placements: number[] = [];
   const aspects: number[] = [];
+  const imageAspects: number[] = [];
   const atlasRects: number[] = [];
   const sectorCenters: number[] = [];
   const position = new THREE.Vector3();
@@ -87,6 +88,7 @@ export function createProjectedArtworkGeometry(
           artwork.placement.rotation
         );
         aspects.push(artwork.placement.viewportAspect);
+        imageAspects.push(artwork.placement.imageAspect ?? 1);
         atlasRects.push(left, bottom, width, height);
         sectorCenters.push(sectorCenter.x, sectorCenter.y, sectorCenter.z);
       }
@@ -109,6 +111,10 @@ export function createProjectedArtworkGeometry(
   geometry.setAttribute(
     'viewportAspect',
     new THREE.Float32BufferAttribute(aspects, 1)
+  );
+  geometry.setAttribute(
+    'imageAspect',
+    new THREE.Float32BufferAttribute(imageAspects, 1)
   );
   geometry.setAttribute(
     'atlasRect',
@@ -136,6 +142,7 @@ export function artworkForSector(
 export function suggestedPlacement(
   projectorMatrix: readonly number[],
   viewportAspect: number,
+  imageAspect: number,
   sectorIds: readonly number[]
 ): ArtworkPlacement {
   const projector = new THREE.Matrix4().fromArray([...projectorMatrix]);
@@ -169,7 +176,7 @@ export function suggestedPlacement(
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   const halfExtent = Math.max(
-    ((maxX - minX) * viewportAspect) / 2,
+    ((maxX - minX) * viewportAspect) / (2 * imageAspect),
     (maxY - minY) / 2
   );
   return {
@@ -179,5 +186,6 @@ export function suggestedPlacement(
     scale: THREE.MathUtils.clamp(halfExtent * 1.12, 0.08, 1.8),
     rotation: 0,
     viewportAspect,
+    imageAspect,
   };
 }
