@@ -8,6 +8,7 @@ import {
 import {
   addSectorFlipAttributes,
   addSectorLineFlipAttributes,
+  isSectorArtworkRevealReady,
   randomOutsideSectorWaveOrigin,
   randomSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
@@ -16,6 +17,7 @@ import {
   sectorLoadRevealFlickerOpacity,
   sectorWaveDelay,
   sectorWaveDistanceRange,
+  SECTOR_ARTWORK_REVEAL_DELAY_SECONDS,
   SECTOR_FLIP_MAX_WAVE_DELAY,
 } from './sectorFlip';
 
@@ -27,6 +29,18 @@ describe('sector flip parameters', () => {
     expect(sectorLoadRevealFlickerOpacity(0.5)).toBe(1);
     expect(sectorLoadRevealFlickerOpacity(0.62)).toBeCloseTo(0.48);
     expect(sectorLoadRevealFlickerOpacity(1)).toBe(1);
+  });
+
+  it('reveals artwork only after the Sector flicker and follow-up delay', () => {
+    expect(
+      isSectorArtworkRevealReady(0.999, SECTOR_ARTWORK_REVEAL_DELAY_SECONDS)
+    ).toBe(false);
+    expect(
+      isSectorArtworkRevealReady(1, SECTOR_ARTWORK_REVEAL_DELAY_SECONDS - 0.001)
+    ).toBe(false);
+    expect(
+      isSectorArtworkRevealReady(1, SECTOR_ARTWORK_REVEAL_DELAY_SECONDS)
+    ).toBe(true);
   });
 
   it('creates a repeatable unit-length wave origin from an injected source', () => {

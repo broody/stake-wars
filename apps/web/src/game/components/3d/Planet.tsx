@@ -35,6 +35,7 @@ import { artworkForSector } from '../../utils/sectorArtworkProjection';
 import {
   addSectorFlipAttributes,
   addSectorLineFlipAttributes,
+  isSectorArtworkRevealReady,
   randomOutsideSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
   sectorLoadRevealFlickerOpacity,
@@ -105,6 +106,53 @@ function useSectorLoadRevealAnimation(
   });
 
   return animationRef;
+}
+
+function useSectorArtworkReveal(
+  isSectorIndexReady: boolean,
+  loadRevealAnimation: SectorLoadRevealAnimationRef
+): boolean {
+  const prefersReducedMotion = useMemo(
+    () =>
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+      false,
+    []
+  );
+  const [isRevealed, setRevealed] = useState(
+    () => isSectorIndexReady && prefersReducedMotion
+  );
+  const isRevealedRef = useRef(isRevealed);
+  const delayElapsedRef = useRef(0);
+
+  useEffect(() => {
+    delayElapsedRef.current = 0;
+    const revealImmediately = isSectorIndexReady && prefersReducedMotion;
+    isRevealedRef.current = revealImmediately;
+    setRevealed(revealImmediately);
+  }, [isSectorIndexReady, prefersReducedMotion]);
+
+  useFrame((_state, delta) => {
+    if (!isSectorIndexReady || isRevealedRef.current) {
+      return;
+    }
+
+    if (loadRevealAnimation.current.progress >= 1) {
+      delayElapsedRef.current += delta;
+    }
+    if (
+      !isSectorArtworkRevealReady(
+        loadRevealAnimation.current.progress,
+        delayElapsedRef.current
+      )
+    ) {
+      return;
+    }
+
+    isRevealedRef.current = true;
+    setRevealed(true);
+  });
+
+  return isRevealed;
 }
 
 function sectorLoadRevealCompletionOpacity(
@@ -1411,13 +1459,15 @@ function PopulatedReliefContourLayer({
       ),
     [reliefGeometries]
   );
+  // The top geometry begins at the maximum relief envelope. Keep its
+  // materials hidden until the first frame synchronizes the active height.
   const shadowMaterial = useMemo(
     () =>
       new LineMaterial({
         color: SECTOR_COLORS.reliefShadow,
         linewidth: 5,
         transparent: true,
-        opacity: 0.86,
+        opacity: 0,
         depthWrite: false,
       }),
     []
@@ -1428,7 +1478,7 @@ function PopulatedReliefContourLayer({
         color: SECTOR_COLORS.reliefTopEdge,
         linewidth: 4,
         transparent: true,
-        opacity: 0.94,
+        opacity: 0,
         depthWrite: false,
       }),
     []
@@ -1439,7 +1489,7 @@ function PopulatedReliefContourLayer({
         color: rimColor,
         linewidth: 1.25,
         transparent: true,
-        opacity: 1,
+        opacity: 0,
         depthWrite: false,
       }),
     [rimColor]
@@ -1834,6 +1884,10 @@ export function Planet({
   } = useSectors();
   const sectorLoadRevealAnimation =
     useSectorLoadRevealAnimation(hasLoadedSectorIndex);
+  const isSectorArtworkRevealed = useSectorArtworkReveal(
+    hasLoadedSectorIndex,
+    sectorLoadRevealAnimation
+  );
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const fullSphereGeometry = useMemo(() => createSectorGeometry(), []);
   const opponentSectorIdSet = useMemo(
@@ -2241,7 +2295,7 @@ export function Planet({
         artworks={visibleArtworks}
         heights={imageHeights}
         flipped={waveFlipActive}
-        visible={projectionSurfaceVisible}
+        visible={projectionSurfaceVisible && isSectorArtworkRevealed}
         visibleOnBothFaces={isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
@@ -2249,7 +2303,9 @@ export function Planet({
         onLoadingChange={setThumbnailAtlasLoading}
       />
 
-      {shouldShowProjection && projectionSurfaceVisible ? (
+      {shouldShowProjection &&
+      projectionSurfaceVisible &&
+      isSectorArtworkRevealed ? (
         <SectorDetailImageLayers
           artworks={visibleArtworks}
           priorityArtworkIds={priorityDetailArtworkIds}

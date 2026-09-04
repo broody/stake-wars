@@ -5,6 +5,7 @@ export const SECTOR_FLIP_DURATION_SECONDS = 0.95;
 export const SECTOR_FLIP_MAX_WAVE_DELAY = 0.72;
 export const SECTOR_LOAD_REVEAL_DURATION_SECONDS = 1.35;
 export const SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY = 0.72;
+export const SECTOR_ARTWORK_REVEAL_DELAY_SECONDS = 0.2;
 
 const SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES = [
   [0, 0],
@@ -39,6 +40,16 @@ export function sectorLoadRevealFlickerOpacity(progress: number): number {
   }
 
   return 1;
+}
+
+export function isSectorArtworkRevealReady(
+  loadRevealProgress: number,
+  delayElapsedSeconds: number
+): boolean {
+  return (
+    loadRevealProgress >= 1 &&
+    delayElapsedSeconds >= SECTOR_ARTWORK_REVEAL_DELAY_SECONDS
+  );
 }
 
 export function sectorFlipWaveDelayForCount(sectorCount: number): number {
