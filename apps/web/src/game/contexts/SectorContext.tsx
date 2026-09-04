@@ -31,6 +31,10 @@ import {
   sectorStatusMatchesIndexedState,
   sectorStatusesHaveSameEffectiveState,
 } from '../utils/sectorState';
+import {
+  readOccupiedSectorCache,
+  writeOccupiedSectorCache,
+} from '../services/occupiedSectorCache';
 
 interface SectorContextValue {
   controlView: ControlView;
@@ -105,7 +109,12 @@ export function SectorProvider({ children }: PropsWithChildren) {
   );
   const [indexedSectors, setIndexedSectors] = useState<
     Map<number, IndexedSector>
-  >(() => new Map());
+  >(
+    () =>
+      new Map(
+        (readOccupiedSectorCache() ?? []).map((sector) => [sector.id, sector])
+      )
+  );
   const indexedSectorsRef = useRef(indexedSectors);
   useEffect(() => {
     indexedSectorsRef.current = indexedSectors;
@@ -118,11 +127,17 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [sectorError, setSectorError] = useState<string | null>(null);
   const [operatorError, setOperatorError] = useState<string | null>(null);
   const [isSectorIndexLoading, setSectorIndexLoading] = useState(false);
-  const [hasLoadedSectorIndex, setHasLoadedSectorIndex] = useState(false);
+  const [hasLoadedSectorIndex, setHasLoadedSectorIndex] = useState(
+    indexedSectors.size > 0
+  );
   const [sectorIndexError, setSectorIndexError] = useState<string | null>(null);
   const [sectorRevision, setSectorRevision] = useState(0);
   const [operatorRevision, setOperatorRevision] = useState(0);
   const [sectorIndexRevision, setSectorIndexRevision] = useState(0);
+
+  useEffect(() => {
+    writeOccupiedSectorCache(indexedSectors.values());
+  }, [indexedSectors]);
 
   const rememberSector = useCallback((status: SectorStatus) => {
     setKnownSectors((current) => {
