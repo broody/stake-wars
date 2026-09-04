@@ -6,6 +6,8 @@ export const SECTOR_FLIP_MAX_WAVE_DELAY = 0.72;
 export const SECTOR_LOAD_REVEAL_DURATION_SECONDS = 1.35;
 export const SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY = 0.72;
 export const SECTOR_ARTWORK_REVEAL_DELAY_SECONDS = 0.2;
+export const SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS =
+  SECTOR_ARTWORK_REVEAL_DELAY_SECONDS / SECTOR_LOAD_REVEAL_DURATION_SECONDS;
 
 const SECTOR_LOAD_REVEAL_FLICKER_KEYFRAMES = [
   [0, 0],
@@ -42,15 +44,18 @@ export function sectorLoadRevealFlickerOpacity(progress: number): number {
   return 1;
 }
 
-export function isSectorArtworkRevealReady(
-  loadRevealProgress: number,
-  delayElapsedSeconds: number
-): boolean {
+export function sectorArtworkRevealStartProgress(
+  sectorRevealDelay: number
+): number {
   return (
-    loadRevealProgress >= 1 &&
-    delayElapsedSeconds >= SECTOR_ARTWORK_REVEAL_DELAY_SECONDS
+    sectorRevealDelay +
+    (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY) +
+    SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS
   );
 }
+
+export const SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS =
+  sectorArtworkRevealStartProgress(SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY);
 
 export function sectorFlipWaveDelayForCount(sectorCount: number): number {
   if (sectorCount <= 1) return 0;

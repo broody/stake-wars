@@ -35,13 +35,13 @@ import { artworkForSector } from '../../utils/sectorArtworkProjection';
 import {
   addSectorFlipAttributes,
   addSectorLineFlipAttributes,
-  isSectorArtworkRevealReady,
   randomOutsideSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
   sectorLoadRevealFlickerOpacity,
   sectorFlipWaveDelayForCount,
   sectorWaveDistanceRange as createSectorWaveDistanceRange,
   SECTOR_FLIP_DURATION_SECONDS,
+  SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
   SECTOR_LOAD_REVEAL_DURATION_SECONDS,
   SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
 } from '../../utils/sectorFlip';
@@ -86,73 +86,36 @@ function useSectorLoadRevealAnimation(
     []
   );
   const animationRef = useRef<SectorLoadRevealAnimationState>({
-    progress: isSectorIndexReady && !prefersReducedMotion ? 0 : 1,
+    progress:
+      isSectorIndexReady && !prefersReducedMotion
+        ? 0
+        : SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
   });
   const previousReadyRef = useRef(isSectorIndexReady);
 
   if (isSectorIndexReady !== previousReadyRef.current) {
     previousReadyRef.current = isSectorIndexReady;
     animationRef.current.progress =
-      isSectorIndexReady && !prefersReducedMotion ? 0 : 1;
+      isSectorIndexReady && !prefersReducedMotion
+        ? 0
+        : SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS;
   }
 
   useFrame((_state, delta) => {
-    if (!isSectorIndexReady || animationRef.current.progress >= 1) return;
+    if (
+      !isSectorIndexReady ||
+      animationRef.current.progress >= SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS
+    ) {
+      return;
+    }
     animationRef.current.progress = Math.min(
-      1,
+      SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
       animationRef.current.progress +
         delta / SECTOR_LOAD_REVEAL_DURATION_SECONDS
     );
   });
 
   return animationRef;
-}
-
-function useSectorArtworkReveal(
-  isSectorIndexReady: boolean,
-  loadRevealAnimation: SectorLoadRevealAnimationRef
-): boolean {
-  const prefersReducedMotion = useMemo(
-    () =>
-      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
-      false,
-    []
-  );
-  const [isRevealed, setRevealed] = useState(
-    () => isSectorIndexReady && prefersReducedMotion
-  );
-  const isRevealedRef = useRef(isRevealed);
-  const delayElapsedRef = useRef(0);
-
-  useEffect(() => {
-    delayElapsedRef.current = 0;
-    const revealImmediately = isSectorIndexReady && prefersReducedMotion;
-    isRevealedRef.current = revealImmediately;
-    setRevealed(revealImmediately);
-  }, [isSectorIndexReady, prefersReducedMotion]);
-
-  useFrame((_state, delta) => {
-    if (!isSectorIndexReady || isRevealedRef.current) {
-      return;
-    }
-
-    if (loadRevealAnimation.current.progress >= 1) {
-      delayElapsedRef.current += delta;
-    }
-    if (
-      !isSectorArtworkRevealReady(
-        loadRevealAnimation.current.progress,
-        delayElapsedRef.current
-      )
-    ) {
-      return;
-    }
-
-    isRevealedRef.current = true;
-    setRevealed(true);
-  });
-
-  return isRevealed;
 }
 
 function sectorLoadRevealCompletionOpacity(
@@ -1884,10 +1847,6 @@ export function Planet({
   } = useSectors();
   const sectorLoadRevealAnimation =
     useSectorLoadRevealAnimation(hasLoadedSectorIndex);
-  const isSectorArtworkRevealed = useSectorArtworkReveal(
-    hasLoadedSectorIndex,
-    sectorLoadRevealAnimation
-  );
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const fullSphereGeometry = useMemo(() => createSectorGeometry(), []);
   const opponentSectorIdSet = useMemo(
@@ -2295,7 +2254,8 @@ export function Planet({
         artworks={visibleArtworks}
         heights={imageHeights}
         flipped={waveFlipActive}
-        visible={projectionSurfaceVisible && isSectorArtworkRevealed}
+        visible={projectionSurfaceVisible}
+        loadRevealAnimation={sectorLoadRevealAnimation}
         visibleOnBothFaces={isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
@@ -2303,14 +2263,13 @@ export function Planet({
         onLoadingChange={setThumbnailAtlasLoading}
       />
 
-      {shouldShowProjection &&
-      projectionSurfaceVisible &&
-      isSectorArtworkRevealed ? (
+      {shouldShowProjection && projectionSurfaceVisible ? (
         <SectorDetailImageLayers
           artworks={visibleArtworks}
           priorityArtworkIds={priorityDetailArtworkIds}
           heights={imageHeights}
           flipped={waveFlipActive}
+          loadRevealAnimation={sectorLoadRevealAnimation}
           visibleOnBothFaces={isImageUploadMode}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}

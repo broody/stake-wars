@@ -12,13 +12,22 @@ import {
   createProjectedArtworkGeometry,
   type ArtworkAtlasSlot,
 } from '../../utils/sectorArtworkProjection';
-import { SECTOR_FLIP_DURATION_SECONDS } from '../../utils/sectorFlip';
+import {
+  SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS,
+  SECTOR_FLIP_DURATION_SECONDS,
+  SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
+  SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
+} from '../../utils/sectorFlip';
 
 const ATLAS_CELL_SIZE = 256;
 const ATLAS_MAX_COLUMNS = 16;
 const ATLAS_PAGE_CAPACITY = 256;
 const IMAGE_LOAD_CONCURRENCY = 16;
 const DETAIL_LOD_SAMPLE_INTERVAL_SECONDS = 0.2;
+
+interface SectorLoadRevealAnimationRef {
+  readonly current: { readonly progress: number };
+}
 
 const vertexShader = `
   attribute vec3 projectorClip;
@@ -50,6 +59,9 @@ const fragmentShader = `
   uniform vec3 waveOrigin;
   uniform vec2 waveDistanceRange;
   uniform float waveDelayAmount;
+  uniform float loadRevealProgress;
+  uniform float loadRevealWaveDelay;
+  uniform float artworkRevealDelay;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
@@ -68,6 +80,19 @@ const fragmentShader = `
       1.0
     );
     float sectorWaveDelay = normalizedDistance * waveDelayAmount;
+    float revealNoise = fract(
+      sin(dot(normalize(vSectorCenter), vec3(12.9898, 78.233, 37.719)))
+        * 43758.5453
+    );
+    float loadRevealDelay = min(
+      normalizedDistance * max(loadRevealWaveDelay - 0.08, 0.0)
+        + revealNoise * 0.08,
+      loadRevealWaveDelay
+    );
+    float artworkRevealProgress = loadRevealDelay
+      + (1.0 - loadRevealWaveDelay)
+      + artworkRevealDelay;
+    if (loadRevealProgress < artworkRevealProgress) discard;
     float waveProgress = flipDirection > 0.0
       ? flipProgress
       : 1.0 - flipProgress;
@@ -197,6 +222,7 @@ function ProjectedArtworkMesh({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   visibleOnBothFaces = false,
   opacity = 1,
   renderOrder = 3,
@@ -210,6 +236,7 @@ function ProjectedArtworkMesh({
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   visibleOnBothFaces?: boolean;
   opacity?: number;
   renderOrder?: number;
@@ -217,6 +244,11 @@ function ProjectedArtworkMesh({
   atlasRows?: number;
 }) {
   const progressRef = useRef(flipped ? 1 : 0);
+  const completedLoadRevealAnimation = useRef({
+    progress: SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
+  });
+  const activeLoadRevealAnimation =
+    loadRevealAnimation ?? completedLoadRevealAnimation;
   const prefersReducedMotion = useMemo(
     () =>
       globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
@@ -246,6 +278,15 @@ function ProjectedArtworkMesh({
           waveOrigin: { value: waveOrigin },
           waveDistanceRange: { value: waveDistanceRange },
           waveDelayAmount: { value: waveDelay },
+          loadRevealProgress: {
+            value: activeLoadRevealAnimation.current.progress,
+          },
+          loadRevealWaveDelay: {
+            value: SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
+          },
+          artworkRevealDelay: {
+            value: SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS,
+          },
         },
         vertexShader,
         fragmentShader,
@@ -258,6 +299,7 @@ function ProjectedArtworkMesh({
         toneMapped: false,
       }),
     [
+      activeLoadRevealAnimation,
       flipped,
       opacity,
       texture,
@@ -279,6 +321,8 @@ function ProjectedArtworkMesh({
         : progressRef.current + Math.sign(distance) * step;
     material.uniforms.flipProgress.value = progressRef.current;
     material.uniforms.flipDirection.value = flipped ? 1 : -1;
+    material.uniforms.loadRevealProgress.value =
+      activeLoadRevealAnimation.current.progress;
   });
   return (
     <mesh
@@ -297,6 +341,7 @@ function ArtworkAtlasPage({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   visibleOnBothFaces,
   onLoadingChange,
 }: {
@@ -306,6 +351,7 @@ function ArtworkAtlasPage({
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   visibleOnBothFaces: boolean;
   onLoadingChange?: (pageId: string, loading: boolean) => void;
 }) {
@@ -342,6 +388,7 @@ function ArtworkAtlasPage({
       waveOrigin={waveOrigin}
       waveDistanceRange={waveDistanceRange}
       waveDelay={waveDelay}
+      loadRevealAnimation={loadRevealAnimation}
       visibleOnBothFaces={visibleOnBothFaces}
       atlasColumns={columns}
       atlasRows={rows}
@@ -357,6 +404,7 @@ export function SectorImageLayer({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   visibleOnBothFaces = false,
   onLoadingChange,
 }: {
@@ -367,6 +415,7 @@ export function SectorImageLayer({
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   visibleOnBothFaces?: boolean;
   onLoadingChange?: (loading: boolean) => void;
 }) {
@@ -406,6 +455,7 @@ export function SectorImageLayer({
           waveOrigin={waveOrigin}
           waveDistanceRange={waveDistanceRange}
           waveDelay={waveDelay}
+          loadRevealAnimation={loadRevealAnimation}
           visibleOnBothFaces={visibleOnBothFaces}
           onLoadingChange={reportPageLoading}
         />
@@ -421,6 +471,7 @@ export function SectorDetailImageLayer({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   visibleOnBothFaces = false,
 }: {
   artwork: SectorArtwork;
@@ -429,6 +480,7 @@ export function SectorDetailImageLayer({
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   visibleOnBothFaces?: boolean;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
@@ -459,6 +511,7 @@ export function SectorDetailImageLayer({
       waveOrigin={waveOrigin}
       waveDistanceRange={waveDistanceRange}
       waveDelay={waveDelay}
+      loadRevealAnimation={loadRevealAnimation}
       visibleOnBothFaces={visibleOnBothFaces}
       renderOrder={4}
       atlasColumns={1}
@@ -475,6 +528,7 @@ export function SectorDetailImageLayers({
   waveOrigin,
   waveDistanceRange,
   waveDelay,
+  loadRevealAnimation,
   visibleOnBothFaces = false,
 }: {
   artworks: readonly SectorArtwork[];
@@ -484,6 +538,7 @@ export function SectorDetailImageLayers({
   waveOrigin: THREE.Vector3;
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
+  loadRevealAnimation?: SectorLoadRevealAnimationRef;
   visibleOnBothFaces?: boolean;
 }) {
   const { camera, gl } = useThree();
@@ -538,6 +593,7 @@ export function SectorDetailImageLayers({
         waveOrigin={waveOrigin}
         waveDistanceRange={waveDistanceRange}
         waveDelay={waveDelay}
+        loadRevealAnimation={loadRevealAnimation}
         visibleOnBothFaces={visibleOnBothFaces}
       />
     );
