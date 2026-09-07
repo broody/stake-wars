@@ -88,14 +88,14 @@ export function JackpotDrawPanel({
             className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-[#d6a84b]"
           >
             <span className="h-1.5 w-1.5 rotate-45 bg-[#d6a84b]" />
-            JACKPOT #{jackpot.id.toString()}
+            SUPPLY DROP #{jackpot.id.toString()}
           </div>
         </div>
         <button
           type="button"
           onClick={onClose}
           className="px-2 py-1 text-[9px] tracking-[0.14em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label="Close Jackpot draw details"
+          aria-label="Close Supply Drop details"
         >
           CLOSE
         </button>
@@ -152,7 +152,7 @@ export function JackpotDrawPanel({
         to="/jackpot"
         className="flex items-center justify-between border-t border-[#d6a84b]/25 px-4 py-3 text-[9px] tracking-[0.17em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-[#d6a84b]"
       >
-        <span>VIEW JACKPOT</span>
+        <span>VIEW SUPPLY DROP</span>
         <span aria-hidden="true">↗</span>
       </Link>
     </aside>

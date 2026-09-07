@@ -78,7 +78,7 @@ function EmptyJackpot() {
     <section className="border border-grid px-6 py-16 sm:px-10">
       <div className="h-px w-16 bg-[#d6a84b]" />
       <h2 className="mt-6 text-3xl tracking-[-0.05em] text-white sm:text-5xl">
-        NO ACTIVE JACKPOT
+        NO ACTIVE SUPPLY DROP
       </h2>
       <p className="mt-4 max-w-xl text-xs leading-6 text-neutral-500">
         The next prize round has not been armed yet. Keep control of your
@@ -116,7 +116,7 @@ export function Jackpot() {
         setError(
           reason instanceof Error
             ? reason.message
-            : 'Unable to read jackpot history.'
+            : 'Unable to read supply drop history.'
         );
       })
       .finally(() => {
@@ -166,7 +166,7 @@ export function Jackpot() {
           }),
         ]);
         hash = result.transaction_hash;
-        notifySubmitting(hash, 'JACKPOT CLAIM');
+        notifySubmitting(hash, 'SUPPLY DROP CLAIM');
         await provider.waitForTransaction(hash, {
           errorStates: [TransactionExecutionStatus.REVERTED],
         });
@@ -209,7 +209,7 @@ export function Jackpot() {
         <header className="flex flex-col gap-5 border-b border-grid pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
-              JACKPOT
+              SUPPLY DROP
             </h1>
             <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
               One Sector is drawn after expiry. Its operator at the expiry
@@ -242,7 +242,7 @@ export function Jackpot() {
         {!error && isLoading && jackpots.length === 0 ? (
           <div className="mt-8 flex items-center gap-3 border-y border-grid py-14 text-[10px] tracking-[0.18em] text-neutral-500">
             <span className="h-1.5 w-1.5 animate-pulse bg-[#d6a84b]" />
-            READING JACKPOT LEDGER…
+            READING SUPPLY DROP LEDGER…
           </div>
         ) : null}
 
@@ -332,7 +332,7 @@ export function Jackpot() {
           <div className="flex items-end justify-between border-b border-grid pb-4">
             <div>
               <h2 className="text-xl tracking-[-0.04em] text-white sm:text-2xl">
-                PAST JACKPOTS
+                PAST SUPPLY DROPS
               </h2>
               <p className="mt-1 text-[9px] tracking-[0.12em] text-neutral-600">
                 PRIZES · WINNERS · CLAIM STATUS
@@ -351,7 +351,7 @@ export function Jackpot() {
 
           {past.length === 0 ? (
             <div className="border-b border-grid py-12 text-[10px] tracking-[0.16em] text-neutral-600">
-              NO COMPLETED JACKPOTS YET
+              NO COMPLETED SUPPLY DROPS YET
             </div>
           ) : (
             <div>
