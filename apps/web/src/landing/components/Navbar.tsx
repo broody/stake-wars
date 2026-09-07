@@ -17,7 +17,7 @@ export const Navbar = () => {
           className="focus:outline-none hover:opacity-80 transition-opacity"
         >
           <img
-            src="/stakewars.png"
+            src="/stakewars.svg"
             alt="Stake Wars Logo"
             className="w-12 h-12"
           />
