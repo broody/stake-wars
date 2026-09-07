@@ -4,6 +4,7 @@ import {
   useSendTransaction,
 } from '@starknetfoundation/starknet-start-react';
 import { TransactionExecutionStatus } from 'starknet';
+import { SupplyDropLogo } from '../components/3d/SupplyDropLogo';
 import { WalletButton } from '../components/ui/WalletButton';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -250,32 +251,33 @@ export function Jackpot() {
     <div className="h-full w-full overflow-y-auto bg-bg font-mono">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(214,168,75,0.06),transparent_26%)]" />
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
-        <header className="flex flex-col gap-5 border-b border-grid pb-7 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-grid pb-7">
+          <div className="min-w-0">
             <h1 className="text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
               SUPPLY DROP
             </h1>
             <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
               A portion of pool commissions funds each drop. One Sector is
-              selected at random; its operator at the deadline receives it. New
-              drops must be staked in full immediately on claim.
+              selected at random; its operator at the deadline receives it.
+              Received drops are staked automatically.
             </p>
             {current && policies[current.id.toString()]?.stakingRequired ? (
               <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
-                Claim and stake in one transaction. Until the full drop is
-                staked, Sector actions and image changes pause. Your Sectors
-                remain open to challenges.
+                Claiming automatically stakes the full drop in the same
+                transaction. Until it is staked, Sector actions and image
+                changes pause. Your Sectors remain open to challenges.
               </p>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={isLoading}
-            className="self-start border border-neutral-700 px-4 py-2 text-[9px] tracking-[0.18em] text-neutral-400 transition-colors hover:border-white hover:text-white disabled:cursor-wait disabled:opacity-50 sm:self-auto"
-          >
-            {isLoading ? 'SYNCING…' : 'REFRESH'}
-          </button>
+          <div className="flex items-center gap-3 self-start">
+            <div className="hidden text-right text-[7px] tracking-[0.18em] text-neutral-600 md:block">
+              <div>LIVE OBJECT</div>
+              <div className="mt-1 text-[#d6a84b]">SUPPLY DROP</div>
+            </div>
+            <div className="h-16 w-16 border border-grid bg-black sm:h-24 sm:w-24">
+              <SupplyDropLogo className="pointer-events-none h-full w-full" />
+            </div>
+          </div>
         </header>
 
         {policyError ? (
@@ -446,8 +448,8 @@ export function Jackpot() {
                       </div>
                       {policy?.stakingRequired ? (
                         <p className="mt-2 text-[10px] leading-5 text-[#d6a84b]">
-                          You must stake the full drop immediately on claim.
-                          Claiming alone pauses gameplay until it is staked.
+                          Received drops are staked automatically. Claiming
+                          alone pauses gameplay until it is staked.
                         </p>
                       ) : null}
                     </div>
