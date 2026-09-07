@@ -257,13 +257,14 @@ export function Jackpot() {
             </h1>
             <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
               A portion of pool commissions funds each drop. One Sector is
-              selected at random; its operator at the deadline receives it.
+              selected at random; its operator at the deadline receives it. New
+              drops must be staked in full immediately on claim.
             </p>
             {current && policies[current.id.toString()]?.stakingRequired ? (
               <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
-                Claim and stake together. Until the full drop is staked, Sector
-                actions and image changes pause. Your Sectors remain open to
-                challenges.
+                Claim and stake in one transaction. Until the full drop is
+                staked, Sector actions and image changes pause. Your Sectors
+                remain open to challenges.
               </p>
             ) : null}
           </div>
@@ -445,8 +446,8 @@ export function Jackpot() {
                       </div>
                       {policy?.stakingRequired ? (
                         <p className="mt-2 text-[10px] leading-5 text-[#d6a84b]">
-                          The full prize is staked on claim. Claiming alone
-                          pauses gameplay until it is staked.
+                          You must stake the full drop immediately on claim.
+                          Claiming alone pauses gameplay until it is staked.
                         </p>
                       ) : null}
                     </div>

@@ -119,7 +119,8 @@ export function JackpotFeature() {
           <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
             A portion of Stake Wars pool commissions funds each Supply Drop.
             When the window closes, one Sector is selected at random. Its
-            operator at the deadline receives the drop.
+            operator at the deadline receives the drop. New drops must be staked
+            in full immediately on claim.
           </p>
         </div>
 
