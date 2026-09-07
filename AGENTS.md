@@ -254,6 +254,12 @@ path, causing `sozo model get` and `sozo execute` to fail with
 `Unsupported Starknet RPC version`. Unless the toolchain is deliberately
 upgraded and revalidated, do not retry Sozo against that public endpoint.
 
+For explicitly approved mainnet contract migrations, also pass
+`--use-blake2s-casm-class-hash` to `sozo migrate`. Sozo 1.8.6 does not enable
+this automatically for the localhost tunnel URL; omitting it causes mainnet
+class declarations to fail with `Mismatch compiled class hash`. This flag is
+for contract declarations and is not needed for `set_rules` transactions.
+
 Before changing rules:
 
 - Read the indexed `stakewarsGameConfigModels` row from

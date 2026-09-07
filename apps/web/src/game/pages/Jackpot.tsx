@@ -255,20 +255,14 @@ export function Jackpot() {
             <h1 className="text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
               SUPPLY DROP
             </h1>
-            <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
-              Supply Drops are funded directly by Stake Wars pool commissions,
-              redistributing those earnings to Sector operators.
-            </p>
-            <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
-              At the end of each drop window, one Sector is selected at random.
-              The operator who controlled that Sector when the window closed
-              receives the drop.
+            <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
+              A portion of pool commissions funds each drop. One Sector is
+              selected at random; its operator at the deadline receives it.
             </p>
             {current && policies[current.id.toString()]?.stakingRequired ? (
               <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
-                This drop is claimed and staked together. Claiming without
-                staking pauses your Sector actions and image changes until the
-                full prize is added to your stake. Your Sectors remain open to
+                Claim and stake together. Until the full drop is staked, Sector
+                actions and image changes pause. Your Sectors remain open to
                 challenges.
               </p>
             ) : null}

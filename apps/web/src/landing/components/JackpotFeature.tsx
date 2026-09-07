@@ -109,16 +109,16 @@ export function JackpotFeature() {
         <div>
           <h2
             id="supply-drop-feature-heading"
-            className="text-[2.5rem] font-bold leading-tight tracking-[-0.05em] md:text-[3.2rem]"
+            className="text-[2.4rem] font-bold leading-none tracking-[-0.05em]"
           >
             SUPPLY DROP
           </h2>
-          <p className="mt-5 max-w-xl text-[1rem] leading-[1.75] text-[#bbb]">
-            Supply Drops are funded directly by Stake Wars pool commissions,
-            redistributing those earnings to Sector operators.
+          <p className="mt-6 text-[1.15rem] leading-[1.55] text-fg">
+            Reinforcements for Sector operators.
           </p>
-          <p className="mt-4 max-w-xl text-[1rem] leading-[1.75] text-[#bbb]">
-            When each drop window closes, one Sector is selected at random. Its
+          <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
+            A portion of Stake Wars pool commissions funds each Supply Drop.
+            When the window closes, one Sector is selected at random. Its
             operator at the deadline receives the drop.
           </p>
         </div>

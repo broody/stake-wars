@@ -132,9 +132,6 @@ function LandingApp() {
           ))}
         </div>
 
-        {/* Supply Drop */}
-        <JackpotFeature />
-
         {/* Beacon auction */}
         <section
           aria-labelledby="beacon-heading"
@@ -191,6 +188,9 @@ function LandingApp() {
             </a>
           </div>
         </section>
+
+        {/* Supply Drop */}
+        <JackpotFeature />
 
         {/* FAQ */}
         <section
