@@ -212,6 +212,35 @@ export async function canCreateJackpot(
   return parseFelt(result[0], 'creator authorization') !== 0n;
 }
 
+export function decodeJackpotPrizeAmountResult(
+  result: string[],
+  jackpotId: bigint
+): bigint {
+  // get_jackpot returns the existing Jackpot model, including its key.
+  if (
+    result.length !== 23 ||
+    parseFelt(result[0], 'jackpot ID') !== jackpotId
+  ) {
+    throw new Error('Jackpot System returned an invalid jackpot');
+  }
+  const low = parseFelt(result[7], 'jackpot amount low word');
+  const high = parseFelt(result[8], 'jackpot amount high word');
+  const maxWord = (1n << 128n) - 1n;
+  if (low < 0n || low > maxWord || high < 0n || high > maxWord) {
+    throw new Error('Jackpot System returned an invalid prize amount');
+  }
+  return low + (high << 128n);
+}
+
+export async function getJackpotPrizeAmount(
+  jackpotId: bigint
+): Promise<bigint> {
+  return decodeJackpotPrizeAmountResult(
+    await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)]),
+    jackpotId
+  );
+}
+
 export async function getSectorStatus(
   sectorId: number,
   signal?: AbortSignal

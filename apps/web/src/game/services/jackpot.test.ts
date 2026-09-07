@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClaimJackpotCall,
   buildCreateJackpotCalls,
+  buildTopUpJackpotCalls,
+  isJackpotTopUpOpen,
   isJackpotDrawPending,
   latestJackpotDraw,
   parseJackpots,
@@ -245,3 +247,86 @@ function jackpotNode(
     },
   };
 }
+
+describe('jackpot top-ups', () => {
+  const jackpot = {
+    id: 7n,
+    token: tokenAddress,
+    prizeKind: 1 as const,
+    status: 2 as const,
+    endsAt: 100,
+    amount: 500n,
+  };
+  const options = { jackpotSystemAddress, jackpot, amount: 250n, now: 99_999 };
+
+  it('approves only the increment and tops up the existing jackpot atomically', () => {
+    expect(buildTopUpJackpotCalls(options)).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'approve',
+        calldata: [jackpotSystemAddress, '250', '0'],
+      },
+      {
+        contractAddress: jackpotSystemAddress,
+        entrypoint: 'top_up_jackpot',
+        calldata: ['7', '250', '0'],
+      },
+    ]);
+  });
+
+  it('uses the existing ERC-1155 token approval and preserves u256 high words', () => {
+    const calls = buildTopUpJackpotCalls({
+      ...options,
+      jackpot: { ...jackpot, prizeKind: 3 },
+      amount: (1n << 128n) + 3n,
+    });
+    expect(calls).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'set_approval_for_all',
+        calldata: [jackpotSystemAddress, '1'],
+      },
+      {
+        contractAddress: jackpotSystemAddress,
+        entrypoint: 'top_up_jackpot',
+        calldata: ['7', '3', '1'],
+      },
+    ]);
+  });
+
+  it('closes at the exact deadline and rejects inactive or ERC-721 prizes', () => {
+    expect(isJackpotTopUpOpen(jackpot, 99_999)).toBe(true);
+    expect(isJackpotTopUpOpen(jackpot, 100_000)).toBe(false);
+    expect(() => buildTopUpJackpotCalls({ ...options, now: 100_000 })).toThrow(
+      'no longer open'
+    );
+    for (const status of [1, 3, 4] as const) {
+      expect(() =>
+        buildTopUpJackpotCalls({ ...options, jackpot: { ...jackpot, status } })
+      ).toThrow('no longer open');
+    }
+    expect(() =>
+      buildTopUpJackpotCalls({
+        ...options,
+        jackpot: { ...jackpot, prizeKind: 2 },
+      })
+    ).toThrow('no longer open');
+  });
+
+  it('rejects invalid increments and overflow of the combined prize', () => {
+    for (const amount of [0n, -1n, 1n << 256n]) {
+      expect(() => buildTopUpJackpotCalls({ ...options, amount })).toThrow(
+        'Top-up amount'
+      );
+    }
+    expect(() =>
+      buildTopUpJackpotCalls({ ...options, amount: (1n << 256n) - 500n })
+    ).toThrow('resulting prize');
+    expect(() =>
+      buildTopUpJackpotCalls({ ...options, jackpot: { ...jackpot, id: 0n } })
+    ).toThrow('Jackpot ID');
+    expect(() =>
+      buildTopUpJackpotCalls({ ...options, jackpotSystemAddress: '' })
+    ).toThrow('not configured');
+  });
+});

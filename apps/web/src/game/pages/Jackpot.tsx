@@ -5,6 +5,7 @@ import {
 } from '@starknetfoundation/starknet-start-react';
 import { TransactionExecutionStatus } from 'starknet';
 import { WalletButton } from '../components/ui/WalletButton';
+import { JackpotTopUp } from '../components/ui/JackpotTopUp';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
@@ -90,7 +91,7 @@ function EmptyJackpot() {
 }
 
 export function Jackpot() {
-  const { address, isConnected } = useWallet();
+  const { address, chainId, isConnected } = useWallet();
   const { provider } = useProvider();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
@@ -109,7 +110,18 @@ export function Jackpot() {
     setError(null);
     getJackpots(controller.signal)
       .then((result) => {
-        if (!controller.signal.aborted) setJackpots(result);
+        if (!controller.signal.aborted) {
+          // Top-ups only increase the prize. Preserve a confirmed onchain total
+          // while Torii catches up to the transaction.
+          setJackpots((previous) =>
+            result.map((record) => {
+              const confirmed = previous.find((item) => item.id === record.id);
+              return confirmed && confirmed.amount > record.amount
+                ? { ...record, amount: confirmed.amount }
+                : record;
+            })
+          );
+        }
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return;
@@ -150,6 +162,16 @@ export function Jackpot() {
   }, [currentEndsAt, currentStatus]);
 
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
+
+  const updatePrize = useCallback((id: bigint, amount: bigint) => {
+    setJackpots((records) =>
+      records.map((record) =>
+        record.id === id && amount > record.amount
+          ? { ...record, amount }
+          : record
+      )
+    );
+  }, []);
 
   const claimPrize = useCallback(
     async (jackpot: JackpotRecord) => {
@@ -291,6 +313,12 @@ export function Jackpot() {
                         </div>
                       </div>
                     </div>
+                    <JackpotTopUp
+                      key={`${current.id}:${address}:${chainId}`}
+                      jackpot={current}
+                      now={now}
+                      onConfirmed={updatePrize}
+                    />
                   </div>
                 </div>
 

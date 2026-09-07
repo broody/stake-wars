@@ -43,6 +43,7 @@ account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRetired" = ["stakewars-control"]
 "stakewars-JackpotCreated" = ["stakewars-jackpot"]
+"stakewars-JackpotToppedUp" = ["stakewars-jackpot"]
 "stakewars-JackpotLocked" = ["stakewars-jackpot"]
 "stakewars-JackpotRolledOver" = ["stakewars-jackpot"]
 "stakewars-JackpotSettled" = ["stakewars-jackpot"]

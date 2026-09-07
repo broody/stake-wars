@@ -213,6 +213,68 @@ export function isJackpotDrawPending(
   );
 }
 
+export function isJackpotTopUpOpen(
+  jackpot: Pick<Jackpot, 'status' | 'prizeKind' | 'endsAt'>,
+  now = Date.now()
+): boolean {
+  return (
+    jackpot.status === 2 &&
+    (jackpot.prizeKind === 1 || jackpot.prizeKind === 3) &&
+    now < jackpot.endsAt * 1_000
+  );
+}
+
+export function buildTopUpJackpotCalls({
+  jackpotSystemAddress,
+  jackpot,
+  amount,
+  now = Date.now(),
+}: {
+  jackpotSystemAddress: string;
+  jackpot: Pick<
+    Jackpot,
+    'id' | 'token' | 'prizeKind' | 'status' | 'endsAt' | 'amount'
+  >;
+  amount: bigint;
+  now?: number;
+}): Call[] {
+  if (!jackpotSystemAddress) {
+    throw new Error('The Jackpot System is not configured.');
+  }
+  if (jackpot.id <= 0n || jackpot.id > MAX_U64) {
+    throw new Error('Jackpot ID is invalid.');
+  }
+  if (!isJackpotTopUpOpen(jackpot, now)) {
+    throw new Error('This jackpot is no longer open for top-ups.');
+  }
+  if (amount <= 0n || amount > MAX_U256) {
+    throw new Error('Top-up amount must be greater than zero and fit in u256.');
+  }
+  if (jackpot.amount + amount > MAX_U256) {
+    throw new Error('The resulting prize amount is too large.');
+  }
+  const token = normalizeContractAddress(jackpot.token);
+  const [low, high] = encodeU256(amount);
+  return [
+    jackpot.prizeKind === 1
+      ? {
+          contractAddress: token,
+          entrypoint: 'approve',
+          calldata: [jackpotSystemAddress, low, high],
+        }
+      : {
+          contractAddress: token,
+          entrypoint: 'set_approval_for_all',
+          calldata: [jackpotSystemAddress, '1'],
+        },
+    {
+      contractAddress: jackpotSystemAddress,
+      entrypoint: 'top_up_jackpot',
+      calldata: [jackpot.id.toString(), low, high],
+    },
+  ];
+}
+
 export function buildClaimJackpotCall({
   jackpotSystemAddress,
   jackpotId,

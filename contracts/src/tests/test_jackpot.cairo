@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use dojo::model::ModelStorageTest;
+    use dojo::model::{ModelStorage, ModelStorageTest};
     use dojo::world::{WorldStorage, WorldStorageTrait, world};
     use dojo_cairo_test::{
         ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
@@ -85,6 +85,7 @@ mod tests {
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorRetired::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotCreated::TEST_CLASS_HASH),
+                TestResource::Event(jackpot::e_JackpotToppedUp::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotLocked::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotRolledOver::TEST_CLASS_HASH),
                 TestResource::Event(jackpot::e_JackpotSettled::TEST_CLASS_HASH),
@@ -126,9 +127,9 @@ mod tests {
     fn jackpot_writer_selectors() -> Span<felt252> {
         [
             resource_selector(@"JackpotCounter"), resource_selector(@"Jackpot"),
-            resource_selector(@"JackpotCreated"), resource_selector(@"JackpotLocked"),
-            resource_selector(@"JackpotRolledOver"), resource_selector(@"JackpotSettled"),
-            resource_selector(@"JackpotClaimed"),
+            resource_selector(@"JackpotCreated"), resource_selector(@"JackpotToppedUp"),
+            resource_selector(@"JackpotLocked"), resource_selector(@"JackpotRolledOver"),
+            resource_selector(@"JackpotSettled"), resource_selector(@"JackpotClaimed"),
         ]
             .span()
     }
@@ -217,6 +218,256 @@ mod tests {
         )
             .unwrap_syscall();
         address
+    }
+
+    fn create_erc20_round(jackpot: IJackpotDispatcher) -> (u64, IERC20AssetDispatcher) {
+        let token_address = deploy_erc20(admin(), 2_000);
+        testing::set_contract_address(admin());
+        IMockERC20ControlDispatcher { contract_address: token_address }
+            .approve(jackpot.contract_address, 2_000);
+        let id = jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC20, token_address, 0, 500);
+        (id, IERC20AssetDispatcher { contract_address: token_address })
+    }
+
+    fn assert_only_amount_changed(before: Jackpot, after: Jackpot, amount: u256) {
+        let mut expected = before;
+        expected.amount = amount;
+        let mut expected_data = array![];
+        let mut actual_data = array![];
+        expected.serialize(ref expected_data);
+        after.serialize(ref actual_data);
+        assert_eq!(actual_data, expected_data);
+    }
+
+    #[test]
+    #[should_panic(expected: ('erc20 amount mismatch', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn top_up_rejects_fee_on_transfer_tokens() {
+        let (_, _, jackpot, _) = setup();
+        let (id, token) = create_erc20_round(jackpot);
+        IMockERC20ControlDispatcher { contract_address: token.contract_address }
+            .set_transfer_fee(1);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(
+        expected: (
+            'jackpot not active', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED',
+        ),
+    )]
+    #[available_gas(900000000)]
+    fn funding_status_blocks_reentrant_top_ups_even_from_an_authorized_token() {
+        let (world, _, jackpot, _) = setup();
+        let (id, token) = create_erc20_round(jackpot);
+        roles(@world).grant_role(JACKPOT_CREATOR_ROLE, token.contract_address);
+        IMockERC20ControlDispatcher { contract_address: token.contract_address }
+            .set_reentrant_top_up(true);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('not active jackpot', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn top_up_cannot_target_a_different_jackpot() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        jackpot.top_up_jackpot(id + 1, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('unsolicited token', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn direct_erc1155_transfers_still_cannot_increase_the_prize() {
+        let (_, _, jackpot, _) = setup();
+        let token_address = deploy_erc1155(admin(), 77, 1_000);
+        testing::set_contract_address(admin());
+        IMockERC1155ControlDispatcher { contract_address: token_address }
+            .set_approval_for_all(jackpot.contract_address, true);
+        jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC1155, token_address, 77, 500);
+        IERC1155AssetDispatcher { contract_address: token_address }
+            .safe_transfer_from(admin(), jackpot.contract_address, 77, 100, array![].span());
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn erc20_top_ups_preserve_the_round_and_pay_the_full_prize() {
+        let (_, control, jackpot, pool) = setup();
+        capture_only_sector(control, pool);
+        let (id, token) = create_erc20_round(jackpot);
+        let before = jackpot.get_jackpot(id);
+        testing::set_block_timestamp(STARTED_AT + DURATION - 1);
+        jackpot.top_up_jackpot(id, 100);
+        jackpot.top_up_jackpot(id, 150);
+        assert_only_amount_changed(before, jackpot.get_jackpot(id), 750);
+        assert_eq!(token.balance_of(jackpot.contract_address), 750);
+        assert_eq!(token.balance_of(admin()), 1_250);
+        lock_and_make_randomness_ready(jackpot, id);
+        jackpot.settle_jackpot(id);
+        testing::set_contract_address(operator());
+        jackpot.claim_prize(id, operator());
+        assert_eq!(token.balance_of(operator()), 750);
+        assert_eq!(token.balance_of(jackpot.contract_address), 0);
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn another_creator_tops_up_erc1155_from_their_own_wallet() {
+        let (world, control, jackpot, pool) = setup();
+        capture_only_sector(control, pool);
+        testing::set_contract_address(admin());
+        roles(@world).grant_role(JACKPOT_CREATOR_ROLE, creator_one());
+        let token_address = deploy_erc1155(admin(), 77, 1_000);
+        let token = IERC1155AssetDispatcher { contract_address: token_address };
+        let approvals = IMockERC1155ControlDispatcher { contract_address: token_address };
+        token.safe_transfer_from(admin(), creator_one(), 77, 300, array![].span());
+        approvals.set_approval_for_all(jackpot.contract_address, true);
+        let id = jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC1155, token_address, 77, 500);
+        let before = jackpot.get_jackpot(id);
+        testing::set_contract_address(creator_one());
+        approvals.set_approval_for_all(jackpot.contract_address, true);
+        jackpot.top_up_jackpot(id, 250);
+        assert_only_amount_changed(before, jackpot.get_jackpot(id), 750);
+        assert_eq!(token.balance_of(creator_one(), 77), 50);
+        assert_eq!(token.balance_of(admin(), 77), 200);
+        assert_eq!(token.balance_of(jackpot.contract_address, 77), 750);
+        lock_and_make_randomness_ready(jackpot, id);
+        jackpot.settle_jackpot(id);
+        testing::set_contract_address(operator());
+        jackpot.claim_prize(id, operator());
+        assert_eq!(token.balance_of(operator(), 77), 750);
+        assert_eq!(token.balance_of(jackpot.contract_address, 77), 0);
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn rolled_over_round_accepts_top_ups_without_resetting_draw_history() {
+        let (_, _, jackpot, _) = setup();
+        let (id, token) = create_erc20_round(jackpot);
+        jackpot.top_up_jackpot(id, 100);
+        lock_and_make_randomness_ready(jackpot, id);
+        jackpot.settle_jackpot(id);
+        let before = jackpot.get_jackpot(id);
+        assert_eq!(before.draw_count, 1);
+        assert_eq!(before.amount, 600);
+        jackpot.top_up_jackpot(id, 150);
+        assert_only_amount_changed(before, jackpot.get_jackpot(id), 750);
+        assert_eq!(token.balance_of(jackpot.contract_address), 750);
+    }
+
+    #[test]
+    #[should_panic(expected: ('not jackpot creator', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn unauthorized_wallet_cannot_top_up() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        testing::set_contract_address(operator());
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('not jackpot creator', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn revoked_creator_cannot_top_up_their_existing_round() {
+        let (world, _, jackpot, _) = setup();
+        testing::set_contract_address(admin());
+        roles(@world).grant_role(JACKPOT_CREATOR_ROLE, creator_one());
+        let token_address = deploy_erc20(creator_one(), 1_000);
+        testing::set_contract_address(creator_one());
+        IMockERC20ControlDispatcher { contract_address: token_address }
+            .approve(jackpot.contract_address, 1_000);
+        let id = jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC20, token_address, 0, 500);
+        testing::set_contract_address(admin());
+        roles(@world).revoke_role(JACKPOT_CREATOR_ROLE, creator_one());
+        testing::set_contract_address(creator_one());
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('zero amount', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn zero_top_up_is_rejected() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        jackpot.top_up_jackpot(id, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: ('jackpot expired', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn top_up_at_the_deadline_is_rejected_before_locking() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        testing::set_block_timestamp(STARTED_AT + DURATION);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('jackpot not active', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn locked_round_cannot_be_topped_up() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        lock_and_make_randomness_ready(jackpot, id);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('not active jackpot', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn settled_round_cannot_be_topped_up() {
+        let (_, control, jackpot, pool) = setup();
+        capture_only_sector(control, pool);
+        let (id, _) = create_erc20_round(jackpot);
+        lock_and_make_randomness_ready(jackpot, id);
+        jackpot.settle_jackpot(id);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('prize cannot be topped up', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn erc721_round_cannot_be_topped_up() {
+        let (_, _, jackpot, _) = setup();
+        let token_address = deploy_erc721(admin(), 77);
+        testing::set_contract_address(admin());
+        IMockERC721ControlDispatcher { contract_address: token_address }
+            .approve(jackpot.contract_address, 77);
+        let id = jackpot.create_jackpot(DURATION, JACKPOT_PRIZE_ERC721, token_address, 77, 1);
+        jackpot.top_up_jackpot(id, 1);
+    }
+
+    #[test]
+    #[should_panic(expected: ('game paused', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn paused_game_rejects_top_ups() {
+        let (mut world, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        let mut config: GameConfig = world.read_model(CONFIG_ID);
+        config.paused = true;
+        world.write_model_test(@config);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('insufficient allowance', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn top_up_requires_approval_for_the_increment() {
+        let (_, _, jackpot, _) = setup();
+        let (id, token) = create_erc20_round(jackpot);
+        IMockERC20ControlDispatcher { contract_address: token.contract_address }
+            .approve(jackpot.contract_address, 99);
+        jackpot.top_up_jackpot(id, 100);
+    }
+
+    #[test]
+    #[should_panic(expected: ('u256_add Overflow', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(900000000)]
+    fn top_up_cannot_overflow_the_recorded_prize() {
+        let (_, _, jackpot, _) = setup();
+        let (id, _) = create_erc20_round(jackpot);
+        jackpot
+            .top_up_jackpot(id, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
     }
 
     #[test]

@@ -15,6 +15,7 @@ pub trait IJackpot<TContractState> {
         token_id: u256,
         amount: u256,
     ) -> u64;
+    fn top_up_jackpot(ref self: TContractState, jackpot_id: u64, amount: u256);
     fn lock_jackpot(ref self: TContractState, jackpot_id: u64);
     fn settle_jackpot(ref self: TContractState, jackpot_id: u64);
     fn claim_prize(ref self: TContractState, jackpot_id: u64, recipient: ContractAddress);
@@ -78,6 +79,17 @@ pub mod jackpot {
         #[key]
         pub jackpot_id: u64,
         pub randomness_block: u64,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct JackpotToppedUp {
+        #[key]
+        pub jackpot_id: u64,
+        #[key]
+        pub contributor: ContractAddress,
+        pub amount: u256,
+        pub total_amount: u256,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -186,6 +198,39 @@ pub mod jackpot {
                     },
                 );
             next.id
+        }
+
+        fn top_up_jackpot(ref self: ContractState, jackpot_id: u64, amount: u256) {
+            let mut world = self.world_default();
+            let config: GameConfig = world.read_model(CONFIG_ID);
+            let contributor = get_caller_address();
+            assert(config.initialized, 'not initialized');
+            assert(!config.paused, 'game paused');
+            assert(self.can_create(config, contributor), 'not jackpot creator');
+            let mut current = self.require_active_jackpot(jackpot_id);
+            assert(current.status == JACKPOT_STATUS_ACTIVE, 'jackpot not active');
+            assert(get_block_timestamp() < current.ends_at, 'jackpot expired');
+            assert(
+                current.prize_kind == JACKPOT_PRIZE_ERC20
+                    || current.prize_kind == JACKPOT_PRIZE_ERC1155,
+                'prize cannot be topped up',
+            );
+            assert(amount > 0, 'zero amount');
+            let total_amount = current.amount + amount;
+
+            // FUNDING blocks reentrant round mutations and validates the exact ERC-1155
+            // receipt. Only this transfer's contributor and increment are expected.
+            let mut funding = current;
+            funding.status = JACKPOT_STATUS_FUNDING;
+            funding.sponsor = contributor;
+            funding.amount = amount;
+            world.write_model(@funding);
+            self.pull_prize(funding);
+
+            // Restore all original round fields, including its sponsor and schedule.
+            current.amount = total_amount;
+            world.write_model(@current);
+            world.emit_event(@JackpotToppedUp { jackpot_id, contributor, amount, total_amount });
         }
 
         fn lock_jackpot(ref self: ContractState, jackpot_id: u64) {

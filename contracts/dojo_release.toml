@@ -42,6 +42,7 @@ default = "stakewars"
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRetired" = ["stakewars-control"]
 "stakewars-JackpotCreated" = ["stakewars-jackpot"]
+"stakewars-JackpotToppedUp" = ["stakewars-jackpot"]
 "stakewars-JackpotLocked" = ["stakewars-jackpot"]
 "stakewars-JackpotRolledOver" = ["stakewars-jackpot"]
 "stakewars-JackpotSettled" = ["stakewars-jackpot"]

@@ -3,20 +3,28 @@ use starknet::ContractAddress;
 #[starknet::interface]
 pub trait IMockERC20Control<TContractState> {
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+    fn set_transfer_fee(ref self: TContractState, fee: u256);
+    fn set_reentrant_top_up(ref self: TContractState, enabled: bool);
 }
 
 #[starknet::contract]
 pub mod mock_erc20 {
     use core::num::traits::Zero;
     use stakewars::assets::IERC20Asset;
+    use stakewars::systems::jackpot::{IJackpotDispatcher, IJackpotDispatcherTrait};
     use stakewars::tests::mock_tokens::IMockERC20Control;
-    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
     use starknet::{ContractAddress, get_caller_address};
 
     #[storage]
     struct Storage {
         balances: Map<ContractAddress, u256>,
         allowances: Map<(ContractAddress, ContractAddress), u256>,
+        transfer_fee: u256,
+        reentrant_top_up: bool,
     }
 
     #[constructor]
@@ -48,7 +56,11 @@ pub mod mock_erc20 {
                 assert(allowance >= amount, 'insufficient allowance');
                 self.allowances.write((sender, spender), allowance - amount);
             }
-            self.move_tokens(sender, recipient, amount);
+            self.move_tokens(sender, recipient, amount - self.transfer_fee.read());
+            if self.reentrant_top_up.read() {
+                let jackpot = IJackpotDispatcher { contract_address: recipient };
+                jackpot.top_up_jackpot(jackpot.get_active_jackpot().id, 1);
+            }
             true
         }
     }
@@ -58,6 +70,14 @@ pub mod mock_erc20 {
         fn approve(ref self: ContractState, spender: ContractAddress, amount: u256) -> bool {
             self.allowances.write((get_caller_address(), spender), amount);
             true
+        }
+
+        fn set_transfer_fee(ref self: ContractState, fee: u256) {
+            self.transfer_fee.write(fee);
+        }
+
+        fn set_reentrant_top_up(ref self: ContractState, enabled: bool) {
+            self.reentrant_top_up.write(enabled);
         }
     }
 

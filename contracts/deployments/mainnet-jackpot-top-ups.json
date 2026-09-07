@@ -1,0 +1,46 @@
+{
+  "network": "SN_MAIN",
+  "worldAddress": "0x6e2d33ac9878de85acc676347f6bd97a860376fe33438eb7445317a6b1d71cc",
+  "jackpotAddress": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+  "previousClassHash": "0x39a02a1619359f76680266e10c147684149d37618a844f668bfec8713871e66",
+  "classHash": "0x45b543fd83d99f5d59cfb6e363ec39fd91b8165d343f0d1919e422a633046a3",
+  "worldAndJackpotStatePreserved": true,
+  "escrowPreserved": true,
+  "topUpEntrypointPresent": true,
+  "eventWriterVerified": true,
+  "jackpotId": "1",
+  "amount": "1000000000000000000000",
+  "endsAt": 1788864118,
+  "receipts": [
+    {
+      "transactionHash": "0x67d523458f4dbc11386f6e86c05c156cb6d22a66cb91fa69bf8e2a15739b3d1",
+      "block": 14482718,
+      "finalityStatus": "ACCEPTED_ON_L2",
+      "executionStatus": "SUCCEEDED",
+      "eventNames": [
+        "EventRegistered",
+        "ContractUpgraded"
+      ]
+    },
+    {
+      "transactionHash": "0x5440040c09318afc99b649fd38d8ee72b084050e120c8efebcd2566ac243c23",
+      "block": 14482722,
+      "finalityStatus": "ACCEPTED_ON_L2",
+      "executionStatus": "SUCCEEDED",
+      "eventNames": [
+        "WriterUpdated"
+      ]
+    }
+  ],
+  "deployedAt": "2026-09-07",
+  "verificationBlock": 14482763,
+  "toriiTopUpEventIndexed": true,
+  "validation": {
+    "contractTests": 63,
+    "isolatedFrontendTests": 239,
+    "releaseContractBuild": "passed",
+    "frontendBuild": "passed",
+    "frontendLint": "passed",
+    "frontendFormatting": "passed"
+  }
+}
