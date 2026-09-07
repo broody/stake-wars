@@ -19,6 +19,10 @@ import type { STRK20_ACTION } from 'starknet';
 import type { WalletState } from '../types';
 import { config } from '../services/config';
 import {
+  forgetWalletConnection,
+  useWalletAutoConnect,
+} from '../hooks/useWalletAutoConnect';
+import {
   readShieldedTokenBalance,
   supportsShieldedBalances,
 } from '../services/shieldedBalance';
@@ -55,6 +59,9 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const account = useAccount();
   const connection = useConnect();
   const disconnection = useDisconnect();
+  const { cancelAutoConnect, isReconnecting } = useWalletAutoConnect(
+    connection.connectors
+  );
   const { provider } = useProvider();
   const [shieldedStrkBalance, setShieldedStrkBalance] = useState<bigint | null>(
     null
@@ -104,14 +111,17 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       if (!wallet) {
         throw new Error(`${walletName} is not available`);
       }
+      cancelAutoConnect();
       await connection.connectAsync({ connector: wallet });
     },
-    [connection]
+    [cancelAutoConnect, connection]
   );
 
   const disconnect = useCallback(async () => {
+    cancelAutoConnect();
     await disconnection.disconnectAsync();
-  }, [disconnection]);
+    forgetWalletConnection();
+  }, [cancelAutoConnect, disconnection]);
 
   const isPrivacyWalletSupported =
     shieldedStrkStatus === 'available' ||
@@ -197,7 +207,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       error: error?.message || null,
       isConnected: Boolean(account.isConnected),
       isConnecting: Boolean(
-        account.isConnecting || connection.isPending || disconnection.isPending
+        isReconnecting ||
+          account.isConnecting ||
+          connection.isPending ||
+          disconnection.isPending
       ),
       invokePrivateActions,
       isPrivacyWalletSupported,
@@ -220,6 +233,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     disconnection.isPending,
     invokePrivateActions,
     isPrivacyWalletSupported,
+    isReconnecting,
     account.connector?.name,
     readShieldedStrkBalance,
     shieldedStrkBalance,
