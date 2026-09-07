@@ -222,6 +222,37 @@ function LandingApp() {
                 </p>
               </FaqItem>
 
+              <FaqItem question="What is the Beacon?">
+                <p>
+                  The Beacon is a billboard orbiting the Core. Operators compete
+                  for control in a <strong>sealed-bid auction</strong> powered
+                  by{' '}
+                  <a
+                    href="https://github.com/broody/whisper"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="border-b border-dotted border-dim font-bold text-fg transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  >
+                    Whisper
+                  </a>
+                  . Bid amounts stay private during bidding, so Operators
+                  compete without seeing each other&apos;s offers. The winner
+                  can publish a transmission with an image, a short description,
+                  and a destination link.
+                </p>
+              </FaqItem>
+
+              <FaqItem question="What is a Supply Drop?">
+                <p>
+                  A Supply Drop is a prize round funded by a portion of Stake
+                  Wars pool commissions. When the round closes, one Sector is
+                  selected at random, and the Operator who controlled it at the
+                  deadline wins the prize. Every Sector you control gives you
+                  another chance to win. If the selected Sector has no eligible
+                  controller, the prize rolls over into another round.
+                </p>
+              </FaqItem>
+
               <FaqItem question="Which staking tokens are supported?">
                 <p>
                   Only $STRK is supported for now. $BTC will eventually be
