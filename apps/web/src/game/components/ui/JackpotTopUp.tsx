@@ -130,7 +130,7 @@ export function JackpotTopUp({
         onConfirmed(jackpot.id, await getJackpotPrizeAmount(jackpot.id));
       } catch {
         setError(
-          'Top-up confirmed. Refresh the ledger to see the updated prize.'
+          'Top-up confirmed. Refresh the current jackpot to see the updated prize.'
         );
       }
     } catch (reason) {

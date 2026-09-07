@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useProvider,
   useSendTransaction,
 } from '@starknetfoundation/starknet-start-react';
-import { TransactionExecutionStatus } from 'starknet';
+import { shortString, TransactionExecutionStatus } from 'starknet';
+import { Link } from 'react-router-dom';
+import { JackpotTopUp } from '../components/ui/JackpotTopUp';
 import { WalletButton } from '../components/ui/WalletButton';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -17,8 +19,14 @@ import {
   type JackpotDurationUnit,
   type JackpotPrizeKind,
 } from '../services/jackpot';
-import { canCreateJackpot } from '../services/starknet';
-import { shortAddress } from '../utils/format';
+import { canCreateJackpot, getActiveJackpot } from '../services/starknet';
+import type { Jackpot } from '../types';
+import {
+  addressesMatch,
+  formatCountdown,
+  formatStrk,
+  shortAddress,
+} from '../utils/format';
 import { voyagerTransactionUrl } from '../utils/voyager';
 
 type SubmissionPhase = 'idle' | 'submitting' | 'confirming' | 'confirmed';
@@ -106,6 +114,173 @@ function CircuitStep({
 
 export function JackpotCreator() {
   const { address, chainId, isConnected } = useWallet();
+  const [current, setCurrent] = useState<Jackpot | null>();
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [now, setNow] = useState(Date.now);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCurrent(undefined);
+    setError(null);
+    getActiveJackpot(controller.signal)
+      .then((jackpot) => {
+        if (!controller.signal.aborted) setCurrent(jackpot);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Unable to check the current jackpot.'
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [revision]);
+
+  const endsAt = current?.endsAt;
+  useEffect(() => {
+    if (!endsAt) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [endsAt]);
+
+  const refresh = () => setRevision((value) => value + 1);
+  if (current === null && !error) {
+    return (
+      <JackpotCreationForm
+        key={`${address}:${chainId}:${isConnected}`}
+        onRoundChanged={refresh}
+      />
+    );
+  }
+
+  const isStrk =
+    current?.prizeKind === 1 &&
+    addressesMatch(current.token, config.strkTokenAddress);
+  return (
+    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+      <main className="mx-auto max-w-3xl px-4 pb-20 pt-24 sm:px-6">
+        <header className="border-b border-grid pb-7">
+          <div className="flex flex-wrap items-center gap-3 text-[9px] tracking-[0.22em] text-neutral-500">
+            <span>
+              INTERNAL TOOL //{' '}
+              {config.starknetChainId === 'SN_MAIN'
+                ? 'MAINNET'
+                : config.starknetChainId.replace('SN_', '')}
+            </span>
+            <span className="border border-[#d6a84b]/50 px-2 py-1 text-[#d6a84b]">
+              UNLISTED ROUTE
+            </span>
+          </div>
+          <h1 className="mt-3 text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
+            JACKPOT FOUNDRY
+          </h1>
+          <p className="mt-3 text-[11px] leading-5 text-neutral-500">
+            Manage the current prize or create a round when no jackpot is
+            active.
+          </p>
+        </header>
+        {error ? (
+          <div className="mt-7 border border-amber-500/40 p-5">
+            <p role="alert" className="text-[11px] leading-5 text-amber-400">
+              Current jackpot could not be verified. {error}
+            </p>
+            <button
+              type="button"
+              onClick={refresh}
+              className="mt-4 text-[10px] text-[#d6a84b] underline"
+            >
+              RETRY JACKPOT CHECK
+            </button>
+          </div>
+        ) : current == null ? (
+          <p role="status" className="mt-7 text-[11px] text-neutral-500">
+            Checking current jackpot…
+          </p>
+        ) : (
+          <section className="mt-7 border border-grid p-5 sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-[11px] tracking-[0.18em] text-[#d6a84b]">
+                CURRENT JACKPOT #{current.id.toString()}
+              </h2>
+              <button
+                type="button"
+                onClick={refresh}
+                className="text-[9px] text-neutral-400 underline"
+              >
+                REFRESH
+              </button>
+            </div>
+            <p className="mt-5 break-words text-3xl font-bold text-white">
+              {isStrk
+                ? `${formatStrk(current.amount, 18)} STRK`
+                : current.prizeKind === 2
+                  ? `NFT #${current.tokenId}`
+                  : `${current.amount.toLocaleString()} ${current.prizeKind === 3 ? `UNITS OF #${current.tokenId}` : 'BASE UNITS'}`}
+            </p>
+            <p className="mt-2 break-all text-[10px] leading-5 text-neutral-500">
+              TOKEN {current.token}
+            </p>
+            <div className="mt-6 grid gap-4 border-t border-grid pt-5 text-[10px] sm:grid-cols-2">
+              <div className="text-neutral-500">
+                DRAW CLOSES{' '}
+                <span className="mt-2 block tabular-nums text-neutral-200">
+                  {new Date(current.endsAt * 1_000).toLocaleString()}
+                </span>
+              </div>
+              <div className="text-neutral-500">
+                REMAINING{' '}
+                <span className="mt-2 block tabular-nums text-neutral-200">
+                  {current.status === 2 && now < current.endsAt * 1_000
+                    ? formatCountdown(current.endsAt - now / 1_000)
+                    : 'AWAITING DRAW / SETTLEMENT'}
+                </span>
+              </div>
+            </div>
+            {current.prizeKind === 2 ? (
+              <p className="mt-6 text-[11px] leading-5 text-neutral-500">
+                This jackpot holds a single NFT. ERC-721 prizes cannot be topped
+                up.
+              </p>
+            ) : (
+              <JackpotTopUp
+                key={`${current.id}:${address}:${chainId}:${isConnected}`}
+                jackpot={current}
+                now={now}
+                onConfirmed={(id, amount) =>
+                  setCurrent((previous) =>
+                    previous?.id === id && amount > previous.amount
+                      ? { ...previous, amount }
+                      : previous
+                  )
+                }
+              />
+            )}
+            <p className="mt-6 border-t border-grid pt-5 text-[10px] leading-5 text-neutral-500">
+              A new jackpot can be created after the current round settles.
+            </p>
+            <Link
+              to="/jackpot"
+              className="mt-3 inline-block text-[10px] text-[#d6a84b] underline"
+            >
+              VIEW JACKPOT
+            </Link>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function JackpotCreationForm({
+  onRoundChanged,
+}: {
+  onRoundChanged: () => void;
+}) {
+  const { address, chainId, isConnected } = useWallet();
   const { provider } = useProvider();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
@@ -127,6 +302,14 @@ export function JackpotCreator() {
   const [lastTransactionHash, setLastTransactionHash] = useState<string | null>(
     null
   );
+  const submitting = useRef(false);
+  const correctNetwork = Boolean(
+    chainId &&
+      addressesMatch(
+        chainId,
+        shortString.encodeShortString(config.starknetChainId)
+      )
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,7 +317,7 @@ export function JackpotCreator() {
     setLastTransactionHash(null);
     setPhase('idle');
 
-    if (!address) {
+    if (!address || !isConnected || !correctNetwork) {
       setAuthorization('idle');
       return () => controller.abort();
     }
@@ -156,7 +339,7 @@ export function JackpotCreator() {
         );
       });
     return () => controller.abort();
-  }, [address]);
+  }, [address, isConnected, correctNetwork]);
 
   const parsedForm = useMemo(() => {
     try {
@@ -199,19 +382,23 @@ export function JackpotCreator() {
     ? 'JACKPOT SYSTEM NOT CONFIGURED'
     : !isConnected || !address
       ? 'CONNECT READY WALLET'
-      : authorization === 'checking'
-        ? 'CHECKING CREATOR ROLE'
-        : authorization === 'denied'
-          ? 'WALLET IS NOT A CREATOR'
-          : authorization === 'error'
-            ? 'CREATOR CHECK FAILED'
-            : parsedForm.error
-              ? 'CHECK PRIZE DETAILS'
-              : null;
+      : !correctNetwork
+        ? `SWITCH TO ${config.starknetChainId}`
+        : authorization === 'checking' || authorization === 'idle'
+          ? 'CHECKING CREATOR ROLE'
+          : authorization === 'denied'
+            ? 'WALLET IS NOT A CREATOR'
+            : authorization === 'error'
+              ? 'CREATOR CHECK FAILED'
+              : parsedForm.error
+                ? 'CHECK PRIZE DETAILS'
+                : null;
 
   const submitJackpot = async () => {
     if (
       disabledReason ||
+      submitting.current ||
+      phase === 'confirmed' ||
       !parsedForm.tokenAddress ||
       parsedForm.tokenId === null ||
       parsedForm.amount === null ||
@@ -221,11 +408,17 @@ export function JackpotCreator() {
     }
 
     let hash: string | null = null;
+    submitting.current = true;
     setSubmissionError(null);
     setLastTransactionHash(null);
     setPhase('submitting');
 
     try {
+      // Another creator may have armed a round since this page was opened.
+      if (await getActiveJackpot()) {
+        onRoundChanged();
+        return;
+      }
       const calls = buildCreateJackpotCalls({
         jackpotSystemAddress: config.jackpotSystemAddress,
         prizeKind,
@@ -244,12 +437,15 @@ export function JackpotCreator() {
       });
       notifyConfirmed(hash);
       setPhase('confirmed');
+      onRoundChanged();
     } catch (reason) {
       const message =
         reason instanceof Error ? reason.message : 'Jackpot creation failed.';
       setSubmissionError(message);
       setPhase('idle');
       if (hash) notifyFailed(hash, message);
+    } finally {
+      submitting.current = false;
     }
   };
 
@@ -278,7 +474,11 @@ export function JackpotCreator() {
             <div className="flex flex-wrap items-center gap-3 text-[9px] tracking-[0.22em] text-neutral-500">
               <span>INTERNAL TOOL</span>
               <span className="text-neutral-700">//</span>
-              <span>SEPOLIA</span>
+              <span>
+                {config.starknetChainId === 'SN_MAIN'
+                  ? 'MAINNET'
+                  : config.starknetChainId.replace('SN_', '')}
+              </span>
               <span className="border border-[#d6a84b]/50 px-2 py-1 text-[#d6a84b]">
                 UNLISTED ROUTE
               </span>
@@ -388,7 +588,7 @@ export function JackpotCreator() {
                   disabled={busy}
                   className="mt-2 border-b border-neutral-700 pb-0.5 text-[8px] tracking-[0.17em] text-neutral-500 transition-colors hover:border-[#d6a84b] hover:text-[#d6a84b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
-                  USE SEPOLIA STRK
+                  USE STRK
                 </button>
               ) : null}
             </div>
@@ -532,7 +732,9 @@ export function JackpotCreator() {
             <button
               type="button"
               onClick={() => void submitJackpot()}
-              disabled={Boolean(disabledReason) || busy}
+              disabled={
+                Boolean(disabledReason) || busy || phase === 'confirmed'
+              }
               className="mt-5 w-full border border-[#d6a84b] bg-[#d6a84b] px-4 py-4 text-[10px] font-semibold tracking-[0.22em] text-black transition-colors hover:bg-black hover:text-[#e4bd6b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-950 disabled:text-neutral-600 motion-reduce:transition-none"
             >
               {phase === 'submitting'

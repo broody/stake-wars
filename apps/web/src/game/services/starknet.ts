@@ -7,6 +7,7 @@ import type {
   OperatorStatus,
   PoolMemberInfo,
   StakingPoolInfo,
+  Jackpot,
 } from '../types';
 import { addressesMatch } from '../utils/format';
 import { chunkSectorActions, MAX_SECTOR_SELECTION } from './sectorLimits';
@@ -18,7 +19,18 @@ interface JsonRpcResponse<T> {
   error?: {
     code: number;
     message: string;
+    data?: unknown;
   };
+}
+
+class StarknetRpcError extends Error {
+  constructor(
+    readonly code: number,
+    message: string,
+    readonly data?: unknown
+  ) {
+    super(`Starknet RPC error ${code}: ${message}`);
+  }
 }
 
 export interface StarknetConnection {
@@ -54,8 +66,10 @@ async function call<T>(
 
   const payload = (await response.json()) as JsonRpcResponse<T>;
   if (payload.error) {
-    throw new Error(
-      `Starknet RPC error ${payload.error.code}: ${payload.error.message}`
+    throw new StarknetRpcError(
+      payload.error.code,
+      payload.error.message,
+      payload.error.data
     );
   }
   if (payload.result === undefined) {
@@ -209,7 +223,11 @@ export async function canCreateJackpot(
   if (result.length !== 1) {
     throw new Error('Jackpot System returned invalid creator authorization');
   }
-  return parseFelt(result[0], 'creator authorization') !== 0n;
+  const authorized = parseFelt(result[0], 'creator authorization');
+  if (authorized !== 0n && authorized !== 1n) {
+    throw new Error('Jackpot System returned invalid creator authorization');
+  }
+  return authorized === 1n;
 }
 
 export function decodeJackpotPrizeAmountResult(
@@ -239,6 +257,81 @@ export async function getJackpotPrizeAmount(
     await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)]),
     jackpotId
   );
+}
+
+export function decodeJackpotResult(result: string[]): Jackpot {
+  if (result.length !== 23) {
+    throw new Error('Jackpot System returned an invalid jackpot');
+  }
+  const id = parseFelt(result[0], 'jackpot ID');
+  const status = parseTimestamp(result[1], 'jackpot status');
+  const prizeKind = parseTimestamp(result[3], 'jackpot prize kind');
+  if (
+    id <= 0n ||
+    id >= 1n << 64n ||
+    (status !== 1 && status !== 2 && status !== 3 && status !== 4) ||
+    (prizeKind !== 1 && prizeKind !== 2 && prizeKind !== 3)
+  ) {
+    throw new Error('Jackpot System returned an invalid jackpot');
+  }
+  const tokenLow = parseFelt(result[5], 'jackpot token ID low word');
+  const tokenHigh = parseFelt(result[6], 'jackpot token ID high word');
+  const maxWord = (1n << 128n) - 1n;
+  if (
+    tokenLow < 0n ||
+    tokenLow > maxWord ||
+    tokenHigh < 0n ||
+    tokenHigh > maxWord
+  ) {
+    throw new Error('Jackpot System returned an invalid token ID');
+  }
+  const claimed = parseFelt(result[20], 'jackpot claimed');
+  if (claimed !== 0n && claimed !== 1n) {
+    throw new Error('Jackpot System returned an invalid claim status');
+  }
+  return {
+    id,
+    status,
+    sponsor: result[2],
+    prizeKind,
+    token: result[4],
+    tokenId: tokenLow + (tokenHigh << 128n),
+    amount: decodeJackpotPrizeAmountResult(result, id),
+    sectorLimitSnapshot: parseTimestamp(result[10], 'jackpot sector limit'),
+    durationSeconds: parseTimestamp(result[11], 'jackpot duration'),
+    startedAt: parseTimestamp(result[12], 'jackpot start'),
+    endsAt: parseTimestamp(result[13], 'jackpot deadline'),
+    randomnessBlock: parseFelt(result[14], 'jackpot randomness block'),
+    lastDrawnSectorId: parseTimestamp(result[16], 'jackpot drawn sector'),
+    drawCount: parseTimestamp(result[17], 'jackpot draw count'),
+    winner: result[18],
+    settledAt: parseTimestamp(result[19], 'jackpot settlement') || null,
+    claimed: claimed === 1n,
+    claimedBy: result[21],
+    claimedAt: parseTimestamp(result[22], 'jackpot claim time') || null,
+  };
+}
+
+export async function getActiveJackpot(
+  signal?: AbortSignal
+): Promise<Jackpot | null> {
+  try {
+    return decodeJackpotResult(
+      await callJackpotSystem('get_active_jackpot', [], signal)
+    );
+  } catch (reason) {
+    // This getter reverts when the active counter is empty. Only that specific
+    // contract error means creation is available; RPC failures must stay errors.
+    if (reason instanceof StarknetRpcError && reason.code === 40) {
+      const detail = JSON.stringify(reason.data) ?? '';
+      if (
+        detail.includes('no active jackpot') ||
+        detail.includes('0x6e6f20616374697665206a61636b706f74')
+      )
+        return null;
+    }
+    throw reason;
+  }
 }
 
 export async function getSectorStatus(
