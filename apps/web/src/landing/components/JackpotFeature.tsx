@@ -124,7 +124,7 @@ export function JackpotFeature() {
         </div>
 
         <a
-          href="/play/jackpot"
+          href="/play/drop"
           className="mt-10 w-fit border border-[#d6a84b]/70 px-5 py-3 text-[0.72rem] tracking-[0.18em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[#d6a84b]"
         >
           VIEW SUPPLY DROP

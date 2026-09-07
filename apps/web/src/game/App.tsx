@@ -61,9 +61,9 @@ function GamePages() {
             <Route path="/beacon" element={<Beacon />} />
             <Route path="/beacon/history" element={<Beacon />} />
             <Route path="/operator" element={<Operator />} />
-            <Route path="/jackpot" element={<Jackpot />} />
+            <Route path="/drop" element={<Jackpot />} />
             <Route
-              path="/jackpot/create"
+              path="/drop/create"
               element={
                 <Suspense fallback={null}>
                   <JackpotCreator />

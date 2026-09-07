@@ -149,7 +149,7 @@ export function JackpotDrawPanel({
       </div>
 
       <Link
-        to="/jackpot"
+        to="/drop"
         className="flex items-center justify-between border-t border-[#d6a84b]/25 px-4 py-3 text-[9px] tracking-[0.17em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-[#d6a84b]"
       >
         <span>VIEW SUPPLY DROP</span>

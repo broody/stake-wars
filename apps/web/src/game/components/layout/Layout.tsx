@@ -23,7 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/', label: 'CORE' },
     { path: '/staking', label: 'FORCE' },
     { path: '/beacon', label: 'BEACON' },
-    { path: '/jackpot', label: 'DROP' },
+    { path: '/drop', label: 'DROP' },
   ];
 
   return (

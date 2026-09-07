@@ -263,7 +263,7 @@ export function JackpotCreator() {
               A new jackpot can be created after the current round settles.
             </p>
             <Link
-              to="/jackpot"
+              to="/drop"
               className="mt-3 inline-block text-[10px] text-[#d6a84b] underline"
             >
               VIEW JACKPOT
