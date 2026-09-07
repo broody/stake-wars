@@ -8,7 +8,6 @@ import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { Footer } from './components/Footer';
-import { JackpotFeature } from './components/JackpotFeature';
 
 function FaqItem({
   question,
@@ -131,9 +130,6 @@ function LandingApp() {
             />
           ))}
         </div>
-
-        {/* Live Jackpot */}
-        <JackpotFeature />
 
         {/* Beacon auction */}
         <section
