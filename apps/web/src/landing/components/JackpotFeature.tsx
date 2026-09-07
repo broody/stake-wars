@@ -38,9 +38,9 @@ function CurrentPot({ jackpot }: { jackpot: LandingJackpot }) {
       <div className="relative flex items-center justify-between gap-4 text-[0.72rem] tracking-[0.2em]">
         <span className="flex items-center gap-2 text-[#d6a84b]">
           <span className="h-2 w-2 bg-[#d6a84b] shadow-[0_0_12px_rgba(214,168,75,0.65)]" />
-          {isDrawPending ? 'DRAW PENDING' : 'LIVE POT'}
+          {isDrawPending ? 'DRAW PENDING' : 'LIVE DROP'}
         </span>
-        <span className="text-[#777]">JACKPOT #{jackpot.id.toString()}</span>
+        <span className="text-[#777]">DROP #{jackpot.id.toString()}</span>
       </div>
 
       <div className="relative my-10">
@@ -55,7 +55,7 @@ function CurrentPot({ jackpot }: { jackpot: LandingJackpot }) {
       <div className="relative flex items-end justify-between gap-6 border-t border-[#d6a84b]/25 pt-5">
         <div>
           <div className="text-[0.68rem] tracking-[0.2em] text-[#777]">
-            {isDrawPending ? 'STATUS' : 'DRAW IN'}
+            {isDrawPending ? 'STATUS' : 'TIME TO DROP'}
           </div>
           <div className="mt-2 text-[1.15rem] tabular-nums text-[#ddd]">
             {isDrawPending
@@ -102,20 +102,24 @@ export function JackpotFeature() {
 
   return (
     <section
-      aria-labelledby="jackpot-feature-heading"
+      aria-labelledby="supply-drop-feature-heading"
       className="mb-16 grid border border-dim bg-black/70 lg:grid-cols-[0.85fr_1.15fr]"
     >
       <div className="flex flex-col justify-between border-b border-dim p-[30px] md:p-10 lg:border-b-0 lg:border-r">
         <div>
           <h2
-            id="jackpot-feature-heading"
-            className="text-[2.5rem] font-bold tracking-[-0.05em] md:text-[3.2rem]"
+            id="supply-drop-feature-heading"
+            className="text-[2.5rem] font-bold leading-tight tracking-[-0.05em] md:text-[3.2rem]"
           >
-            JACKPOT
+            SUPPLY DROP
           </h2>
           <p className="mt-5 max-w-xl text-[1rem] leading-[1.75] text-[#bbb]">
-            Each pot runs for a fixed window. When it expires, one Sector is
-            drawn. The operator recorded at expiry wins the escrowed prize.
+            Supply Drops are funded directly by Stake Wars pool commissions,
+            redistributing those earnings to Sector operators.
+          </p>
+          <p className="mt-4 max-w-xl text-[1rem] leading-[1.75] text-[#bbb]">
+            When each drop window closes, one Sector is selected at random. Its
+            operator at the deadline receives the drop.
           </p>
         </div>
 
@@ -123,7 +127,7 @@ export function JackpotFeature() {
           href="/play/jackpot"
           className="mt-10 w-fit border border-[#d6a84b]/70 px-5 py-3 text-[0.72rem] tracking-[0.18em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[#d6a84b]"
         >
-          VIEW JACKPOT
+          VIEW SUPPLY DROP
         </a>
       </div>
 
@@ -133,16 +137,16 @@ export function JackpotFeature() {
       >
         {state === 'loading' ? (
           <div className="grid min-h-72 place-items-center p-10 text-[0.72rem] tracking-[0.2em] text-[#777]">
-            READING ON-CHAIN POT…
+            READING ON-CHAIN DROP…
           </div>
         ) : state === 'unavailable' ? (
           <div className="grid min-h-72 place-items-center p-10 text-center">
             <div>
               <div className="text-[1.35rem] font-bold">
-                POT DATA UNAVAILABLE
+                DROP DATA UNAVAILABLE
               </div>
               <p className="mt-3 text-[0.85rem] leading-6 text-[#777]">
-                Open the Jackpot ledger to check the current draw.
+                Open the Supply Drop ledger to check the current drop.
               </p>
             </div>
           </div>
@@ -151,9 +155,11 @@ export function JackpotFeature() {
         ) : (
           <div className="grid min-h-72 place-items-center p-10 text-center">
             <div>
-              <div className="text-[1.35rem] font-bold">NO ACTIVE JACKPOT</div>
+              <div className="text-[1.35rem] font-bold">
+                NO ACTIVE SUPPLY DROP
+              </div>
               <p className="mt-3 text-[0.85rem] leading-6 text-[#777]">
-                The next pot has not started yet.
+                The next Supply Drop has not started yet.
               </p>
             </div>
           </div>

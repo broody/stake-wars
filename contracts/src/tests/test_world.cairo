@@ -12,7 +12,7 @@ mod tests {
         MAINNET_MINIMUM_STAKE, OperatorState, SEPOLIA_CHALLENGE_PERIOD_SECONDS,
         SEPOLIA_MINIMUM_STAKE, m_Challenge, m_ChallengeCounter, m_ChallengeParticipant,
         m_GameConfig, m_Jackpot, m_JackpotCounter, m_JackpotOperatorSnapshot,
-        m_JackpotSectorSnapshot, m_OperatorState, m_Sector,
+        m_JackpotSectorSnapshot, m_OperatorState, m_Sector, m_SupplyDropHold, m_SupplyDropPolicy,
     };
     use stakewars::systems::admin::{
         IAdminDispatcher, IAdminDispatcherTrait, IRolesDispatcher, IRolesDispatcherTrait, admin,
@@ -52,6 +52,9 @@ mod tests {
             resources: [
                 TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
                 TestResource::Model(m_OperatorState::TEST_CLASS_HASH),
+                TestResource::Model(m_SupplyDropHold::TEST_CLASS_HASH),
+                TestResource::Model(m_SupplyDropPolicy::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SupplyDropHoldCleared::TEST_CLASS_HASH),
                 TestResource::Model(m_Sector::TEST_CLASS_HASH),
                 TestResource::Model(m_ChallengeCounter::TEST_CLASS_HASH),
                 TestResource::Model(m_Challenge::TEST_CLASS_HASH),
@@ -102,6 +105,7 @@ mod tests {
 
     fn control_writer_selectors() -> Span<felt252> {
         [
+            resource_selector(@"SupplyDropHold"), resource_selector(@"SupplyDropHoldCleared"),
             resource_selector(@"OperatorState"), resource_selector(@"Sector"),
             resource_selector(@"ChallengeCounter"), resource_selector(@"Challenge"),
             resource_selector(@"ChallengeParticipant"), resource_selector(@"SectorCaptured"),

@@ -8,7 +8,14 @@ import { WalletButton } from '../components/ui/WalletButton';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
-import { buildClaimJackpotCall, getJackpots } from '../services/jackpot';
+import { getJackpots } from '../services/jackpot';
+import {
+  getSupplyDropPolicy,
+  type SupplyDropPolicy,
+} from '../services/starknet';
+import { prepareSupplyDropClaim } from '../services/supplyDrop';
+import { useSectors } from '../contexts/SectorContext';
+import { useYield } from '../contexts/useYield';
 import type { Jackpot as JackpotRecord } from '../types';
 import {
   addressesMatch,
@@ -81,9 +88,9 @@ function EmptyJackpot() {
         NO ACTIVE SUPPLY DROP
       </h2>
       <p className="mt-4 max-w-xl text-xs leading-6 text-neutral-500">
-        The next prize round has not been armed yet. Keep control of your
-        Sectors—the winning Sector belongs to whoever controlled it when the
-        round expired.
+        The next Supply Drop has not started yet. Keep control of your
+        Sectors—the operator recorded when the drop window closes is eligible to
+        receive the drop if their Sector is selected.
       </p>
     </section>
   );
@@ -92,6 +99,8 @@ function EmptyJackpot() {
 export function Jackpot() {
   const { address, isConnected } = useWallet();
   const { provider } = useProvider();
+  const { refreshOperator } = useSectors();
+  const { refreshStaking } = useYield();
   const transaction = useSendTransaction({});
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
@@ -102,6 +111,41 @@ export function Jackpot() {
   const [now, setNow] = useState(() => Date.now());
   const [claimingId, setClaimingId] = useState<bigint | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [policies, setPolicies] = useState<Record<string, SupplyDropPolicy>>(
+    {}
+  );
+  const [policyError, setPolicyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPolicies({});
+    setPolicyError(null);
+    const relevant = jackpots.filter(
+      (drop) => drop.status !== 4 || !drop.claimed
+    );
+    Promise.all(
+      relevant.map(
+        async (drop) =>
+          [
+            drop.id.toString(),
+            await getSupplyDropPolicy(drop.id, controller.signal),
+          ] as const
+      )
+    )
+      .then((entries) => {
+        if (!controller.signal.aborted)
+          setPolicies(Object.fromEntries(entries));
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted)
+          setPolicyError(
+            reason instanceof Error
+              ? reason.message
+              : 'Could not verify Supply Drop staking terms.'
+          );
+      });
+    return () => controller.abort();
+  }, [jackpots]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -158,19 +202,17 @@ export function Jackpot() {
       setClaimingId(jackpot.id);
       setClaimError(null);
       try {
-        const result = await transaction.sendAsync([
-          buildClaimJackpotCall({
-            jackpotSystemAddress: config.jackpotSystemAddress,
-            jackpotId: jackpot.id,
-            recipient: address,
-          }),
-        ]);
+        const calls = await prepareSupplyDropClaim(jackpot.id, address);
+        const result = await transaction.sendAsync(calls);
         hash = result.transaction_hash;
         notifySubmitting(hash, 'SUPPLY DROP CLAIM');
         await provider.waitForTransaction(hash, {
           errorStates: [TransactionExecutionStatus.REVERTED],
         });
         notifyConfirmed(hash);
+        refreshOperator();
+        refreshStaking();
+        window.dispatchEvent(new Event('supply-drop-updated'));
         setJackpots((records) =>
           records.map((record) =>
             record.id === jackpot.id
@@ -199,6 +241,8 @@ export function Jackpot() {
       notifySubmitting,
       provider,
       transaction,
+      refreshOperator,
+      refreshStaking,
     ]
   );
 
@@ -212,9 +256,22 @@ export function Jackpot() {
               SUPPLY DROP
             </h1>
             <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
-              One Sector is drawn after expiry. Its operator at the expiry
-              snapshot wins the escrowed prize.
+              Supply Drops are funded directly by Stake Wars pool commissions,
+              redistributing those earnings to Sector operators.
             </p>
+            <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
+              At the end of each drop window, one Sector is selected at random.
+              The operator who controlled that Sector when the window closed
+              receives the drop.
+            </p>
+            {current && policies[current.id.toString()]?.stakingRequired ? (
+              <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
+                This drop is claimed and staked together. Claiming without
+                staking pauses your Sector actions and image changes until the
+                full prize is added to your stake. Your Sectors remain open to
+                challenges.
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -225,6 +282,13 @@ export function Jackpot() {
             {isLoading ? 'SYNCING…' : 'REFRESH'}
           </button>
         </header>
+
+        {policyError ? (
+          <p role="alert" className="mt-4 text-xs text-amber-400">
+            Staking terms unavailable: {policyError} Claims are disabled until
+            verification succeeds.
+          </p>
+        ) : null}
 
         {error ? (
           <div className="mt-8 border border-amber-500/40 p-5 text-xs text-amber-400">
@@ -299,7 +363,7 @@ export function Jackpot() {
                     <div className="text-[9px] tracking-[0.2em] text-neutral-500">
                       {current.status === 3 || current.endsAt * 1_000 <= now
                         ? 'ROUND EXPIRED'
-                        : 'TIME TO SNAPSHOT'}
+                        : 'TIME TO DROP'}
                     </div>
                     <div className="mt-4 whitespace-nowrap text-3xl tabular-nums tracking-[-0.06em] text-white sm:text-4xl">
                       {current.status === 3 || current.endsAt * 1_000 <= now
@@ -359,6 +423,7 @@ export function Jackpot() {
                 const winnerConnected = Boolean(
                   address && addressesMatch(address, jackpot.winner)
                 );
+                const policy = policies[jackpot.id.toString()];
                 const canClaim = winnerConnected && !jackpot.claimed;
                 return (
                   <article
@@ -384,6 +449,12 @@ export function Jackpot() {
                       <div className="mt-2">
                         <PrizeToken jackpot={jackpot} />
                       </div>
+                      {policy?.stakingRequired ? (
+                        <p className="mt-2 text-[10px] leading-5 text-[#d6a84b]">
+                          The full prize is staked on claim. Claiming alone
+                          pauses gameplay until it is staked.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div>
@@ -419,12 +490,20 @@ export function Jackpot() {
                         <button
                           type="button"
                           onClick={() => void claimPrize(jackpot)}
-                          disabled={claimingId !== null}
+                          disabled={
+                            claimingId !== null ||
+                            !policy ||
+                            Boolean(policyError)
+                          }
                           className="border border-[#d6a84b] bg-[#d6a84b] px-4 py-2 text-[9px] tracking-[0.16em] text-black transition-colors hover:bg-black hover:text-[#d6a84b] disabled:cursor-wait disabled:opacity-50"
                         >
                           {claimingId === jackpot.id
                             ? 'CLAIMING…'
-                            : 'CLAIM PRIZE'}
+                            : !policy
+                              ? 'VERIFYING…'
+                              : policy.stakingRequired
+                                ? 'CLAIM & STAKE'
+                                : 'CLAIM PRIZE'}
                         </button>
                       ) : (
                         <div className="text-[9px] tracking-[0.14em] text-neutral-600">

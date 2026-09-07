@@ -14,8 +14,18 @@ pub struct PoolMemberInfoV1 {
     pub unpool_time: Option<u64>,
 }
 
+#[derive(Copy, Drop, Serde, Debug)]
+pub struct PoolContractInfoV1 {
+    pub staker_address: ContractAddress,
+    pub staker_removed: bool,
+    pub staking_contract: ContractAddress,
+    pub token_address: ContractAddress,
+    pub commission: u16,
+}
+
 #[starknet::interface]
 pub trait IStakingPool<TContractState> {
+    fn contract_parameters_v1(self: @TContractState) -> PoolContractInfoV1;
     fn get_pool_member_info_v1(
         self: @TContractState, pool_member: ContractAddress,
     ) -> Option<PoolMemberInfoV1>;

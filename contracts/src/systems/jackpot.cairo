@@ -1,4 +1,4 @@
-use stakewars::models::Jackpot;
+use stakewars::models::{Jackpot, SupplyDropPolicy};
 use starknet::ContractAddress;
 
 pub const RANDOMNESS_COMMIT_DELAY_BLOCKS: u64 = 10;
@@ -7,6 +7,7 @@ pub const JACKPOT_CREATOR_ROLE: felt252 = selector!("JACKPOT_CREATOR_ROLE");
 
 #[starknet::interface]
 pub trait IJackpot<TContractState> {
+    fn get_supply_drop_policy(self: @TContractState, jackpot_id: u64) -> SupplyDropPolicy;
     fn create_jackpot(
         ref self: TContractState,
         duration_seconds: u64,
@@ -43,8 +44,10 @@ pub mod jackpot {
         CONFIG_ID, GameConfig, JACKPOT_COUNTER_ID, JACKPOT_PRIZE_ERC1155, JACKPOT_PRIZE_ERC20,
         JACKPOT_PRIZE_ERC721, JACKPOT_STATUS_ACTIVE, JACKPOT_STATUS_DRAWING, JACKPOT_STATUS_FUNDING,
         JACKPOT_STATUS_SETTLED, Jackpot, JackpotCounter, JackpotOperatorSnapshot,
-        JackpotSectorSnapshot, OperatorState, Sector,
+        JackpotSectorSnapshot, OperatorState, Sector, SupplyDropHold, SupplyDropPolicy,
     };
+    use stakewars::staking::{IStakingPoolDispatcher, IStakingPoolDispatcherTrait, delegation_state};
+    use stakewars::supply_drop::hold_status;
     use stakewars::systems::admin::{IRolesDispatcher, IRolesDispatcherTrait};
     use starknet::syscalls::get_block_hash_syscall;
     use starknet::{
@@ -127,8 +130,23 @@ pub mod jackpot {
         pub claimed_at: u64,
     }
 
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct SupplyDropHoldCreated {
+        #[key]
+        pub operator: ContractAddress,
+        #[key]
+        pub jackpot_id: u64,
+        pub staking_pool: ContractAddress,
+        pub required_stake: u128,
+        pub prize_amount: u128,
+    }
+
     #[abi(embed_v0)]
     impl JackpotImpl of IJackpot<ContractState> {
+        fn get_supply_drop_policy(self: @ContractState, jackpot_id: u64) -> SupplyDropPolicy {
+            self.world_default().read_model(jackpot_id)
+        }
         fn create_jackpot(
             ref self: ContractState,
             duration_seconds: u64,
@@ -148,10 +166,28 @@ pub mod jackpot {
             assert(duration_seconds > 0, 'zero duration');
             self.validate_prize(prize_kind, token, token_id, amount);
 
+            let staking_required = if prize_kind == JACKPOT_PRIZE_ERC20 {
+                let pool = IStakingPoolDispatcher { contract_address: config.staking_pool };
+                token == pool.contract_parameters_v1().token_address
+            } else {
+                false
+            };
+            if staking_required {
+                assert(amount.high == 0, 'drop amount exceeds u128');
+            }
+
             let mut counter: JackpotCounter = world.read_model(JACKPOT_COUNTER_ID);
             assert(counter.active_id == 0, 'jackpot already active');
             counter.next_id += 1;
             counter.active_id = counter.next_id;
+            world
+                .write_model(
+                    @SupplyDropPolicy {
+                        jackpot_id: counter.active_id,
+                        staking_pool: config.staking_pool,
+                        staking_required,
+                    },
+                );
 
             let started_at = get_block_timestamp();
             let ends_at = started_at + duration_seconds;
@@ -217,6 +253,10 @@ pub mod jackpot {
             );
             assert(amount > 0, 'zero amount');
             let total_amount = current.amount + amount;
+            let policy: SupplyDropPolicy = world.read_model(jackpot_id);
+            if policy.staking_required {
+                assert(total_amount.high == 0, 'drop amount exceeds u128');
+            }
 
             // FUNDING blocks reentrant round mutations and validates the exact ERC-1155
             // receipt. Only this transfer's contributor and increment are expected.
@@ -332,6 +372,34 @@ pub mod jackpot {
             assert(settled.status == JACKPOT_STATUS_SETTLED, 'jackpot not settled');
             assert(settled.winner == winner, 'not jackpot winner');
             assert(!settled.claimed, 'prize already claimed');
+
+            let policy: SupplyDropPolicy = world.read_model(jackpot_id);
+            if policy.staking_required {
+                assert(!hold_status(world, winner).held, 'stake supply drop first');
+                let delegation = delegation_state(policy.staking_pool, winner);
+                // This is an additional deposit requirement, not a FORCE expense.
+                let prize_amount: u128 = settled
+                    .amount
+                    .try_into()
+                    .expect('drop amount exceeds u128');
+                let required_stake = delegation.amount + prize_amount;
+                world
+                    .write_model(
+                        @SupplyDropHold {
+                            operator: winner, staking_pool: policy.staking_pool, required_stake,
+                        },
+                    );
+                world
+                    .emit_event(
+                        @SupplyDropHoldCreated {
+                            operator: winner,
+                            jackpot_id,
+                            staking_pool: policy.staking_pool,
+                            required_stake,
+                            prize_amount,
+                        },
+                    );
+            }
 
             let claimed_at = get_block_timestamp();
             settled.claimed = true;

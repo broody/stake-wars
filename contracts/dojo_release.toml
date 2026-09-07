@@ -16,6 +16,10 @@ default = "stakewars"
 # outside version control when a deployment is explicitly approved.
 
 [writers]
+"stakewars-SupplyDropHold" = ["stakewars-jackpot", "stakewars-control"]
+"stakewars-SupplyDropPolicy" = ["stakewars-jackpot"]
+"stakewars-SupplyDropHoldCreated" = ["stakewars-jackpot"]
+"stakewars-SupplyDropHoldCleared" = ["stakewars-control"]
 "stakewars-GameConfig" = ["stakewars-admin"]
 "stakewars-OperatorState" = ["stakewars-control"]
 "stakewars-Sector" = ["stakewars-control"]

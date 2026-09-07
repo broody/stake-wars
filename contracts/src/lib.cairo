@@ -1,6 +1,7 @@
 pub mod assets;
 pub mod models;
 pub mod staking;
+pub mod supply_drop;
 
 pub mod systems {
     pub mod admin;
@@ -10,6 +11,7 @@ pub mod systems {
 
 #[cfg(test)]
 pub mod tests {
+    mod mock_account;
     mod mock_staking_pool;
     mod mock_tokens;
     mod test_jackpot;

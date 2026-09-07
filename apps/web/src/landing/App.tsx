@@ -7,6 +7,7 @@ import { Hero } from './components/Hero';
 import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
+import { JackpotFeature } from './components/JackpotFeature';
 import { Footer } from './components/Footer';
 
 function FaqItem({
@@ -130,6 +131,9 @@ function LandingApp() {
             />
           ))}
         </div>
+
+        {/* Supply Drop */}
+        <JackpotFeature />
 
         {/* Beacon auction */}
         <section

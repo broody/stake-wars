@@ -1,3 +1,4 @@
+use stakewars::supply_drop::SupplyDropHoldStatus;
 use starknet::ContractAddress;
 
 pub const MAX_SYNC_BATCH: usize = 50;
@@ -81,6 +82,9 @@ pub struct ChallengeParticipantStatus {
 
 #[starknet::interface]
 pub trait IControl<TContractState> {
+    fn get_supply_drop_hold(
+        self: @TContractState, operator: ContractAddress,
+    ) -> SupplyDropHoldStatus;
     fn capture(ref self: TContractState, sector_id: u32, allocation: u128);
     fn capture_many(ref self: TContractState, captures: Span<CaptureRequest>);
     fn reinforce(ref self: TContractState, sector_id: u32, additional_allocation: u128);
@@ -119,8 +123,10 @@ pub mod control {
         CHALLENGE_COUNTER_ID, CONFIG_ID, Challenge, ChallengeCounter, ChallengeParticipant,
         GameConfig, JACKPOT_COUNTER_ID, JACKPOT_STATUS_ACTIVE, JACKPOT_STATUS_DRAWING, Jackpot,
         JackpotCounter, JackpotOperatorSnapshot, JackpotSectorSnapshot, OperatorState, Sector,
+        SupplyDropHold,
     };
     use stakewars::staking::{DelegationState, delegation_state};
+    use stakewars::supply_drop::{SupplyDropHoldStatus, hold_status};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{
         CaptureRequest, ChallengeParticipantStatus, ChallengeStatus, IControl,
@@ -254,8 +260,22 @@ pub mod control {
         pub released_sector_count: u32,
     }
 
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct SupplyDropHoldCleared {
+        #[key]
+        pub operator: ContractAddress,
+        pub staking_pool: ContractAddress,
+    }
+
     #[abi(embed_v0)]
     impl ControlImpl of IControl<ContractState> {
+        fn get_supply_drop_hold(
+            self: @ContractState, operator: ContractAddress,
+        ) -> SupplyDropHoldStatus {
+            self.initialized_config();
+            hold_status(self.world_default(), operator)
+        }
         fn capture(ref self: ContractState, sector_id: u32, allocation: u128) {
             let config = self.active_config();
             self.assert_sector_id(config, sector_id);
@@ -591,6 +611,7 @@ pub mod control {
             status.controller == operator
                 && status.ownership_generation == ownership_generation
                 && !status.stale
+                && !hold_status(self.world_default(), operator).held
         }
 
         fn required_stake(self: @ContractState, sector_id: u32) -> u128 {
@@ -689,6 +710,10 @@ pub mod control {
 
         fn assert_playable(self: @ContractState, ref operator: OperatorState) {
             assert(!operator.retired, 'operator retired');
+            assert(
+                !hold_status(self.world_default(), operator.operator).held,
+                'stake supply drop first',
+            );
             if operator.generation == 0 {
                 operator.generation = 1;
             }
@@ -824,6 +849,24 @@ pub mod control {
             }
             if changed {
                 world.write_model(@operator);
+            }
+            // Do not assert here: refresh is also used by opponents and Keepers.
+            let hold = hold_status(world, operator_address);
+            if hold.required_stake > 0 && !hold.held {
+                world
+                    .write_model(
+                        @SupplyDropHold {
+                            operator: operator_address,
+                            staking_pool: hold.staking_pool,
+                            required_stake: 0,
+                        },
+                    );
+                world
+                    .emit_event(
+                        @SupplyDropHoldCleared {
+                            operator: operator_address, staking_pool: hold.staking_pool,
+                        },
+                    );
             }
             (operator, delegation, changed)
         }

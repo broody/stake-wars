@@ -35,21 +35,32 @@ describe('staking entry calls', () => {
         stakingPoolAddress: '0xpool',
         strkTokenAddress: '0xstrk',
         operatorAddress: '0xoperator',
-        amount: 1n << 128n,
+        amount: (1n << 128n) - 1n,
         isPoolMember: true,
       })
     ).toEqual([
       {
         contractAddress: '0xstrk',
         entrypoint: 'approve',
-        calldata: ['0xpool', '0', '1'],
+        calldata: ['0xpool', ((1n << 128n) - 1n).toString(), '0'],
       },
       {
         contractAddress: '0xpool',
         entrypoint: 'add_to_delegation_pool',
-        calldata: ['0xoperator', (1n << 128n).toString()],
+        calldata: ['0xoperator', ((1n << 128n) - 1n).toString()],
       },
     ]);
+  });
+  it('rejects amounts that cannot be passed to the pool u128 entrypoint', () => {
+    expect(() =>
+      buildStakeCalls({
+        stakingPoolAddress: '0xpool',
+        strkTokenAddress: '0xstrk',
+        operatorAddress: '0xoperator',
+        amount: 1n << 128n,
+        isPoolMember: true,
+      })
+    ).toThrow('fit in a u128');
   });
 });
 

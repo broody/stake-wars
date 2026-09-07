@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { WalletButton } from '../ui/WalletButton';
+import { SupplyDropHoldBanner } from '../ui/SupplyDropHoldBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -70,6 +71,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </nav>
 
       {/* Main Content */}
+      <SupplyDropHoldBanner />
       <main className="flex-1 w-full h-full overflow-hidden">{children}</main>
     </div>
   );

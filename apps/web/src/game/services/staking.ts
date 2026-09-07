@@ -25,8 +25,10 @@ export function buildStakeCalls({
   if (!stakingPoolAddress || !strkTokenAddress || !operatorAddress) {
     throw new Error('The staking contracts are not configured');
   }
-  if (amount <= 0n) {
-    throw new RangeError('The staking amount must be positive');
+  if (amount <= 0n || amount >= U128_MODULUS) {
+    throw new RangeError(
+      'The staking amount must be positive and fit in a u128'
+    );
   }
 
   const [amountLow, amountHigh] = encodeU256(amount);

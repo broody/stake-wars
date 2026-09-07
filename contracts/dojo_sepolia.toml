@@ -17,6 +17,10 @@ rpc_url = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
 account_address = "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119"
 
 [writers]
+"stakewars-SupplyDropHold" = ["stakewars-jackpot", "stakewars-control"]
+"stakewars-SupplyDropPolicy" = ["stakewars-jackpot"]
+"stakewars-SupplyDropHoldCreated" = ["stakewars-jackpot"]
+"stakewars-SupplyDropHoldCleared" = ["stakewars-control"]
 "stakewars-GameConfig" = ["stakewars-admin"]
 "stakewars-OperatorState" = ["stakewars-control"]
 "stakewars-Sector" = ["stakewars-control"]

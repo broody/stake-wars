@@ -46,6 +46,26 @@ pub struct OperatorState {
     pub retired: bool,
 }
 
+/// Separate from FORCE obligations: a claim hold must never disqualify an Operator.
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct SupplyDropHold {
+    #[key]
+    pub operator: ContractAddress,
+    pub staking_pool: ContractAddress,
+    pub required_stake: u128,
+}
+
+/// Created alongside new rounds. Missing records preserve legacy payout terms.
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct SupplyDropPolicy {
+    #[key]
+    pub jackpot_id: u64,
+    pub staking_pool: ContractAddress,
+    pub staking_required: bool,
+}
+
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct Sector {

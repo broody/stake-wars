@@ -23,7 +23,7 @@ interface JsonRpcResponse<T> {
   };
 }
 
-class StarknetRpcError extends Error {
+export class StarknetRpcError extends Error {
   constructor(
     readonly code: number,
     message: string,
@@ -31,6 +31,109 @@ class StarknetRpcError extends Error {
   ) {
     super(`Starknet RPC error ${code}: ${message}`);
   }
+}
+
+export interface SupplyDropPolicy {
+  stakingPool: string;
+  stakingRequired: boolean;
+}
+
+export interface SupplyDropHold {
+  stakingPool: string;
+  requiredStake: bigint;
+  liveStake: bigint;
+  remainingStake: bigint;
+  exiting: boolean;
+  held: boolean;
+}
+
+function missingEntrypoint(reason: unknown): boolean {
+  if (!(reason instanceof StarknetRpcError)) return false;
+  if (reason.code === 21) return true;
+  // Older RPCs wrap a missing selector in CONTRACT_ERROR. Never treat a
+  // timeout, a missing contract, or another revert as a legacy deployment.
+  return (
+    reason.code === 40 &&
+    /ENTRYPOINT_NOT_FOUND|Entry point not found|EntryPointNotFound/.test(
+      JSON.stringify(reason.data) ?? ''
+    )
+  );
+}
+
+function parseU128(value: string | undefined, field: string): bigint {
+  const parsed = parseFelt(value, field);
+  if (parsed < 0n || parsed >= 1n << 128n) throw new Error(`Invalid ${field}`);
+  return parsed;
+}
+
+function parseBool(value: string | undefined, field: string): boolean {
+  const parsed = parseFelt(value, field);
+  if (parsed !== 0n && parsed !== 1n) throw new Error(`Invalid ${field}`);
+  return parsed === 1n;
+}
+
+export function decodeSupplyDropHold(result: string[]): SupplyDropHold {
+  if (result.length !== 6) throw new Error('Invalid Supply Drop hold response');
+  const requiredStake = parseU128(result[1], 'required stake');
+  const liveStake = parseU128(result[2], 'live stake');
+  const remainingStake = parseU128(result[3], 'remaining stake');
+  const exiting = parseBool(result[4], 'exit flag');
+  const held = parseBool(result[5], 'hold flag');
+  if (
+    remainingStake !==
+      (requiredStake > liveStake ? requiredStake - liveStake : 0n) ||
+    held !== (requiredStake > 0n && (remainingStake > 0n || exiting)) ||
+    (requiredStake > 0n && parseFelt(result[0], 'staking pool') === 0n)
+  ) {
+    throw new Error('Inconsistent Supply Drop hold response');
+  }
+  return {
+    stakingPool: result[0],
+    requiredStake,
+    liveStake,
+    remainingStake,
+    exiting,
+    held,
+  };
+}
+
+export async function getSupplyDropHold(
+  operator: string,
+  signal?: AbortSignal
+): Promise<SupplyDropHold | null> {
+  try {
+    return decodeSupplyDropHold(
+      await callControlSystem('get_supply_drop_hold', [operator], signal)
+    );
+  } catch (reason) {
+    if (missingEntrypoint(reason)) return null;
+    throw reason;
+  }
+}
+
+export async function getSupplyDropPolicy(
+  jackpotId: bigint,
+  signal?: AbortSignal
+): Promise<SupplyDropPolicy> {
+  let result: string[];
+  try {
+    result = await callJackpotSystem(
+      'get_supply_drop_policy',
+      [encodeRpcFelt(jackpotId)],
+      signal
+    );
+  } catch (reason) {
+    if (missingEntrypoint(reason))
+      return { stakingPool: '0x0', stakingRequired: false };
+    throw reason;
+  }
+  if (result.length !== 3 || parseFelt(result[0], 'drop ID') !== jackpotId) {
+    throw new Error('Invalid Supply Drop policy response');
+  }
+  const stakingRequired = parseBool(result[2], 'staking requirement');
+  if (stakingRequired && parseFelt(result[1], 'staking pool') === 0n)
+    throw new Error('Missing Supply Drop staking pool');
+  return { stakingPool: result[1], stakingRequired };
 }
 
 export interface StarknetConnection {
@@ -257,6 +360,14 @@ export async function getJackpotPrizeAmount(
     await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)]),
     jackpotId
   );
+}
+
+export async function getJackpot(jackpotId: bigint): Promise<Jackpot> {
+  const jackpot = decodeJackpotResult(
+    await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)])
+  );
+  if (jackpot.id !== jackpotId) throw new Error('Supply Drop ID mismatch');
+  return jackpot;
 }
 
 export function decodeJackpotResult(result: string[]): Jackpot {
@@ -562,10 +673,11 @@ export async function canManageSectorImage(
 }
 
 export async function getStakingPoolInfo(
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  poolAddress = config.stakingPoolAddress
 ): Promise<StakingPoolInfo> {
   const result = await callContract(
-    config.stakingPoolAddress,
+    poolAddress,
     'contract_parameters_v1',
     [],
     signal
@@ -586,7 +698,7 @@ export async function getStakingPoolInfo(
   }
 
   return {
-    poolAddress: config.stakingPoolAddress,
+    poolAddress,
     validatorAddress: result[0] ?? '0x0',
     stakingContractAddress: result[2] ?? '0x0',
     tokenAddress,
@@ -640,10 +752,11 @@ export function decodePoolMemberInfoResult(
 
 export async function getPoolMemberInfo(
   operator: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  poolAddress = config.stakingPoolAddress
 ): Promise<PoolMemberInfo | null> {
   const result = await callContract(
-    config.stakingPoolAddress,
+    poolAddress,
     'get_pool_member_info_v1',
     [operator],
     signal
