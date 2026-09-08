@@ -1,3 +1,4 @@
+import { parseEnemySwarmCounts } from '../../utils/enemyPreviewConfig';
 import {
   Suspense,
   forwardRef,
@@ -425,6 +426,11 @@ export function World({ active = true }: { active?: boolean }) {
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
   );
+  const swarmCounts = useMemo(
+    () => parseEnemySwarmCounts(searchParams),
+    [searchParams]
+  );
+  const showEnemySwarms = swarmCounts.mites > 0 || swarmCounts.lancers > 0;
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
   const isJackpotOpen = searchParams.get('tracking') === 'jackpot';
   const setBeaconTracking = useCallback(
@@ -536,6 +542,7 @@ export function World({ active = true }: { active?: boolean }) {
     isSectorInteractionLocked ||
     isBeaconOpen ||
     isJackpotOpen ||
+    showEnemySwarms ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -647,6 +654,8 @@ export function World({ active = true }: { active?: boolean }) {
             jackpotDraw={jackpotDraw}
             isJackpotTracking={isJackpotOpen}
             onInspectJackpot={openJackpotDraw}
+            swarmCounts={swarmCounts}
+            active={active}
           />
         </Suspense>
 
@@ -669,7 +678,7 @@ export function World({ active = true }: { active?: boolean }) {
           }
         />
 
-        <CameraArrival active={active} />
+        <CameraArrival active={active && !showEnemySwarms} />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />

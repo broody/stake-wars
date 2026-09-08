@@ -1,0 +1,43 @@
+{
+  "triangles": 722,
+  "materials": 2,
+  "bones": 17,
+  "dimensions_m": [
+    0.9400891661643982,
+    0.4931664913892746,
+    1.9179999607149512
+  ],
+  "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+  ],
+  "rigged_bytes": 137340,
+  "instanced_bytes": 57428,
+  "blend": "docs/concepts/core-survivors/lancer/lancer.blend",
+  "glb": "apps/web/public/models/hollow-legion/lancer.glb",
+  "instanced_glb": "apps/web/public/models/hollow-legion/lancer-instanced.glb",
+  "front_axis": "+Z in glTF",
+  "muzzle_bone": "Muzzle",
+  "left_claw_scale_xyz": [
+    1.7999999523162842,
+    1.5,
+    1.7000000476837158
+  ],
+  "locomotion": {
+    "Walk": {
+      "duration_seconds": 1.3333333333333333,
+      "speed_mps": 0.7000000000000002,
+      "stance_fraction": 0.6,
+      "stride_m": 0.56,
+      "foot_lift_m": 0.115
+    },
+    "Run": {
+      "duration_seconds": 0.6666666666666666,
+      "speed_mps": 2.6999999999999997,
+      "stance_fraction": 0.4,
+      "stride_m": 0.72,
+      "foot_lift_m": 0.245
+    }
+  }
+}
