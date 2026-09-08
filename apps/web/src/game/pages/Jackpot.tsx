@@ -253,9 +253,10 @@ export function Jackpot() {
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
         <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-grid pb-7">
           <div className="min-w-0">
-            <h1 className="text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
-              SUPPLY DROP
-            </h1>
+            <div className="text-[9px] tracking-[0.26em] text-dim">
+              SECTOR REWARDS
+            </div>
+            <h1 className="game-page-title mt-1">SUPPLY DROP</h1>
             <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
               A portion of pool commissions funds each drop. One Sector is
               selected at random; its operator at the deadline receives it.

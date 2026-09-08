@@ -238,9 +238,7 @@ export function Staking() {
           <div className="text-xs tracking-[0.24em] text-dim">
             OFFICIAL STARKNET STAKING
           </div>
-          <h1 className="mb-4 mt-3 text-2xl tracking-wider text-white">
-            CONNECT TO STAKE
-          </h1>
+          <h1 className="game-page-title mb-4 mt-3">CONNECT TO STAKE</h1>
           <p className="mb-6 text-sm leading-relaxed text-neutral-500">
             Stake STRK with the Stake Wars validator and turn it into deployable
             FORCE.
@@ -261,9 +259,7 @@ export function Staking() {
             <div className="text-[10px] tracking-[0.28em] text-neutral-500">
               OFFICIAL STARKNET STAKING · GENERATE FORCE
             </div>
-            <h1 className="mt-3 text-4xl tracking-[-0.04em] text-white sm:text-6xl">
-              STAKE STRK
-            </h1>
+            <h1 className="game-page-title mt-3">STAKE STRK</h1>
           </div>
           <ValidatorLink />
         </header>
