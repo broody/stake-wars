@@ -47,7 +47,7 @@ Walk has alternating planted steps, a small weight shift, and a restrained canno
 
 Both movement clips are **in place**. At the authored size and normal playback rate, translate the actor along glTF **+Z at 0.70 m/s for Walk or 2.70 m/s for Run**. Scale travel speed with model size and animation playback rate. These speeds and durations are stored in the rig's glTF extras and `asset-stats.json`. Aiming/firing, collisions, and gameplay integration remain future work.
 
-Use the rigged GLB for animation. The static GLB has no bones or clips and can share an armor `InstancedMesh` and a sensor `InstancedMesh` across many Lancers. Actual animated swarm rendering and target-device frame rate still require gameplay integration and benchmarking.
+Use the rigged GLB for animation. The static GLB has no bones or clips and can share an armor `InstancedMesh` and a sensor `InstancedMesh` across many Lancers. The [URL swarm preview](../../../local-previews/enemy-swarms.md) bakes the rigged Run clip into a GPU animation atlas for instanced playback. Target-device frame rate still requires benchmarking.
 
 ## Rebuild and validate
 

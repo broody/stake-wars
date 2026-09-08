@@ -1,0 +1,11 @@
+# Mite reference generation
+
+Method: built-in `image_gen`, using the supplied Hollow Legion sheet as the image reference. The new views interpret the small original concept rather than establish a dimensionally exact blueprint.
+
+## Exact prompt
+
+Use case: stylized-concept / precise-object-edit.
+Input image: supplied Stake Wars / Hollow Legion enemy exploration sheet; use ONLY "01 / MITE", the tiny four-legged robot at far left of both rows, as identity and geometry reference. The other four enemies must not appear and must not influence the design.
+Create a clean, high-resolution 3D modeling reference sheet isolating and enlarging this exact Mite. Preserve its compact squat silhouette: a dark graphite diamond/square-plan pyramidal armor shell with a sharp central peak, broad angular eaves, a lower inverted wedge-like faceted chassis, one narrow recessed horizontal scarlet visor in its forward face, exactly four short articulated crab/spider legs splayed diagonally, exposed dark mechanical hinges, angular gray armor on the upper leg segments and tapered pointed lower legs. No separate head, no antennae, no weapons, no organic features. Keep the modest understated red light and charcoal/gunmetal palette with slightly lighter worn steel edges from the source. Hard flat facets, extremely subtle bevels, restrained mechanical detail; do not turn the robot into a sphere or round insect.
+Composition: landscape reference board. Left 58%: one large isolated front three-quarter view, whole robot and all feet visible, occupying most of available height. Right 42%: three small clean orthographic views arranged vertically: FRONT, TOP, SIDE, consistent geometry and proportions across views. Front faces forward toward viewer, top view clearly shows the diamond shell and four corner legs in an X layout; side shows the peaked roof and angular lower body. Exact labels in tiny neutral type: "MITE / 01" at upper left and "FRONT", "TOP", "SIDE" by the orthographic views. No other text.
+Backdrop: uniform light warm gray, no grid, no scenery, no decorative panels, no other objects. Soft even studio lighting and a subtle contact shadow in the hero view only, silhouettes clearly readable. Treat this as an accurate standalone expansion of the original Mite design for a Blender artist, not a redesign. Render crisp details at high resolution.
