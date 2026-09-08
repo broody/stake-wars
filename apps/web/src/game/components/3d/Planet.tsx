@@ -1811,10 +1811,12 @@ export function SectorOwnershipLayers({
 
 interface PlanetProps {
   tenureExtrusionEnabled?: boolean;
+  interactive?: boolean;
 }
 
 export function Planet({
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
+  interactive = true,
 }: PlanetProps) {
   const { camera } = useThree();
   const { isConnected } = useWallet();
@@ -1934,8 +1936,8 @@ export function Planet({
   useEffect(() => () => fullSphereGeometry.dispose(), [fullSphereGeometry]);
 
   useEffect(() => {
-    if (isImageUploadMode) setHoveredSectorId(null);
-  }, [isImageUploadMode]);
+    if (isImageUploadMode || !interactive) setHoveredSectorId(null);
+  }, [interactive, isImageUploadMode]);
 
   useEffect(() => {
     if (shouldShowProjection) {
@@ -2222,16 +2224,18 @@ export function Planet({
       <mesh
         geometry={fullSphereGeometry}
         onClick={
-          isSectorInteractionLocked || isImageUploadMode
+          !interactive || isSectorInteractionLocked || isImageUploadMode
             ? undefined
             : handleClick
         }
         onDoubleClick={
-          isSectorInteractionLocked || isImageUploadMode
+          !interactive || isSectorInteractionLocked || isImageUploadMode
             ? undefined
             : handleDoubleClick
         }
-        onPointerMove={isImageUploadMode ? undefined : handlePointerMove}
+        onPointerMove={
+          !interactive || isImageUploadMode ? undefined : handlePointerMove
+        }
         onPointerOut={() => setHoveredSectorId(null)}
       >
         <meshBasicMaterial
@@ -2300,7 +2304,7 @@ export function Planet({
         reliefTarget={controlView === 'staked' ? 1 : 0}
         reliefVisible={reliefSurfaceVisible}
         flipped={waveFlipActive}
-        interactive={!isImageUploadMode}
+        interactive={interactive && !isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}

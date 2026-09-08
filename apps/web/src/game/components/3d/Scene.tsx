@@ -11,21 +11,24 @@ export function Scene({
   jackpotDraw,
   isJackpotTracking,
   onInspectJackpot,
+  isWalkMode,
 }: {
   isBeaconTracking: boolean;
   onInspectBeacon: () => void;
   jackpotDraw: Jackpot | null;
   isJackpotTracking: boolean;
   onInspectJackpot: () => void;
+  isWalkMode: boolean;
 }) {
   return (
     <>
       <Stars />
       <ShootingStars />
-      <Planet />
+      <Planet interactive={!isWalkMode} />
       <OrbitalBeacon
         isTracking={isBeaconTracking}
         onInspect={onInspectBeacon}
+        surfaceLightActive={isWalkMode}
       />
       {jackpotDraw ? (
         <CoreJackpotMarker
@@ -35,8 +38,11 @@ export function Scene({
           onInspect={onInspectJackpot}
         />
       ) : null}
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
+      <ambientLight
+        color={isWalkMode ? '#fff4df' : '#ffffff'}
+        intensity={isWalkMode ? 0.22 : 0.5}
+      />
+      <directionalLight position={[10, 10, 5]} intensity={isWalkMode ? 0 : 1} />
     </>
   );
 }

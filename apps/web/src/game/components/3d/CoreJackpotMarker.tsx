@@ -18,6 +18,8 @@ const ARRIVAL_DURATION_SECONDS = 1.15;
 const DEPARTURE_DURATION_SECONDS = 0.9;
 const FLIGHT_DISTANCE = 2.1;
 const ARRIVAL_SCALE = 0.35;
+const JACKPOT_LIGHT_INTENSITY = 5.5;
+const JACKPOT_LIGHT_DISTANCE = 4;
 
 function easeOutCubic(value: number): number {
   return 1 - (1 - value) ** 3;
@@ -56,6 +58,7 @@ export function CoreJackpotMarker({
 }) {
   const markerRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
+  const lightRef = useRef<THREE.PointLight>(null);
   const sectorFillMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const sectorEdgeMaterialRef = useRef<THREE.LineBasicMaterial>(null);
   const arrivalStartedAtRef = useRef<number | null>(null);
@@ -128,6 +131,10 @@ export function CoreJackpotMarker({
     const edgeOpacity = isOpen ? 1 : 0.72;
     const interactionScale = isHovered || isOpen ? 1.13 : 1;
     const isPending = isJackpotDrawPending(jackpot);
+    const lightIntensity =
+      JACKPOT_LIGHT_INTENSITY *
+      (isOpen || isHovered ? 1.25 : 1) *
+      (prefersReducedMotion ? 1 : 1 + Math.sin(elapsed * 2.4) * 0.08);
 
     if (prefersReducedMotion) {
       marker.visible = !isPending;
@@ -138,6 +145,9 @@ export function CoreJackpotMarker({
       }
       if (sectorEdgeMaterialRef.current) {
         sectorEdgeMaterialRef.current.opacity = isPending ? 0 : edgeOpacity;
+      }
+      if (lightRef.current) {
+        lightRef.current.intensity = isPending ? 0 : lightIntensity;
       }
       return;
     }
@@ -166,6 +176,9 @@ export function CoreJackpotMarker({
       if (sectorEdgeMaterialRef.current) {
         sectorEdgeMaterialRef.current.opacity =
           edgeOpacity * (1 - departureProgress);
+      }
+      if (lightRef.current) {
+        lightRef.current.intensity = lightIntensity * (1 - departureProgress);
       }
       if (departureProgress === 1) document.body.style.cursor = '';
       return;
@@ -202,6 +215,9 @@ export function CoreJackpotMarker({
     }
     if (sectorEdgeMaterialRef.current) {
       sectorEdgeMaterialRef.current.opacity = edgeOpacity * easedArrival;
+    }
+    if (lightRef.current) {
+      lightRef.current.intensity = lightIntensity * easedArrival;
     }
     body.rotation.y +=
       delta * ((isOpen ? 0.9 : 0.45) + (1 - arrivalProgress) * 5);
@@ -251,6 +267,13 @@ export function CoreJackpotMarker({
         quaternion={anchor.orientation}
         scale={prefersReducedMotion ? 1 : ARRIVAL_SCALE}
       >
+        <pointLight
+          ref={lightRef}
+          color={JACKPOT_GOLD}
+          decay={2}
+          distance={JACKPOT_LIGHT_DISTANCE}
+          intensity={prefersReducedMotion ? JACKPOT_LIGHT_INTENSITY : 0}
+        />
         <mesh position={[0, -0.66, 0]} raycast={() => undefined}>
           <cylinderGeometry args={[0.008, 0.008, 0.52, 3]} />
           <meshBasicMaterial

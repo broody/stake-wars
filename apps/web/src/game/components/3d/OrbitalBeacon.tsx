@@ -35,6 +35,9 @@ const PROJECTION_FACE_OFFSET = 0.018;
 const PROJECTION_MARK_OFFSET = 0.032;
 const PROJECTION_ALIGNMENT_DAMPING = 5;
 const PROJECTION_BRACKET_PHASE_END = 0.62;
+const SURFACE_LIGHT_COLOR = '#d9f6ff';
+const SURFACE_LIGHT_DISTANCE = 15.5;
+const SURFACE_LIGHT_INTENSITY = 180;
 const PROJECTION_FLICKER_KEYFRAMES = [
   [0, 0],
   [0.08, 0.9],
@@ -73,9 +76,11 @@ function projectionDimensions(width: number, height: number) {
 export function OrbitalBeacon({
   isTracking,
   onInspect,
+  surfaceLightActive,
 }: {
   isTracking: boolean;
   onInspect: () => void;
+  surfaceLightActive: boolean;
 }) {
   const { snapshot, isLoading } = useBeacon();
   const { isProjectionVisible } = useSectors();
@@ -267,6 +272,13 @@ export function OrbitalBeacon({
       </lineLoop>
 
       <group ref={beaconRef}>
+        <pointLight
+          color={SURFACE_LIGHT_COLOR}
+          decay={2}
+          distance={SURFACE_LIGHT_DISTANCE}
+          intensity={SURFACE_LIGHT_INTENSITY}
+          visible={surfaceLightActive}
+        />
         <group
           ref={bodyRef}
           rotation={[
