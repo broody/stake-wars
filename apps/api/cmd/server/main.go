@@ -13,6 +13,7 @@ import (
 	"stakewars.com/api/internal/api"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/beacon"
+	"stakewars.com/api/internal/challenge"
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
@@ -20,6 +21,7 @@ import (
 	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/objectstore"
 	"stakewars.com/api/internal/starknet"
+	"stakewars.com/api/internal/txjournal"
 )
 
 const shutdownPeriod = 10 * time.Second
@@ -115,6 +117,7 @@ func run() error {
 			configuration.JackpotSystemAddress,
 			configuration.JackpotKeeperAccount,
 			configuration.JackpotKeeperPrivateKey,
+			starknet.KeeperTracking{Store: txjournal.NewStore(db), Network: configuration.StarknetChainID},
 		)
 		cancelKeeperStartup()
 		if err != nil {
@@ -122,8 +125,24 @@ func run() error {
 		}
 		maintenanceDuties = append(
 			maintenanceDuties,
+			jackpotSubmitter,
 			jackpot.NewDuty(jackpotReader, jackpotSubmitter),
 		)
+		if configuration.ChallengeKeeper {
+			challengeReader, err := starknet.NewChallengeReader(
+				configuration.StarknetRPCURL, configuration.ToriiURL, configuration.ControlSystemAddress,
+			)
+			if err != nil {
+				return err
+			}
+			challengeSubmitter, err := starknet.NewChallengeSubmitter(jackpotSubmitter, configuration.ControlSystemAddress)
+			if err != nil {
+				return err
+			}
+			maintenanceDuties = append(maintenanceDuties, challenge.NewDuty(challengeReader, challengeSubmitter))
+			slog.Info("Challenge keeper enabled", "account", configuration.JackpotKeeperAccount,
+				"system", configuration.ControlSystemAddress)
+		}
 	}
 	if len(maintenanceDuties) > 0 {
 		maintenanceWorker = beacon.NewWorker(20*time.Second, maintenanceDuties...)
@@ -219,7 +238,17 @@ func run() error {
 	)
 	defer stop()
 	if maintenanceWorker != nil {
+		workerDone := make(chan struct{})
+		defer func() {
+			stop()
+			select {
+			case <-workerDone:
+			case <-time.After(shutdownPeriod):
+				slog.Error("Maintenance worker shutdown timed out")
+			}
+		}()
 		go func() {
+			defer close(workerDone)
 			if err := maintenanceWorker.Run(ctx); err != nil {
 				slog.ErrorContext(ctx, "Maintenance worker stopped", "error", err)
 			}

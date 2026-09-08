@@ -53,6 +53,9 @@ func (d *Duty) Reconcile(ctx context.Context) error {
 			"chain_timestamp", head.Timestamp,
 		)
 		hash, err := d.submitter.LockJackpot(ctx, current.ID)
+		if errors.Is(err, starknet.ErrKeeperRecheckRequired) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("lock expired jackpot %d: %w", current.ID, err)
 		}
@@ -70,6 +73,9 @@ func (d *Duty) Reconcile(ctx context.Context) error {
 			"chain_block", head.BlockNumber,
 		)
 		hash, err := d.submitter.SettleJackpot(ctx, current.ID)
+		if errors.Is(err, starknet.ErrKeeperRecheckRequired) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("settle jackpot %d: %w", current.ID, err)
 		}

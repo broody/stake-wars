@@ -58,6 +58,7 @@ type Config struct {
 	JackpotSystemAddress      string
 	JackpotKeeperAccount      string
 	JackpotKeeperPrivateKey   string
+	ChallengeKeeper           bool
 	ImageBucket               string
 	ImagePublicURL            string
 	S3Endpoint                string
@@ -155,6 +156,16 @@ func Load() (Config, error) {
 	if configuredJackpotKeeperValues != 0 && configuredJackpotKeeperValues != 3 {
 		return Config{}, fmt.Errorf("JACKPOT_SYSTEM_ADDRESS, JACKPOT_KEEPER_ACCOUNT_ADDRESS, and JACKPOT_KEEPER_PRIVATE_KEY must be configured together")
 	}
+	challengeKeeper, err := strconv.ParseBool(valueOrDefault("CHALLENGE_KEEPER_ENABLED", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED must be a boolean")
+	}
+	if challengeKeeper && (configuredJackpotKeeperValues != 3 ||
+		strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")) == "" ||
+		strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" ||
+		strings.TrimSpace(os.Getenv("TORII_URL")) == "") {
+		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED requires the Jackpot keeper configuration, CONTROL_SYSTEM_ADDRESS, STARKNET_RPC_URL, and TORII_URL")
+	}
 	origins := productionOrigins
 	if environment != productionEnvironmentName {
 		origins = append(append([]string{}, productionOrigins...), "http://localhost:3000")
@@ -222,6 +233,7 @@ func Load() (Config, error) {
 		JackpotSystemAddress:      jackpotSystemAddress,
 		JackpotKeeperAccount:      jackpotKeeperAccount,
 		JackpotKeeperPrivateKey:   jackpotKeeperPrivateKey,
+		ChallengeKeeper:           challengeKeeper,
 		ImageBucket:               imageBucket,
 		ImagePublicURL:            imagePublicURL,
 		S3Endpoint:                s3Endpoint,

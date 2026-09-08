@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"stakewars.com/api/internal/txjournal"
 
 	"github.com/NethermindEth/juno/core/felt"
 	"github.com/NethermindEth/starknet.go/account"
@@ -179,14 +182,30 @@ type JackpotSubmitter interface {
 }
 
 type AccountJackpotSubmitter struct {
-	account       *account.Account
-	jackpotSystem *felt.Felt
-	mu            sync.Mutex
+	account                keeperAccount
+	jackpotSystem          *felt.Felt
+	mu                     sync.Mutex
+	pending                *felt.Felt
+	journal                *txjournal.Store
+	network, keeperAddress string
+	attemptID              int64
 }
+
+type keeperAccount interface {
+	BuildAndSendInvokeTxn(context.Context, []starknetrpc.InvokeFunctionCall, *account.TxnOptions) (starknetrpc.AddInvokeTransactionResponse, error)
+	WaitForTransactionReceipt(context.Context, *felt.Felt, time.Duration) (*starknetrpc.TransactionReceiptWithBlockInfo, error)
+}
+
+// A previously submitted transaction completed while this action was waiting.
+// Re-read game state on the next pass before deciding whether to send again.
+var ErrKeeperRecheckRequired = errors.New("keeper transaction completed; recheck onchain state")
+
+var ErrKeeperTransactionPending = errors.New("keeper transaction receipt is pending")
 
 func NewJackpotSubmitter(
 	ctx context.Context,
 	rpcURL, jackpotSystem, accountAddress, privateKey string,
+	tracking ...KeeperTracking,
 ) (*AccountJackpotSubmitter, error) {
 	jackpotAddress, err := normalizeAddress(jackpotSystem)
 	if err != nil {
@@ -239,7 +258,29 @@ func NewJackpotSubmitter(
 	if err != nil {
 		return nil, fmt.Errorf("initialize jackpot keeper account: %w", err)
 	}
-	return &AccountJackpotSubmitter{account: keeper, jackpotSystem: jackpotAddressFelt}, nil
+	submitter := &AccountJackpotSubmitter{account: keeper, jackpotSystem: jackpotAddressFelt, keeperAddress: keeperAddress}
+	if len(tracking) > 0 {
+		if tracking[0].Store == nil || tracking[0].Network == "" {
+			return nil, fmt.Errorf("keeper journal and network are required")
+		}
+		expectedChain := new(felt.Felt).SetBytes([]byte(tracking[0].Network))
+		if strings.HasPrefix(tracking[0].Network, "0x") {
+			expectedChain, err = new(felt.Felt).SetString(tracking[0].Network)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if !keeper.ChainID.Equal(expectedChain) {
+			return nil, fmt.Errorf("keeper RPC chain does not match journal network")
+		}
+		submitter.journal = tracking[0].Store
+		submitter.network = tracking[0].Network
+		keeper.Provider = &journalProvider{RPCProvider: provider, chainID: keeper.ChainID}
+		if err := submitter.restorePending(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return submitter, nil
 }
 
 type keeperKeystore struct {
@@ -267,43 +308,142 @@ func (s *AccountJackpotSubmitter) LockJackpot(
 	ctx context.Context,
 	jackpotID uint64,
 ) (string, error) {
-	return s.invoke(ctx, "lock_jackpot", jackpotID)
+	return s.invoke(ctx, s.jackpotSystem, "lock_jackpot", jackpotID)
 }
 
 func (s *AccountJackpotSubmitter) SettleJackpot(
 	ctx context.Context,
 	jackpotID uint64,
 ) (string, error) {
-	return s.invoke(ctx, "settle_jackpot", jackpotID)
+	return s.invoke(ctx, s.jackpotSystem, "settle_jackpot", jackpotID)
 }
 
 func (s *AccountJackpotSubmitter) invoke(
 	ctx context.Context,
+	system *felt.Felt,
 	entrypoint string,
-	jackpotID uint64,
+	id uint64,
 ) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if s.pending != nil {
+		// A timeout is not a rejected transaction. Resolve the earlier receipt
+		// before using the same account for either kind of maintenance.
+		if err := s.waitPending(ctx); err != nil {
+			if s.pending != nil {
+				return "", errors.Join(ErrKeeperTransactionPending, err)
+			}
+			return "", err
+		}
+		return "", ErrKeeperRecheckRequired
+	}
+	var attempt *broadcastAttempt
+	if s.journal != nil {
+		attemptID, err := s.journal.Begin(ctx, txjournal.Metadata{Network: s.network, Source: "keeper", Account: s.keeperAddress, Contract: system.String(), Entrypoint: entrypoint, TargetID: fmt.Sprint(id)})
+		if err != nil {
+			return "", err
+		}
+		s.attemptID = attemptID
+		attempt = &broadcastAttempt{store: s.journal, id: attemptID}
+		ctx = context.WithValue(ctx, attemptContextKey{}, attempt)
+	}
 	response, err := s.account.BuildAndSendInvokeTxn(
 		ctx,
 		[]starknetrpc.InvokeFunctionCall{{
-			ContractAddress: s.jackpotSystem,
+			ContractAddress: system,
 			FunctionName:    entrypoint,
-			CallData:        []*felt.Felt{new(felt.Felt).SetUint64(jackpotID)},
+			CallData:        []*felt.Felt{new(felt.Felt).SetUint64(id)},
 		}},
 		nil,
 	)
 	if err != nil {
+		if attempt != nil {
+			stage, status, txHash := "prepare", "failed", ""
+			if attempt.hash != nil {
+				stage, txHash = "broadcast", attempt.hash.String()
+				if !rejectedBroadcast(err) {
+					status = "unknown"
+					s.pending = attempt.hash
+				}
+			}
+			recordErr := s.journal.Record(ctx, s.attemptID, transactionError(stage, status, txHash, err))
+			if s.pending != nil {
+				return txHash, errors.Join(ErrKeeperTransactionPending, err, recordErr)
+			}
+			return txHash, errors.Join(fmt.Errorf("submit %s: %w", entrypoint, err), recordErr)
+		}
 		return "", fmt.Errorf("submit %s: %w", entrypoint, err)
 	}
-	receipt, err := s.account.WaitForTransactionReceipt(ctx, response.Hash, 2*time.Second)
-	if err != nil {
-		return response.Hash.String(), fmt.Errorf("wait for %s transaction: %w", entrypoint, err)
+	if attempt != nil && attempt.hash != nil {
+		s.pending = attempt.hash
 	}
-	if receipt.ExecutionStatus != starknetrpc.TxnExecutionStatusSUCCEEDED {
-		return response.Hash.String(), fmt.Errorf(
-			"%s transaction reverted: %s", entrypoint, receipt.RevertReason,
-		)
+	if response.Hash == nil || response.Hash.IsZero() {
+		return s.uncertain(ctx, "broadcast", fmt.Errorf("submit %s returned no transaction hash", entrypoint))
+	}
+	if attempt != nil && (attempt.hash == nil || !attempt.hash.Equal(response.Hash)) {
+		err := fmt.Errorf("RPC returned a different transaction hash than the persisted intent")
+		return s.uncertain(ctx, "broadcast", err)
+	}
+	s.pending = response.Hash
+	if s.journal != nil {
+		if err := s.journal.Record(ctx, s.attemptID, txjournal.Event{Stage: "broadcast", Status: "submitted", Hash: s.pending.String()}); err != nil {
+			return s.pending.String(), errors.Join(ErrKeeperTransactionPending, err)
+		}
+	}
+	slog.InfoContext(ctx, "Keeper transaction submitted", "entrypoint", entrypoint,
+		"target_id", id, "transaction_hash", response.Hash.String())
+	if err := s.waitPending(ctx); err != nil {
+		if s.pending != nil {
+			return response.Hash.String(), errors.Join(ErrKeeperTransactionPending, err)
+		}
+		return response.Hash.String(), err
 	}
 	return response.Hash.String(), nil
+}
+
+func (s *AccountJackpotSubmitter) waitPending(ctx context.Context) error {
+	for {
+		receipt, err := s.account.WaitForTransactionReceipt(ctx, s.pending, 2*time.Second)
+		if err != nil {
+			_, err = s.uncertain(ctx, "receipt", err)
+			return fmt.Errorf("wait for keeper transaction %s: %w", s.pending.String(), err)
+		}
+		if receipt == nil {
+			_, err = s.uncertain(ctx, "receipt", fmt.Errorf("missing keeper transaction receipt"))
+			return err
+		}
+		if receipt.Hash == nil || !receipt.Hash.Equal(s.pending) {
+			_, err = s.uncertain(ctx, "receipt", fmt.Errorf("receipt hash does not match pending keeper transaction"))
+			return err
+		}
+		if receipt.FinalityStatus != starknetrpc.TxnFinalityStatusAcceptedOnL2 &&
+			receipt.FinalityStatus != starknetrpc.TxnFinalityStatusAcceptedOnL1 {
+			if err := ctx.Err(); err != nil {
+				_, err = s.uncertain(ctx, "receipt", err)
+				return err
+			}
+			continue
+		}
+		txHash := s.pending.String()
+		status := "succeeded"
+		var executionErr error
+		if receipt.ExecutionStatus != starknetrpc.TxnExecutionStatusSUCCEEDED {
+			status = "reverted"
+			executionErr = fmt.Errorf("keeper transaction %s reverted: %s", txHash, txjournal.SafeText(receipt.RevertReason))
+		}
+		if s.journal != nil {
+			event := transactionError("receipt", status, txHash, executionErr)
+			block := uint64(receipt.BlockNumber)
+			event.Block = &block
+			if err := s.journal.Record(ctx, s.attemptID, event); err != nil {
+				return err
+			}
+		}
+		s.pending = nil
+		s.attemptID = 0
+		return executionErr
+	}
 }
