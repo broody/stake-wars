@@ -188,9 +188,7 @@ export function Beacon() {
           <div className="text-[9px] tracking-[0.26em] text-dim">
             SEALED SIGNAL AUCTION
           </div>
-          <h1 className="mt-1 text-4xl font-bold tracking-[-0.08em] text-fg sm:text-5xl">
-            THE BEACON
-          </h1>
+          <h1 className="game-page-title mt-1">THE BEACON</h1>
           <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
             Bid for control of the Beacon. The winning Operator controls the
             image, description, and link it transmits.

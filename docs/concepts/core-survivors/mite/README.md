@@ -44,7 +44,7 @@ Use `mite-instanced.glb` for a static instancing path. Three.js loads its two ma
 
 For 300 visible Mites this represents **118,200 triangles and two Mite draw calls per main render pass**, when rendered as those two batches. Shadows and other passes add rendering work. Creating 300 ordinary model clones will not automatically batch them.
 
-The static export has fixed legs. Use the rigged `mite.glb` to play its four animations; individual skinned copies introduce skeleton and draw-call costs. Collision shapes, attack hit detection/damage, animated swarm rendering, and gameplay integration are not implemented here; target-device frame rate has not been benchmarked.
+The static export has fixed legs. Use the rigged `mite.glb` to play its four animations. The [URL swarm preview](../../../local-previews/enemy-swarms.md) bakes Run poses into a GPU animation atlas, sharing two instanced material batches across the population. Collision shapes and attack hit detection/damage remain future work; target-device frame rate has not been benchmarked.
 
 ## Walk animation
 

@@ -97,6 +97,58 @@ func TestLoadRejectsPartialJackpotKeeper(t *testing.T) {
 	}
 }
 
+func TestChallengeKeeperIsOptIn(t *testing.T) {
+	t.Setenv("CHALLENGE_KEEPER_ENABLED", "")
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configuration.ChallengeKeeper {
+		t.Fatal("challenge keeper enabled by default")
+	}
+}
+
+func TestLoadEnablesChallengeKeeperWithExistingSigner(t *testing.T) {
+	challengeKeeperEnvironment(t)
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configuration.ChallengeKeeper || !configuration.JackpotKeeperEnabled() {
+		t.Fatal("expected both duties to use the keeper")
+	}
+}
+
+func TestChallengeKeeperRequiresCompleteConfiguration(t *testing.T) {
+	for _, name := range []string{"JACKPOT_SYSTEM_ADDRESS", "JACKPOT_KEEPER_ACCOUNT_ADDRESS", "JACKPOT_KEEPER_PRIVATE_KEY", "CONTROL_SYSTEM_ADDRESS", "STARKNET_RPC_URL", "TORII_URL"} {
+		t.Run(name, func(t *testing.T) {
+			challengeKeeperEnvironment(t)
+			t.Setenv(name, "")
+			if _, err := Load(); err == nil {
+				t.Fatalf("enabled keeper without %s", name)
+			}
+		})
+	}
+}
+
+func TestChallengeKeeperRejectsInvalidFlag(t *testing.T) {
+	t.Setenv("CHALLENGE_KEEPER_ENABLED", "enabled")
+	if _, err := Load(); err == nil {
+		t.Fatal("accepted invalid flag")
+	}
+}
+
+func challengeKeeperEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv("CHALLENGE_KEEPER_ENABLED", "true")
+	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
+	t.Setenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("JACKPOT_KEEPER_PRIVATE_KEY", "0x789")
+	t.Setenv("CONTROL_SYSTEM_ADDRESS", "0xabc")
+	t.Setenv("STARKNET_RPC_URL", "http://rpc.example")
+	t.Setenv("TORII_URL", "http://torii.example")
+}
+
 func TestLoadRejectsInvalidImageLimit(t *testing.T) {
 	t.Setenv("MAX_IMAGE_BYTES", "0")
 

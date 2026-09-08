@@ -48,6 +48,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 func configure(ctx context.Context, db *sql.DB) error {
 	pragmas := []string{
 		"PRAGMA journal_mode = WAL",
+		"PRAGMA synchronous = FULL",
 		"PRAGMA foreign_keys = ON",
 		"PRAGMA busy_timeout = 5000",
 	}

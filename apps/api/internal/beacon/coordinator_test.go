@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"stakewars.com/api/internal/database"
@@ -20,6 +21,7 @@ func TestOperatorRoundRestarterBootstrapsOnceAfterReadback(t *testing.T) {
 	defer db.Close()
 
 	createCalls := 0
+	failCreation := true
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/v1/config":
@@ -33,6 +35,11 @@ func TestOperatorRoundRestarterBootstrapsOnceAfterReadback(t *testing.T) {
 				return
 			}
 			createCalls++
+			if failCreation {
+				response.WriteHeader(http.StatusBadGateway)
+				_ = json.NewEncoder(response).Encode(map[string]any{"error": "RPC temporarily unavailable", "request": map[string]string{"authorization": "DO_NOT_STORE"}})
+				return
+			}
 			response.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(response).Encode(map[string]string{
 				"requestId": "stakewars:SN_SEPOLIA:round:1", "auctionId": "0x2",
@@ -69,14 +76,34 @@ func TestOperatorRoundRestarterBootstrapsOnceAfterReadback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := restarter.Bootstrap(context.Background()); err == nil {
+		t.Fatal("expected first coordinator attempt to fail")
+	}
+	failCreation = false
 	if err := restarter.Bootstrap(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := restarter.Bootstrap(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if createCalls != 1 {
-		t.Fatalf("expected one create call, got %d", createCalls)
+	if createCalls != 2 {
+		t.Fatalf("expected two create attempts, got %d", createCalls)
+	}
+
+	var errorMessage string
+	if err := db.QueryRow(`SELECT error_message FROM transaction_attempt_events WHERE status='unknown'`).Scan(&errorMessage); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errorMessage, "RPC temporarily unavailable") || strings.Contains(errorMessage, "DO_NOT_STORE") {
+		t.Fatalf("coordinator diagnostic lost or leaked: %s", errorMessage)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM transaction_attempts WHERE correlation_id='stakewars:SN_SEPOLIA:round:1'`).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("retry history lost: %d %v", count, err)
+	}
+	var savedHash string
+	if err := db.QueryRow(`SELECT transaction_hash FROM transaction_attempts WHERE status='succeeded'`).Scan(&savedHash); err != nil || savedHash != "0x999" {
+		t.Fatalf("confirmed hash lost: %s %v", savedHash, err)
 	}
 	round, err := store.Current(context.Background(), "SN_SEPOLIA")
 	if err != nil {

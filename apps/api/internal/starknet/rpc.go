@@ -73,7 +73,7 @@ func (c *rpcClient) call(
 		return nil, fmt.Errorf("decode Starknet response: %w", err)
 	}
 	if rpcResponse.Error != nil {
-		return nil, fmt.Errorf("Starknet RPC error %d: %s", rpcResponse.Error.Code, rpcResponse.Error.Message)
+		return nil, rpcResponse.Error
 	}
 	return rpcResponse.Result, nil
 }
@@ -135,11 +135,7 @@ func (c *rpcClient) latestBlockHeader(ctx context.Context) (blockHeader, error) 
 		return blockHeader{}, fmt.Errorf("decode latest Starknet block: %w", err)
 	}
 	if rpcResponse.Error != nil {
-		return blockHeader{}, fmt.Errorf(
-			"Starknet RPC error %d: %s",
-			rpcResponse.Error.Code,
-			rpcResponse.Error.Message,
-		)
+		return blockHeader{}, rpcResponse.Error
 	}
 	if rpcResponse.Result.Timestamp == 0 {
 		return blockHeader{}, fmt.Errorf("latest Starknet block has no timestamp")
@@ -173,6 +169,7 @@ type rpcResponse struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
 }

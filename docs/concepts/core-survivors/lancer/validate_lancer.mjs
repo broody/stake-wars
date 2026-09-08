@@ -59,7 +59,7 @@ for (const filename of ['lancer.glb', 'lancer-instanced.glb']) {
     assert.ok(meshes.every((m) => m.isSkinnedMesh));
     assert.deepEqual(
       asset.animations.map((a) => a.name),
-      ['Idle']
+      ['Idle', 'Walk', 'Run']
     );
     assert.equal(asset.animations[0].duration, 2);
     assert.ok(

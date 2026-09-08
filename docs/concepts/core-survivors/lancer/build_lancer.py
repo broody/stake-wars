@@ -15,6 +15,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 OUT = ROOT / "apps/web/public/models/hollow-legion"
 TAG = "stakewars_lancer_v1"
+CLAW_SCALE = Vector((1.8, 1.5, 1.7))
 assert bpy.app.background and not bpy.data.filepath, "Build in a fresh background process."
 for obj in list(bpy.data.objects):
     bpy.data.objects.remove(obj, do_unlink=True)
@@ -202,13 +203,19 @@ for side, sx in [("R", -1), ("L", 1)]:
     if side == "L":
         beam("L forearm", elbow.lerp(wrist,.16), elbow.lerp(wrist,1.02),
              [(.082,.086),(.093,.095),(.062,.067)], lower, 6, levels=[0,.2,1])
-        beam("L palm", wrist, wrist + Vector((0,0,-.081)), [(.073,.068),(.064,.055)], "L.Hand")
+        hand_parts = [beam("L palm", wrist, wrist + Vector((0,0,-.081)), [(.073,.068),(.064,.055)], "L.Hand")]
         for sx2 in (-1, 1):
             # Two broad pincer fingers, with no small knuckle assemblies.
             px = wrist.x + sx2 * .042
             p = [(px-.013,.851),(px+.013,.851),(px+.015,.799),(px-sx2*.018+.010,.775),
                  (px-sx2*.018-.010,.777),(px-.013,.809)]
-            plate("L claw " + str(sx2), p, -.070, -.028, "L.Hand", ["33393C", "42494C"], ridge=0)
+            hand_parts.append(plate("L claw " + str(sx2), p, -.070, -.028, "L.Hand", ["33393C", "42494C"], ridge=0))
+        # Enlarge the existing palm and pincers around the wrist attachment.
+        # Broad facets and the original hand weights keep the same triangle count.
+        for obj in hand_parts:
+            for vertex in obj.data.vertices:
+                offset = vertex.co - wrist
+                vertex.co = wrist + Vector(tuple(offset[i] * CLAW_SCALE[i] for i in range(3)))
 
 # A conspicuous right-arm cannon, kept to large rectangular forms.
 gun_start = arm_points["R"][1]
@@ -238,6 +245,7 @@ asset.objects.link(rig)
 rig["generator"] = TAG
 rig["asset"] = "Hollow Legion / 02 Lancer"
 rig["front_axis"] = "-Y in Blender; +Z in glTF"
+rig["left_claw_scale_xyz"] = list(CLAW_SCALE)
 rig["notes"] = "Low-poly ranged sentinel; cannon replaces the right hand. Muzzle bone is the projectile socket."
 bpy.context.view_layer.objects.active = rig
 rig.select_set(True)
@@ -265,7 +273,7 @@ for side,(shoulder,elbow,wrist) in arm_points.items():
     bone(side+".UpperArm",shoulder,elbow,"Spine")
     bone(side+".Forearm",elbow,wrist,side+".UpperArm",True)
     if side == "L":
-        bone("L.Hand",wrist,wrist+Vector((0,0,-.13)),"L.Forearm",True)
+        bone("L.Hand",wrist,wrist+Vector((0,0,-.13 * CLAW_SCALE.z)),"L.Forearm",True)
 bone("Cannon",gun_start.lerp(gun_end,.16),gun_end,"R.Forearm")
 bone("Muzzle",gun_end,gun_end+gun_axis*.06,"Cannon",True)
 bpy.ops.object.mode_set(mode="OBJECT")
@@ -414,6 +422,10 @@ result=dict(triangles=triangles,materials=2,bones=len(arm_data.bones),dimensions
             animations=["Idle"],rigged_bytes=(OUT / "lancer.glb").stat().st_size,
             instanced_bytes=(OUT / "lancer-instanced.glb").stat().st_size,
             blend=str((HERE / "lancer.blend").relative_to(ROOT)),glb=str((OUT / "lancer.glb").relative_to(ROOT)),
-            instanced_glb=str((OUT / "lancer-instanced.glb").relative_to(ROOT)),front_axis="+Z in glTF",muzzle_bone="Muzzle")
+            instanced_glb=str((OUT / "lancer-instanced.glb").relative_to(ROOT)),front_axis="+Z in glTF",muzzle_bone="Muzzle",
+            left_claw_scale_xyz=list(CLAW_SCALE))
 (HERE / "asset-stats.json").write_text(json.dumps(result,indent=2)+"\n")
+import runpy
+runpy.run_path(str(HERE / "animate_lancer.py"))
+result = json.loads((HERE / "asset-stats.json").read_text())
 print(json.dumps(result,indent=2),flush=True)

@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"stakewars.com/api/internal/starknet"
+	"stakewars.com/api/internal/txjournal"
 )
 
 const coordinatorResponseLimit = 64 * 1024
@@ -113,7 +114,8 @@ func (c *OperatorCoordinatorClient) createAuction(
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
-		return createAuctionResponse{}, fmt.Errorf("create Whisper auction: unexpected status %d", response.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, coordinatorResponseLimit))
+		return createAuctionResponse{}, fmt.Errorf("create Whisper auction: HTTP %d: %s", response.StatusCode, txjournal.SafeData(string(body)))
 	}
 	var result createAuctionResponse
 	if err := decodeCoordinatorJSON(response.Body, &result); err != nil {
@@ -194,14 +196,29 @@ func (r *OperatorRoundRestarter) createAndRegister(
 	roundID uint64,
 	predecessorAuctionID uint64,
 	predecessor *CanonicalRound,
-) error {
+) (resultErr error) {
 	publicConfig, err := r.client.publicConfig(ctx)
 	if err != nil {
 		return err
 	}
+	journal := txjournal.NewStore(r.store.db)
+	requestID := fmt.Sprintf("stakewars:%s:round:%d", r.config.Network, roundID)
+	attemptID, err := journal.Begin(ctx, txjournal.Metadata{Network: r.config.Network, Source: "beacon_coordinator", Contract: publicConfig.WhisperAddress, Entrypoint: "create_auction", TargetID: fmt.Sprint(roundID), CorrelationID: requestID})
+	if err != nil {
+		return err
+	}
+	stage, txHash := "coordinator_request", ""
+	defer func() {
+		status := "succeeded"
+		if resultErr != nil {
+			status = "unknown"
+		}
+		code, message, data := starknet.RPCDiagnostic(resultErr)
+		resultErr = errors.Join(resultErr, journal.Record(ctx, attemptID, txjournal.Event{Stage: stage, Status: status, Hash: txHash, Code: code, Message: message, Data: data}))
+	}()
 	metadataHash := roundMetadataHash(r.config.Network, roundID, predecessorAuctionID)
 	result, err := r.client.createAuction(ctx, createAuctionRequest{
-		RequestID:           fmt.Sprintf("stakewars:%s:round:%d", r.config.Network, roundID),
+		RequestID:           requestID,
 		PaymentToken:        r.config.PaymentToken,
 		MetadataHash:        metadataHash,
 		WinnerPayloadDomain: r.config.WinnerPayloadDomain,
@@ -214,6 +231,15 @@ func (r *OperatorRoundRestarter) createAndRegister(
 	if err != nil {
 		return err
 	}
+	stage = "coordinator_response"
+	transactionHash, err := starknet.NormalizeFelt(result.TransactionHash)
+	if err != nil {
+		return fmt.Errorf("invalid created auction transaction hash: %w", err)
+	}
+	txHash = transactionHash
+	if err := journal.Record(ctx, attemptID, txjournal.Event{Stage: "coordinator_response", Status: "submitted", Hash: txHash}); err != nil {
+		return err
+	}
 	auctionID, err := parseHexUint64(result.AuctionID)
 	if err != nil {
 		return fmt.Errorf("invalid created auction id: %w", err)
@@ -222,10 +248,7 @@ func (r *OperatorRoundRestarter) createAndRegister(
 	if err != nil {
 		return fmt.Errorf("invalid created auction creator: %w", err)
 	}
-	transactionHash, err := starknet.NormalizeFelt(result.TransactionHash)
-	if err != nil {
-		return fmt.Errorf("invalid created auction transaction hash: %w", err)
-	}
+	stage = "verify"
 	if predecessor != nil {
 		if err := r.store.MarkCycleSubmitted(ctx, r.config.Network, predecessor.RoundID, transactionHash); err != nil {
 			return err
