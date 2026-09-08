@@ -34,10 +34,13 @@ import {
   latestJackpotDraw,
 } from '../../services/jackpot';
 import type { Jackpot } from '../../types';
+import { CoreWalkMode } from './CoreWalkMode';
+import { CoreWalkEntry, CoreWalkHud } from '../ui/CoreWalkHud';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 const JACKPOT_REFRESH_INTERVAL_MS = 10_000;
 const JACKPOT_PENDING_REFRESH_INTERVAL_MS = 1_500;
+
 const PLACEMENT_CORNERS = [
   {
     horizontal: -1,
@@ -401,7 +404,15 @@ function useCoreJackpotDraw(active: boolean): Jackpot | null {
   return draw;
 }
 
-export function World({ active = true }: { active?: boolean }) {
+export function World({
+  active = true,
+  isWalkMode = false,
+  onWalkModeChange = () => undefined,
+}: {
+  active?: boolean;
+  isWalkMode?: boolean;
+  onWalkModeChange?: (active: boolean) => void;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     selectedSectorIds,
@@ -425,6 +436,7 @@ export function World({ active = true }: { active?: boolean }) {
   const [marqueeCurrent, setMarqueeCurrent] = useState<PointerPosition | null>(
     null
   );
+  const walkModeActive = active && isWalkMode;
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
   const isJackpotOpen = searchParams.get('tracking') === 'jackpot';
   const setBeaconTracking = useCallback(
@@ -445,10 +457,10 @@ export function World({ active = true }: { active?: boolean }) {
     [setSearchParams]
   );
   const openBeaconBriefing = useCallback(() => {
-    if (ignoreBeaconInspectRef.current) return;
+    if (walkModeActive || ignoreBeaconInspectRef.current) return;
     selectSectors([]);
     setBeaconTracking(true);
-  }, [selectSectors, setBeaconTracking]);
+  }, [selectSectors, setBeaconTracking, walkModeActive]);
   const closeBeaconBriefing = useCallback(
     () => setBeaconTracking(false),
     [setBeaconTracking]
@@ -471,14 +483,23 @@ export function World({ active = true }: { active?: boolean }) {
     [setSearchParams]
   );
   const openJackpotDraw = useCallback(() => {
-    if (ignoreJackpotInspectRef.current) return;
+    if (walkModeActive || ignoreJackpotInspectRef.current) return;
     selectSectors([]);
     setJackpotTracking(true);
-  }, [selectSectors, setJackpotTracking]);
+  }, [selectSectors, setJackpotTracking, walkModeActive]);
   const closeJackpotDraw = useCallback(
     () => setJackpotTracking(false),
     [setJackpotTracking]
   );
+  const exitWalkMode = useCallback(() => {
+    onWalkModeChange(false);
+  }, [onWalkModeChange]);
+  const enterWalkMode = useCallback(() => {
+    selectSectors([]);
+    setBeaconTracking(false);
+    setJackpotTracking(false);
+    onWalkModeChange(true);
+  }, [onWalkModeChange, selectSectors, setBeaconTracking, setJackpotTracking]);
 
   useEffect(() => {
     if (!active || !isBeaconOpen) return;
@@ -536,6 +557,7 @@ export function World({ active = true }: { active?: boolean }) {
     isSectorInteractionLocked ||
     isBeaconOpen ||
     isJackpotOpen ||
+    walkModeActive ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -612,6 +634,7 @@ export function World({ active = true }: { active?: boolean }) {
       }}
       onPointerDownCapture={(event) => {
         if (
+          walkModeActive ||
           event.button !== 2 ||
           isImageUploadMode ||
           isSectorInteractionLocked
@@ -647,6 +670,7 @@ export function World({ active = true }: { active?: boolean }) {
             jackpotDraw={jackpotDraw}
             isJackpotTracking={isJackpotOpen}
             onInspectJackpot={openJackpotDraw}
+            isWalkMode={walkModeActive}
           />
         </Suspense>
 
@@ -663,23 +687,25 @@ export function World({ active = true }: { active?: boolean }) {
           enablePan={false}
           enabled={
             active &&
+            !walkModeActive &&
             marqueeStart === null &&
             !isBeaconOpen &&
             !isPlacementLocked
           }
         />
 
-        <CameraArrival active={active} />
+        <CameraArrival active={active && !walkModeActive} />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
         <BeaconCameraTracker
-          active={active && isBeaconOpen}
+          active={active && isBeaconOpen && !walkModeActive}
           projectionActive={isProjectionVisible}
         />
+        <CoreWalkMode active={walkModeActive} onExit={exitWalkMode} />
       </Canvas>
 
-      <PlacementGuide containerRef={worldRef} />
+      {walkModeActive ? null : <PlacementGuide containerRef={worldRef} />}
 
       <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />
       <JackpotDrawPanel
@@ -687,6 +713,22 @@ export function World({ active = true }: { active?: boolean }) {
         isOpen={isJackpotOpen}
         onClose={closeJackpotDraw}
       />
+
+      {walkModeActive ? (
+        <CoreWalkHud onExit={exitWalkMode} />
+      ) : (
+        <CoreWalkEntry
+          disabled={
+            !active ||
+            isImageUploadMode ||
+            isSectorInteractionLocked ||
+            isPlacementLocked ||
+            isBeaconOpen ||
+            isJackpotOpen
+          }
+          onEnter={enterWalkMode}
+        />
+      )}
 
       {activeMarquee ? (
         <div
