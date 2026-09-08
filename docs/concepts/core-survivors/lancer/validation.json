@@ -1,0 +1,42 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "reports": [
+    {
+      "filename": "lancer.glb",
+      "bytes": 104860,
+      "triangles": 722,
+      "materials": 2,
+      "bones": 17,
+      "dimensionsYUp": [
+        0.8944891699587603,
+        1.9180001311468424,
+        0.4931665307248715
+      ],
+      "clips": [
+        "Idle"
+      ]
+    },
+    {
+      "filename": "lancer-instanced.glb",
+      "bytes": 57428,
+      "triangles": 722,
+      "materials": 2,
+      "bones": 0,
+      "dimensionsYUp": [
+        0.8944891691207886,
+        1.9179999569896609,
+        0.4931665509939194
+      ],
+      "clips": []
+    }
+  ],
+  "checks": [
+    "matching export bounds",
+    "planted feet throughout Idle",
+    "Idle seam",
+    "muzzle socket",
+    "vertex colors",
+    "emissive sensors",
+    "static instancing compatibility"
+  ]
+}

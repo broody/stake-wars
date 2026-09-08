@@ -1,0 +1,20 @@
+{
+  "triangles": 722,
+  "materials": 2,
+  "bones": 17,
+  "dimensions_m": [
+    0.894489198923111,
+    0.4931664913892746,
+    1.9179999607149512
+  ],
+  "animations": [
+    "Idle"
+  ],
+  "rigged_bytes": 104860,
+  "instanced_bytes": 57428,
+  "blend": "docs/concepts/core-survivors/lancer/lancer.blend",
+  "glb": "apps/web/public/models/hollow-legion/lancer.glb",
+  "instanced_glb": "apps/web/public/models/hollow-legion/lancer-instanced.glb",
+  "front_axis": "+Z in glTF",
+  "muzzle_bone": "Muzzle"
+}

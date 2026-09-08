@@ -1,0 +1,85 @@
+{
+  "blend": "docs/concepts/core-survivors/mite/mite.blend",
+  "glb": "apps/web/public/models/hollow-legion/mite.glb",
+  "instanced_glb": "apps/web/public/models/hollow-legion/mite-instanced.glb",
+  "triangles": 394,
+  "materials": 2,
+  "bones": 10,
+  "dimensions_m": [
+    0.9123582243919373,
+    0.8881402015686035,
+    0.6217794574331492
+  ],
+  "scene": "MITE | Studio",
+  "previous_triangles": 4972,
+  "triangle_reduction_percent": 92.08,
+  "rigged_bytes": 95112,
+  "instanced_bytes": 31584,
+  "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "LeapAttack"
+  ],
+  "walk_duration_seconds": 1.0,
+  "walk_speed_mps": 0.29999999205271405,
+  "walk_frames": [
+    0,
+    23
+  ],
+  "run_duration_seconds": 0.5,
+  "run_speed_mps": 1.0079999732971192,
+  "run_frames": [
+    0,
+    11
+  ],
+  "gait_validation": {
+    "Walk": {
+      "min_foot_clearance_m": 0.003510368289425969,
+      "max_foot_lift_m": {
+        "FL": 0.08882558345794678,
+        "FR": 0.08882558345794678,
+        "RL": 0.0888255387544632,
+        "RR": 0.0888255387544632
+      },
+      "max_stance_height_error_m": 7.948299311101451e-05,
+      "loop_seam_matrix_error": 0.0
+    },
+    "Run": {
+      "min_foot_clearance_m": 0.0024815062060952187,
+      "max_foot_lift_m": {
+        "FL": 0.10710000991821289,
+        "FR": 0.10710000991821289,
+        "RL": 0.10709995031356812,
+        "RR": 0.10709995031356812
+      },
+      "max_stance_height_error_m": 0.0007275147028267385,
+      "loop_seam_matrix_error": 0.0
+    },
+    "LeapAttack": {
+      "min_mesh_clearance_m": 0.0035487727727741003,
+      "apex_foot_heights_m": [
+        0.2645999789237976,
+        0.2645999789237976,
+        0.3051000237464905,
+        0.3051000237464905
+      ],
+      "root_delta_blender_m": [
+        0.0,
+        -1.2000000476837158,
+        0.0
+      ],
+      "recovery_position_error_m": 1.519626234052415e-07
+    }
+  },
+  "leap_duration_seconds": 1.25,
+  "leap_distance_m": 1.2,
+  "leap_root_height_m": 0.18,
+  "leap_takeoff_seconds": 0.3333333333333333,
+  "leap_impact_seconds": 0.75,
+  "leap_frames": [
+    0,
+    30
+  ],
+  "leap_attack_pitch_degrees": 34.37746770784939
+}
