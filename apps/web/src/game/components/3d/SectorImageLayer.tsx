@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
+import { useArtworkAtlas } from '../../hooks/useArtworkAtlas';
 import {
   measureArtworkDetailCandidates,
   selectArtworkDetailIds,
 } from '../../utils/sectorArtworkLod';
 import {
   artworkAtlasSourceKey,
-  artworkAtlasSourcesFromKey,
   createProjectedArtworkGeometry,
   type ArtworkAtlasSlot,
 } from '../../utils/sectorArtworkProjection';
@@ -19,10 +19,8 @@ import {
   SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
 } from '../../utils/sectorFlip';
 
-const ATLAS_CELL_SIZE = 256;
 const ATLAS_MAX_COLUMNS = 16;
 const ATLAS_PAGE_CAPACITY = 256;
-const IMAGE_LOAD_CONCURRENCY = 16;
 const DETAIL_LOD_SAMPLE_INTERVAL_SECONDS = 0.2;
 
 interface SectorLoadRevealAnimationRef {
@@ -135,89 +133,6 @@ const fragmentShader = `
     gl_FragColor = vec4(color.rgb, color.a * opacity);
   }
 `;
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = 'anonymous';
-    image.decoding = 'async';
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Unable to load ${url}`));
-    image.src = url;
-  });
-}
-
-function useArtworkAtlas(
-  sourceKey: string,
-  columns: number,
-  rows: number,
-  pageId: string,
-  onLoadingChange?: (pageId: string, loading: boolean) => void
-) {
-  const [texture, setTexture] = useState<THREE.CanvasTexture | null>(null);
-  useEffect(() => () => texture?.dispose(), [texture]);
-  useEffect(() => {
-    const sources = artworkAtlasSourcesFromKey(sourceKey);
-    if (sources.length === 0) {
-      setTexture(null);
-      onLoadingChange?.(pageId, false);
-      return;
-    }
-    onLoadingChange?.(pageId, true);
-    let active = true;
-    const canvas = document.createElement('canvas');
-    canvas.width = columns * ATLAS_CELL_SIZE;
-    canvas.height = rows * ATLAS_CELL_SIZE;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      onLoadingChange?.(pageId, false);
-      return;
-    }
-    const atlas = new THREE.CanvasTexture(canvas);
-    atlas.colorSpace = THREE.SRGBColorSpace;
-    atlas.generateMipmaps = false;
-    atlas.minFilter = THREE.LinearFilter;
-    atlas.magFilter = THREE.LinearFilter;
-    let next = 0;
-    let published = false;
-    const worker = async () => {
-      while (active && next < sources.length) {
-        const sourceDefinition = sources[next++];
-        try {
-          const source = await loadImage(sourceDefinition.thumbnailUrl);
-          if (!active) return;
-          context.drawImage(
-            source,
-            sourceDefinition.column * ATLAS_CELL_SIZE,
-            sourceDefinition.row * ATLAS_CELL_SIZE,
-            ATLAS_CELL_SIZE,
-            ATLAS_CELL_SIZE
-          );
-        } catch {
-          // Keep the ownership color visible when an object cannot be loaded.
-        }
-      }
-    };
-    void Promise.all(
-      Array.from(
-        { length: Math.min(IMAGE_LOAD_CONCURRENCY, sources.length) },
-        worker
-      )
-    ).finally(() => {
-      if (!active) return;
-      atlas.needsUpdate = true;
-      published = true;
-      setTexture(atlas);
-      onLoadingChange?.(pageId, false);
-    });
-    return () => {
-      active = false;
-      onLoadingChange?.(pageId, false);
-      if (!published) atlas.dispose();
-    };
-  }, [columns, onLoadingChange, pageId, rows, sourceKey]);
-  return texture;
-}
 
 function ProjectedArtworkMesh({
   slots,
