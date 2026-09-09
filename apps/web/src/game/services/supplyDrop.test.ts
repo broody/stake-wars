@@ -1,231 +1,343 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hash } from 'starknet';
+import { describe, expect, it } from 'vitest';
 import {
-  prepareSupplyDropClaim,
-  prepareSupplyDropRecovery,
+  buildClaimSupplyDropCall,
+  buildCreateSupplyDropCalls,
+  buildTopUpSupplyDropCalls,
+  isSupplyDropTopUpOpen,
+  isSupplyDropDrawPending,
+  latestSupplyDropDraw,
+  parseSupplyDrops,
+  parseDurationSeconds,
+  parseTokenId,
+  parseTokenUnits,
 } from './supplyDrop';
-import {
-  decodeSupplyDropHold,
-  getSupplyDropHold,
-  getSupplyDropPolicy,
-} from './starknet';
 
-vi.mock('./config', () => ({
-  config: {
-    starknetRpcUrl: 'https://rpc.example',
-    jackpotSystemAddress: '0x456',
-    controlSystemAddress: '0x789',
-    stakingPoolAddress: '0x999',
-    strkTokenAddress: '0x123',
-  },
-}));
+const supplyDropSystemAddress = '0x456';
+const tokenAddress = '0x123';
+const normalizedTokenAddress =
+  '0x0000000000000000000000000000000000000000000000000000000000000123';
 
-const winner = '0xabc';
-const canonicalDrop = [
-  '0x7',
-  '0x4',
-  '0xdef',
-  '0x1',
-  '0x123',
-  '0x0',
-  '0x0',
-  '0x1f4',
-  '0x0',
-  '0x999',
-  '0x7d0',
-  '0x64',
-  '0x3e8',
-  '0x44c',
-  '0x32',
-  '0x567',
-  '0x9',
-  '0x2',
-  winner,
-  '0x44c',
-  '0x0',
-  '0x0',
-  '0x0',
-];
-let responses: Record<string, { result?: string[]; error?: unknown }>;
-let requests: Array<{
-  contract_address: string;
-  entry_point_selector: string;
-  calldata: string[];
-}>;
+describe('supply drop form parsing', () => {
+  it('converts display token amounts using configured decimals', () => {
+    expect(parseTokenUnits('1.25', 6)).toBe(1_250_000n);
+    expect(parseTokenUnits('42', 0)).toBe(42n);
+  });
 
-beforeEach(() => {
-  requests = [];
-  responses = Object.fromEntries(
-    Object.entries({
-      get_jackpot: canonicalDrop,
-      get_supply_drop_policy: ['0x7', '0x999', '0x1'],
-      get_supply_drop_hold: ['0x0', '0x0', '0x0', '0x0', '0x0', '0x0'],
-      get_pool_member_info_v1: [
-        '0x0',
-        winner,
-        '0x3e8',
-        '0x0',
-        '0x0',
-        '0x0',
-        '0x1',
-      ],
-      contract_parameters_v1: ['0x888', '0x0', '0x777', '0x123', '0x64'],
-    }).map(([name, result]) => [
-      hash.getSelectorFromName(name),
-      { result: [...result] },
-    ])
-  );
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, options: RequestInit) => {
-      const body = JSON.parse(options.body as string);
-      expect(body.params.block_id).toBe('latest');
-      requests.push(body.params.request);
-      const payload = responses[body.params.request.entry_point_selector];
-      if (!payload) throw new Error('Unexpected RPC selector');
-      return { ok: true, json: async () => payload };
-    })
-  );
+  it('rejects excess token precision and zero prizes', () => {
+    expect(() => parseTokenUnits('1.001', 2)).toThrow('at most 2 decimals');
+    expect(() => parseTokenUnits('0', 18)).toThrow('greater than zero');
+  });
+
+  it('parses token IDs and whole-unit durations', () => {
+    expect(parseTokenId('9001')).toBe(9001n);
+    expect(parseDurationSeconds('7', 'days')).toBe(604_800n);
+    expect(parseDurationSeconds('10', 'minutes')).toBe(600n);
+  });
 });
-afterEach(() => vi.unstubAllGlobals());
-function result(name: string, value: string[]) {
-  responses[hash.getSelectorFromName(name)] = { result: value };
-}
-function rpcError(name: string, code: number, data: unknown = '') {
-  responses[hash.getSelectorFromName(name)] = {
-    error: { code, message: 'Read failed', data },
+
+describe('supply drop creation calls', () => {
+  it('atomically approves and creates an ERC-20 supply drop', () => {
+    expect(
+      buildCreateSupplyDropCalls({
+        supplyDropSystemAddress,
+        prizeKind: 'erc20',
+        tokenAddress,
+        tokenId: 0n,
+        amount: 500n,
+        durationSeconds: 604_800n,
+      })
+    ).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'approve',
+        calldata: [supplyDropSystemAddress, '500', '0'],
+      },
+      {
+        contractAddress: supplyDropSystemAddress,
+        entrypoint: 'create_supply_drop',
+        calldata: ['604800', '1', normalizedTokenAddress, '0', '0', '500', '0'],
+      },
+    ]);
+  });
+
+  it('approves the selected ERC-721 token and escrows one', () => {
+    expect(
+      buildCreateSupplyDropCalls({
+        supplyDropSystemAddress,
+        prizeKind: 'erc721',
+        tokenAddress,
+        tokenId: 99n,
+        amount: 1n,
+        durationSeconds: 3_600n,
+      })
+    ).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'approve',
+        calldata: [supplyDropSystemAddress, '99', '0'],
+      },
+      {
+        contractAddress: supplyDropSystemAddress,
+        entrypoint: 'create_supply_drop',
+        calldata: ['3600', '2', normalizedTokenAddress, '99', '0', '1', '0'],
+      },
+    ]);
+  });
+
+  it('uses operator approval for an ERC-1155 supply drop', () => {
+    expect(
+      buildCreateSupplyDropCalls({
+        supplyDropSystemAddress,
+        prizeKind: 'erc1155',
+        tokenAddress,
+        tokenId: 7n,
+        amount: 12n,
+        durationSeconds: 600n,
+      })
+    ).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'set_approval_for_all',
+        calldata: [supplyDropSystemAddress, '1'],
+      },
+      {
+        contractAddress: supplyDropSystemAddress,
+        entrypoint: 'create_supply_drop',
+        calldata: ['600', '3', normalizedTokenAddress, '7', '0', '12', '0'],
+      },
+    ]);
+  });
+});
+
+describe('supply drop ledger', () => {
+  it('parses and orders indexed supply drops newest first', () => {
+    expect(
+      parseSupplyDrops({
+        data: {
+          stakewarsSupplyDropModels: {
+            edges: [
+              {
+                node: {
+                  id: '0x1',
+                  status: 4,
+                  sponsor: '0xabc',
+                  prize_kind: 1,
+                  token: '0x123',
+                  token_id: '0x0',
+                  amount: '0x64',
+                  sector_limit_snapshot: 2000,
+                  duration_seconds: '0x93a80',
+                  started_at: '0x10',
+                  ends_at: '0x20',
+                  randomness_block: '0x0',
+                  last_drawn_sector_id: 42,
+                  draw_count: 1,
+                  winner: '0xdef',
+                  settled_at: '0x30',
+                  claimed: true,
+                  claimed_by: '0xdef',
+                  claimed_at: '0x40',
+                },
+              },
+              {
+                node: {
+                  id: '0x2',
+                  status: 2,
+                  sponsor: '0xabc',
+                  prize_kind: 3,
+                  token: '0x456',
+                  token_id: '0x7',
+                  amount: '0xc',
+                  sector_limit_snapshot: '0x7d0',
+                  duration_seconds: '0x258',
+                  started_at: '0x50',
+                  ends_at: '0x60',
+                  randomness_block: '0x0',
+                  last_drawn_sector_id: 0,
+                  draw_count: 0,
+                  winner: '0x0',
+                  settled_at: '0x0',
+                  claimed: false,
+                  claimed_by: '0x0',
+                  claimed_at: '0x0',
+                },
+              },
+            ],
+          },
+        },
+      }).map((supplyDrop) => supplyDrop.id)
+    ).toEqual([2n, 1n]);
+  });
+
+  it('selects the newest supply drop that has completed a draw', () => {
+    const supplyDrops = parseSupplyDrops({
+      data: {
+        stakewarsSupplyDropModels: {
+          edges: [
+            supplyDropNode({ id: '0x3', draw_count: 0 }),
+            supplyDropNode({ id: '0x2', draw_count: 2 }),
+            supplyDropNode({ id: '0x1', status: 4, draw_count: 1 }),
+          ],
+        },
+      },
+    });
+
+    expect(latestSupplyDropDraw(supplyDrops)?.id).toBe(2n);
+  });
+
+  it('detects an expired or locked draw awaiting settlement', () => {
+    expect(isSupplyDropDrawPending({ status: 2, endsAt: 100 }, 99_999)).toBe(
+      false
+    );
+    expect(isSupplyDropDrawPending({ status: 2, endsAt: 100 }, 100_000)).toBe(
+      true
+    );
+    expect(isSupplyDropDrawPending({ status: 3, endsAt: 200 }, 100_000)).toBe(
+      true
+    );
+    expect(isSupplyDropDrawPending({ status: 4, endsAt: 100 }, 200_000)).toBe(
+      false
+    );
+  });
+
+  it('builds a claim to the connected winner address', () => {
+    expect(
+      buildClaimSupplyDropCall({
+        supplyDropSystemAddress,
+        supplyDropId: 7n,
+        recipient: tokenAddress,
+      })
+    ).toEqual({
+      contractAddress: supplyDropSystemAddress,
+      entrypoint: 'claim_prize',
+      calldata: ['7', normalizedTokenAddress],
+    });
+  });
+});
+
+function supplyDropNode(
+  overrides: Partial<{
+    id: string;
+    status: number;
+    draw_count: number;
+  }> = {}
+) {
+  return {
+    node: {
+      id: '0x1',
+      status: 2,
+      sponsor: '0xabc',
+      prize_kind: 1,
+      token: '0x123',
+      token_id: '0x0',
+      amount: '0x64',
+      sector_limit_snapshot: 2000,
+      duration_seconds: '0x258',
+      started_at: '0x10',
+      ends_at: '0x20',
+      randomness_block: '0x0',
+      last_drawn_sector_id: 42,
+      draw_count: 1,
+      winner: '0x0',
+      settled_at: '0x0',
+      claimed: false,
+      claimed_by: '0x0',
+      claimed_at: '0x0',
+      ...overrides,
+    },
   };
 }
 
-describe('Supply Drop claim and staking', () => {
-  it('builds claim, approval, exact canonical prize stake, and sync in order', async () => {
-    const calls = await prepareSupplyDropClaim(7n, winner);
-    expect(calls.map((call) => call.entrypoint)).toEqual([
-      'claim_prize',
-      'approve',
-      'add_to_delegation_pool',
-      'sync_operator',
-    ]);
-    expect(calls[0].calldata).toEqual(['7', expect.any(String)]);
-    expect(calls[1].contractAddress).toBe('0x123');
-    expect(calls[1].calldata).toEqual(['0x999', '500', '0']);
-    expect(calls[2]).toEqual({
-      contractAddress: '0x999',
-      entrypoint: 'add_to_delegation_pool',
-      calldata: [winner, '500'],
-    });
-    expect(calls[3]).toEqual({
-      contractAddress: '0x789',
-      entrypoint: 'sync_operator',
-      calldata: [winner],
-    });
-  });
-  it('uses the policy pool even if it differs from frontend configuration', async () => {
-    result('get_supply_drop_policy', ['0x7', '0x555', '0x1']);
-    const calls = await prepareSupplyDropClaim(7n, winner);
-    expect(calls[2].contractAddress).toBe('0x555');
-    const memberRequest = requests.find(
-      (request) =>
-        request.entry_point_selector ===
-        hash.getSelectorFromName('get_pool_member_info_v1')
-    );
-    expect(memberRequest?.contract_address).toBe('0x555');
-  });
-  it('uses pool entry for a winner who is no longer a member', async () => {
-    result('get_pool_member_info_v1', ['0x1']);
-    const calls = await prepareSupplyDropClaim(7n, winner);
-    expect(calls[2].entrypoint).toBe('enter_delegation_pool');
-  });
-  it('preserves legacy cash claims', async () => {
-    result('get_supply_drop_policy', ['0x7', '0x0', '0x0']);
-    expect(
-      (await prepareSupplyDropClaim(7n, winner)).map((call) => call.entrypoint)
-    ).toEqual(['claim_prize']);
-  });
-  it('blocks a second claim while the first staking requirement is outstanding', async () => {
-    result('get_supply_drop_hold', ['0x999', '1500', '1200', '300', '0', '1']);
-    await expect(prepareSupplyDropClaim(7n, winner)).rejects.toThrow(
-      'outstanding Supply Drop'
-    );
-  });
-  it('rejects mismatched winner, already-claimed prize, and wrong token', async () => {
-    await expect(prepareSupplyDropClaim(7n, '0xbbb')).rejects.toThrow(
-      'not claimable'
-    );
-    const claimed = [...canonicalDrop];
-    claimed[20] = '0x1';
-    result('get_jackpot', claimed);
-    await expect(prepareSupplyDropClaim(7n, winner)).rejects.toThrow(
-      'not claimable'
-    );
-    const wrongToken = [...canonicalDrop];
-    wrongToken[4] = '0x124';
-    result('get_jackpot', wrongToken);
-    await expect(prepareSupplyDropClaim(7n, winner)).rejects.toThrow(
-      'token does not match'
-    );
-  });
-  it('does not offer automatic staking during an exit', async () => {
-    result('get_pool_member_info_v1', [
-      '0',
-      winner,
-      '1000',
-      '0',
-      '0',
-      '20',
-      '0',
-      '2000000000',
-    ]);
-    await expect(prepareSupplyDropClaim(7n, winner)).rejects.toThrow(
-      'pending staking withdrawal'
-    );
-  });
-  it('recovers only the remaining amount using the recorded pool', async () => {
-    result('get_supply_drop_hold', ['0x555', '1500', '1200', '300', '0', '1']);
-    const calls = await prepareSupplyDropRecovery(winner);
-    expect(calls.map((call) => call.entrypoint)).toEqual([
-      'approve',
-      'add_to_delegation_pool',
-      'sync_operator',
-    ]);
-    expect(calls[1]).toEqual({
-      contractAddress: '0x555',
-      entrypoint: 'add_to_delegation_pool',
-      calldata: [winner, '300'],
-    });
-    result('get_supply_drop_hold', ['0x555', '1500', '1500', '0', '0', '0']);
-    expect(await prepareSupplyDropRecovery(winner)).toEqual([]);
-  });
-});
+describe('supply drop top-ups', () => {
+  const supplyDrop = {
+    id: 7n,
+    token: tokenAddress,
+    prizeKind: 1 as const,
+    status: 2 as const,
+    endsAt: 100,
+    amount: 500n,
+  };
+  const options = {
+    supplyDropSystemAddress,
+    supplyDrop,
+    amount: 250n,
+    now: 99_999,
+  };
 
-describe('Supply Drop authoritative reads', () => {
-  it('recognizes legacy deployments only for an explicitly missing entrypoint', async () => {
-    rpcError('get_supply_drop_policy', 21);
-    rpcError('get_supply_drop_hold', 21);
-    expect((await getSupplyDropPolicy(7n)).stakingRequired).toBe(false);
-    expect(await getSupplyDropHold(winner)).toBeNull();
+  it('approves only the increment and tops up the existing supply drop atomically', () => {
+    expect(buildTopUpSupplyDropCalls(options)).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'approve',
+        calldata: [supplyDropSystemAddress, '250', '0'],
+      },
+      {
+        contractAddress: supplyDropSystemAddress,
+        entrypoint: 'top_up_supply_drop',
+        calldata: ['7', '250', '0'],
+      },
+    ]);
   });
-  it.each([20, 40, -32603])(
-    'fails closed for other RPC errors (%s)',
-    async (code) => {
-      rpcError('get_supply_drop_policy', code, 'resource unavailable');
-      rpcError('get_supply_drop_hold', code, 'resource unavailable');
-      await expect(getSupplyDropPolicy(7n)).rejects.toThrow('Read failed');
-      await expect(getSupplyDropHold(winner)).rejects.toThrow('Read failed');
-    }
-  );
-  it('does not silently permit claims when policy verification is offline', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    await expect(prepareSupplyDropClaim(7n, winner)).rejects.toThrow('offline');
+
+  it('uses the existing ERC-1155 token approval and preserves u256 high words', () => {
+    const calls = buildTopUpSupplyDropCalls({
+      ...options,
+      supplyDrop: { ...supplyDrop, prizeKind: 3 },
+      amount: (1n << 128n) + 3n,
+    });
+    expect(calls).toEqual([
+      {
+        contractAddress: normalizedTokenAddress,
+        entrypoint: 'set_approval_for_all',
+        calldata: [supplyDropSystemAddress, '1'],
+      },
+      {
+        contractAddress: supplyDropSystemAddress,
+        entrypoint: 'top_up_supply_drop',
+        calldata: ['7', '3', '1'],
+      },
+    ]);
   });
-  it('rejects corrupt hold data instead of treating it as unlocked', () => {
-    for (const value of [
-      [],
-      ['0x999', '1500', '1000', '500', '0', '0'],
-      ['0x999', '1500', '1000', '-1', '0', '1'],
-      ['0x999', '1500', '1000', '500', '0', '2'],
-    ]) {
-      expect(() => decodeSupplyDropHold(value)).toThrow();
+
+  it('closes at the exact deadline and rejects inactive or ERC-721 prizes', () => {
+    expect(isSupplyDropTopUpOpen(supplyDrop, 99_999)).toBe(true);
+    expect(isSupplyDropTopUpOpen(supplyDrop, 100_000)).toBe(false);
+    expect(() =>
+      buildTopUpSupplyDropCalls({ ...options, now: 100_000 })
+    ).toThrow('no longer open');
+    for (const status of [1, 3, 4] as const) {
+      expect(() =>
+        buildTopUpSupplyDropCalls({
+          ...options,
+          supplyDrop: { ...supplyDrop, status },
+        })
+      ).toThrow('no longer open');
     }
+    expect(() =>
+      buildTopUpSupplyDropCalls({
+        ...options,
+        supplyDrop: { ...supplyDrop, prizeKind: 2 },
+      })
+    ).toThrow('no longer open');
+  });
+
+  it('rejects invalid increments and overflow of the combined prize', () => {
+    for (const amount of [0n, -1n, 1n << 256n]) {
+      expect(() => buildTopUpSupplyDropCalls({ ...options, amount })).toThrow(
+        'Top-up amount'
+      );
+    }
+    expect(() =>
+      buildTopUpSupplyDropCalls({ ...options, amount: (1n << 256n) - 500n })
+    ).toThrow('resulting prize');
+    expect(() =>
+      buildTopUpSupplyDropCalls({
+        ...options,
+        supplyDrop: { ...supplyDrop, id: 0n },
+      })
+    ).toThrow('SupplyDrop ID');
+    expect(() =>
+      buildTopUpSupplyDropCalls({ ...options, supplyDropSystemAddress: '' })
+    ).toThrow('not configured');
   });
 });

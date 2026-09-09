@@ -4,7 +4,7 @@ The Stake Wars game layer is a Dojo World. It never holds or transfers an
 Operator's delegated STRK. It reads each Operator's live delegation and
 unpooling state from the official Stake Wars delegation pool. Game capacity is
 derived as live delegation minus Sector garrisons, active cumulative challenge
-commitments, and permanently spent game force. The separate Jackpot System may
+commitments, and permanently spent game force. The separate SupplyDrop System may
 escrow a role-authorized ERC-20, ERC-721, or ERC-1155 reward for its active
 round; that escrow is never sourced from Operator delegation or FORCE.
 
@@ -104,21 +104,21 @@ Spent force is permanent accounting for that Operator address. The contracts do
 not slash, escrow, or transfer the underlying STRK, which remains in the official
 delegation pool under its normal staking and reward rules.
 
-## Jackpot System
+## SupplyDrop System
 
 The game admin and any number of wallets holding OpenZeppelin's
-`JACKPOT_CREATOR_ROLE` may create a Jackpot by approving and fully funding an
+`SUPPLY_DROP_CREATOR_ROLE` may create a SupplyDrop by approving and fully funding an
 ERC-20, ERC-721, or ERC-1155 prize. The Admin System's standard AccessControl
-entrypoints grant and revoke creators, while the one-active-Jackpot limit
+entrypoints grant and revoke creators, while the one-active-SupplyDrop limit
 continues to apply globally. After the configured deadline, gameplay continues
-and any account may call `lock_jackpot`. That entrypoint commits to a future
-block hash; `settle_jackpot` becomes callable after the hash is available
+and any account may call `lock_supply_drop`. That entrypoint commits to a future
+block hash; `settle_supply_drop` becomes callable after the hash is available
 through Starknet's block-hash syscall. The resulting Poseidon hash selects one
 Sector from the round's snapshotted Sector range.
 
 The wallet controlling the selected Sector at the exact round deadline wins.
 An active Challenge does not displace that Controller: if the Challenge settles
-after the deadline, the incumbent still receives the Jackpot. Control lazily
+after the deadline, the incumbent still receives the SupplyDrop. Control lazily
 records the pre-change Sector and Operator state the first time either changes
 after expiry, so releases, captures, Challenge settlements, stake
 disqualifications, and retirements can continue without redirecting the prize.
@@ -126,7 +126,7 @@ A Sector that was neutral or already stale at the deadline has no winner and
 rolls the escrow into another full-duration round. A valid selection records
 the winner, who then calls `claim_prize` to transfer the exact escrowed prize to
 a chosen recipient. This keeps a rejecting token or recipient from blocking
-Jackpot finalization. The
+SupplyDrop finalization. The
 future-block-hash scheme is transparent pseudo-randomness, not a substitute for
 an audited VRF for high-value Mainnet prizes.
 

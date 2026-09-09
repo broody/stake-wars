@@ -1,0 +1,93 @@
+[
+  {
+    "resource": "stakewars-SupplyDropHold",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x38267e4cea55d81cc8d9ba3a73f485dbf12c12af31671b71c5fcf4e9633ebea",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-SupplyDropPolicy",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x39c2af366943fb62e81ff8c0d1b8892b82d2529926f6daeced53bc5928c9f59",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-SupplyDropHoldCreated",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x42ce010a8d2e10c2e2d27b87ca098738d8f2364882270777f25eff16c80934f",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotCounter",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x1038515c8933d2ac087b049cac987bd0a8ff08b231f084e35061584a8604af4",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-Jackpot",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x243f4d3349e39d7ad4de76372bb818348ffee45515d4f788f3b06d1399f6c07",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotSectorSnapshot",
+    "writer": "0x769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0",
+    "selector": "0x765cc4d407be5ea348f57bc13a51966c0aed3503927e075e541a45e8d0c1a2b",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotOperatorSnapshot",
+    "writer": "0x769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0",
+    "selector": "0x47b72c9780d09ba71c4b6b4f1761533577270290ff7be7a4b1a27b336ed0342",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotCreated",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x78b6902ce1224a2b043f2b61217ac5c25d57620899981ed29b699d605cb5659",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotToppedUp",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x36f125125efe942b6c6aa7851f42f43ff6bbf41ca7f20aacae51ca916b3ae46",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotLocked",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x7e31d4ef33c2c6a225245f6d7c6136e501cee76f836afef05ee54e40adfdbb2",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotRolledOver",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x4fa6e6de9cc38c75e8ed23d7cab06f3dfe1ea5c9d92df59b390a42749cdeb79",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotSettled",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x5ded2e261b3c6eafe8dd843d5d15413fba85b4ed334194829fcad6b787870b8",
+    "wasGranted": true,
+    "grantedAfter": false
+  },
+  {
+    "resource": "stakewars-JackpotClaimed",
+    "writer": "0x1f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b",
+    "selector": "0x4c36cfedce1cc4116e017ad7b0e7b156286fb2ac478326aba383fb3158f886",
+    "wasGranted": true,
+    "grantedAfter": false
+  }
+]

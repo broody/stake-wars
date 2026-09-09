@@ -2,21 +2,21 @@ use starknet::ContractAddress;
 
 pub const CONFIG_ID: u8 = 0;
 pub const CHALLENGE_COUNTER_ID: u8 = 0;
-pub const JACKPOT_COUNTER_ID: u8 = 0;
+pub const SUPPLY_DROP_COUNTER_ID: u8 = 0;
 pub const MAX_SECTORS: u32 = 2_000;
 pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
 pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
 pub const SEPOLIA_CHALLENGE_PERIOD_SECONDS: u64 = 180; // 3 minutes
 pub const MAINNET_CHALLENGE_PERIOD_SECONDS: u64 = 10_800; // 3 hours
 
-pub const JACKPOT_PRIZE_ERC20: u8 = 1;
-pub const JACKPOT_PRIZE_ERC721: u8 = 2;
-pub const JACKPOT_PRIZE_ERC1155: u8 = 3;
+pub const SUPPLY_DROP_PRIZE_ERC20: u8 = 1;
+pub const SUPPLY_DROP_PRIZE_ERC721: u8 = 2;
+pub const SUPPLY_DROP_PRIZE_ERC1155: u8 = 3;
 
-pub const JACKPOT_STATUS_FUNDING: u8 = 1;
-pub const JACKPOT_STATUS_ACTIVE: u8 = 2;
-pub const JACKPOT_STATUS_DRAWING: u8 = 3;
-pub const JACKPOT_STATUS_SETTLED: u8 = 4;
+pub const SUPPLY_DROP_STATUS_FUNDING: u8 = 1;
+pub const SUPPLY_DROP_STATUS_ACTIVE: u8 = 2;
+pub const SUPPLY_DROP_STATUS_DRAWING: u8 = 3;
+pub const SUPPLY_DROP_STATUS_SETTLED: u8 = 4;
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -56,12 +56,12 @@ pub struct SupplyDropHold {
     pub required_stake: u128,
 }
 
-/// Created alongside new rounds. Missing records preserve legacy payout terms.
+/// Required for every Supply Drop. A missing policy is invalid.
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct SupplyDropPolicy {
+pub struct SupplyDropStakingPolicy {
     #[key]
-    pub jackpot_id: u64,
+    pub supply_drop_id: u64,
     pub staking_pool: ContractAddress,
     pub staking_required: bool,
 }
@@ -126,7 +126,7 @@ pub struct ChallengeParticipant {
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct JackpotCounter {
+pub struct SupplyDropCounter {
     #[key]
     pub id: u8,
     pub next_id: u64,
@@ -135,7 +135,7 @@ pub struct JackpotCounter {
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct Jackpot {
+pub struct SupplyDrop {
     #[key]
     pub id: u64,
     pub status: u8,
@@ -162,9 +162,9 @@ pub struct Jackpot {
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct JackpotSectorSnapshot {
+pub struct SupplyDropSectorSnapshot {
     #[key]
-    pub jackpot_id: u64,
+    pub supply_drop_id: u64,
     #[key]
     pub draw_count: u32,
     #[key]
@@ -176,9 +176,9 @@ pub struct JackpotSectorSnapshot {
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct JackpotOperatorSnapshot {
+pub struct SupplyDropOperatorSnapshot {
     #[key]
-    pub jackpot_id: u64,
+    pub supply_drop_id: u64,
     #[key]
     pub draw_count: u32,
     #[key]

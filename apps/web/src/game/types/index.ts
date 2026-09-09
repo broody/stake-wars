@@ -177,14 +177,14 @@ export interface YieldSummary {
   claims: YieldClaim[];
 }
 
-export type JackpotPrizeKind = 1 | 2 | 3;
-export type JackpotStatus = 1 | 2 | 3 | 4;
+export type SupplyDropPrizeKind = 1 | 2 | 3;
+export type SupplyDropStatus = 1 | 2 | 3 | 4;
 
-export interface Jackpot {
+export interface SupplyDrop {
   id: bigint;
-  status: JackpotStatus;
+  status: SupplyDropStatus;
   sponsor: string;
-  prizeKind: JackpotPrizeKind;
+  prizeKind: SupplyDropPrizeKind;
   token: string;
   tokenId: bigint;
   amount: bigint;

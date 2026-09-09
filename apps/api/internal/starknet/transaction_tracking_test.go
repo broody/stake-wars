@@ -87,18 +87,18 @@ func TestKeeperPersistsHashBeforeBroadcastAndRecoversLostResponse(t *testing.T) 
 		return starknetrpc.AddInvokeTransactionResponse{}, context.DeadlineExceeded
 	}}}
 	account := &trackedKeeperAccount{provider: provider, txn: txn}
-	keeper := &AccountJackpotSubmitter{account: account, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", jackpotSystem: new(felt.Felt).SetUint64(2)}
-	got, err := keeper.LockJackpot(ctx, 7)
+	keeper := &AccountSupplyDropSubmitter{account: account, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", supplyDropSystem: new(felt.Felt).SetUint64(2)}
+	got, err := keeper.LockSupplyDrop(ctx, 7)
 	if got != expected.String() || !errors.Is(err, ErrKeeperTransactionPending) {
 		t.Fatalf("uncertain broadcast lost: %s %v", got, err)
 	}
 	// Rebuild the submitter as on API startup, without its old in-memory hash.
 	restartedAccount := &fakeKeeperAccount{waitErrors: []error{context.DeadlineExceeded, nil}}
-	restarted := &AccountJackpotSubmitter{account: restartedAccount, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", jackpotSystem: new(felt.Felt).SetUint64(2)}
+	restarted := &AccountSupplyDropSubmitter{account: restartedAccount, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", supplyDropSystem: new(felt.Felt).SetUint64(2)}
 	if err := restarted.restorePending(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restarted.LockJackpot(ctx, 8); !errors.Is(err, ErrKeeperTransactionPending) {
+	if _, err := restarted.LockSupplyDrop(ctx, 8); !errors.Is(err, ErrKeeperTransactionPending) {
 		t.Fatalf("resent unresolved transaction: %v", err)
 	}
 	if err := restarted.Reconcile(ctx); err != nil {
@@ -147,9 +147,9 @@ func TestKeeperPreparationErrorRecordsRPCDataAndRetryHistory(t *testing.T) {
 	db, journal := trackingDB(t)
 	rpcErr := &starknetrpc.RPCError{Code: 41, Message: "Transaction execution error", Data: &starknetrpc.TransactionExecErrData{TransactionIndex: 0, ExecutionError: starknetrpc.ContractExecutionError{Message: "challenge already settled"}}}
 	account := &trackedKeeperAccount{prepareErr: rpcErr}
-	keeper := &AccountJackpotSubmitter{account: account, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", jackpotSystem: new(felt.Felt).SetUint64(2)}
+	keeper := &AccountSupplyDropSubmitter{account: account, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", supplyDropSystem: new(felt.Felt).SetUint64(2)}
 	for i := 0; i < 2; i++ {
-		if _, err := keeper.LockJackpot(ctx, 7); err == nil {
+		if _, err := keeper.LockSupplyDrop(ctx, 7); err == nil {
 			t.Fatal("expected failure")
 		}
 	}
@@ -170,7 +170,7 @@ func TestKeeperRecoveryInterruptsOnlyPreBroadcastAttempts(t *testing.T) {
 	if _, err := journal.Begin(ctx, txjournal.Metadata{Network: "SN_SEPOLIA", Source: "keeper", Account: "0x1"}); err != nil {
 		t.Fatal(err)
 	}
-	keeper := &AccountJackpotSubmitter{journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1"}
+	keeper := &AccountSupplyDropSubmitter{journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1"}
 	if err := keeper.restorePending(ctx); err != nil {
 		t.Fatal(err)
 	}

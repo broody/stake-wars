@@ -6,7 +6,7 @@ pub const IERC1155_RECEIVER_ID: felt252 =
     0x15e8665b5af20040c3af1670509df02eb916375cdf7d8cbaf7bd553a257515e;
 pub const ISRC5_ID: felt252 = 0x3f918d17e5ee77373b56385708f855659a07f75997f365cf87748628532a055;
 
-/// Minimal standard token ABIs used by Jackpot prize escrow.
+/// Minimal standard token ABIs used by SupplyDrop prize escrow.
 #[starknet::interface]
 pub trait IERC20Asset<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;

@@ -76,24 +76,24 @@ func TestLoadRejectsPartialBeaconCoordinator(t *testing.T) {
 	}
 }
 
-func TestLoadConfiguresJackpotKeeper(t *testing.T) {
-	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
-	t.Setenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS", "0x456")
-	t.Setenv("JACKPOT_KEEPER_PRIVATE_KEY", "0x789")
+func TestLoadConfiguresSupplyDropKeeper(t *testing.T) {
+	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "0x123")
+	t.Setenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY", "0x789")
 
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !configuration.JackpotKeeperEnabled() {
-		t.Fatalf("unexpected jackpot keeper config")
+	if !configuration.SupplyDropKeeperEnabled() {
+		t.Fatalf("unexpected supply_drop keeper config")
 	}
 }
 
-func TestLoadRejectsPartialJackpotKeeper(t *testing.T) {
-	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
+func TestLoadRejectsPartialSupplyDropKeeper(t *testing.T) {
+	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "0x123")
 	if _, err := Load(); err == nil {
-		t.Fatal("expected partial jackpot keeper config to fail")
+		t.Fatal("expected partial supply_drop keeper config to fail")
 	}
 }
 
@@ -114,13 +114,13 @@ func TestLoadEnablesChallengeKeeperWithExistingSigner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !configuration.ChallengeKeeper || !configuration.JackpotKeeperEnabled() {
+	if !configuration.ChallengeKeeper || !configuration.SupplyDropKeeperEnabled() {
 		t.Fatal("expected both duties to use the keeper")
 	}
 }
 
 func TestChallengeKeeperRequiresCompleteConfiguration(t *testing.T) {
-	for _, name := range []string{"JACKPOT_SYSTEM_ADDRESS", "JACKPOT_KEEPER_ACCOUNT_ADDRESS", "JACKPOT_KEEPER_PRIVATE_KEY", "CONTROL_SYSTEM_ADDRESS", "STARKNET_RPC_URL", "TORII_URL"} {
+	for _, name := range []string{"SUPPLY_DROP_SYSTEM_ADDRESS", "SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "SUPPLY_DROP_KEEPER_PRIVATE_KEY", "CONTROL_SYSTEM_ADDRESS", "STARKNET_RPC_URL", "TORII_URL"} {
 		t.Run(name, func(t *testing.T) {
 			challengeKeeperEnvironment(t)
 			t.Setenv(name, "")
@@ -141,9 +141,9 @@ func TestChallengeKeeperRejectsInvalidFlag(t *testing.T) {
 func challengeKeeperEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("CHALLENGE_KEEPER_ENABLED", "true")
-	t.Setenv("JACKPOT_SYSTEM_ADDRESS", "0x123")
-	t.Setenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS", "0x456")
-	t.Setenv("JACKPOT_KEEPER_PRIVATE_KEY", "0x789")
+	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "0x123")
+	t.Setenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY", "0x789")
 	t.Setenv("CONTROL_SYSTEM_ADDRESS", "0xabc")
 	t.Setenv("STARKNET_RPC_URL", "http://rpc.example")
 	t.Setenv("TORII_URL", "http://torii.example")

@@ -1,0 +1,250 @@
+{
+  "block": 14588150,
+  "network": "SN_MAIN",
+  "world": "0x6e2d33ac9878de85acc676347f6bd97a860376fe33438eb7445317a6b1d71cc",
+  "supplyDrop": "0xb47dd48f3d3c995c33ef408366a81dd8c90a0a3fb75fd7fc5df94f0092e587",
+  "control": "0x769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0",
+  "resources": [
+    {
+      "tag": "stakewars-control",
+      "address": "0x769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0",
+      "classHash": "0x1499c95aae3a794652230ac42fde19bc6d12f16e9740c9945f903405c88c64c"
+    },
+    {
+      "tag": "stakewars-supply_drop",
+      "address": "0xb47dd48f3d3c995c33ef408366a81dd8c90a0a3fb75fd7fc5df94f0092e587",
+      "classHash": "0x30cd46cd2d38b43c059c6bb5cfd6947ff2c0fb429a294a79d0d44d2103a2bef"
+    },
+    {
+      "tag": "stakewars-SupplyDrop",
+      "address": "0x3cdb76bba13ea427239cf7b1d63647e1fa9a4c9a57c53d8b465ac4dee3899a4",
+      "classHash": "0x4865444a00e3022955f3c4a0b7bf2268196add702ac14b36e25754335cd17da"
+    },
+    {
+      "tag": "stakewars-SupplyDropCounter",
+      "address": "0x6b82e68977e7d893174285896e9216f03f6e70cc148aed440eadbde41364cde",
+      "classHash": "0x1513005d24eb7dd508dc544dd9c60844dd607a25876d8bc18ae758360dd8d00"
+    },
+    {
+      "tag": "stakewars-SupplyDropOperatorSnapshot",
+      "address": "0x74be1609092360b288b4f7b0c1f796cb11abd588e5e264e514daff9682eca",
+      "classHash": "0x13f20aab4e166f106b56bca3c73c33a9a36547faf447ffa8f765020a4d6bbef"
+    },
+    {
+      "tag": "stakewars-SupplyDropSectorSnapshot",
+      "address": "0x9c1e2449f03c482da2de04ddce09c5dce403002ab6ca4630515787255fc125",
+      "classHash": "0x1c0c2495bde152e1b120ac634e707801fd6754f58d6f92ad0a72707d0500b2c"
+    },
+    {
+      "tag": "stakewars-SupplyDropStakingPolicy",
+      "address": "0x2a9f4cf80f3400e3b9ff6693938446c455c7300a8529f3b3c0388d67dcc1c89",
+      "classHash": "0x109e107f98ed3d49a75166f531109dfb34cfe50c0063ee8b9da5db06210eed0"
+    },
+    {
+      "tag": "stakewars-SupplyDropClaimHoldCreated",
+      "address": "0x2d9a9b78c9034b5d8947728496155310a1f5458b6a381e1542270d0ee78848b",
+      "classHash": "0x19afb9100005a25e50262b2de0d377c6244c3feebc9122d568757a8fe17f05d"
+    },
+    {
+      "tag": "stakewars-SupplyDropClaimed",
+      "address": "0x1337247cc62c712da2a5b73cba5d23444c1b03ee086c8a83070307dadd98b1",
+      "classHash": "0x659d45bbca039e9fcedb7ffaf1b2e860a82e412a498b226539c65dc9d02efc9"
+    },
+    {
+      "tag": "stakewars-SupplyDropCreated",
+      "address": "0x33b7f56e5a8331e4d849ea4ff1a83b126ab0504cb77fde24ebf9bee5e702614",
+      "classHash": "0x5b8745f4b38024152f5012020a5e7c3bb0def95eaf7308e32bbe7b8299061a7"
+    },
+    {
+      "tag": "stakewars-SupplyDropLocked",
+      "address": "0x70ab3f6e4383f1d2810b197df236a0742ea97c3a244d30fe6131cf282a94fd0",
+      "classHash": "0x383c2901749d2164276982ddcf115393652f89604cb938bb7eab55c7b0161c9"
+    },
+    {
+      "tag": "stakewars-SupplyDropRolledOver",
+      "address": "0x5a530f2aa6250fa74a0df6e1bcec9c0d99e4ed19bdd245b6f8ee660146b0c36",
+      "classHash": "0x23e692425d23ecda4a4fd06b917317c5632c691e5874895b3780c91c0073b47"
+    },
+    {
+      "tag": "stakewars-SupplyDropSettled",
+      "address": "0x68d09653b299229e04daac4711f6b42ebc4f76b1055ee9f234efd8501ebfaf6",
+      "classHash": "0x76eeaa804f15ca1a13590c7ce2eabb730626578878198f59158351a2386a48d"
+    },
+    {
+      "tag": "stakewars-SupplyDropToppedUp",
+      "address": "0x6707888f214b4ed269e4917420e29c04432b9cf4f7825831854fcd97d23ed2f",
+      "classHash": "0x7c1bac62e8060f32c75acaca4d15c8c4f6de53b7b725202e9fe537e0d4d10dc"
+    }
+  ],
+  "gameConfig": [
+    "0x7",
+    "0x1",
+    "0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c",
+    "0x6ea5688ff1395a4562238880d43500035fb55f2b80546e0e530770378cd1e2e",
+    "0x8ac7230489e80000",
+    "0x2a30",
+    "0x7d0",
+    "0x0"
+  ],
+  "emptyCounter": [
+    "0x2",
+    "0x0",
+    "0x0"
+  ],
+  "oldEscrow": "0",
+  "newEscrow": "0",
+  "adminBalance": "234038864615034231584",
+  "noActive": true,
+  "policyMissing": true,
+  "noJackpotAliases": true,
+  "neutral": {
+    "id": 1999,
+    "requiredStake": "0x8ac7230489e80000"
+  },
+  "writerChecks": [
+    {
+      "resource": "stakewars-SupplyDropHold",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropHold",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SupplyDropStakingPolicy",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropClaimHoldCreated",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropHoldCleared",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-GameConfig",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-OperatorState",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-Sector",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengeCounter",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-Challenge",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengeParticipant",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SupplyDropCounter",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDrop",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropSectorSnapshot",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SupplyDropOperatorSnapshot",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ConfigInitialized",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-PauseChanged",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-RulesChanged",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-StakingPoolChanged",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-AdminTransferred",
+      "writer": "stakewars-admin"
+    },
+    {
+      "resource": "stakewars-SectorCaptured",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SectorReinforced",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SectorReleased",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengeInitiated",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengeEscalated",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SectorSacrificed",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengeSettled",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-ChallengePositionResolved",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-OperatorDisqualified",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-OperatorRetired",
+      "writer": "stakewars-control"
+    },
+    {
+      "resource": "stakewars-SupplyDropCreated",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropToppedUp",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropLocked",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropRolledOver",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropSettled",
+      "writer": "stakewars-supply_drop"
+    },
+    {
+      "resource": "stakewars-SupplyDropClaimed",
+      "writer": "stakewars-supply_drop"
+    }
+  ]
+}

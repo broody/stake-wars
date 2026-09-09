@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-09T03:57:09.485Z",
+  "url": "https://stakewars.gg/play/drop",
+  "status": 200,
+  "supplyDrop": "0xb47dd48f3d3c995c33ef408366a81dd8c90a0a3fb75fd7fc5df94f0092e587",
+  "bundles": [
+    "/assets/index-DpDuRwx5.js",
+    "/assets/App-YqqIcJdu.js",
+    "/assets/App-B-Q1AnuS.js",
+    "/assets/SupplyDropCreator-C2EBjzlg.js"
+  ],
+  "newInterfaceVerified": true,
+  "legacyReferencesAbsent": true,
+  "vercelDeployment": "dpl_DGwuVBaNRvTKWSPVPGXaHLY6gvu3",
+  "browserChecks": {
+    "landing": "NO ACTIVE SUPPLY DROP",
+    "drop": "NO ACTIVE SUPPLY DROP; NO COMPLETED SUPPLY DROPS YET",
+    "creator": "Verified new contract address; wallet-disconnected action disabled",
+    "fundingSubmitted": false
+  }
+}

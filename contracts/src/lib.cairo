@@ -6,7 +6,7 @@ pub mod supply_drop;
 pub mod systems {
     pub mod admin;
     pub mod control;
-    pub mod jackpot;
+    pub mod supply_drop;
 }
 
 #[cfg(test)]
@@ -14,6 +14,6 @@ pub mod tests {
     mod mock_account;
     mod mock_staking_pool;
     mod mock_tokens;
-    mod test_jackpot;
+    mod test_supply_drop;
     mod test_world;
 }

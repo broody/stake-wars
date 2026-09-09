@@ -1,0 +1,25 @@
+{
+  "name": "SupplyDropStakingPolicy",
+  "classHash": "0x109e107f98ed3d49a75166f531109dfb34cfe50c0063ee8b9da5db06210eed0",
+  "compiledClassHash": "0x37c84fb11ea476b61242985ccdac38cf3d3796331c78b6bd4e3add9dcb12f3f",
+  "status": "accepted",
+  "bounds": {
+    "l2_gas": {
+      "max_amount": "274224960",
+      "max_price_per_unit": "43427795367"
+    },
+    "l1_gas": {
+      "max_amount": "0",
+      "max_price_per_unit": "129628675876923"
+    },
+    "l1_data_gas": {
+      "max_amount": "288",
+      "max_price_per_unit": "51039701401"
+    }
+  },
+  "reserve": "11909000146837763808",
+  "balance": "247156158281225731904",
+  "transactionHash": "0x1a204c4937b2cb229f6c6657d25629ddbc665dd8993f3b7c7f26ecff2f58f84",
+  "nonce": "82",
+  "block": 14587956
+}

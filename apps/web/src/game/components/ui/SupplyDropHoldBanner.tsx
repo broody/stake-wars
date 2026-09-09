@@ -13,7 +13,7 @@ import {
   getSupplyDropHold,
   type SupplyDropHold,
 } from '../../services/starknet';
-import { prepareSupplyDropRecovery } from '../../services/supplyDrop';
+import { prepareSupplyDropRecovery } from '../../services/supplyDropClaims';
 import { formatStrk } from '../../utils/format';
 
 export function SupplyDropHoldBanner() {

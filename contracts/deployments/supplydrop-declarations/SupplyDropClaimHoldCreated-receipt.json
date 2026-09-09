@@ -1,0 +1,65 @@
+{
+  "actual_fee": {
+    "amount": "0x4ce4e8f4324c96c0",
+    "unit": "FRI"
+  },
+  "block_hash": "0x10548d091ded3fcf68cee850a9cccfc20ff4eb253ae690c9e52ad4148fc70e4",
+  "block_number": 14587975,
+  "events": [
+    {
+      "data": [
+        "0x4ce4e8f4324c96c0",
+        "0x0"
+      ],
+      "from_address": "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+      "keys": [
+        "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9",
+        "0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c",
+        "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8"
+      ]
+    }
+  ],
+  "execution_resources": {
+    "l1_data_gas": 192,
+    "l1_gas": 0,
+    "l2_gas": 191379840
+  },
+  "execution_status": "SUCCEEDED",
+  "finality_status": "ACCEPTED_ON_L2",
+  "messages_sent": [],
+  "transaction_hash": "0x2682f251ba8a06a760a435ed43a67686bea303af0a4e965da4c218c21fb0cd9",
+  "type": "DECLARE",
+  "statusReceipt": "SUCCEEDED",
+  "value": {
+    "actual_fee": {
+      "amount": "0x4ce4e8f4324c96c0",
+      "unit": "FRI"
+    },
+    "block_hash": "0x10548d091ded3fcf68cee850a9cccfc20ff4eb253ae690c9e52ad4148fc70e4",
+    "block_number": 14587975,
+    "events": [
+      {
+        "data": [
+          "0x4ce4e8f4324c96c0",
+          "0x0"
+        ],
+        "from_address": "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+        "keys": [
+          "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9",
+          "0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c",
+          "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8"
+        ]
+      }
+    ],
+    "execution_resources": {
+      "l1_data_gas": 192,
+      "l1_gas": 0,
+      "l2_gas": 191379840
+    },
+    "execution_status": "SUCCEEDED",
+    "finality_status": "ACCEPTED_ON_L2",
+    "messages_sent": [],
+    "transaction_hash": "0x2682f251ba8a06a760a435ed43a67686bea303af0a4e965da4c218c21fb0cd9",
+    "type": "DECLARE"
+  }
+}

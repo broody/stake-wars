@@ -1,0 +1,9 @@
+[world]
+name="Stake Wars recovery"
+seed="stakewars-mainnet"
+[namespace]
+default="stakewars"
+[env]
+rpc_url="https://rpc.stakewars.gg/rpc/v0_9"
+world_address="0x6e2d33ac9878de85acc676347f6bd97a860376fe33438eb7445317a6b1d71cc"
+world_block=14066846

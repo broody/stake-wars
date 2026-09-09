@@ -1,0 +1,150 @@
+
+> Gather permissions from the world
+
+World
+   owners:
+      0x03e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c
+
+stakewars-AdminTransferred
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-Challenge
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengeCounter
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengeEscalated
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengeInitiated
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengeParticipant
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengePositionResolved
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ChallengeSettled
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-ConfigInitialized
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-GameConfig
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-OperatorDisqualified
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-OperatorRetired
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-OperatorState
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-PauseChanged
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-RulesChanged
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-Sector
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SectorCaptured
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SectorReinforced
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SectorReleased
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SectorSacrificed
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-StakingPoolChanged
+   writers:
+      synced: stakewars-admin (0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf)
+
+stakewars-SupplyDrop
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropClaimed
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropCounter
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropCreated
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropHold
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+      remote: external (0x01f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b)
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SupplyDropHoldCleared
+   writers:
+      synced: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SupplyDropHoldCreated
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+      remote: external (0x01f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b)
+
+stakewars-SupplyDropLocked
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropOperatorSnapshot
+   writers:
+      local: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SupplyDropPolicy
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+      remote: external (0x01f1e5cd0fd73934c6ff69df96dbb6d0be22937e46d65edf360bed2256cb0f5b)
+
+stakewars-SupplyDropRolledOver
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropSectorSnapshot
+   writers:
+      local: stakewars-control (0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0)
+
+stakewars-SupplyDropSettled
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)
+
+stakewars-SupplyDropToppedUp
+   writers:
+      local: stakewars-supply_drop (0x0142bddabe77c924a11c6b75d9683faee6d902198dd2a4b9b3955db1c624a047)

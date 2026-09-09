@@ -17,10 +17,10 @@ import (
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
-	"stakewars.com/api/internal/jackpot"
 	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/objectstore"
 	"stakewars.com/api/internal/starknet"
+	"stakewars.com/api/internal/supplydrop"
 	"stakewars.com/api/internal/txjournal"
 )
 
@@ -94,16 +94,16 @@ func run() error {
 			beaconStore, whisperReader, restarter, configuration.StarknetChainID,
 		))
 	}
-	if configuration.JackpotKeeperEnabled() {
+	if configuration.SupplyDropKeeperEnabled() {
 		slog.Info(
-			"Jackpot keeper enabled",
-			"account", configuration.JackpotKeeperAccount,
-			"system", configuration.JackpotSystemAddress,
+			"SupplyDrop keeper enabled",
+			"account", configuration.SupplyDropKeeperAccount,
+			"system", configuration.SupplyDropSystemAddress,
 		)
-		jackpotReader, err := starknet.NewJackpotReader(
+		supplyDropReader, err := starknet.NewSupplyDropReader(
 			configuration.StarknetRPCURL,
 			configuration.ToriiURL,
-			configuration.JackpotSystemAddress,
+			configuration.SupplyDropSystemAddress,
 		)
 		if err != nil {
 			return err
@@ -111,12 +111,12 @@ func run() error {
 		keeperStartupContext, cancelKeeperStartup := context.WithTimeout(
 			context.Background(), 30*time.Second,
 		)
-		jackpotSubmitter, err := starknet.NewJackpotSubmitter(
+		supplyDropSubmitter, err := starknet.NewSupplyDropSubmitter(
 			keeperStartupContext,
 			configuration.StarknetRPCURL,
-			configuration.JackpotSystemAddress,
-			configuration.JackpotKeeperAccount,
-			configuration.JackpotKeeperPrivateKey,
+			configuration.SupplyDropSystemAddress,
+			configuration.SupplyDropKeeperAccount,
+			configuration.SupplyDropKeeperPrivateKey,
 			starknet.KeeperTracking{Store: txjournal.NewStore(db), Network: configuration.StarknetChainID},
 		)
 		cancelKeeperStartup()
@@ -125,8 +125,8 @@ func run() error {
 		}
 		maintenanceDuties = append(
 			maintenanceDuties,
-			jackpotSubmitter,
-			jackpot.NewDuty(jackpotReader, jackpotSubmitter),
+			supplyDropSubmitter,
+			supplydrop.NewDuty(supplyDropReader, supplyDropSubmitter),
 		)
 		if configuration.ChallengeKeeper {
 			challengeReader, err := starknet.NewChallengeReader(
@@ -135,12 +135,12 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			challengeSubmitter, err := starknet.NewChallengeSubmitter(jackpotSubmitter, configuration.ControlSystemAddress)
+			challengeSubmitter, err := starknet.NewChallengeSubmitter(supplyDropSubmitter, configuration.ControlSystemAddress)
 			if err != nil {
 				return err
 			}
 			maintenanceDuties = append(maintenanceDuties, challenge.NewDuty(challengeReader, challengeSubmitter))
-			slog.Info("Challenge keeper enabled", "account", configuration.JackpotKeeperAccount,
+			slog.Info("Challenge keeper enabled", "account", configuration.SupplyDropKeeperAccount,
 				"system", configuration.ControlSystemAddress)
 		}
 	}

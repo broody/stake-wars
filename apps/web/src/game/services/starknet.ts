@@ -7,7 +7,7 @@ import type {
   OperatorStatus,
   PoolMemberInfo,
   StakingPoolInfo,
-  Jackpot,
+  SupplyDrop,
 } from '../types';
 import { addressesMatch } from '../utils/format';
 import { chunkSectorActions, MAX_SECTOR_SELECTION } from './sectorLimits';
@@ -45,19 +45,6 @@ export interface SupplyDropHold {
   remainingStake: bigint;
   exiting: boolean;
   held: boolean;
-}
-
-function missingEntrypoint(reason: unknown): boolean {
-  if (!(reason instanceof StarknetRpcError)) return false;
-  if (reason.code === 21) return true;
-  // Older RPCs wrap a missing selector in CONTRACT_ERROR. Never treat a
-  // timeout, a missing contract, or another revert as a legacy deployment.
-  return (
-    reason.code === 40 &&
-    /ENTRYPOINT_NOT_FOUND|Entry point not found|EntryPointNotFound/.test(
-      JSON.stringify(reason.data) ?? ''
-    )
-  );
 }
 
 function parseU128(value: string | undefined, field: string): bigint {
@@ -100,38 +87,26 @@ export function decodeSupplyDropHold(result: string[]): SupplyDropHold {
 export async function getSupplyDropHold(
   operator: string,
   signal?: AbortSignal
-): Promise<SupplyDropHold | null> {
-  try {
-    return decodeSupplyDropHold(
-      await callControlSystem('get_supply_drop_hold', [operator], signal)
-    );
-  } catch (reason) {
-    if (missingEntrypoint(reason)) return null;
-    throw reason;
-  }
+): Promise<SupplyDropHold> {
+  return decodeSupplyDropHold(
+    await callControlSystem('get_supply_drop_hold', [operator], signal)
+  );
 }
 
 export async function getSupplyDropPolicy(
-  jackpotId: bigint,
+  supplyDropId: bigint,
   signal?: AbortSignal
 ): Promise<SupplyDropPolicy> {
-  let result: string[];
-  try {
-    result = await callJackpotSystem(
-      'get_supply_drop_policy',
-      [encodeRpcFelt(jackpotId)],
-      signal
-    );
-  } catch (reason) {
-    if (missingEntrypoint(reason))
-      return { stakingPool: '0x0', stakingRequired: false };
-    throw reason;
-  }
-  if (result.length !== 3 || parseFelt(result[0], 'drop ID') !== jackpotId) {
+  const result = await callSupplyDropSystem(
+    'get_supply_drop_policy',
+    [encodeRpcFelt(supplyDropId)],
+    signal
+  );
+  if (result.length !== 3 || parseFelt(result[0], 'drop ID') !== supplyDropId) {
     throw new Error('Invalid Supply Drop policy response');
   }
   const stakingRequired = parseBool(result[2], 'staking requirement');
-  if (stakingRequired && parseFelt(result[1], 'staking pool') === 0n)
+  if (parseFelt(result[1], 'staking pool') === 0n)
     throw new Error('Missing Supply Drop staking pool');
   return { stakingPool: result[1], stakingRequired };
 }
@@ -252,17 +227,17 @@ async function callControlSystem(
   );
 }
 
-async function callJackpotSystem(
+async function callSupplyDropSystem(
   entrypoint: string,
   calldata: string[],
   signal?: AbortSignal
 ): Promise<string[]> {
-  if (!config.jackpotSystemAddress) {
-    throw new Error('VITE_JACKPOT_SYSTEM_ADDRESS is not configured');
+  if (!config.supplyDropSystemAddress) {
+    throw new Error('VITE_SUPPLY_DROP_SYSTEM_ADDRESS is not configured');
   }
 
   return callContract(
-    config.jackpotSystemAddress,
+    config.supplyDropSystemAddress,
     entrypoint,
     calldata,
     signal
@@ -314,79 +289,86 @@ export async function checkStarknetConnection(
   return { blockNumber, chainId, worldClassHash };
 }
 
-export async function canCreateJackpot(
+export async function canCreateSupplyDrop(
   account: string,
   signal?: AbortSignal
 ): Promise<boolean> {
-  const result = await callJackpotSystem(
-    'can_create_jackpot',
+  const result = await callSupplyDropSystem(
+    'can_create_supply_drop',
     [account],
     signal
   );
   if (result.length !== 1) {
-    throw new Error('Jackpot System returned invalid creator authorization');
+    throw new Error(
+      'Supply Drop System returned invalid creator authorization'
+    );
   }
   const authorized = parseFelt(result[0], 'creator authorization');
   if (authorized !== 0n && authorized !== 1n) {
-    throw new Error('Jackpot System returned invalid creator authorization');
+    throw new Error(
+      'Supply Drop System returned invalid creator authorization'
+    );
   }
   return authorized === 1n;
 }
 
-export function decodeJackpotPrizeAmountResult(
+export function decodeSupplyDropPrizeAmountResult(
   result: string[],
-  jackpotId: bigint
+  supplyDropId: bigint
 ): bigint {
-  // get_jackpot returns the existing Jackpot model, including its key.
+  // get_supply_drop returns the existing SupplyDrop model, including its key.
   if (
     result.length !== 23 ||
-    parseFelt(result[0], 'jackpot ID') !== jackpotId
+    parseFelt(result[0], 'supply drop ID') !== supplyDropId
   ) {
-    throw new Error('Jackpot System returned an invalid jackpot');
+    throw new Error('Supply Drop System returned an invalid supply drop');
   }
-  const low = parseFelt(result[7], 'jackpot amount low word');
-  const high = parseFelt(result[8], 'jackpot amount high word');
+  const low = parseFelt(result[7], 'supply drop amount low word');
+  const high = parseFelt(result[8], 'supply drop amount high word');
   const maxWord = (1n << 128n) - 1n;
   if (low < 0n || low > maxWord || high < 0n || high > maxWord) {
-    throw new Error('Jackpot System returned an invalid prize amount');
+    throw new Error('Supply Drop System returned an invalid prize amount');
   }
   return low + (high << 128n);
 }
 
-export async function getJackpotPrizeAmount(
-  jackpotId: bigint
+export async function getSupplyDropPrizeAmount(
+  supplyDropId: bigint
 ): Promise<bigint> {
-  return decodeJackpotPrizeAmountResult(
-    await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)]),
-    jackpotId
+  return decodeSupplyDropPrizeAmountResult(
+    await callSupplyDropSystem('get_supply_drop', [
+      encodeRpcFelt(supplyDropId),
+    ]),
+    supplyDropId
   );
 }
 
-export async function getJackpot(jackpotId: bigint): Promise<Jackpot> {
-  const jackpot = decodeJackpotResult(
-    await callJackpotSystem('get_jackpot', [encodeRpcFelt(jackpotId)])
+export async function getSupplyDrop(supplyDropId: bigint): Promise<SupplyDrop> {
+  const supplyDrop = decodeSupplyDropResult(
+    await callSupplyDropSystem('get_supply_drop', [encodeRpcFelt(supplyDropId)])
   );
-  if (jackpot.id !== jackpotId) throw new Error('Supply Drop ID mismatch');
-  return jackpot;
+  if (supplyDrop.id !== supplyDropId)
+    throw new Error('Supply Drop ID mismatch');
+  return supplyDrop;
 }
 
-export function decodeJackpotResult(result: string[]): Jackpot {
+export function decodeSupplyDropResult(result: string[]): SupplyDrop {
   if (result.length !== 23) {
-    throw new Error('Jackpot System returned an invalid jackpot');
+    throw new Error('Supply Drop System returned an invalid supply drop');
   }
-  const id = parseFelt(result[0], 'jackpot ID');
-  const status = parseTimestamp(result[1], 'jackpot status');
-  const prizeKind = parseTimestamp(result[3], 'jackpot prize kind');
+  const id = parseFelt(result[0], 'supply drop ID');
+  const status = parseTimestamp(result[1], 'supply drop status');
+  const prizeKind = parseTimestamp(result[3], 'supply drop prize kind');
   if (
     id <= 0n ||
     id >= 1n << 64n ||
     (status !== 1 && status !== 2 && status !== 3 && status !== 4) ||
     (prizeKind !== 1 && prizeKind !== 2 && prizeKind !== 3)
   ) {
-    throw new Error('Jackpot System returned an invalid jackpot');
+    throw new Error('Supply Drop System returned an invalid supply drop');
   }
-  const tokenLow = parseFelt(result[5], 'jackpot token ID low word');
-  const tokenHigh = parseFelt(result[6], 'jackpot token ID high word');
+  const tokenLow = parseFelt(result[5], 'supply drop token ID low word');
+  const tokenHigh = parseFelt(result[6], 'supply drop token ID high word');
   const maxWord = (1n << 128n) - 1n;
   if (
     tokenLow < 0n ||
@@ -394,11 +376,11 @@ export function decodeJackpotResult(result: string[]): Jackpot {
     tokenHigh < 0n ||
     tokenHigh > maxWord
   ) {
-    throw new Error('Jackpot System returned an invalid token ID');
+    throw new Error('Supply Drop System returned an invalid token ID');
   }
-  const claimed = parseFelt(result[20], 'jackpot claimed');
+  const claimed = parseFelt(result[20], 'supply drop claimed');
   if (claimed !== 0n && claimed !== 1n) {
-    throw new Error('Jackpot System returned an invalid claim status');
+    throw new Error('Supply Drop System returned an invalid claim status');
   }
   return {
     id,
@@ -407,28 +389,28 @@ export function decodeJackpotResult(result: string[]): Jackpot {
     prizeKind,
     token: result[4],
     tokenId: tokenLow + (tokenHigh << 128n),
-    amount: decodeJackpotPrizeAmountResult(result, id),
-    sectorLimitSnapshot: parseTimestamp(result[10], 'jackpot sector limit'),
-    durationSeconds: parseTimestamp(result[11], 'jackpot duration'),
-    startedAt: parseTimestamp(result[12], 'jackpot start'),
-    endsAt: parseTimestamp(result[13], 'jackpot deadline'),
-    randomnessBlock: parseFelt(result[14], 'jackpot randomness block'),
-    lastDrawnSectorId: parseTimestamp(result[16], 'jackpot drawn sector'),
-    drawCount: parseTimestamp(result[17], 'jackpot draw count'),
+    amount: decodeSupplyDropPrizeAmountResult(result, id),
+    sectorLimitSnapshot: parseTimestamp(result[10], 'supply drop sector limit'),
+    durationSeconds: parseTimestamp(result[11], 'supply drop duration'),
+    startedAt: parseTimestamp(result[12], 'supply drop start'),
+    endsAt: parseTimestamp(result[13], 'supply drop deadline'),
+    randomnessBlock: parseFelt(result[14], 'supply drop randomness block'),
+    lastDrawnSectorId: parseTimestamp(result[16], 'supply drop drawn sector'),
+    drawCount: parseTimestamp(result[17], 'supply drop draw count'),
     winner: result[18],
-    settledAt: parseTimestamp(result[19], 'jackpot settlement') || null,
+    settledAt: parseTimestamp(result[19], 'supply drop settlement') || null,
     claimed: claimed === 1n,
     claimedBy: result[21],
-    claimedAt: parseTimestamp(result[22], 'jackpot claim time') || null,
+    claimedAt: parseTimestamp(result[22], 'supply drop claim time') || null,
   };
 }
 
-export async function getActiveJackpot(
+export async function getActiveSupplyDrop(
   signal?: AbortSignal
-): Promise<Jackpot | null> {
+): Promise<SupplyDrop | null> {
   try {
-    return decodeJackpotResult(
-      await callJackpotSystem('get_active_jackpot', [], signal)
+    return decodeSupplyDropResult(
+      await callSupplyDropSystem('get_active_supply_drop', [], signal)
     );
   } catch (reason) {
     // This getter reverts when the active counter is empty. Only that specific
@@ -436,8 +418,8 @@ export async function getActiveJackpot(
     if (reason instanceof StarknetRpcError && reason.code === 40) {
       const detail = JSON.stringify(reason.data) ?? '';
       if (
-        detail.includes('no active jackpot') ||
-        detail.includes('0x6e6f20616374697665206a61636b706f74')
+        detail.includes('no active supply drop') ||
+        detail.includes('0x6e6f2061637469766520737570706c792064726f70')
       )
         return null;
     }

@@ -1,0 +1,256 @@
+{
+  "world": {
+    "status": "Synced",
+    "address": "0x06e2d33ac9878de85acc676347f6bd97a860376fe33438eb7445317a6b1d71cc",
+    "class_hash": "0x0613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d"
+  },
+  "namespaces": [
+    {
+      "name": "stakewars",
+      "status": "Synced",
+      "selector": "0x041ad42eda3a3d1edd9f70492b4615d6f2caff143368cc5f73e9bff22c8e3c76"
+    }
+  ],
+  "contracts": [
+    {
+      "tag": "stakewars-admin",
+      "status": "Synced",
+      "is_initialized": true,
+      "selector": "0x0743a52b6cda63c2497b8701ef57e66b1e45ec1724e95d3b8c18deeb925cc9a8",
+      "address": "0x02fc1f778495eb5ef2d5d38c93d2221128dbc3d7e762927e26070828f5595ecf",
+      "class_hash": "0x0468a26220938b1d2e04f5c1b6fcea0e881eff7a77ee80e1fa1f49c5902a6f0a"
+    },
+    {
+      "tag": "stakewars-control",
+      "status": "Updated",
+      "is_initialized": true,
+      "selector": "0x054172796a12c462b530d151ad17f14557ad21f88cf226c9706ac99baf969211",
+      "address": "0x0769d1726f0421cf5ef9e91f28f3b4b1ba9f818ce0c5f3a5e99202ee1913c5e0",
+      "class_hash": "0x05561b3803b021fdb7320630539320b679d83d35694fe01a8a01f6c896f8ad7b"
+    },
+    {
+      "tag": "stakewars-supply_drop",
+      "status": "Created",
+      "is_initialized": false,
+      "selector": "0x07e642c98ae0f95005f4a987436fec0f580d2ce6bce743563fd7b65077baa3c0",
+      "address": "0x00b47dd48f3d3c995c33ef408366a81dd8c90a0a3fb75fd7fc5df94f0092e587",
+      "class_hash": "0x030cd46cd2d38b43c059c6bb5cfd6947ff2c0fb429a294a79d0d44d2103a2bef"
+    }
+  ],
+  "libraries": [],
+  "models": [
+    {
+      "tag": "stakewars-Challenge",
+      "status": "Synced",
+      "selector": "0x043a5ffa4c95ef6bfd23d845a615677542671fa5e584db1010738b1cea9668e8",
+      "class_hash": "0x02c364659ef2a4a2d0b81761893057dbe43ebf00c84e92c1c18b2248eac2f5c2"
+    },
+    {
+      "tag": "stakewars-ChallengeCounter",
+      "status": "Synced",
+      "selector": "0x0439f915a9f3cf29c141169368e24ea4bcd54422ab12fdb440a95bac3e377da3",
+      "class_hash": "0x01884724050e231eb041ddd8da1cf432b96db59c9564a44f5f24ad063a5a2322"
+    },
+    {
+      "tag": "stakewars-ChallengeParticipant",
+      "status": "Synced",
+      "selector": "0x076756f5db2947d172131fd238302d6dd5a8a63c336f0a8bd4d8ccc631cca0ff",
+      "class_hash": "0x078f408b0ed595686626a415f0833dc1a76f29ac016b040c5bf97df6d43e4825"
+    },
+    {
+      "tag": "stakewars-GameConfig",
+      "status": "Synced",
+      "selector": "0x070d78ee95e5a3d7d463d1eefdc7b8895cfc85f396ceab43f5e94184947272ef",
+      "class_hash": "0x04f736f1b47c462ba524b8b7889830e26c92083ab3f779ddffcb925a9a751941"
+    },
+    {
+      "tag": "stakewars-OperatorState",
+      "status": "Synced",
+      "selector": "0x015c2639a3f9ac9641ac6d71bcab0ff0525138027b118a3938e6cf2769e1bf94",
+      "class_hash": "0x0360c6bb098e6e93622221a19b697548d73617ba45e1862d5e29f2a7decdfbe4"
+    },
+    {
+      "tag": "stakewars-Sector",
+      "status": "Synced",
+      "selector": "0x041dc9904622b1e16493044a6635d248a63981baab25fcb93cdcae98e02fce00",
+      "class_hash": "0x0210c2d7b4b8fa5025e67a8d48e7969ea30e42df654c339aaf9048aedba81366"
+    },
+    {
+      "tag": "stakewars-SupplyDrop",
+      "status": "Created",
+      "selector": "0x0413243c32ee4447279d0b770ead9e1859146405f857439cf6e4d6e6f00eb722",
+      "class_hash": "0x04865444a00e3022955f3c4a0b7bf2268196add702ac14b36e25754335cd17da"
+    },
+    {
+      "tag": "stakewars-SupplyDropCounter",
+      "status": "Created",
+      "selector": "0x03a991116dbe7c917ea4aa1751ad923f81ba1552a305bcde0809e48a567cf4ba",
+      "class_hash": "0x01513005d24eb7dd508dc544dd9c60844dd607a25876d8bc18ae758360dd8d00"
+    },
+    {
+      "tag": "stakewars-SupplyDropHold",
+      "status": "Synced",
+      "selector": "0x038267e4cea55d81cc8d9ba3a73f485dbf12c12af31671b71c5fcf4e9633ebea",
+      "class_hash": "0x01d8f76e3ad12c99fe3f82f0872470ceea1da41fbdff67240fdd363bb157ad79"
+    },
+    {
+      "tag": "stakewars-SupplyDropOperatorSnapshot",
+      "status": "Created",
+      "selector": "0x0113d4c95e75cb6d94218189f590660657b3d3658690af8078bc002a9e88d368",
+      "class_hash": "0x013f20aab4e166f106b56bca3c73c33a9a36547faf447ffa8f765020a4d6bbef"
+    },
+    {
+      "tag": "stakewars-SupplyDropSectorSnapshot",
+      "status": "Created",
+      "selector": "0x053539290be2b43fb5e4131b5248dc7cec9a41d1ac9ac91fee7a6bf75407dd31",
+      "class_hash": "0x01c0c2495bde152e1b120ac634e707801fd6754f58d6f92ad0a72707d0500b2c"
+    },
+    {
+      "tag": "stakewars-SupplyDropStakingPolicy",
+      "status": "Created",
+      "selector": "0x04bf1d4281e6dead2e37fd30af2412aa06c61698d52f7d7e416d0851f0c001f8",
+      "class_hash": "0x0109e107f98ed3d49a75166f531109dfb34cfe50c0063ee8b9da5db06210eed0"
+    }
+  ],
+  "events": [
+    {
+      "tag": "stakewars-AdminTransferred",
+      "status": "Synced",
+      "selector": "0x034c7c9c8b90ed07332ef1646121cfc8b718202488a99f1eab559e1806efa8f6",
+      "class_hash": "0x02e1b17d8fb8bcc7f55563fb347c732060a809871c5e1618127771fd112f28e5"
+    },
+    {
+      "tag": "stakewars-ChallengeEscalated",
+      "status": "Synced",
+      "selector": "0x01ec411642872fcad3295a57c9096e5918060bcf6edfad10422fb2ffbfa04f31",
+      "class_hash": "0x0485ae8d52b9627f77015f1217f52b6075e562916982e075158ac915d14c7e59"
+    },
+    {
+      "tag": "stakewars-ChallengeInitiated",
+      "status": "Synced",
+      "selector": "0x03618e2a35f5f4643518761fab982efb6843a31cb685ec6236f8e78b85cc4d09",
+      "class_hash": "0x07d0320a03e70d0345df5b7cb4b8caeb438e2cf2902d5373ea40afb5244661db"
+    },
+    {
+      "tag": "stakewars-ChallengePositionResolved",
+      "status": "Synced",
+      "selector": "0x0220911d35e63a74068e0f61915f19e67597ab367b74acaea8acc4decf1d59e1",
+      "class_hash": "0x048b7c7776412222381740b34cb6b2d13ddc78cf0d5c57756734be2c5015c34c"
+    },
+    {
+      "tag": "stakewars-ChallengeSettled",
+      "status": "Synced",
+      "selector": "0x0294d81c135698351d0fa7285a960ccd16ddca07cae33d969199616c9cc04efa",
+      "class_hash": "0x03ac63ae6d3719be67fa210ab5e41c6ff1d6bb1cf943f348bbd78d5bae091dcc"
+    },
+    {
+      "tag": "stakewars-ConfigInitialized",
+      "status": "Synced",
+      "selector": "0x079c45b2ba9863fd80956c313f146164fbcf7d1f89197312e7553d2cb66acf2a",
+      "class_hash": "0x007eef7088c800a4c4a03b15367bcfdcf8a7413a595b927f869eac4d63257340"
+    },
+    {
+      "tag": "stakewars-OperatorDisqualified",
+      "status": "Synced",
+      "selector": "0x00c7b31179933a2352e3842bb120356d2dafe055a1addc1517f90befc896a9f6",
+      "class_hash": "0x01bce7eb29905998008bb16f2da1dc7b10f9d3accc200ffcb8234fad9df85f40"
+    },
+    {
+      "tag": "stakewars-OperatorRetired",
+      "status": "Synced",
+      "selector": "0x020c3d14dae18b1498947a912a84fa4fb51745a77d8be8de997813a2ac99dc3d",
+      "class_hash": "0x06bded94be68a3f35224d5a09b8d770ed3644fe564a8479c670bd70f6f6c8547"
+    },
+    {
+      "tag": "stakewars-PauseChanged",
+      "status": "Synced",
+      "selector": "0x037eaba5acaa76cf24f1dae70c88b026a1e177e5ccf2f044a516251ba5d9b22a",
+      "class_hash": "0x01997e91ce7715af3cc2bfaec2dae2a0df861eb13fa8de02ba0705fe95e2d098"
+    },
+    {
+      "tag": "stakewars-RulesChanged",
+      "status": "Synced",
+      "selector": "0x06c6d4548fddc5dc9b615cd3195af3c89b9829c73fd78f94cc58cf13ac66b86e",
+      "class_hash": "0x02b1b4f5201a44a88a3bf3070e183b654e286d277fe7170548a6bd9bef1ce419"
+    },
+    {
+      "tag": "stakewars-SectorCaptured",
+      "status": "Synced",
+      "selector": "0x07f98daeae67710e2fc16dcfb8ce2750a5e6fce48c741ad2529c069c380a5906",
+      "class_hash": "0x052012125027c586996bf2eec804b7803c96eae541c4a56acd6b23667972c9ab"
+    },
+    {
+      "tag": "stakewars-SectorReinforced",
+      "status": "Synced",
+      "selector": "0x0326a46a3fe80d58ec0c568289d3483dec63888c828fe592611498bd9eec6315",
+      "class_hash": "0x05b3136d7e7ae9cd9751a160efa0baf1f3a4396d766901a8730fd5e773b87415"
+    },
+    {
+      "tag": "stakewars-SectorReleased",
+      "status": "Synced",
+      "selector": "0x0676a804a9aa6b96f033521a0b30df7128237bb69b330c1f6d7b08aba4b444b9",
+      "class_hash": "0x04ab0b50d337c42266fbefb10610f106d7c32cec01122635f2c06bb0e2c5848a"
+    },
+    {
+      "tag": "stakewars-SectorSacrificed",
+      "status": "Synced",
+      "selector": "0x05e93400152176e19f3203c4bd50f620583b169ff7188aa42d1b35f0c1f07a15",
+      "class_hash": "0x04f66eaad0e77972b5587d3a2d54b837a7c0049c34f8cb5895de84d6bee8747b"
+    },
+    {
+      "tag": "stakewars-StakingPoolChanged",
+      "status": "Synced",
+      "selector": "0x012383513a51e80dab4936d3cff41e1ba0c2d52c16d5ab9fc4da8d51f90e40f6",
+      "class_hash": "0x044e863dedba4d87c3f5d76ca730bed336fb52ba0031f730da1897401f2cc280"
+    },
+    {
+      "tag": "stakewars-SupplyDropClaimHoldCreated",
+      "status": "Created",
+      "selector": "0x05fda113b5a154f0961d724c7c9e24701c9d9577a1942e86bcbd6063186dc0ff",
+      "class_hash": "0x019afb9100005a25e50262b2de0d377c6244c3feebc9122d568757a8fe17f05d"
+    },
+    {
+      "tag": "stakewars-SupplyDropClaimed",
+      "status": "Created",
+      "selector": "0x02611e4f337f80d45577753e999615abb099580734c61b25cdadf03c3ad37e7e",
+      "class_hash": "0x0659d45bbca039e9fcedb7ffaf1b2e860a82e412a498b226539c65dc9d02efc9"
+    },
+    {
+      "tag": "stakewars-SupplyDropCreated",
+      "status": "Created",
+      "selector": "0x02a02f449c592a807d969fbbc280131376695aba9345f362f74ce1cc3fd5cfe8",
+      "class_hash": "0x05b8745f4b38024152f5012020a5e7c3bb0def95eaf7308e32bbe7b8299061a7"
+    },
+    {
+      "tag": "stakewars-SupplyDropHoldCleared",
+      "status": "Synced",
+      "selector": "0x003e967722e50a520f4846f909b482c3c5eeabdb8785eca3b8202c4d14222325",
+      "class_hash": "0x06f532a61c3fceec37d4435b44bb093cd27f362a2b731a7ca7d18a0a659e5166"
+    },
+    {
+      "tag": "stakewars-SupplyDropLocked",
+      "status": "Created",
+      "selector": "0x03118317fe7b578c1d70a3249e38327affeb1f881a1770082c0dd71d89ba50f0",
+      "class_hash": "0x0383c2901749d2164276982ddcf115393652f89604cb938bb7eab55c7b0161c9"
+    },
+    {
+      "tag": "stakewars-SupplyDropRolledOver",
+      "status": "Created",
+      "selector": "0x03ffb0ec16d4f11e6e9a6d83daf0ab813eca4e73355fc9eb5f64cccc7d362b01",
+      "class_hash": "0x023e692425d23ecda4a4fd06b917317c5632c691e5874895b3780c91c0073b47"
+    },
+    {
+      "tag": "stakewars-SupplyDropSettled",
+      "status": "Created",
+      "selector": "0x044b0af460d70b7d41d032342cfaca7720b0f6aebd7f021e1023a3d21b64abe8",
+      "class_hash": "0x076eeaa804f15ca1a13590c7ce2eabb730626578878198f59158351a2386a48d"
+    },
+    {
+      "tag": "stakewars-SupplyDropToppedUp",
+      "status": "Created",
+      "selector": "0x03b973c0f7fcd03bd43f016c113df1b2c970542e2be9e2b1e4b5bc53e9f1123e",
+      "class_hash": "0x07c1bac62e8060f32c75acaca4d15c8c4f6de53b7b725202e9fe537e0d4d10dc"
+    }
+  ],
+  "external_contracts": []
+}

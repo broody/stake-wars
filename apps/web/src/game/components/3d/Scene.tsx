@@ -3,8 +3,8 @@ import { Planet } from './Planet';
 import { Stars } from './Stars';
 import { ShootingStars } from './ShootingStars';
 import { OrbitalBeacon } from './OrbitalBeacon';
-import { CoreJackpotMarker } from './CoreJackpotMarker';
-import type { Jackpot } from '../../types';
+import { CoreSupplyDropMarker } from './CoreSupplyDropMarker';
+import type { SupplyDrop } from '../../types';
 import {
   EMPTY_SWARM_COUNTS,
   type EnemySwarmCounts,
@@ -15,17 +15,17 @@ const EnemySwarms = lazy(() => import('./EnemySwarms'));
 export function Scene({
   isBeaconTracking,
   onInspectBeacon,
-  jackpotDraw,
-  isJackpotTracking,
-  onInspectJackpot,
+  supplyDropDraw,
+  isSupplyDropTracking,
+  onInspectSupplyDrop,
   swarmCounts = EMPTY_SWARM_COUNTS,
   active = true,
 }: {
   isBeaconTracking: boolean;
   onInspectBeacon: () => void;
-  jackpotDraw: Jackpot | null;
-  isJackpotTracking: boolean;
-  onInspectJackpot: () => void;
+  supplyDropDraw: SupplyDrop | null;
+  isSupplyDropTracking: boolean;
+  onInspectSupplyDrop: () => void;
   swarmCounts?: EnemySwarmCounts;
   active?: boolean;
 }) {
@@ -43,12 +43,12 @@ export function Scene({
         isTracking={isBeaconTracking}
         onInspect={onInspectBeacon}
       />
-      {jackpotDraw ? (
-        <CoreJackpotMarker
-          key={`${jackpotDraw.id.toString()}:${jackpotDraw.drawCount}:${jackpotDraw.lastDrawnSectorId}`}
-          jackpot={jackpotDraw}
-          isOpen={isJackpotTracking}
-          onInspect={onInspectJackpot}
+      {supplyDropDraw ? (
+        <CoreSupplyDropMarker
+          key={`${supplyDropDraw.id.toString()}:${supplyDropDraw.drawCount}:${supplyDropDraw.lastDrawnSectorId}`}
+          supplyDrop={supplyDropDraw}
+          isOpen={isSupplyDropTracking}
+          onInspect={onInspectSupplyDrop}
         />
       ) : null}
       <ambientLight intensity={0.5} />

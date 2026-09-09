@@ -66,7 +66,7 @@ func transactionError(stage, status, hash string, err error) txjournal.Event {
 	return e
 }
 
-func (s *AccountJackpotSubmitter) uncertain(ctx context.Context, stage string, err error) (string, error) {
+func (s *AccountSupplyDropSubmitter) uncertain(ctx context.Context, stage string, err error) (string, error) {
 	txHash := ""
 	if s.pending != nil {
 		txHash = s.pending.String()
@@ -94,7 +94,7 @@ func rejectedBroadcast(err error) bool {
 	return false
 }
 
-func (s *AccountJackpotSubmitter) restorePending(ctx context.Context) error {
+func (s *AccountSupplyDropSubmitter) restorePending(ctx context.Context) error {
 	if s.journal == nil {
 		return nil
 	}
@@ -123,7 +123,7 @@ func (s *AccountJackpotSubmitter) restorePending(ctx context.Context) error {
 }
 
 // Reconcile checks durable pending receipts even when no game action is due.
-func (s *AccountJackpotSubmitter) Reconcile(ctx context.Context) error {
+func (s *AccountSupplyDropSubmitter) Reconcile(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.pending == nil {

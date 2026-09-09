@@ -28,18 +28,18 @@ import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { BeaconModal } from '../ui/BeaconModal';
 import { BeaconCameraTracker } from './BeaconCameraTracker';
-import { JackpotCameraTracker } from './JackpotCameraTracker';
-import { JackpotDrawPanel } from '../ui/JackpotDrawPanel';
+import { SupplyDropCameraTracker } from './SupplyDropCameraTracker';
+import { SupplyDropDrawPanel } from '../ui/SupplyDropDrawPanel';
 import {
-  getJackpots,
-  isJackpotDrawPending,
-  latestJackpotDraw,
-} from '../../services/jackpot';
-import type { Jackpot } from '../../types';
+  getSupplyDrops,
+  isSupplyDropDrawPending,
+  latestSupplyDropDraw,
+} from '../../services/supplyDrop';
+import type { SupplyDrop } from '../../types';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
-const JACKPOT_REFRESH_INTERVAL_MS = 10_000;
-const JACKPOT_PENDING_REFRESH_INTERVAL_MS = 1_500;
+const SUPPLY_DROP_REFRESH_INTERVAL_MS = 10_000;
+const SUPPLY_DROP_PENDING_REFRESH_INTERVAL_MS = 1_500;
 const PLACEMENT_CORNERS = [
   {
     horizontal: -1,
@@ -356,28 +356,28 @@ function marqueeBounds(
   };
 }
 
-function useCoreJackpotDraw(active: boolean): Jackpot | null {
-  const [draw, setDraw] = useState<Jackpot | null>(null);
+function useCoreSupplyDropDraw(active: boolean): SupplyDrop | null {
+  const [draw, setDraw] = useState<SupplyDrop | null>(null);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
     let refreshTimer: number | undefined;
-    let refreshInterval = JACKPOT_REFRESH_INTERVAL_MS;
+    let refreshInterval = SUPPLY_DROP_REFRESH_INTERVAL_MS;
 
-    getJackpots(controller.signal)
-      .then((jackpots) => {
+    getSupplyDrops(controller.signal)
+      .then((supplyDrops) => {
         if (!controller.signal.aborted) {
-          const nextDraw = latestJackpotDraw(jackpots);
+          const nextDraw = latestSupplyDropDraw(supplyDrops);
           setDraw(nextDraw);
           if (nextDraw) {
             const millisecondsUntilDraw = nextDraw.endsAt * 1_000 - Date.now();
-            if (isJackpotDrawPending(nextDraw)) {
-              refreshInterval = JACKPOT_PENDING_REFRESH_INTERVAL_MS;
+            if (isSupplyDropDrawPending(nextDraw)) {
+              refreshInterval = SUPPLY_DROP_PENDING_REFRESH_INTERVAL_MS;
             } else if (nextDraw.status === 2 && millisecondsUntilDraw > 0) {
               refreshInterval = Math.min(
-                JACKPOT_REFRESH_INTERVAL_MS,
+                SUPPLY_DROP_REFRESH_INTERVAL_MS,
                 Math.max(500, millisecondsUntilDraw + 100)
               );
             }
@@ -419,9 +419,9 @@ export function World({ active = true }: { active?: boolean }) {
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
   const ignoreBeaconInspectRef = useRef(false);
-  const ignoreJackpotInspectRef = useRef(false);
-  const jackpotDraw = useCoreJackpotDraw(active);
-  const [isJackpotCameraControlled, setJackpotCameraControlled] =
+  const ignoreSupplyDropInspectRef = useRef(false);
+  const supplyDropDraw = useCoreSupplyDropDraw(active);
+  const [isSupplyDropCameraControlled, setSupplyDropCameraControlled] =
     useState(false);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
@@ -435,7 +435,7 @@ export function World({ active = true }: { active?: boolean }) {
   );
   const showEnemySwarms = swarmCounts.mites > 0 || swarmCounts.lancers > 0;
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
-  const isJackpotOpen = searchParams.get('tracking') === 'jackpot';
+  const isSupplyDropOpen = searchParams.get('tracking') === 'supplyDrop';
   const setBeaconTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
@@ -462,14 +462,14 @@ export function World({ active = true }: { active?: boolean }) {
     () => setBeaconTracking(false),
     [setBeaconTracking]
   );
-  const setJackpotTracking = useCallback(
+  const setSupplyDropTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
         (current) => {
           const next = new URLSearchParams(current);
           if (isTracking) {
-            next.set('tracking', 'jackpot');
-          } else if (next.get('tracking') === 'jackpot') {
+            next.set('tracking', 'supplyDrop');
+          } else if (next.get('tracking') === 'supplyDrop') {
             next.delete('tracking');
           }
           return next;
@@ -479,14 +479,14 @@ export function World({ active = true }: { active?: boolean }) {
     },
     [setSearchParams]
   );
-  const openJackpotDraw = useCallback(() => {
-    if (ignoreJackpotInspectRef.current) return;
+  const openSupplyDropDraw = useCallback(() => {
+    if (ignoreSupplyDropInspectRef.current) return;
     selectSectors([]);
-    setJackpotTracking(true);
-  }, [selectSectors, setJackpotTracking]);
-  const closeJackpotDraw = useCallback(
-    () => setJackpotTracking(false),
-    [setJackpotTracking]
+    setSupplyDropTracking(true);
+  }, [selectSectors, setSupplyDropTracking]);
+  const closeSupplyDropDraw = useCallback(
+    () => setSupplyDropTracking(false),
+    [setSupplyDropTracking]
   );
 
   useEffect(() => {
@@ -512,28 +512,28 @@ export function World({ active = true }: { active?: boolean }) {
   }, [active, isBeaconOpen, setBeaconTracking]);
 
   useEffect(() => {
-    if (!active || !isJackpotOpen) return;
+    if (!active || !isSupplyDropOpen) return;
 
     const stopTrackingOnClick = (event: MouseEvent) => {
       const target = event.target;
       if (
         target instanceof Element &&
         target.closest(
-          '[data-jackpot-console], [data-preserve-core-tracking], [data-preserve-jackpot-tracking]'
+          '[data-supply-drop-console], [data-preserve-core-tracking], [data-preserve-supply-drop-tracking]'
         )
       ) {
         return;
       }
-      ignoreJackpotInspectRef.current = true;
-      setJackpotTracking(false);
+      ignoreSupplyDropInspectRef.current = true;
+      setSupplyDropTracking(false);
       queueMicrotask(() => {
-        ignoreJackpotInspectRef.current = false;
+        ignoreSupplyDropInspectRef.current = false;
       });
     };
 
     window.addEventListener('click', stopTrackingOnClick, true);
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
-  }, [active, isJackpotOpen, setJackpotTracking]);
+  }, [active, isSupplyDropOpen, setSupplyDropTracking]);
   const opponentSectorIdSet = useMemo(
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
@@ -544,8 +544,8 @@ export function World({ active = true }: { active?: boolean }) {
     imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
     isBeaconOpen ||
-    isJackpotOpen ||
-    isJackpotCameraControlled ||
+    isSupplyDropOpen ||
+    isSupplyDropCameraControlled ||
     showEnemySwarms ||
     marqueeStart !== null;
 
@@ -624,8 +624,8 @@ export function World({ active = true }: { active?: boolean }) {
       onPointerDownCapture={(event) => {
         if (
           event.button !== 2 ||
-          isJackpotOpen ||
-          isJackpotCameraControlled ||
+          isSupplyDropOpen ||
+          isSupplyDropCameraControlled ||
           isImageUploadMode ||
           isSectorInteractionLocked
         ) {
@@ -649,7 +649,7 @@ export function World({ active = true }: { active?: boolean }) {
       onPointerCancelCapture={cancelMarquee}
     >
       <Canvas
-        data-preserve-jackpot-tracking
+        data-preserve-supply-drop-tracking
         camera={{ position: [0, 0, 15], fov: 75 }}
         style={{ width: '100%', height: '100%', background: '#000000' }}
       >
@@ -657,9 +657,9 @@ export function World({ active = true }: { active?: boolean }) {
           <Scene
             isBeaconTracking={isBeaconOpen}
             onInspectBeacon={openBeaconBriefing}
-            jackpotDraw={jackpotDraw}
-            isJackpotTracking={isJackpotOpen}
-            onInspectJackpot={openJackpotDraw}
+            supplyDropDraw={supplyDropDraw}
+            isSupplyDropTracking={isSupplyDropOpen}
+            onInspectSupplyDrop={openSupplyDropDraw}
             swarmCounts={swarmCounts}
             active={active}
           />
@@ -680,14 +680,16 @@ export function World({ active = true }: { active?: boolean }) {
             active &&
             marqueeStart === null &&
             !isBeaconOpen &&
-            !isJackpotOpen &&
-            !isJackpotCameraControlled &&
+            !isSupplyDropOpen &&
+            !isSupplyDropCameraControlled &&
             !isPlacementLocked
           }
         />
 
         <CameraArrival
-          active={active && !showEnemySwarms && !isBeaconOpen && !isJackpotOpen}
+          active={
+            active && !showEnemySwarms && !isBeaconOpen && !isSupplyDropOpen
+          }
         />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
@@ -696,21 +698,21 @@ export function World({ active = true }: { active?: boolean }) {
           active={active && isBeaconOpen}
           projectionActive={isProjectionVisible}
         />
-        <JackpotCameraTracker
+        <SupplyDropCameraTracker
           active={active && !isBeaconOpen}
-          tracking={isJackpotOpen}
-          sectorId={jackpotDraw?.lastDrawnSectorId ?? null}
-          onControlChange={setJackpotCameraControlled}
+          tracking={isSupplyDropOpen}
+          sectorId={supplyDropDraw?.lastDrawnSectorId ?? null}
+          onControlChange={setSupplyDropCameraControlled}
         />
       </Canvas>
 
       <PlacementGuide containerRef={worldRef} />
 
       <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />
-      <JackpotDrawPanel
-        jackpot={jackpotDraw}
-        isOpen={isJackpotOpen}
-        onClose={closeJackpotDraw}
+      <SupplyDropDrawPanel
+        supplyDrop={supplyDropDraw}
+        isOpen={isSupplyDropOpen}
+        onClose={closeSupplyDropDraw}
       />
 
       {activeMarquee ? (

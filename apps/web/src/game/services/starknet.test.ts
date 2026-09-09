@@ -5,7 +5,7 @@ import {
   decodeOperatorStatusResult,
   decodePoolMemberInfoResult,
   encodeRpcFelt,
-  decodeJackpotPrizeAmountResult,
+  decodeSupplyDropPrizeAmountResult,
 } from './starknet';
 
 describe('Starknet RPC calldata', () => {
@@ -143,21 +143,23 @@ describe('Staking pool membership decoding', () => {
   });
 });
 
-describe('confirmed jackpot prize', () => {
+describe('confirmed supply drop prize', () => {
   it('decodes the existing model ABI including both amount words', () => {
     const result = Array<string>(23).fill('0x0');
     result[0] = '0x7';
     result[7] = '0x3';
     result[8] = '0x1';
-    expect(decodeJackpotPrizeAmountResult(result, 7n)).toBe((1n << 128n) + 3n);
-    expect(() => decodeJackpotPrizeAmountResult(result, 8n)).toThrow(
-      'invalid jackpot'
+    expect(decodeSupplyDropPrizeAmountResult(result, 7n)).toBe(
+      (1n << 128n) + 3n
     );
-    expect(() => decodeJackpotPrizeAmountResult(result.slice(1), 7n)).toThrow(
-      'invalid jackpot'
+    expect(() => decodeSupplyDropPrizeAmountResult(result, 8n)).toThrow(
+      'invalid supply drop'
     );
+    expect(() =>
+      decodeSupplyDropPrizeAmountResult(result.slice(1), 7n)
+    ).toThrow('invalid supply drop');
     result[8] = (1n << 128n).toString();
-    expect(() => decodeJackpotPrizeAmountResult(result, 7n)).toThrow(
+    expect(() => decodeSupplyDropPrizeAmountResult(result, 7n)).toThrow(
       'invalid prize amount'
     );
   });

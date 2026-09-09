@@ -1,0 +1,294 @@
+{
+  "network": "SN_MAIN",
+  "estimatedAt": "2026-09-09T03:19:01Z",
+  "account": "0x3e7984d1b34005f2a7d22f79e9497ffb98faf9746527832374afac2a996551c",
+  "accountBalanceAtRecovery": "55454873919047029120",
+  "unit": "FRI",
+  "sdk": "starknet 10.7.0",
+  "margin": "50 percent on gas amount and gas price, approximately 2.25 times raw fee",
+  "bufferedDeclarationTotal": "428279017448443330080",
+  "unbufferedDeclarationTotalApprox": "190346229977085924480",
+  "excludes": "Resource registration, upgrades, writer permissions, transaction tips and later gas price changes",
+  "resources": [
+    {
+      "tag": "stakewars-control",
+      "classHash": "0x1499c95aae3a794652230ac42fde19bc6d12f16e9740c9945f903405c88c64c",
+      "compiledClassHash": "0x1a62c427091caeb2391905e507a81d0cb1215f038a1ecd5b66f84944828ebd0",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "3322484160",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129511200252706"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49485912492"
+        }
+      },
+      "bufferedFeeBound": "144417792540107319936"
+    },
+    {
+      "tag": "stakewars-supply_drop",
+      "classHash": "0x4c1dbbe5e14ebd796f2a78df040da82f5a1773b27a7a688f1309c2a49e8eca2",
+      "compiledClassHash": "0x1967a4ff33dc3ee8c9c940d102717db17821523270b36017952c8db8b3554e2",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "2515020480",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129043574643849"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49333030534"
+        }
+      },
+      "bufferedFeeBound": "109319924425583512512"
+    },
+    {
+      "tag": "stakewars-SupplyDrop",
+      "classHash": "0x4865444a00e3022955f3c4a0b7bf2268196add702ac14b36e25754335cd17da",
+      "compiledClassHash": "0x6fc99278b9cbdb750d106c5cf0e46acf107d485cc7bd82e713034c22dc36af9",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "500410560",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129582781832233"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49539168072"
+        }
+      },
+      "bufferedFeeBound": "21751263581629656576"
+    },
+    {
+      "tag": "stakewars-SupplyDropCounter",
+      "classHash": "0x1513005d24eb7dd508dc544dd9c60844dd607a25876d8bc18ae758360dd8d00",
+      "compiledClassHash": "0x1e1ccdb7b50510613d6019572de667ae41959b34cc602f2cc6c4801adfaaebe",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "274649280",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129043574643849"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49333030534"
+        }
+      },
+      "bufferedFeeBound": "11938141499404235712"
+    },
+    {
+      "tag": "stakewars-SupplyDropOperatorSnapshot",
+      "classHash": "0x13f20aab4e166f106b56bca3c73c33a9a36547faf447ffa8f765020a4d6bbef",
+      "compiledClassHash": "0x6896db5c5fb9ffe681bfac981adff1c91e2ab51c1e73bcb8d5a158cddb92794",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "295320000",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129518435715825"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49539171537"
+        }
+      },
+      "bufferedFeeBound": "12836631758953882656"
+    },
+    {
+      "tag": "stakewars-SupplyDropPolicy",
+      "classHash": "0x5486d97385dcc3716e37c79c4546f136372bab81efe9aa3cf5f25930db94e57",
+      "compiledClassHash": "0x3a1734ac1559dda0611c77a5e51b5faeed4cc9b5c54dcc3f1cc1269ffd24b73",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "274117440",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129588086053896"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49565811913"
+        }
+      },
+      "bufferedFeeBound": "11915024179723171104"
+    },
+    {
+      "tag": "stakewars-SupplyDropSectorSnapshot",
+      "classHash": "0x1c0c2495bde152e1b120ac634e707801fd6754f58d6f92ad0a72707d0500b2c",
+      "compiledClassHash": "0x580ce46a4520d1a4f57cd6e2fdb0a3065220f5b0313caeef30a77c2b549d8fb",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "302255040",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129588086053896"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49565811913"
+        }
+      },
+      "bufferedFeeBound": "13138075812980937504"
+    },
+    {
+      "tag": "stakewars-SupplyDropClaimed",
+      "classHash": "0x659d45bbca039e9fcedb7ffaf1b2e860a82e412a498b226539c65dc9d02efc9",
+      "compiledClassHash": "0x9a686d3ea09f8ca9f388691738006f029555962637834af1dadd525054ecd2",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "271379520",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129048856794103"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49359563509"
+        }
+      },
+      "bufferedFeeBound": "11796015479653171872"
+    },
+    {
+      "tag": "stakewars-SupplyDropCreated",
+      "classHash": "0x5b8745f4b38024152f5012020a5e7c3bb0def95eaf7308e32bbe7b8299061a7",
+      "compiledClassHash": "0x4f8beabfda8b2250ecbfccde6ec14e8b8f0076b661be46a90bd8107997262f8",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "343375680",
+          "max_price_per_unit": "43466807164"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129048856794103"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49359563509"
+        }
+      },
+      "bufferedFeeBound": "14925458682921662112"
+    },
+    {
+      "tag": "stakewars-SupplyDropHoldCreated",
+      "classHash": "0x6fc1eb484968ae791115b7b5b8ac1984a87a525378b6d5ff213f6283197a4f1",
+      "compiledClassHash": "0x55a861cbc9ff0d6de832c591a7129e8c6973938eb7240dbd522e9e1729161bb",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "286992960",
+          "max_price_per_unit": "48554818051"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129521380990303"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49554828709"
+        }
+      },
+      "bufferedFeeBound": "13934905226508589152"
+    },
+    {
+      "tag": "stakewars-SupplyDropLocked",
+      "classHash": "0x383c2901749d2164276982ddcf115393652f89604cb938bb7eab55c7b0161c9",
+      "compiledClassHash": "0x1fa20317473f89c96fabdfde7a6b848a57b72b9a1c02be11805eb71f1ac23d8",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "251186880",
+          "max_price_per_unit": "52284489964"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129051791390266"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49375163916"
+        }
+      },
+      "bufferedFeeBound": "13133192126495680128"
+    },
+    {
+      "tag": "stakewars-SupplyDropRolledOver",
+      "classHash": "0x23e692425d23ecda4a4fd06b917317c5632c691e5874895b3780c91c0073b47",
+      "compiledClassHash": "0x32e0994bc9b96dc7efd544c4c7dd52c531bca9e11431ab7527f841d5712ca8b",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "290992320",
+          "max_price_per_unit": "58316509366"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129591164651236"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49598253259"
+        }
+      },
+      "bufferedFeeBound": "16969670639011007712"
+    },
+    {
+      "tag": "stakewars-SupplyDropSettled",
+      "classHash": "0x76eeaa804f15ca1a13590c7ce2eabb730626578878198f59158351a2386a48d",
+      "compiledClassHash": "0x26f5a21d3880d4c9ab745f1da1189c6a21567ee959b6e9c6b1c8ad0edd66eec",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "297552960",
+          "max_price_per_unit": "55918887541"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129051922581087"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49391869863"
+        }
+      },
+      "bufferedFeeBound": "16638844732590191904"
+    },
+    {
+      "tag": "stakewars-SupplyDropToppedUp",
+      "classHash": "0x7c1bac62e8060f32c75acaca4d15c8c4f6de53b7b725202e9fe537e0d4d10dc",
+      "compiledClassHash": "0x5a96a84884168262aaa2394bbc2f9a51c01674add919bf9cab5c2ba2c1efa29",
+      "resourceBounds": {
+        "l2_gas": {
+          "max_amount": "290276160",
+          "max_price_per_unit": "53618121744"
+        },
+        "l1_gas": {
+          "max_amount": "0",
+          "max_price_per_unit": "129521512658497"
+        },
+        "l1_data_gas": {
+          "max_amount": "288",
+          "max_price_per_unit": "49571595445"
+        }
+      },
+      "bufferedFeeBound": "15564076762880311200"
+    }
+  ]
+}

@@ -92,10 +92,10 @@ leave the previous winner in control.
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
 | `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification and optional contest settlement. |
-| `JACKPOT_SYSTEM_ADDRESS` | unset | Deployed Dojo Jackpot System. Configuring this enables the periodic keeper. |
-| `JACKPOT_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by Jackpot and Challenge duties. |
-| `JACKPOT_KEEPER_PRIVATE_KEY` | unset | Private key for the dedicated keeper account. Configure only as a server secret. |
-| `CHALLENGE_KEEPER_ENABLED` | `false` | Automatically settle expired contests using the existing Jackpot keeper signer. Requires all three Jackpot keeper variables, `CONTROL_SYSTEM_ADDRESS`, `STARKNET_RPC_URL`, and `TORII_URL`. |
+| `SUPPLY_DROP_SYSTEM_ADDRESS` | unset | Deployed Dojo SupplyDrop System. Configuring this enables the periodic keeper. |
+| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop and Challenge duties. |
+| `SUPPLY_DROP_KEEPER_PRIVATE_KEY` | unset | Private key for the dedicated keeper account. Configure only as a server secret. |
+| `CHALLENGE_KEEPER_ENABLED` | `false` | Automatically settle expired contests using the existing SupplyDrop keeper signer. Requires all three SupplyDrop keeper variables, `CONTROL_SYSTEM_ADDRESS`, `STARKNET_RPC_URL`, and `TORII_URL`. |
 | `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Sector image objects. |
 | `IMAGE_PUBLIC_URL` | unset | Public CDN origin for image delivery, such as `https://assets.stakewars.gg`. |
 | `S3_ENDPOINT` | unset | S3-compatible API endpoint, such as `https://fly.storage.tigris.dev`. |
@@ -103,8 +103,8 @@ leave the previous winner in control.
 | `AWS_ACCESS_KEY_ID` | unset | Object-store write credential; configure as a secret. |
 | `AWS_SECRET_ACCESS_KEY` | unset | Object-store write credential; configure as a secret. |
 
-`STARKNET_RPC_URL` and `JACKPOT_KEEPER_PRIVATE_KEY` should be supplied as Fly
-secrets rather than committed to the repository. The three Jackpot keeper
+`STARKNET_RPC_URL` and `SUPPLY_DROP_KEEPER_PRIVATE_KEY` should be supplied as Fly
+secrets rather than committed to the repository. The three SupplyDrop keeper
 variables are all-or-none. At startup, the API derives the public key from the
 private key and verifies it against the configured account contract before the
 worker begins. The keeper runs every 20 seconds, locks expired active rounds,
@@ -121,7 +121,7 @@ Sectors. Indexer lag, a new challenge, an escalation, or a user settling first
 causes stale work to be skipped or rechecked. The contract still determines the
 winner and all FORCE accounting; the backend receives no game privileges.
 
-Challenge and Jackpot calls share one signer and nonce lock. Before broadcast,
+Challenge and SupplyDrop calls share one signer and nonce lock. Before broadcast,
 the signer persists the locally computed transaction hash in SQLite, then waits
 for an accepted receipt. A timeout or lost RPC response keeps that hash pending;
 startup restores it and maintenance checks its receipt before further sends.
@@ -138,7 +138,7 @@ Activation requires a backend deployment with the flag enabled and the existing
 keeper secrets configured for that network. Local API runs must use the shared
 Sepolia deployment and a Sepolia keeper; never inject the production signing key
 into a local frontend or demo. Setting the flag to `false` disables automatic
-contest settlement without disabling Jackpot maintenance.
+contest settlement without disabling SupplyDrop maintenance.
 
 ## Durable transaction diagnostics
 

@@ -34,37 +34,37 @@ var productionOrigins = []string{
 // Config contains runtime settings. Secrets are read from the environment and
 // never persisted by this package.
 type Config struct {
-	Environment               string
-	Port                      string
-	DatabasePath              string
-	StarknetRPCURL            string
-	StarknetChainID           string
-	ToriiURL                  string
-	ToriiStakingPoolAddress   string
-	MaxImageBytes             int64
-	ChallengeTTL              time.Duration
-	SessionTTL                time.Duration
-	BeaconBiddingDuration     time.Duration
-	BeaconAcceptanceDuration  time.Duration
-	BeaconSettlementDuration  time.Duration
-	BeaconCoordinatorURL      string
-	BeaconCoordinatorToken    string
-	BeaconPaymentToken        string
-	BeaconReservePrice        string
-	BeaconMaxBids             uint32
-	BeaconWinnerPayloadDomain string
-	AllowedOrigins            []string
-	ControlSystemAddress      string
-	JackpotSystemAddress      string
-	JackpotKeeperAccount      string
-	JackpotKeeperPrivateKey   string
-	ChallengeKeeper           bool
-	ImageBucket               string
-	ImagePublicURL            string
-	S3Endpoint                string
-	S3Region                  string
-	S3AccessKeyID             string
-	S3SecretAccessKey         string
+	Environment                string
+	Port                       string
+	DatabasePath               string
+	StarknetRPCURL             string
+	StarknetChainID            string
+	ToriiURL                   string
+	ToriiStakingPoolAddress    string
+	MaxImageBytes              int64
+	ChallengeTTL               time.Duration
+	SessionTTL                 time.Duration
+	BeaconBiddingDuration      time.Duration
+	BeaconAcceptanceDuration   time.Duration
+	BeaconSettlementDuration   time.Duration
+	BeaconCoordinatorURL       string
+	BeaconCoordinatorToken     string
+	BeaconPaymentToken         string
+	BeaconReservePrice         string
+	BeaconMaxBids              uint32
+	BeaconWinnerPayloadDomain  string
+	AllowedOrigins             []string
+	ControlSystemAddress       string
+	SupplyDropSystemAddress    string
+	SupplyDropKeeperAccount    string
+	SupplyDropKeeperPrivateKey string
+	ChallengeKeeper            bool
+	ImageBucket                string
+	ImagePublicURL             string
+	S3Endpoint                 string
+	S3Region                   string
+	S3AccessKeyID              string
+	S3SecretAccessKey          string
 }
 
 // Load reads and validates runtime configuration from the environment.
@@ -140,31 +140,31 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("BEACON_BIDDING_DURATION must be a positive whole number of seconds")
 	}
 
-	jackpotSystemAddress := strings.TrimSpace(os.Getenv("JACKPOT_SYSTEM_ADDRESS"))
-	jackpotKeeperAccount := strings.TrimSpace(os.Getenv("JACKPOT_KEEPER_ACCOUNT_ADDRESS"))
-	jackpotKeeperPrivateKey := strings.TrimSpace(os.Getenv("JACKPOT_KEEPER_PRIVATE_KEY"))
-	configuredJackpotKeeperValues := 0
+	supplyDropSystemAddress := strings.TrimSpace(os.Getenv("SUPPLY_DROP_SYSTEM_ADDRESS"))
+	supplyDropKeeperAccount := strings.TrimSpace(os.Getenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS"))
+	supplyDropKeeperPrivateKey := strings.TrimSpace(os.Getenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY"))
+	configuredSupplyDropKeeperValues := 0
 	for _, value := range []string{
-		jackpotSystemAddress,
-		jackpotKeeperAccount,
-		jackpotKeeperPrivateKey,
+		supplyDropSystemAddress,
+		supplyDropKeeperAccount,
+		supplyDropKeeperPrivateKey,
 	} {
 		if value != "" {
-			configuredJackpotKeeperValues++
+			configuredSupplyDropKeeperValues++
 		}
 	}
-	if configuredJackpotKeeperValues != 0 && configuredJackpotKeeperValues != 3 {
-		return Config{}, fmt.Errorf("JACKPOT_SYSTEM_ADDRESS, JACKPOT_KEEPER_ACCOUNT_ADDRESS, and JACKPOT_KEEPER_PRIVATE_KEY must be configured together")
+	if configuredSupplyDropKeeperValues != 0 && configuredSupplyDropKeeperValues != 3 {
+		return Config{}, fmt.Errorf("SUPPLY_DROP_SYSTEM_ADDRESS, SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS, and SUPPLY_DROP_KEEPER_PRIVATE_KEY must be configured together")
 	}
 	challengeKeeper, err := strconv.ParseBool(valueOrDefault("CHALLENGE_KEEPER_ENABLED", "false"))
 	if err != nil {
 		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED must be a boolean")
 	}
-	if challengeKeeper && (configuredJackpotKeeperValues != 3 ||
+	if challengeKeeper && (configuredSupplyDropKeeperValues != 3 ||
 		strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")) == "" ||
 		strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" ||
 		strings.TrimSpace(os.Getenv("TORII_URL")) == "") {
-		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED requires the Jackpot keeper configuration, CONTROL_SYSTEM_ADDRESS, STARKNET_RPC_URL, and TORII_URL")
+		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED requires the SupplyDrop keeper configuration, CONTROL_SYSTEM_ADDRESS, STARKNET_RPC_URL, and TORII_URL")
 	}
 	origins := productionOrigins
 	if environment != productionEnvironmentName {
@@ -209,37 +209,37 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Environment:               environment,
-		Port:                      valueOrDefault("PORT", defaultPort),
-		DatabasePath:              valueOrDefault("DATABASE_PATH", defaultDatabasePath),
-		StarknetRPCURL:            strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
-		StarknetChainID:           valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
-		ToriiURL:                  toriiURL,
-		ToriiStakingPoolAddress:   strings.TrimSpace(os.Getenv("TORII_STAKING_POOL_ADDRESS")),
-		MaxImageBytes:             maxImageBytes,
-		ChallengeTTL:              challengeTTL,
-		SessionTTL:                sessionTTL,
-		BeaconBiddingDuration:     beaconBiddingDuration,
-		BeaconAcceptanceDuration:  beaconAcceptanceDuration,
-		BeaconSettlementDuration:  beaconSettlementDuration,
-		BeaconCoordinatorURL:      beaconCoordinatorURL,
-		BeaconCoordinatorToken:    beaconCoordinatorToken,
-		BeaconPaymentToken:        beaconPaymentToken,
-		BeaconReservePrice:        valueOrDefault("BEACON_RESERVE_PRICE", defaultBeaconReservePrice),
-		BeaconMaxBids:             uint32(beaconMaxBidsValue),
-		BeaconWinnerPayloadDomain: valueOrDefault("BEACON_WINNER_PAYLOAD_DOMAIN", defaultBeaconWinnerPayloadDomain),
-		AllowedOrigins:            origins,
-		ControlSystemAddress:      strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
-		JackpotSystemAddress:      jackpotSystemAddress,
-		JackpotKeeperAccount:      jackpotKeeperAccount,
-		JackpotKeeperPrivateKey:   jackpotKeeperPrivateKey,
-		ChallengeKeeper:           challengeKeeper,
-		ImageBucket:               imageBucket,
-		ImagePublicURL:            imagePublicURL,
-		S3Endpoint:                s3Endpoint,
-		S3Region:                  valueOrDefault("AWS_REGION", "auto"),
-		S3AccessKeyID:             s3AccessKeyID,
-		S3SecretAccessKey:         s3SecretAccessKey,
+		Environment:                environment,
+		Port:                       valueOrDefault("PORT", defaultPort),
+		DatabasePath:               valueOrDefault("DATABASE_PATH", defaultDatabasePath),
+		StarknetRPCURL:             strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")),
+		StarknetChainID:            valueOrDefault("STARKNET_CHAIN_ID", defaultStarknetChainID),
+		ToriiURL:                   toriiURL,
+		ToriiStakingPoolAddress:    strings.TrimSpace(os.Getenv("TORII_STAKING_POOL_ADDRESS")),
+		MaxImageBytes:              maxImageBytes,
+		ChallengeTTL:               challengeTTL,
+		SessionTTL:                 sessionTTL,
+		BeaconBiddingDuration:      beaconBiddingDuration,
+		BeaconAcceptanceDuration:   beaconAcceptanceDuration,
+		BeaconSettlementDuration:   beaconSettlementDuration,
+		BeaconCoordinatorURL:       beaconCoordinatorURL,
+		BeaconCoordinatorToken:     beaconCoordinatorToken,
+		BeaconPaymentToken:         beaconPaymentToken,
+		BeaconReservePrice:         valueOrDefault("BEACON_RESERVE_PRICE", defaultBeaconReservePrice),
+		BeaconMaxBids:              uint32(beaconMaxBidsValue),
+		BeaconWinnerPayloadDomain:  valueOrDefault("BEACON_WINNER_PAYLOAD_DOMAIN", defaultBeaconWinnerPayloadDomain),
+		AllowedOrigins:             origins,
+		ControlSystemAddress:       strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
+		SupplyDropSystemAddress:    supplyDropSystemAddress,
+		SupplyDropKeeperAccount:    supplyDropKeeperAccount,
+		SupplyDropKeeperPrivateKey: supplyDropKeeperPrivateKey,
+		ChallengeKeeper:            challengeKeeper,
+		ImageBucket:                imageBucket,
+		ImagePublicURL:             imagePublicURL,
+		S3Endpoint:                 s3Endpoint,
+		S3Region:                   valueOrDefault("AWS_REGION", "auto"),
+		S3AccessKeyID:              s3AccessKeyID,
+		S3SecretAccessKey:          s3SecretAccessKey,
 	}, nil
 }
 
@@ -251,8 +251,8 @@ func (c Config) ImageStorageEnabled() bool {
 	return c.ImageBucket != ""
 }
 
-func (c Config) JackpotKeeperEnabled() bool {
-	return c.JackpotSystemAddress != ""
+func (c Config) SupplyDropKeeperEnabled() bool {
+	return c.SupplyDropSystemAddress != ""
 }
 
 func valueOrDefault(key, fallback string) string {

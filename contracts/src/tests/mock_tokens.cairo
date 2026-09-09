@@ -11,7 +11,7 @@ pub trait IMockERC20Control<TContractState> {
 pub mod mock_erc20 {
     use core::num::traits::Zero;
     use stakewars::assets::IERC20Asset;
-    use stakewars::systems::jackpot::{IJackpotDispatcher, IJackpotDispatcherTrait};
+    use stakewars::systems::supply_drop::{ISupplyDropDispatcher, ISupplyDropDispatcherTrait};
     use stakewars::tests::mock_tokens::IMockERC20Control;
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
@@ -58,8 +58,8 @@ pub mod mock_erc20 {
             }
             self.move_tokens(sender, recipient, amount - self.transfer_fee.read());
             if self.reentrant_top_up.read() {
-                let jackpot = IJackpotDispatcher { contract_address: recipient };
-                jackpot.top_up_jackpot(jackpot.get_active_jackpot().id, 1);
+                let supply_drop = ISupplyDropDispatcher { contract_address: recipient };
+                supply_drop.top_up_supply_drop(supply_drop.get_active_supply_drop().id, 1);
             }
             true
         }

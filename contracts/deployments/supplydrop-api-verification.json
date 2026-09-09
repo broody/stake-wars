@@ -1,0 +1,65 @@
+{
+  "checkedAt": "2026-09-09T03:55:06.644Z",
+  "/healthz": {
+    "status": 200,
+    "body": {
+      "status": "ok"
+    }
+  },
+  "/readyz": {
+    "status": 200,
+    "body": {
+      "status": "ready"
+    }
+  },
+  "/v1/config": {
+    "status": 200,
+    "body": {
+      "authEnabled": true,
+      "imageUploadsEnabled": true,
+      "maxImageBytes": 2097152,
+      "network": "SN_MAIN",
+      "supportedImageTypes": [
+        "image/webp",
+        "image/jpeg",
+        "image/png"
+      ],
+      "toriiUrl": "/torii"
+    }
+  },
+  "/v1/stats": {
+    "status": 200,
+    "body": {
+      "network": "SN_MAIN",
+      "totalStaked": "146033000000000000000000",
+      "activeOperators": 13,
+      "occupiedSectors": 238,
+      "updatedAt": "2026-09-09T00:49:15Z"
+    }
+  },
+  "/torii/health": {
+    "status": 200,
+    "body": {
+      "service": "torii",
+      "success": true,
+      "version": "1.8.16 (main fe3ed0f)"
+    }
+  },
+  "collections": {
+    "status": 200,
+    "allowOrigin": "https://stakewars.gg",
+    "body": {
+      "data": {
+        "stakewarsSupplyDropModels": {
+          "edges": []
+        },
+        "stakewarsSupplyDropCounterModels": {
+          "edges": []
+        },
+        "stakewarsSupplyDropStakingPolicyModels": {
+          "edges": []
+        }
+      }
+    }
+  }
+}

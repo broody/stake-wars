@@ -1,0 +1,25 @@
+{
+  "name": "SupplyDropCounter",
+  "classHash": "0x1513005d24eb7dd508dc544dd9c60844dd607a25876d8bc18ae758360dd8d00",
+  "compiledClassHash": "0x1e1ccdb7b50510613d6019572de667ae41959b34cc602f2cc6c4801adfaaebe",
+  "status": "accepted",
+  "bounds": {
+    "l2_gas": {
+      "max_amount": "274649280",
+      "max_price_per_unit": "43441601652"
+    },
+    "l1_gas": {
+      "max_amount": "0",
+      "max_price_per_unit": "129465667980400"
+    },
+    "l1_data_gas": {
+      "max_amount": "288",
+      "max_price_per_unit": "50490440907"
+    }
+  },
+  "reserve": "11931219157015591776",
+  "balance": "301427277911143064768",
+  "transactionHash": "0x50c28b43aad1129b75d839e68f02de51371ebbf93f58c3f2e6791e14c1c54fa",
+  "nonce": "80",
+  "block": 14587787
+}

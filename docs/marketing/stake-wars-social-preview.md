@@ -14,7 +14,7 @@ The asset and metadata are prepared locally. They require a frontend deployment 
 
 > Capture sectors. Challenge rivals. Put your art on the Core. Discover Stake Wars, a territory-control game powered by STRK staking on Starknet.
 
-For a paid Website Card, set its destination to https://stakewars.gg/ and its headline to “Stake Wars”. Keep the destination URL out of the ad text. This is draft copy, not a guarantee of ad eligibility. Country and product approval must be resolved separately, including the staking and random token jackpot mechanics.
+For a paid Website Card, set its destination to https://stakewars.gg/ and its headline to “Stake Wars”. Keep the destination URL out of the ad text. This is draft copy, not a guarantee of ad eligibility. Country and product approval must be resolved separately, including the staking and random token supply_drop mechanics.
 
 Policies reviewed on 2026-09-07: [X quality policy](https://business.x.com/en/help/ads-policies/ads-content-policies/quality-policy), [financial products and blockchain games](https://business.x.com/en/help/ads-policies/ads-content-policies/financial-services), [gambling content](https://business.x.com/en/help/ads-policies/ads-content-policies/gambling-content), [creative specifications](https://business.x.com/en/help/campaign-setup/creative-ad-specifications), and [Boosted Terms](https://help.x.com/en/using-x/boosted-terms).
 

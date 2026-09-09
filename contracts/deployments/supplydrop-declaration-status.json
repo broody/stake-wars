@@ -1,0 +1,76 @@
+[
+  {
+    "tag": "stakewars-control",
+    "classHash": "0x1499c95aae3a794652230ac42fde19bc6d12f16e9740c9945f903405c88c64c",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-supply_drop",
+    "classHash": "0x4c1dbbe5e14ebd796f2a78df040da82f5a1773b27a7a688f1309c2a49e8eca2",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDrop",
+    "classHash": "0x4865444a00e3022955f3c4a0b7bf2268196add702ac14b36e25754335cd17da",
+    "declared": true,
+    "transactionHash": "0x768703bdc763580a9071a1ced9186af57c698ea31f47b12c1ca2a3a97bbec6a",
+    "block": 14587769
+  },
+  {
+    "tag": "stakewars-SupplyDropCounter",
+    "classHash": "0x1513005d24eb7dd508dc544dd9c60844dd607a25876d8bc18ae758360dd8d00",
+    "declared": true,
+    "transactionHash": "0x50c28b43aad1129b75d839e68f02de51371ebbf93f58c3f2e6791e14c1c54fa",
+    "block": 14587787
+  },
+  {
+    "tag": "stakewars-SupplyDropOperatorSnapshot",
+    "classHash": "0x13f20aab4e166f106b56bca3c73c33a9a36547faf447ffa8f765020a4d6bbef",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropPolicy",
+    "classHash": "0x5486d97385dcc3716e37c79c4546f136372bab81efe9aa3cf5f25930db94e57",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropSectorSnapshot",
+    "classHash": "0x1c0c2495bde152e1b120ac634e707801fd6754f58d6f92ad0a72707d0500b2c",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropClaimed",
+    "classHash": "0x659d45bbca039e9fcedb7ffaf1b2e860a82e412a498b226539c65dc9d02efc9",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropCreated",
+    "classHash": "0x5b8745f4b38024152f5012020a5e7c3bb0def95eaf7308e32bbe7b8299061a7",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropHoldCreated",
+    "classHash": "0x6fc1eb484968ae791115b7b5b8ac1984a87a525378b6d5ff213f6283197a4f1",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropLocked",
+    "classHash": "0x383c2901749d2164276982ddcf115393652f89604cb938bb7eab55c7b0161c9",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropRolledOver",
+    "classHash": "0x23e692425d23ecda4a4fd06b917317c5632c691e5874895b3780c91c0073b47",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropSettled",
+    "classHash": "0x76eeaa804f15ca1a13590c7ce2eabb730626578878198f59158351a2386a48d",
+    "declared": true
+  },
+  {
+    "tag": "stakewars-SupplyDropToppedUp",
+    "classHash": "0x7c1bac62e8060f32c75acaca4d15c8c4f6de53b7b725202e9fe537e0d4d10dc",
+    "declared": true
+  }
+]

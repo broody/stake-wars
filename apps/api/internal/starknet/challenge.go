@@ -164,13 +164,13 @@ type ChallengeSubmitter interface {
 }
 
 type AccountChallengeSubmitter struct {
-	keeper        *AccountJackpotSubmitter
+	keeper        *AccountSupplyDropSubmitter
 	controlSystem *felt.Felt
 }
 
 // NewChallengeSubmitter shares the existing keeper account, nonce lock, and
-// pending receipt with Jackpot maintenance. It does not create another signer.
-func NewChallengeSubmitter(keeper *AccountJackpotSubmitter, controlSystem string) (*AccountChallengeSubmitter, error) {
+// pending receipt with SupplyDrop maintenance. It does not create another signer.
+func NewChallengeSubmitter(keeper *AccountSupplyDropSubmitter, controlSystem string) (*AccountChallengeSubmitter, error) {
 	address, err := normalizeAddress(controlSystem)
 	if err != nil {
 		return nil, fmt.Errorf("invalid challenge control system: %w", err)
