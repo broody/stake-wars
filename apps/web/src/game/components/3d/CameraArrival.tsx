@@ -54,7 +54,11 @@ export function CameraArrival({ active = true }: { active?: boolean }) {
   }, [gl]);
 
   useFrame((_state, delta) => {
-    if (!active || !isAnimating.current) return;
+    if (!active) {
+      isAnimating.current = false;
+      return;
+    }
+    if (!isAnimating.current) return;
 
     // Background tabs can resume with a very large delta. Capping it keeps the
     // arrival smooth and prevents it from teleporting to the end on return.

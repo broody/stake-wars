@@ -125,6 +125,20 @@ To run the frontend against the shared Sepolia deployment instead, use:
 pnpm dev:web:sepolia
 ```
 
+For collateral captures, build the current checkout and serve it locally with
+production Mainnet data:
+
+```bash
+pnpm dev:web:prod
+```
+
+Open [http://localhost:3000/play](http://localhost:3000/play). This uses
+`apps/web/.env.mainnet` and a localhost proxy for the production API, Torii,
+RPC, Whisper operator, and artwork. Wallet actions use Mainnet. Build output is
+temporary and removed on exit; press Ctrl+C to stop, then rerun the command to
+include code changes. Update the public Mainnet settings after production
+deployments change the configured addresses.
+
 The shared Sepolia World uses a 0.1 STRK minimum capture force, a 180-second
 response window, and 2,000 Sectors. Mainnet launches with a 100 STRK
 minimum and a 10,800-second response window. The game admin may change the

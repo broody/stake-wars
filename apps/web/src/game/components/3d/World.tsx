@@ -28,6 +28,7 @@ import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { BeaconModal } from '../ui/BeaconModal';
 import { BeaconCameraTracker } from './BeaconCameraTracker';
+import { JackpotCameraTracker } from './JackpotCameraTracker';
 import { JackpotDrawPanel } from '../ui/JackpotDrawPanel';
 import {
   getJackpots,
@@ -420,6 +421,8 @@ export function World({ active = true }: { active?: boolean }) {
   const ignoreBeaconInspectRef = useRef(false);
   const ignoreJackpotInspectRef = useRef(false);
   const jackpotDraw = useCoreJackpotDraw(active);
+  const [isJackpotCameraControlled, setJackpotCameraControlled] =
+    useState(false);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
@@ -542,6 +545,7 @@ export function World({ active = true }: { active?: boolean }) {
     isSectorInteractionLocked ||
     isBeaconOpen ||
     isJackpotOpen ||
+    isJackpotCameraControlled ||
     showEnemySwarms ||
     marqueeStart !== null;
 
@@ -620,6 +624,8 @@ export function World({ active = true }: { active?: boolean }) {
       onPointerDownCapture={(event) => {
         if (
           event.button !== 2 ||
+          isJackpotOpen ||
+          isJackpotCameraControlled ||
           isImageUploadMode ||
           isSectorInteractionLocked
         ) {
@@ -674,17 +680,27 @@ export function World({ active = true }: { active?: boolean }) {
             active &&
             marqueeStart === null &&
             !isBeaconOpen &&
+            !isJackpotOpen &&
+            !isJackpotCameraControlled &&
             !isPlacementLocked
           }
         />
 
-        <CameraArrival active={active && !showEnemySwarms} />
+        <CameraArrival
+          active={active && !showEnemySwarms && !isBeaconOpen && !isJackpotOpen}
+        />
 
         {/* Idle camera rotation after 10 seconds of inactivity */}
         <IdleCameraRotation disabled={disableIdleRotation} />
         <BeaconCameraTracker
           active={active && isBeaconOpen}
           projectionActive={isProjectionVisible}
+        />
+        <JackpotCameraTracker
+          active={active && !isBeaconOpen}
+          tracking={isJackpotOpen}
+          sectorId={jackpotDraw?.lastDrawnSectorId ?? null}
+          onControlChange={setJackpotCameraControlled}
         />
       </Canvas>
 

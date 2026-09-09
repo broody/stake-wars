@@ -13,6 +13,7 @@
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "dev:web": "pnpm --filter @stakewars/web dev",
     "dev:web:sepolia": "pnpm --filter @stakewars/web dev:sepolia",
+    "dev:web:prod": "pnpm --filter @stakewars/web exec node ../../scripts/run-web-prod-local.mjs",
     "dev:web:e2e": "./scripts/run-web-e2e-local.sh",
     "dev:api": "./scripts/run-api-local.sh",
     "dev:whisper": "./scripts/run-whisper-operator-local.sh",

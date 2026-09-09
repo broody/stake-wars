@@ -6,8 +6,8 @@ import type { Jackpot } from '../../types';
 import {
   CORE_RADIUS,
   createSectorSetGeometry,
-  extractSectorPositions,
 } from '../../utils/sectorGeometry';
+import { jackpotSectorAnchor } from '../../utils/jackpotCamera';
 import { isZeroAddress } from '../../utils/format';
 import { isJackpotDrawPending } from '../../services/jackpot';
 
@@ -25,24 +25,6 @@ function easeOutCubic(value: number): number {
 
 function easeInCubic(value: number): number {
   return value ** 3;
-}
-
-function sectorAnchor(sectorId: number) {
-  const positions = extractSectorPositions([sectorId], CORE_RADIUS);
-  const normal = new THREE.Vector3(
-    (positions[0] + positions[3] + positions[6]) / 3,
-    (positions[1] + positions[4] + positions[7]) / 3,
-    (positions[2] + positions[5] + positions[8]) / 3
-  ).normalize();
-  const orientation = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    normal
-  );
-  return {
-    normal,
-    position: normal.clone().multiplyScalar(CORE_RADIUS + 0.85),
-    orientation,
-  };
 }
 
 export function CoreJackpotMarker({
@@ -63,7 +45,7 @@ export function CoreJackpotMarker({
   const [isHovered, setIsHovered] = useState(false);
   const hasWinner = !isZeroAddress(jackpot.winner);
   const anchor = useMemo(
-    () => sectorAnchor(jackpot.lastDrawnSectorId),
+    () => jackpotSectorAnchor(jackpot.lastDrawnSectorId),
     [jackpot.lastDrawnSectorId]
   );
   const arrivalPosition = useMemo(
