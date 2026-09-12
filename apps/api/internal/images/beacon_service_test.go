@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/png"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"stakewars.com/api/internal/beacon"
@@ -15,59 +16,68 @@ import (
 )
 
 func TestAuthorizeAndPublishBeaconImage(t *testing.T) {
-	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon-images.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	seedBeaconController(t, db, 4, "0xabc")
+	for _, advertisement := range []struct {
+		name, description, destination string
+	}{
+		{name: "image only"},
+		{name: "with description and link", description: "Build on Starknet.", destination: "https://starknet.io/build"},
+	} {
+		t.Run(advertisement.name, func(t *testing.T) {
+			db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon-images.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = db.Close() })
+			seedBeaconController(t, db, 4, "0xabc")
 
-	objects := &fakeObjectStore{data: make(map[string][]byte)}
-	controllers := &fakeBeaconController{roundID: 4, address: "0xabc"}
-	store := NewStore(db)
-	service := NewBeaconService(
-		store, objects, controllers, "SN_SEPOLIA", 2*1024*1024,
-	)
-	detail := encodedRectPNG(t, 320, beaconDetailMaximumDimension)
-	thumbnail := encodedRectPNG(t, 160, beaconThumbnailMaximumDimension)
-	authorization, err := service.Authorize(
-		context.Background(),
-		"0xabc",
-		BeaconAuthorizeInput{
-			Description: "Build on Starknet.", DestinationURL: "https://starknet.io/build",
-			ContentType: "image/png", DetailSize: int64(len(detail)),
-			ThumbnailSize: int64(len(thumbnail)),
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	objects.data[objects.authorized[0]] = detail
-	objects.data[objects.authorized[1]] = thumbnail
+			objects := &fakeObjectStore{data: make(map[string][]byte)}
+			controllers := &fakeBeaconController{roundID: 4, address: "0xabc"}
+			store := NewStore(db)
+			service := NewBeaconService(
+				store, objects, controllers, "SN_SEPOLIA", 2*1024*1024,
+			)
+			detail := encodedRectPNG(t, 320, beaconDetailMaximumDimension)
+			thumbnail := encodedRectPNG(t, 160, beaconThumbnailMaximumDimension)
+			authorization, err := service.Authorize(
+				context.Background(),
+				"0xabc",
+				BeaconAuthorizeInput{
+					Description: advertisement.description, DestinationURL: advertisement.destination,
+					ContentType: "image/png", DetailSize: int64(len(detail)),
+					ThumbnailSize: int64(len(thumbnail)),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			objects.data[objects.authorized[0]] = detail
+			objects.data[objects.authorized[1]] = thumbnail
 
-	published, err := service.Complete(context.Background(), authorization.UploadID, "0xabc")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if published.ControllerRoundID != 4 || published.ImageURL == "" ||
-		published.ThumbnailURL == "" || published.Description != "Build on Starknet." ||
-		published.DestinationURL != "https://starknet.io/build" {
-		t.Fatalf("unexpected Beacon artwork: %+v", published)
-	}
-	controller, err := beacon.NewStore(db).Controller(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if controller.ActiveArtworkID != published.ID || controllers.checks != 2 {
-		t.Fatalf("unexpected controller projection: %+v", controller)
-	}
-	billboard, err := beacon.NewStore(db).Billboard(
-		context.Background(), "SN_SEPOLIA", controller.ActiveArtworkID,
-	)
-	if err != nil || billboard.ImageURL != published.ImageURL ||
-		billboard.Description != published.Description ||
-		billboard.DestinationURL != published.DestinationURL {
-		t.Fatalf("unexpected billboard: %+v, %v", billboard, err)
+			published, err := service.Complete(context.Background(), authorization.UploadID, "0xabc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if published.ControllerRoundID != 4 || published.ImageURL == "" ||
+				published.ThumbnailURL == "" || published.Description != advertisement.description ||
+				published.DestinationURL != advertisement.destination {
+				t.Fatalf("unexpected Beacon artwork: %+v", published)
+			}
+			controller, err := beacon.NewStore(db).Controller(context.Background(), "SN_SEPOLIA")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if controller.ActiveArtworkID != published.ID || controllers.checks != 2 {
+				t.Fatalf("unexpected controller projection: %+v", controller)
+			}
+			billboard, err := beacon.NewStore(db).Billboard(
+				context.Background(), "SN_SEPOLIA", controller.ActiveArtworkID,
+			)
+			if err != nil || billboard.ImageURL != published.ImageURL ||
+				billboard.Description != published.Description ||
+				billboard.DestinationURL != published.DestinationURL {
+				t.Fatalf("unexpected billboard: %+v, %v", billboard, err)
+			}
+		})
 	}
 }
 
@@ -161,12 +171,28 @@ func TestValidateBeaconAdvertisement(t *testing.T) {
 		destination != "https://starknet.io" {
 		t.Fatalf("unexpected scheme-less advertisement: %q, %q, %v", description, destination, err)
 	}
+	for _, testCase := range []struct {
+		description string
+		destination string
+	}{
+		{},
+		{description: "  ", destination: "  "},
+		{description: "", destination: "https://example.com"},
+		{description: "Image caption.", destination: ""},
+	} {
+		description, destination, err := normalizeBeaconAdvertisement(testCase.description, testCase.destination)
+		if err != nil || description != strings.TrimSpace(testCase.description) || destination != strings.TrimSpace(testCase.destination) {
+			t.Fatalf("unexpected optional advertisement: %q, %q, %v", description, destination, err)
+		}
+	}
 
 	for _, testCase := range []struct {
 		description string
 		destination string
 	}{
-		{description: "", destination: "https://example.com"},
+		{description: strings.Repeat("x", beaconDescriptionMaximumLength+1)},
+		{description: "\xff"},
+		{destination: "https://example.com/" + strings.Repeat("x", beaconDestinationMaximumLength)},
 		{description: "Unsafe scheme.", destination: "javascript:alert(1)"},
 		{description: "Credentials are not allowed.", destination: "https://user:pass@example.com"},
 	} {

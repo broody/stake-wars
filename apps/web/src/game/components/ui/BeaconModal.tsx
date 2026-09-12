@@ -1060,8 +1060,8 @@ function BeaconProjectionUpload({
       !prepared ||
       !uploadsEnabled ||
       isUploading ||
-      !description.trim() ||
-      !isValidBeaconDestination(normalizedDestinationUrl)
+      (normalizedDestinationUrl !== '' &&
+        !isValidBeaconDestination(normalizedDestinationUrl))
     ) {
       return;
     }
@@ -1093,8 +1093,7 @@ function BeaconProjectionUpload({
     isUploading ||
     !uploadsEnabled ||
     !prepared ||
-    !description.trim() ||
-    !isValidBeaconDestination(destinationUrl);
+    (destinationUrl.trim() !== '' && !isValidBeaconDestination(destinationUrl));
 
   return (
     <section
@@ -1162,7 +1161,7 @@ function BeaconProjectionUpload({
 
       <label className="mt-3 block" htmlFor="beacon-ad-description">
         <span className="flex items-center justify-between text-[8px] tracking-[0.16em] text-neutral-500">
-          <span>DESCRIPTION</span>
+          <span>DESCRIPTION (OPTIONAL)</span>
           <span>
             {description.length}/{BEACON_DESCRIPTION_MAX_LENGTH}
           </span>
@@ -1181,7 +1180,7 @@ function BeaconProjectionUpload({
 
       <label className="mt-3 block" htmlFor="beacon-ad-destination">
         <span className="text-[8px] tracking-[0.16em] text-neutral-500">
-          DESTINATION LINK
+          DESTINATION LINK (OPTIONAL)
         </span>
         <input
           id="beacon-ad-destination"
@@ -1242,11 +1241,10 @@ function BeaconProjectionUpload({
               ? 'PUBLISHING TRANSMISSION…'
               : !prepared
                 ? 'CHOOSE IMAGE'
-                : !description.trim()
-                  ? 'ADD DESCRIPTION'
-                  : !isValidBeaconDestination(destinationUrl)
-                    ? 'ADD VALID LINK'
-                    : 'PUBLISH TRANSMISSION'}
+                : destinationUrl.trim() !== '' &&
+                    !isValidBeaconDestination(destinationUrl)
+                  ? 'ADD VALID LINK'
+                  : 'PUBLISH TRANSMISSION'}
       </button>
     </section>
   );

@@ -210,20 +210,23 @@ func (s *BeaconService) Complete(
 func normalizeBeaconAdvertisement(description, destinationURL string) (string, string, error) {
 	description = strings.TrimSpace(description)
 	destinationURL = strings.TrimSpace(destinationURL)
-	if description == "" || !utf8.ValidString(description) ||
+	if !utf8.ValidString(description) ||
 		utf8.RuneCountInString(description) > beaconDescriptionMaximumLength {
 		return "", "", fmt.Errorf(
-			"%w: description must contain 1-%d characters",
+			"%w: description must be valid UTF-8 and contain at most %d characters",
 			ErrInvalidAdvertisement,
 			beaconDescriptionMaximumLength,
 		)
 	}
+	if destinationURL == "" {
+		return description, "", nil
+	}
 	if destinationURL != "" && !strings.Contains(destinationURL, "://") {
 		destinationURL = "https://" + destinationURL
 	}
-	if destinationURL == "" || len(destinationURL) > beaconDestinationMaximumLength {
+	if len(destinationURL) > beaconDestinationMaximumLength {
 		return "", "", fmt.Errorf(
-			"%w: destination URL must contain 1-%d characters",
+			"%w: destination URL must contain at most %d characters",
 			ErrInvalidAdvertisement,
 			beaconDestinationMaximumLength,
 		)
