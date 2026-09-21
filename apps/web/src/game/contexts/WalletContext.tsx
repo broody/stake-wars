@@ -16,6 +16,7 @@ import {
 } from '@starknetfoundation/starknet-start-react';
 import { WalletAccountV6, walletV6 } from 'starknet';
 import type { STRK20_ACTION } from 'starknet';
+import { StarknetWalletApi } from '@starknet-io/get-starknet-wallet-standard/features';
 import type { WalletState } from '../types';
 import { config } from '../services/config';
 import {
@@ -77,6 +78,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     | PrivacyWallet
     | undefined;
 
+  const walletId = account.connector?.features[StarknetWalletApi]?.id ?? null;
+
   useEffect(() => {
     const revision = shieldedRequestRevision.current + 1;
     shieldedRequestRevision.current = revision;
@@ -132,10 +135,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const invokePrivateActions = useCallback(
     async (actions: STRK20_ACTION[]) => {
       if (!account.address || !privacyWallet) {
-        throw new Error('Connect Ready before placing a private bid.');
+        throw new Error('Connect a wallet before placing a private bid.');
       }
       if (!isPrivacyWalletSupported) {
-        throw new Error('This wallet does not support private STRK actions.');
+        throw new Error(
+          'This wallet does not support starknet-privacy, which private STRK bids require.'
+        );
       }
       if (actions.length === 0) {
         throw new Error('Private transaction requires at least one action.');
@@ -201,6 +206,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       address: account.address || null,
       canConnect: connection.connectors.length > 0,
       chainId: account.chainId ? `0x${account.chainId.toString(16)}` : null,
+      walletId,
       walletName: account.connector?.name || null,
       connect,
       disconnect,
@@ -239,6 +245,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     shieldedStrkBalance,
     shieldedStrkError,
     shieldedStrkStatus,
+    walletId,
   ]);
 
   return (
