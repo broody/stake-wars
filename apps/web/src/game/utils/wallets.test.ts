@@ -4,6 +4,7 @@ import {
   isControllerWallet,
   isReadyWallet,
   isSupportedWallet,
+  isXverseWallet,
 } from './wallets';
 
 describe('wallet detection', () => {
@@ -26,10 +27,18 @@ describe('wallet detection', () => {
     expect(isControllerWallet('Ready', 'argentX')).toBe(false);
   });
 
+  it('recognizes Xverse by id or name', () => {
+    expect(isXverseWallet('Xverse', 'xverse')).toBe(true);
+    expect(isXverseWallet('Xverse')).toBe(true);
+    expect(isXverseWallet('Xverse Wallet')).toBe(true);
+    expect(isXverseWallet('Ready', 'argentX')).toBe(false);
+  });
+
   it('accepts only supported connectors', () => {
     expect(isSupportedWallet('Ready', 'argentX')).toBe(true);
     expect(isSupportedWallet('Braavos', 'braavos')).toBe(true);
     expect(isSupportedWallet('Controller', 'controller')).toBe(true);
+    expect(isSupportedWallet('Xverse', 'xverse')).toBe(true);
     expect(isSupportedWallet('Keplr', 'keplr')).toBe(false);
   });
 });

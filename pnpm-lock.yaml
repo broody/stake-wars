@@ -33,6 +33,9 @@ importers:
       '@starknet-io/get-starknet-wallet-standard':
         specifier: 6.0.5
         version: 6.0.5(typescript@5.9.3)
+      '@starknet-io/get-starknet-wallets':
+        specifier: 6.0.1
+        version: 6.0.1
       '@starknet-io/types-js':
         specifier: 0.10.3
         version: 0.10.3

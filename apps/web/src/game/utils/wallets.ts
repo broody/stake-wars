@@ -10,10 +10,15 @@ export function isControllerWallet(name: string, id?: string | null) {
   return id === 'controller' || /controller|cartridge/i.test(name);
 }
 
+export function isXverseWallet(name: string, id?: string | null) {
+  return id === 'xverse' || /xverse/i.test(name);
+}
+
 export function isSupportedWallet(name: string, id?: string | null) {
   return (
     isReadyWallet(name, id) ||
     isBraavosWallet(name, id) ||
-    isControllerWallet(name, id)
+    isControllerWallet(name, id) ||
+    isXverseWallet(name, id)
   );
 }
