@@ -92,8 +92,16 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     setShieldedStrkStatus('checking');
-    walletV6
-      .supportedWalletApi(privacyWallet)
+    let apiVersions: ReturnType<typeof walletV6.supportedWalletApi>;
+    try {
+      apiVersions = walletV6.supportedWalletApi(privacyWallet);
+    } catch {
+      // Braavos throws synchronously for requests it does not implement,
+      // which would otherwise escape this effect and crash the app.
+      setShieldedStrkStatus('unsupported');
+      return;
+    }
+    apiVersions
       .then((versions) => {
         if (shieldedRequestRevision.current !== revision) return;
         setShieldedStrkStatus(

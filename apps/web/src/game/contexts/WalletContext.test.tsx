@@ -62,6 +62,31 @@ function readyWallet({
   };
 }
 
+function braavosWallet() {
+  const listeners = new Map<string, (accounts: string[]) => void>();
+  const request = vi.fn(({ type }: { type: string }): Promise<unknown> => {
+    if (type === 'wallet_supportedWalletApi') {
+      throw new Error('Not implemented');
+    }
+    if (type === 'wallet_requestAccounts') {
+      return Promise.resolve(['0x123']);
+    }
+    if (type === 'wallet_requestChainId') return Promise.resolve(chainId);
+    throw new Error(`Unexpected wallet request: ${type}`);
+  });
+  const wallet = new StarknetInjectedWallet({
+    id: 'braavos',
+    name: 'Braavos',
+    icon: 'data:image/png;base64,AA==',
+    version: '6.0.0',
+    request,
+    on: (event: string, listener: (accounts: string[]) => void) => {
+      listeners.set(event, listener);
+    },
+  } as unknown as ConstructorParameters<typeof StarknetInjectedWallet>[0]);
+  return { wallet, request };
+}
+
 function discovery(initial: WalletWithStarknetFeatures[] = []) {
   let wallets = initial;
   const listeners = new Set<Parameters<Store['subscribe']>[0]>();
@@ -298,5 +323,21 @@ describe('wallet automatic reconnection', () => {
     expect(current.isConnected).toBe(false);
     expect(current.isConnecting).toBe(false);
     expect(ready.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('privacy capability probe', () => {
+  it('treats a synchronous Not implemented throw as unsupported without crashing', async () => {
+    const braavos = braavosWallet();
+    await mount(discovery([braavos.wallet]).store);
+
+    await act(async () => current.connect('Braavos'));
+
+    expect(current.isConnected).toBe(true);
+    expect(current.walletName).toBe('Braavos');
+    expect(current.walletId).toBe('braavos');
+    expect(current.shieldedStrkStatus).toBe('unsupported');
+    expect(current.isPrivacyWalletSupported).toBe(false);
+    expect(container.textContent).toBe(current.address);
   });
 });
