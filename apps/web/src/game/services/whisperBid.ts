@@ -65,7 +65,9 @@ export async function submitBeaconBid({
 
   const chainId = networkFelt(network);
   if (!sameFelt(walletChainId, chainId)) {
-    throw new Error(`Switch Ready to ${network} before bidding.`);
+    throw new Error(
+      `Switch the connected wallet to ${network} before bidding.`
+    );
   }
   if (!sameFelt(round.paymentToken, expectedPaymentToken)) {
     throw new Error(

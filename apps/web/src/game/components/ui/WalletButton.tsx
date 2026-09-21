@@ -3,13 +3,10 @@ import { WalletList } from '@starknet-io/get-starknet-modal';
 import { Link, useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
+import { isSupportedWallet } from '../../utils/wallets';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function isReadyWallet(name: string, id?: string) {
-  return id === 'argentX' || /ready|argent/i.test(name);
 }
 
 function preferredDownload(downloads: Record<string, string>) {
@@ -160,7 +157,7 @@ export function WalletButton() {
               <WalletList className="flex flex-col gap-1">
                 {(option) => {
                   const id = option.info?.id;
-                  if (!isReadyWallet(option.name, id)) {
+                  if (!isSupportedWallet(option.name, id)) {
                     return null;
                   }
 

@@ -210,6 +210,7 @@ export interface WalletState {
   canConnect: boolean;
   address: string | null;
   chainId: string | null;
+  walletId: string | null;
   walletName: string | null;
   error: string | null;
 }

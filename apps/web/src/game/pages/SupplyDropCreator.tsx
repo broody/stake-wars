@@ -382,7 +382,7 @@ function SupplyDropCreationForm({
   const disabledReason = !config.supplyDropSystemAddress
     ? 'SUPPLY_DROP SYSTEM NOT CONFIGURED'
     : !isConnected || !address
-      ? 'CONNECT READY WALLET'
+      ? 'CONNECT WALLET'
       : !correctNetwork
         ? `SWITCH TO ${config.starknetChainId}`
         : authorization === 'checking' || authorization === 'idle'

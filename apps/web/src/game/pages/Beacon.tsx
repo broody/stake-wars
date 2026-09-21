@@ -15,6 +15,7 @@ import {
   type StoredBeaconBid,
 } from '../services/beaconBidStorage';
 import { submitBeaconBid } from '../services/whisperBid';
+import { isBraavosWallet } from '../utils/wallets';
 
 export function Beacon() {
   const location = useLocation();
@@ -29,6 +30,8 @@ export function Beacon() {
     isConnected,
     isPrivacyWalletSupported,
     shieldedStrkStatus,
+    walletId,
+    walletName,
   } = useWallet();
   const view = location.pathname.endsWith('/history') ? 'history' : 'auction';
   const historyState = useBeaconHistory(view === 'history');
@@ -44,11 +47,13 @@ export function Beacon() {
   const consoleRefresh = view === 'history' ? historyState.refresh : refresh;
 
   const bidStatusLabel = !isConnected
-    ? 'CONNECT READY TO BID'
+    ? 'CONNECT WALLET TO BID'
     : shieldedStrkStatus === 'checking'
-      ? 'CHECKING READY PRIVACY'
+      ? 'CHECKING WALLET PRIVACY'
       : !isPrivacyWalletSupported
-        ? 'READY PRIVACY REQUIRED'
+        ? isBraavosWallet(walletName ?? '', walletId)
+          ? 'BRAAVOS DOES NOT SUPPORT STARKNET-PRIVACY'
+          : 'WALLET PRIVACY REQUIRED'
         : !config.whisperOperatorUrl
           ? 'CAPSULE OPERATOR NOT CONFIGURED'
           : 'READY WALLET // PRIVATE';
