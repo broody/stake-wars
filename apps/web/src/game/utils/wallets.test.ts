@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isBraavosWallet, isReadyWallet, isSupportedWallet } from './wallets';
+import {
+  isBraavosWallet,
+  isControllerWallet,
+  isReadyWallet,
+  isSupportedWallet,
+} from './wallets';
 
 describe('wallet detection', () => {
   it('recognizes Ready by id or name', () => {
@@ -15,9 +20,16 @@ describe('wallet detection', () => {
     expect(isBraavosWallet('Ready', 'argentX')).toBe(false);
   });
 
+  it('recognizes Controller by id or name', () => {
+    expect(isControllerWallet('Controller', 'controller')).toBe(true);
+    expect(isControllerWallet('Controller')).toBe(true);
+    expect(isControllerWallet('Ready', 'argentX')).toBe(false);
+  });
+
   it('accepts only supported connectors', () => {
     expect(isSupportedWallet('Ready', 'argentX')).toBe(true);
     expect(isSupportedWallet('Braavos', 'braavos')).toBe(true);
+    expect(isSupportedWallet('Controller', 'controller')).toBe(true);
     expect(isSupportedWallet('Keplr', 'keplr')).toBe(false);
   });
 });
