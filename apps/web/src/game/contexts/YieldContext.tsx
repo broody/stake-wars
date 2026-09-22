@@ -10,13 +10,20 @@ import { config } from '../services/config';
 import {
   getPoolMemberInfo,
   getStakingExitWaitWindow,
+  getStakingPoolInfo,
 } from '../services/starknet';
 import { getPoolMemberStart, getYieldClaims } from '../services/torii';
 import {
   buildStakeCalls,
+  buildSwitchDelegationCalls,
   buildUnstakeAllCalls,
   buildWithdrawUnstakedCall,
 } from '../services/staking';
+import {
+  getExternalDelegations,
+  type ExternalDelegationPosition,
+} from '../services/stakingPoolDiscovery';
+import { addressesMatch } from '../utils/format';
 import { useTransactionToast } from './TransactionToastContext';
 import { YieldContext } from './useYield';
 import type { YieldContextValue } from './useYield';
@@ -47,6 +54,19 @@ export function YieldProvider({ children }: PropsWithChildren) {
   const [unstakePhase, setUnstakePhase] = useState<ClaimPhase>('idle');
   const [withdrawPhase, setWithdrawPhase] = useState<ClaimPhase>('idle');
   const [stakingError, setStakingError] = useState<string | null>(null);
+  const [externalDelegations, setExternalDelegations] = useState<
+    ExternalDelegationPosition[]
+  >([]);
+  const [externalDelegationsLoading, setExternalDelegationsLoading] =
+    useState(false);
+  const [externalDelegationsError, setExternalDelegationsError] = useState<
+    string | null
+  >(null);
+  const [switchPhase, setSwitchPhase] = useState<ClaimPhase>('idle');
+  const [switchingPoolAddress, setSwitchingPoolAddress] = useState<
+    string | null
+  >(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const claimedFloor = useRef<bigint | null>(null);
   const pendingExitAmount = summary?.unpoolAmount ?? 0n;
@@ -71,6 +91,12 @@ export function YieldProvider({ children }: PropsWithChildren) {
       setUnstakePhase('idle');
       setWithdrawPhase('idle');
       setStakingError(null);
+      setExternalDelegations([]);
+      setExternalDelegationsLoading(false);
+      setExternalDelegationsError(null);
+      setSwitchPhase('idle');
+      setSwitchingPoolAddress(null);
+      setSwitchError(null);
       claimedFloor.current = null;
       return () => controller.abort();
     }
@@ -178,6 +204,35 @@ export function YieldProvider({ children }: PropsWithChildren) {
   }, [address, revision]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    if (!address) return () => controller.abort();
+
+    setExternalDelegations([]);
+    setExternalDelegationsLoading(true);
+    setExternalDelegationsError(null);
+    getExternalDelegations(address, controller.signal)
+      .then((positions) => {
+        if (!controller.signal.aborted) setExternalDelegations(positions);
+      })
+      .catch((discoveryFailure: unknown) => {
+        if (!controller.signal.aborted) {
+          setExternalDelegations([]);
+          setExternalDelegationsError(
+            messageFrom(
+              discoveryFailure,
+              'Unable to check other STRK delegations.'
+            )
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setExternalDelegationsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [address, revision]);
+
+  useEffect(() => {
     if (
       pendingExitAmount === 0n ||
       pendingExitTime !== null ||
@@ -198,6 +253,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
         claimPhase !== 'idle' ||
         unstakePhase !== 'idle' ||
         withdrawPhase !== 'idle' ||
+        switchPhase !== 'idle' ||
         operatorStatus?.retired ||
         operatorStatus?.exiting ||
         !config.stakingPoolAddress ||
@@ -254,6 +310,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       refreshOperator,
       refreshStaking,
       stakePhase,
+      switchPhase,
       transaction,
       unstakePhase,
       withdrawPhase,
@@ -269,6 +326,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
+      switchPhase !== 'idle' ||
       !config.stakingPoolAddress
     ) {
       return;
@@ -334,6 +392,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     provider,
     refreshStaking,
     stakePhase,
+    switchPhase,
     summary,
     transaction,
     unstakePhase,
@@ -350,6 +409,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
+      switchPhase !== 'idle' ||
       !config.stakingPoolAddress
     ) {
       return;
@@ -409,6 +469,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
     refreshOperator,
     refreshStaking,
     stakePhase,
+    switchPhase,
     summary,
     transaction,
     unstakePhase,
@@ -426,6 +487,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
       claimPhase !== 'idle' ||
       unstakePhase !== 'idle' ||
       withdrawPhase !== 'idle' ||
+      switchPhase !== 'idle' ||
       !config.stakingPoolAddress
     ) {
       return;
@@ -470,11 +532,103 @@ export function YieldProvider({ children }: PropsWithChildren) {
     provider,
     refreshStaking,
     stakePhase,
+    switchPhase,
     summary,
     transaction,
     unstakePhase,
     withdrawPhase,
   ]);
+
+  const switchDelegation = useCallback(
+    async (position: ExternalDelegationPosition) => {
+      if (
+        !address ||
+        position.totalAmount <= 0n ||
+        stakePhase !== 'idle' ||
+        claimPhase !== 'idle' ||
+        unstakePhase !== 'idle' ||
+        withdrawPhase !== 'idle' ||
+        switchPhase !== 'idle' ||
+        operatorStatus?.retired ||
+        operatorStatus?.exiting ||
+        !config.stakingPoolAddress
+      ) {
+        return;
+      }
+
+      let submittedHash: string | null = null;
+      setSwitchError(null);
+      setSwitchingPoolAddress(position.poolAddress);
+      setSwitchPhase('submitting');
+
+      try {
+        const [targetPool, targetMember] = await Promise.all([
+          getStakingPoolInfo(),
+          getPoolMemberInfo(address),
+        ]);
+        if (
+          targetMember &&
+          !addressesMatch(targetMember.rewardAddress, position.rewardAddress)
+        ) {
+          throw new Error(
+            'This position uses a different reward address than your Stake Wars position. Change the reward address in the official staking interface before switching.'
+          );
+        }
+
+        const result = await transaction.sendAsync(
+          buildSwitchDelegationCalls({
+            sourcePoolAddress: position.poolAddress,
+            targetStakerAddress: targetPool.validatorAddress,
+            targetPoolAddress: targetPool.poolAddress,
+            amount: position.totalAmount,
+          })
+        );
+        submittedHash = result.transaction_hash;
+        notifySubmitting(submittedHash, 'SWITCH TO STAKE WARS');
+        setSwitchPhase('confirming');
+
+        await provider.waitForTransaction(submittedHash, {
+          errorStates: [TransactionExecutionStatus.REVERTED],
+        });
+        notifyConfirmed(submittedHash);
+        setExternalDelegations((current) =>
+          current.filter(
+            ({ poolAddress }) =>
+              !addressesMatch(poolAddress, position.poolAddress)
+          )
+        );
+        refreshOperator();
+        refreshStaking();
+      } catch (switchFailure) {
+        const message = messageFrom(
+          switchFailure,
+          'The delegation could not be switched to Stake Wars.'
+        );
+        if (submittedHash) notifyFailed(submittedHash, message);
+        setSwitchError(message);
+      } finally {
+        setSwitchPhase('idle');
+        setSwitchingPoolAddress(null);
+      }
+    },
+    [
+      address,
+      claimPhase,
+      notifyConfirmed,
+      notifyFailed,
+      notifySubmitting,
+      operatorStatus?.exiting,
+      operatorStatus?.retired,
+      provider,
+      refreshOperator,
+      refreshStaking,
+      stakePhase,
+      switchPhase,
+      transaction,
+      unstakePhase,
+      withdrawPhase,
+    ]
+  );
 
   const value = useMemo<YieldContextValue>(
     () => ({
@@ -489,17 +643,27 @@ export function YieldProvider({ children }: PropsWithChildren) {
       unstakePhase,
       withdrawPhase,
       stakingError,
+      externalDelegations,
+      externalDelegationsLoading,
+      externalDelegationsError,
+      switchPhase,
+      switchingPoolAddress,
+      switchError,
       refreshStaking,
       stake,
       claimYield,
       unstakeAll,
       withdrawUnstaked,
+      switchDelegation,
     }),
     [
       claimError,
       claimPhase,
       claimYield,
       error,
+      externalDelegations,
+      externalDelegationsError,
+      externalDelegationsLoading,
       historyError,
       isLoading,
       refreshStaking,
@@ -508,6 +672,10 @@ export function YieldProvider({ children }: PropsWithChildren) {
       stakePhase,
       stakingError,
       summary,
+      switchDelegation,
+      switchError,
+      switchPhase,
+      switchingPoolAddress,
       unstakeAll,
       unstakePhase,
       withdrawPhase,
