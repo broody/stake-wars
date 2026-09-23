@@ -1,16 +1,16 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
+const STAR_COUNT = 10000;
+
 export const Stars: React.FC = () => {
-  const pointsRef = useRef<THREE.Points>(null);
-
   const [positions, baseColors, blinkData] = useMemo(() => {
-    const positions = new Float32Array(10000 * 3);
-    const baseColors = new Float32Array(10000 * 3);
-    const blinkData = new Float32Array(10000 * 4); // [shouldBlink, speed, phase, baseBrightness]
+    const positions = new Float32Array(STAR_COUNT * 3);
+    const baseColors = new Float32Array(STAR_COUNT * 3);
+    const blinkData = new Float32Array(STAR_COUNT * 4); // [shouldBlink, speed, phase, baseBrightness]
 
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < STAR_COUNT; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
 
@@ -43,70 +43,49 @@ export const Stars: React.FC = () => {
     return [positions, baseColors, blinkData];
   }, []);
 
-  // Animate blinking stars
+  // Blinking runs in the vertex shader so the CPU never rewrites or
+  // re-uploads the 10k-star color buffer.
+  const timeUniform = useMemo(() => ({ value: 0 }), []);
+  const material = useMemo(() => {
+    const value = new THREE.PointsMaterial({
+      size: 0.1,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      sizeAttenuation: true,
+    });
+    value.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = timeUniform;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute vec4 blink;\nuniform float uTime;'
+        )
+        .replace(
+          '#include <color_vertex>',
+          `#include <color_vertex>
+          if (blink.x > 0.5) {
+            // Sine wave for smooth on/off blinking, 0 (off) to full brightness
+            vColor.rgb = vec3(blink.w * (sin(uTime * blink.y + blink.z) + 1.0) * 0.5);
+          }`
+        );
+    };
+    return value;
+  }, [timeUniform]);
+
+  useEffect(() => () => material.dispose(), [material]);
+
   useFrame(({ clock }) => {
-    if (!pointsRef.current) return;
-
-    const geometry = pointsRef.current.geometry;
-    const colorAttribute = geometry.getAttribute(
-      'color'
-    ) as THREE.BufferAttribute;
-    const colors = colorAttribute.array as Float32Array;
-    const time = clock.getElapsedTime();
-
-    for (let i = 0; i < 10000; i++) {
-      const i3 = i * 3;
-      const i4 = i * 4;
-
-      if (blinkData[i4] === 1) {
-        // Should blink
-        const speed = blinkData[i4 + 1];
-        const phase = blinkData[i4 + 2];
-        const baseBrightness = blinkData[i4 + 3];
-
-        // Sine wave for smooth on/off blinking
-        const blink = (Math.sin(time * speed + phase) + 1) * 0.5; // 0 to 1
-        const brightness = baseBrightness * blink; // Vary from 0 (off) to 100% (full brightness)
-
-        colors[i3] = brightness;
-        colors[i3 + 1] = brightness;
-        colors[i3 + 2] = brightness;
-      } else {
-        // Keep non-blinking stars at their base color
-        colors[i3] = baseColors[i3];
-        colors[i3 + 1] = baseColors[i3 + 1];
-        colors[i3 + 2] = baseColors[i3 + 2];
-      }
-    }
-
-    colorAttribute.needsUpdate = true;
+    timeUniform.value = clock.getElapsedTime();
   });
 
   return (
-    <points ref={pointsRef}>
+    <points material={material}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={positions.length / 3}
-          array={positions}
-          itemSize={3}
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={baseColors.length / 3}
-          array={baseColors}
-          itemSize={3}
-          args={[baseColors, 3]}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[baseColors, 3]} />
+        <bufferAttribute attach="attributes-blink" args={[blinkData, 4]} />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.1}
-        vertexColors
-        transparent
-        opacity={0.8}
-        sizeAttenuation
-      />
     </points>
   );
 };

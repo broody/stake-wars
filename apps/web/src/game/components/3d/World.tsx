@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ArcballControls } from '@react-three/drei';
+import { ArcballControls, PerformanceMonitor } from '@react-three/drei';
 import { useSearchParams } from 'react-router-dom';
 import * as THREE from 'three';
 import { Scene } from './Scene';
@@ -38,6 +38,8 @@ import {
 import type { SupplyDrop } from '../../types';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
+const MAX_CANVAS_DPR = 2;
+const REDUCED_CANVAS_DPR = 1;
 const SUPPLY_DROP_REFRESH_INTERVAL_MS = 10_000;
 const SUPPLY_DROP_PENDING_REFRESH_INTERVAL_MS = 1_500;
 const PLACEMENT_CORNERS = [
@@ -423,6 +425,10 @@ export function World({ active = true }: { active?: boolean }) {
   const supplyDropDraw = useCoreSupplyDropDraw(active);
   const [isSupplyDropCameraControlled, setSupplyDropCameraControlled] =
     useState(false);
+  const [maxDpr] = useState(() =>
+    Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR)
+  );
+  const [dpr, setDpr] = useState(maxDpr);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
@@ -651,8 +657,17 @@ export function World({ active = true }: { active?: boolean }) {
       <Canvas
         data-preserve-supply-drop-tracking
         camera={{ position: [0, 0, 15], fov: 75 }}
+        dpr={dpr}
+        gl={{ powerPreference: 'high-performance' }}
         style={{ width: '100%', height: '100%', background: '#000000' }}
       >
+        {/* Drop to 1x resolution when the device cannot hold its frame rate. */}
+        <PerformanceMonitor
+          flipflops={3}
+          onDecline={() => setDpr(REDUCED_CANVAS_DPR)}
+          onIncline={() => setDpr(maxDpr)}
+          onFallback={() => setDpr(REDUCED_CANVAS_DPR)}
+        />
         <Suspense fallback={null}>
           <Scene
             isBeaconTracking={isBeaconOpen}

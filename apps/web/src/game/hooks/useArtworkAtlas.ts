@@ -4,6 +4,9 @@ import { artworkAtlasSourcesFromKey } from '../utils/sectorArtworkProjection';
 
 const ATLAS_CELL_SIZE = 256;
 const IMAGE_LOAD_CONCURRENCY = 16;
+// Each atlas update re-uploads the whole canvas (up to 4096x4096) to the GPU,
+// so progressive loads batch arriving thumbnails instead of uploading per image.
+const PROGRESSIVE_UPLOAD_INTERVAL_MS = 250;
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -51,16 +54,32 @@ export function useArtworkAtlas(
     atlas.magFilter = THREE.LinearFilter;
     let next = 0;
     let published = false;
+    let uploadTimer: ReturnType<typeof setTimeout> | undefined;
     // Show the first atlas as its images arrive. Rebuilds remain atomic so a
     // partially loaded replacement never blanks artwork already on screen.
     const progressive = !hasPublishedTexture.current;
     const publish = () => {
+      if (uploadTimer !== undefined) {
+        clearTimeout(uploadTimer);
+        uploadTimer = undefined;
+      }
       atlas.needsUpdate = true;
       if (!published) {
         published = true;
         hasPublishedTexture.current = true;
         setTexture(atlas);
       }
+    };
+    const schedulePublish = () => {
+      if (!published) {
+        publish();
+        return;
+      }
+      if (uploadTimer !== undefined) return;
+      uploadTimer = setTimeout(() => {
+        uploadTimer = undefined;
+        if (active) publish();
+      }, PROGRESSIVE_UPLOAD_INTERVAL_MS);
     };
     const worker = async () => {
       while (active && next < sources.length) {
@@ -75,7 +94,7 @@ export function useArtworkAtlas(
             ATLAS_CELL_SIZE,
             ATLAS_CELL_SIZE
           );
-          if (progressive) publish();
+          if (progressive) schedulePublish();
         } catch {
           // Keep the ownership color visible when an object cannot be loaded.
         }
@@ -93,6 +112,7 @@ export function useArtworkAtlas(
     });
     return () => {
       active = false;
+      if (uploadTimer !== undefined) clearTimeout(uploadTimer);
       onLoadingChange?.(pageId, false);
       if (!published) atlas.dispose();
     };
