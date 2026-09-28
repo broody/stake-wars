@@ -69,8 +69,8 @@ func TestAuthorizeAndPublishBeaconImage(t *testing.T) {
 			if controller.ActiveArtworkID != published.ID || controllers.checks != 2 {
 				t.Fatalf("unexpected controller projection: %+v", controller)
 			}
-			billboard, err := beacon.NewStore(db).Billboard(
-				context.Background(), "SN_SEPOLIA", controller.ActiveArtworkID,
+			billboard, err := beacon.NewStore(db).CurrentBillboard(
+				context.Background(), "SN_SEPOLIA",
 			)
 			if err != nil || billboard.ImageURL != published.ImageURL ||
 				billboard.Description != published.Description ||
@@ -128,8 +128,11 @@ func TestBeaconImageCanOnlyBePublishedOncePerControlTerm(t *testing.T) {
 
 	objects := &fakeObjectStore{data: make(map[string][]byte)}
 	controllerStore := beacon.NewStore(db)
+	controllers := beacon.NewControllerSource(
+		controllerStore, beacon.NewSettlementProjector(controllerStore, nil, "SN_SEPOLIA"),
+	)
 	service := NewBeaconService(
-		NewStore(db), objects, controllerStore, "SN_SEPOLIA", 2*1024*1024,
+		NewStore(db), objects, controllers, "SN_SEPOLIA", 2*1024*1024,
 	)
 	detail := encodedRectPNG(t, 320, beaconDetailMaximumDimension)
 	thumbnail := encodedRectPNG(t, 160, beaconThumbnailMaximumDimension)
@@ -243,12 +246,10 @@ func (c *fakeBeaconController) CurrentController(
 func seedBeaconController(t *testing.T, db *sql.DB, roundID uint64, address string) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
-		INSERT INTO beacon_rounds(
-			network, round_id, whisper_address, auction_id, expected_creator,
-			payment_token, metadata_hash, winner_payload_domain, vault_address,
-			claimed_controller, claimed_at, billboard_starts_at
-		) VALUES ('SN_SEPOLIA', ?, '0x1', ?, '0x2', '0x3', '0x4', '0x5', '0x6', ?, 100, 100)
-	`, roundID, roundID, address)
+		INSERT INTO beacon_controllers(
+			network, round_id, source, controller, winning_bid, bid_count, settled_at
+		) VALUES ('SN_SEPOLIA', ?, 'open', ?, '100', 1, 100)
+	`, roundID, address)
 	if err != nil {
 		t.Fatal(err)
 	}

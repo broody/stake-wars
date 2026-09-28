@@ -62,69 +62,44 @@ func (w *Worker) reconcile(ctx context.Context) error {
 	return result
 }
 
-type cycleStore interface {
-	Current(ctx context.Context, network string) (CanonicalRound, error)
+// SettlementDuty submits the permissionless settlement once the chain clock
+// passes the current round's deadline. Settlement also opens the next round.
+type SettlementDuty struct {
+	reader    starknet.BeaconReader
+	submitter starknet.BeaconSubmitter
 }
 
-// CycleOutcome is the terminal round state passed to an idempotent restarter.
-type CycleOutcome struct {
-	Round   CanonicalRound
-	Auction starknet.WhisperAuction
-	Result  *starknet.WhisperResult
+func NewSettlementDuty(
+	reader starknet.BeaconReader,
+	submitter starknet.BeaconSubmitter,
+) *SettlementDuty {
+	return &SettlementDuty{reader: reader, submitter: submitter}
 }
 
-// RoundRestarter owns the authorized create-and-register transaction. Calling
-// EnsureNextRound repeatedly for the same outcome must be safe.
-type RoundRestarter interface {
-	EnsureNextRound(ctx context.Context, outcome CycleOutcome) error
-}
-
-// AuctionCycleDuty observes terminal Whisper rounds and asks the configured
-// restarter to create and register the next start-on-bid round.
-type AuctionCycleDuty struct {
-	store     cycleStore
-	reader    starknet.WhisperReader
-	restarter RoundRestarter
-	network   string
-}
-
-func NewAuctionCycleDuty(
-	store cycleStore,
-	reader starknet.WhisperReader,
-	restarter RoundRestarter,
-	network string,
-) *AuctionCycleDuty {
-	return &AuctionCycleDuty{
-		store: store, reader: reader, restarter: restarter, network: network,
+func (d *SettlementDuty) Reconcile(ctx context.Context) error {
+	status, err := d.reader.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("read Beacon status: %w", err)
 	}
-}
-
-func (d *AuctionCycleDuty) Reconcile(ctx context.Context) error {
-	round, err := d.store.Current(ctx, d.network)
-	if errors.Is(err, ErrNoRound) {
+	auction := status.Auction
+	if !status.Initialized || auction.Status != starknet.BeaconAuctionBidding || auction.EndsAt == 0 {
+		return nil
+	}
+	chainTimestamp, err := d.reader.ChainTimestamp(ctx)
+	if err != nil {
+		return fmt.Errorf("read Starknet chain time for Beacon round %d: %w", auction.RoundID, err)
+	}
+	if chainTimestamp < auction.EndsAt {
+		return nil
+	}
+	hash, err := d.submitter.SettleBeaconAuction(ctx, auction.RoundID)
+	if errors.Is(err, starknet.ErrKeeperRecheckRequired) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("read current Beacon round: %w", err)
+		return fmt.Errorf("settle Beacon round %d: %w", auction.RoundID, err)
 	}
-	auction, err := d.reader.Auction(ctx, round.WhisperAddress, round.AuctionID)
-	if err != nil {
-		return fmt.Errorf("read terminal Whisper auction: %w", err)
-	}
-	outcome := CycleOutcome{Round: round, Auction: auction}
-	switch auction.Status {
-	case starknet.WhisperStatusSettled:
-		result, err := d.reader.Result(ctx, round.WhisperAddress, round.AuctionID)
-		if err != nil {
-			return fmt.Errorf("read terminal Whisper result: %w", err)
-		}
-		outcome.Result = &result
-	case starknet.WhisperStatusAborted:
-	default:
-		return nil
-	}
-	if err := d.restarter.EnsureNextRound(ctx, outcome); err != nil {
-		return fmt.Errorf("ensure next Beacon round: %w", err)
-	}
+	slog.InfoContext(ctx, "Beacon settlement submitted",
+		"round_id", auction.RoundID, "transaction_hash", hash)
 	return nil
 }

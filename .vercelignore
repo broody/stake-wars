@@ -3,12 +3,6 @@ node_modules/
 contracts/
 apps/api/
 vendor/starknet-staking/
-vendor/whisper/contracts/
-vendor/whisper/deployments/
-vendor/whisper/docs/
-vendor/whisper/operator/
-vendor/whisper/sdk/dist/
-vendor/whisper/vectors/
 .git/
 .vercel/
 **/.vercel/

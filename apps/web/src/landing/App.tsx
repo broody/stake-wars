@@ -176,7 +176,7 @@ function LandingApp() {
               Win the signal above the Core.
             </p>
             <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
-              Operators compete in an on-chain sealed-bid auction for the
+              Operators outbid each other in an open on-chain auction for the
               Beacon—the lone broadcast orbiting the battlefield. The winner
               publishes an image, message, and link for every commander to see.
             </p>
@@ -225,20 +225,12 @@ function LandingApp() {
               <FaqItem question="What is the Beacon?">
                 <p>
                   The Beacon is a billboard orbiting the Core. Operators compete
-                  for control in a <strong>sealed-bid auction</strong> powered
-                  by{' '}
-                  <a
-                    href="https://github.com/broody/whisper"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="border-b border-dotted border-dim font-bold text-fg transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-                  >
-                    Whisper
-                  </a>
-                  . Bid amounts stay private during bidding, so Operators
-                  compete without seeing each other&apos;s offers. The winner
-                  can publish a transmission with an image, a short description,
-                  and a destination link.
+                  for control in an <strong>open ascending auction</strong>:
+                  every bid is public, each new bid must beat the lead by 10%,
+                  and outbid STRK is refunded immediately. A late bid extends
+                  the clock so rivals can answer. The winner can publish a
+                  transmission with an image, a short description, and a
+                  destination link.
                 </p>
               </FaqItem>
 

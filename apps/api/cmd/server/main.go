@@ -60,39 +60,30 @@ func run() error {
 	defer db.Close()
 
 	verifier := starknet.NewVerifier(configuration.StarknetRPCURL, configuration.StarknetChainID)
-	whisperReader := starknet.NewWhisperReader(configuration.StarknetRPCURL)
 	beaconStore := beacon.NewStore(db)
-	beaconBiddingDurationSeconds := uint64(configuration.BeaconBiddingDuration / time.Second)
-	var maintenanceWorker *beacon.Worker
-	maintenanceDuties := make([]beacon.Duty, 0, 4)
-	if configuration.StarknetRPCURL != "" {
-		maintenanceDuties = append(maintenanceDuties,
-			beacon.NewOnchainSettlementProjector(
-				beaconStore,
-				whisperReader,
-				configuration.StarknetChainID,
-				beaconBiddingDurationSeconds,
-			),
+	// Without a Beacon System the API still serves the preserved controller,
+	// transmission, and history, and reports that no round is open.
+	var beaconReader starknet.BeaconReader
+	beaconAddress := ""
+	if configuration.BeaconSystemAddress != "" {
+		reader, err := starknet.NewBeaconReader(
+			configuration.StarknetRPCURL,
+			configuration.BeaconSystemAddress,
 		)
-	}
-	if configuration.BeaconCoordinatorEnabled() {
-		maintenanceDuties = append(maintenanceDuties, beacon.NewWinnerProjector(
-			beaconStore,
-			beacon.NewOperatorCoordinatorClient(
-				configuration.BeaconCoordinatorURL,
-				configuration.BeaconCoordinatorToken,
-			),
-			configuration.StarknetChainID,
-		))
-	}
-	if configuration.BeaconCoordinatorEnabled() {
-		restarter, err := newBeaconRestarter(configuration, beaconStore, whisperReader)
 		if err != nil {
 			return err
 		}
-		maintenanceDuties = append(maintenanceDuties, beacon.NewAuctionCycleDuty(
-			beaconStore, whisperReader, restarter, configuration.StarknetChainID,
-		))
+		beaconReader, beaconAddress = reader, reader.Address()
+	}
+	beaconProjector := beacon.NewSettlementProjector(
+		beaconStore,
+		beaconReader,
+		configuration.StarknetChainID,
+	)
+	var maintenanceWorker *beacon.Worker
+	maintenanceDuties := make([]beacon.Duty, 0, 5)
+	if beaconReader != nil {
+		maintenanceDuties = append(maintenanceDuties, beaconProjector)
 	}
 	if configuration.SupplyDropKeeperEnabled() {
 		slog.Info(
@@ -143,6 +134,19 @@ func run() error {
 			slog.Info("Challenge keeper enabled", "account", configuration.SupplyDropKeeperAccount,
 				"system", configuration.ControlSystemAddress)
 		}
+		if configuration.BeaconKeeper {
+			beaconSubmitter, err := starknet.NewBeaconSubmitter(
+				supplyDropSubmitter, configuration.BeaconSystemAddress,
+			)
+			if err != nil {
+				return err
+			}
+			maintenanceDuties = append(
+				maintenanceDuties, beacon.NewSettlementDuty(beaconReader, beaconSubmitter),
+			)
+			slog.Info("Beacon keeper enabled", "account", configuration.SupplyDropKeeperAccount,
+				"system", configuration.BeaconSystemAddress)
+		}
 	}
 	if len(maintenanceDuties) > 0 {
 		maintenanceWorker = beacon.NewWorker(20*time.Second, maintenanceDuties...)
@@ -190,7 +194,7 @@ func run() error {
 		beaconImageService = images.NewBeaconService(
 			imageStore,
 			objectStore,
-			beaconStore,
+			beacon.NewControllerSource(beaconStore, beaconProjector),
 			configuration.StarknetChainID,
 			configuration.MaxImageBytes,
 		)
@@ -207,9 +211,10 @@ func run() error {
 			BeaconImages: beaconImageService,
 			Beacon: beacon.NewService(
 				beaconStore,
-				whisperReader,
+				beaconReader,
+				beaconProjector,
 				configuration.StarknetChainID,
-				beaconBiddingDurationSeconds,
+				beaconAddress,
 			),
 			BeaconHistory: beacon.NewHistoryService(
 				beaconStore,
@@ -273,31 +278,6 @@ func run() error {
 	defer cancel()
 
 	return server.Shutdown(shutdownCtx)
-}
-
-func newBeaconRestarter(
-	configuration config.Config,
-	store *beacon.Store,
-	reader starknet.WhisperReader,
-) (*beacon.OperatorRoundRestarter, error) {
-	return beacon.NewOperatorRoundRestarter(
-		store,
-		reader,
-		beacon.NewOperatorCoordinatorClient(
-			configuration.BeaconCoordinatorURL,
-			configuration.BeaconCoordinatorToken,
-		),
-		beacon.CoordinatorConfig{
-			Network:                   configuration.StarknetChainID,
-			PaymentToken:              configuration.BeaconPaymentToken,
-			ReservePrice:              configuration.BeaconReservePrice,
-			MaxBids:                   configuration.BeaconMaxBids,
-			WinnerPayloadDomain:       configuration.BeaconWinnerPayloadDomain,
-			BiddingDurationSeconds:    uint64(configuration.BeaconBiddingDuration / time.Second),
-			AcceptanceDurationSeconds: uint64(configuration.BeaconAcceptanceDuration / time.Second),
-			SettlementDurationSeconds: uint64(configuration.BeaconSettlementDuration / time.Second),
-		},
-	)
 }
 
 func publicToriiURL(gateway *api.ToriiGateway) string {

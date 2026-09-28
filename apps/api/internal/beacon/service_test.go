@@ -2,6 +2,7 @@ package beacon
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,355 +10,250 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
-func TestServiceReturnsNoRoundWithoutReadingRPC(t *testing.T) {
-	reader := &fakeWhisperReader{}
-	service := NewService(
-		fakeRoundStore{err: ErrNoRound}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
-	)
-	service.now = func() time.Time { return time.Unix(25, 0) }
+const testAuctionAddress = "0xbeac0"
+
+func TestServiceWithoutBeaconSystemServesPreservedControl(t *testing.T) {
+	store, db := openStore(t)
+	seedWhisperController(t, db, 6, "0x0666")
+	seedArtwork(t, db, 6, "0x666", "art-6")
+	service := NewService(store, nil, NewSettlementProjector(store, nil, "SN_SEPOLIA"), "SN_SEPOLIA", "")
 
 	snapshot, err := service.Current(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Phase != PhaseNone || snapshot.Round != nil ||
-		snapshot.ObservedAt.Unix() != 25 {
-		t.Fatalf("unexpected no-round snapshot: %+v", snapshot)
+	if snapshot.Phase != PhaseNone || snapshot.Round != nil {
+		t.Fatalf("unexpected round: %+v", snapshot)
 	}
-	if reader.auctionCalls != 0 {
-		t.Fatal("no-round response should not read Whisper")
+	if snapshot.Controller == nil || snapshot.Controller.Address != "0x666" ||
+		snapshot.Controller.RoundID != 6 || !snapshot.Controller.HasPublished {
+		t.Fatalf("unexpected controller: %+v", snapshot.Controller)
+	}
+	if snapshot.Billboard == nil || snapshot.Billboard.ImageURL != "https://assets.test/art-6.webp" {
+		t.Fatalf("unexpected billboard: %+v", snapshot.Billboard)
 	}
 }
 
-func TestServiceReturnsVerifiedSettledRound(t *testing.T) {
-	round := canonicalRoundFixture()
-	claimedAt := time.Unix(130, 0).UTC()
-	round.ClaimedController = "0x777"
-	round.ClaimedAt = &claimedAt
-	reader := &fakeWhisperReader{
-		auction: whisperAuctionFixture(starknet.WhisperStatusSettled),
-		result: starknet.WhisperResult{
-			AuctionID: 7, HasWinner: true, WinnerCommitment: "0xabc",
-			WinningBid: "200", SecondHighestBid: "150", ClearingPrice: "150",
-			SettlementHash: "0x999", SettledAt: 125,
-		},
-		chainTimestamp: 140,
-	}
-	service := NewService(
-		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
-	)
-
-	snapshot, err := service.Current(context.Background())
+func TestServiceReportsPendingRound(t *testing.T) {
+	store, _ := openStore(t)
+	reader := newFakeBeaconReader(7, 7, pendingAuction(7))
+	snapshot, err := newTestService(store, reader).Current(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Phase != PhaseSettled || snapshot.Round == nil ||
-		snapshot.Round.Result == nil || !snapshot.Round.Result.HasWinner ||
-		snapshot.Controller == nil || snapshot.Controller.Address != "0x777" ||
-		snapshot.ObservedAt.Unix() != 140 {
-		t.Fatalf("unexpected settled snapshot: %+v", snapshot)
+	round := snapshot.Round
+	if snapshot.Phase != PhasePending || round == nil || round.ID != 7 ||
+		round.AuctionAddress != testAuctionAddress || round.ReservePrice != "100" ||
+		round.MinimumBid != "100" || round.MinRaiseBps != 1000 ||
+		round.BiddingDurationSeconds != 259200 || round.ExtensionSeconds != 300 ||
+		round.Leader != nil || round.StartedAt != nil || round.EndsAt != nil ||
+		round.BidCount != 0 || snapshot.Controller != nil {
+		t.Fatalf("unexpected pending snapshot: %+v %+v", snapshot, round)
+	}
+	if !snapshot.ObservedAt.Equal(time.Unix(1_000, 0).UTC()) {
+		t.Fatalf("snapshot must use chain time, got %s", snapshot.ObservedAt)
 	}
 }
 
-func TestServiceReturnsCurrentControllerBillboard(t *testing.T) {
-	round := canonicalRoundFixture()
-	claimedAt := time.Unix(130, 0).UTC()
-	round.ClaimedController = "0x777"
-	round.ClaimedAt = &claimedAt
-	round.ActiveArtworkID = "artwork-1"
-	updatedAt := time.Unix(135, 0).UTC()
-	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
-	auction.Schedule = starknet.WhisperSchedule{
-		Kind:               starknet.WhisperScheduleStartOnBid,
-		BiddingDuration:    defaultBiddingDurationSeconds,
-		AcceptanceDuration: 10 * 60,
-		SettlementDuration: 30 * 60,
-	}
-	auction.BiddingDeadline = 0
-	auction.ForceRevealAfter = 0
-	auction.AbortAfter = 0
-	reader := &fakeWhisperReader{
-		auction:        auction,
-		chainTimestamp: 140,
-	}
-	service := NewService(
-		fakeRoundStore{
-			round: round,
-			billboard: &BillboardRecord{
-				ImageURL:       "https://images.example/beacon.webp",
-				ThumbnailURL:   "https://images.example/beacon-thumb.webp",
-				Description:    "A public campaign message.",
-				DestinationURL: "https://example.com/campaign",
-				UpdatedAt:      updatedAt,
-			},
-		},
-		reader,
-		"SN_SEPOLIA",
-		defaultBiddingDurationSeconds,
-	)
-
-	snapshot, err := service.Current(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Billboard == nil ||
-		snapshot.Billboard.ImageURL != "https://images.example/beacon.webp" ||
-		snapshot.Billboard.ThumbnailURL != "https://images.example/beacon-thumb.webp" ||
-		snapshot.Billboard.Description != "A public campaign message." ||
-		snapshot.Billboard.DestinationURL != "https://example.com/campaign" ||
-		!snapshot.Billboard.UpdatedAt.Equal(updatedAt) ||
-		snapshot.Controller == nil || !snapshot.Controller.HasPublished {
-		t.Fatalf("unexpected billboard snapshot: %+v", snapshot.Billboard)
+func TestServiceSwitchesToSettlingAtTheChainDeadline(t *testing.T) {
+	for _, test := range []struct {
+		chainTime uint64
+		phase     Phase
+	}{
+		{chainTime: 1_999, phase: PhaseBidding},
+		{chainTime: 2_000, phase: PhaseSettling},
+	} {
+		store, _ := openStore(t)
+		reader := newFakeBeaconReader(7, 7, biddingAuction(7, "0x0abc", "120", 1_000, 2_000))
+		reader.timestamp = test.chainTime
+		reader.status.MinimumBid = "132"
+		snapshot, err := newTestService(store, reader).Current(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		round := snapshot.Round
+		if snapshot.Phase != test.phase || round.Leader == nil || *round.Leader != "0xabc" ||
+			round.LeadingBid != "120" || round.MinimumBid != "132" || round.BidCount != 2 ||
+			round.StartedAt.Unix() != 1_000 || round.EndsAt.Unix() != 2_000 {
+			t.Fatalf("unexpected snapshot at %d: %+v %+v", test.chainTime, snapshot, round)
+		}
 	}
 }
 
-func TestServiceKeepsPreviousBillboardForNewController(t *testing.T) {
-	round := canonicalRoundFixture()
-	claimedAt := time.Unix(140, 0).UTC()
-	round.ClaimedController = "0x888"
-	round.ClaimedAt = &claimedAt
-	reader := &fakeWhisperReader{
-		auction:        whisperAuctionFixture(starknet.WhisperStatusBidding),
-		chainTimestamp: 50,
-	}
-	service := NewService(
-		fakeRoundStore{
-			round: round,
-			billboard: &BillboardRecord{
-				ImageURL:       "https://images.example/previous.webp",
-				ThumbnailURL:   "https://images.example/previous-thumb.webp",
-				Description:    "Previous signal",
-				DestinationURL: "https://example.com/previous",
-				UpdatedAt:      time.Unix(135, 0).UTC(),
-			},
-		},
-		reader,
-		"SN_SEPOLIA",
-		defaultBiddingDurationSeconds,
-	)
+func TestServiceProjectsSettlementsBeforeReportingControl(t *testing.T) {
+	store, db := openStore(t)
+	seedWhisperController(t, db, 6, "0x666")
+	seedArtwork(t, db, 6, "0x666", "art-6")
+	reader := newFakeBeaconReader(9, 7, pendingAuction(9))
+	reader.auctions[7] = settledAuction(7, "0x777", "150")
+	reader.auctions[8] = settledAuction(8, "0x888", "300")
 
-	snapshot, err := service.Current(context.Background())
+	snapshot, err := newTestService(store, reader).Current(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if snapshot.Controller == nil || snapshot.Controller.Address != "0x888" ||
-		snapshot.Controller.HasPublished || snapshot.Billboard == nil ||
-		snapshot.Billboard.Description != "Previous signal" {
-		t.Fatalf("unexpected controller transition snapshot: %+v", snapshot)
+		snapshot.Controller.RoundID != 8 || snapshot.Controller.HasPublished ||
+		!snapshot.Controller.ClaimedAt.Equal(time.Unix(8_500, 0).UTC()) {
+		t.Fatalf("unexpected controller: %+v", snapshot.Controller)
+	}
+	if snapshot.Billboard == nil || snapshot.Billboard.ImageURL != "https://assets.test/art-6.webp" {
+		t.Fatalf("prior transmission must stay active: %+v", snapshot.Billboard)
+	}
+	history, err := store.History(context.Background(), "SN_SEPOLIA", 10, nil)
+	if err != nil || len(history) != 3 || history[0].WinningBid != "300" || history[1].RoundID != 7 {
+		t.Fatalf("unexpected history: %+v %v", history, err)
 	}
 }
 
-func TestServiceRejectsCanonicalMismatch(t *testing.T) {
-	round := canonicalRoundFixture()
-	reader := &fakeWhisperReader{
-		auction:        whisperAuctionFixture(starknet.WhisperStatusBidding),
-		chainTimestamp: 50,
-	}
-	reader.auction.MetadataHash = "0xdead"
-	service := NewService(
-		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
-	)
-
-	_, err := service.Current(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "metadata hash mismatch") {
-		t.Fatalf("expected canonical mismatch, got %v", err)
-	}
-}
-
-func TestServiceReturnsPendingRoundWithContinuousController(t *testing.T) {
-	round := canonicalRoundFixture()
-	claimedAt := time.Unix(80, 0).UTC()
-	round.ClaimedController = "0x777"
-	round.ClaimedAt = &claimedAt
-	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
-	auction.Schedule = starknet.WhisperSchedule{
-		Kind:               starknet.WhisperScheduleStartOnBid,
-		BiddingDuration:    3 * 24 * 60 * 60,
-		AcceptanceDuration: 10 * 60,
-		SettlementDuration: 30 * 60,
-	}
-	auction.BiddingDeadline = 0
-	auction.ForceRevealAfter = 0
-	auction.AbortAfter = 0
-	service := NewService(
-		fakeRoundStore{round: round},
-		&fakeWhisperReader{auction: auction, chainTimestamp: 100},
-		"SN_SEPOLIA",
-		defaultBiddingDurationSeconds,
-	)
-
-	snapshot, err := service.Current(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Phase != PhasePending || snapshot.Round == nil ||
-		snapshot.Round.StartedAt != nil || snapshot.Round.BiddingDeadline != nil ||
-		snapshot.Round.Schedule.BiddingDurationSeconds != 259200 ||
-		snapshot.Round.WinnerPayloadDomain != "0x444" ||
-		snapshot.Round.VaultAddress != "0x555" ||
-		snapshot.Round.RevealPublicKey != "0x777" ||
-		snapshot.Controller == nil || snapshot.Controller.Address != "0x777" {
-		t.Fatalf("unexpected pending snapshot: %+v", snapshot)
-	}
-}
-
-func TestServiceRejectsOnchainFulfillment(t *testing.T) {
-	round := canonicalRoundFixture()
-	reader := &fakeWhisperReader{
-		auction:        whisperAuctionFixture(starknet.WhisperStatusBidding),
-		chainTimestamp: 50,
-	}
-	reader.auction.FulfillmentKind = starknet.WhisperFulfillmentERC721
-	reader.auction.FulfillmentStatus = starknet.WhisperFulfillmentStatusEscrowed
-	reader.auction.AssetToken = "0x999"
-	reader.auction.AssetTokenID = "7"
-	reader.auction.AssetAmount = "1"
-	service := NewService(
-		fakeRoundStore{round: round}, reader, "SN_SEPOLIA", defaultBiddingDurationSeconds,
-	)
-
-	_, err := service.Current(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "fulfillment must be offchain") {
-		t.Fatalf("expected offchain fulfillment rejection, got %v", err)
-	}
-}
-
-func TestServiceAcceptsConfiguredFiveMinuteBiddingWindow(t *testing.T) {
-	round := canonicalRoundFixture()
-	auction := whisperAuctionFixture(starknet.WhisperStatusPending)
-	auction.Schedule = starknet.WhisperSchedule{
-		Kind:               starknet.WhisperScheduleStartOnBid,
-		BiddingDuration:    5 * 60,
-		AcceptanceDuration: 10 * 60,
-		SettlementDuration: 30 * 60,
-	}
-	auction.BiddingDeadline = 0
-	auction.ForceRevealAfter = 0
-	auction.AbortAfter = 0
-	service := NewService(
-		fakeRoundStore{round: round},
-		&fakeWhisperReader{auction: auction, chainTimestamp: 100},
-		"SN_SEPOLIA",
-		5*60,
-	)
-
-	snapshot, err := service.Current(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Round == nil || snapshot.Round.Schedule.BiddingDurationSeconds != 5*60 {
-		t.Fatalf("unexpected five-minute snapshot: %+v", snapshot)
-	}
-}
-
-func TestLifecyclePhaseUsesChainTime(t *testing.T) {
-	auction := whisperAuctionFixture(starknet.WhisperStatusBidding)
-	tests := []struct {
-		at   uint64
-		want Phase
-	}{
-		{at: 99, want: PhaseBidding},
-		{at: 100, want: PhaseAcceptance},
-		{at: 109, want: PhaseAcceptance},
-		{at: 110, want: PhaseSettling},
-		{at: 119, want: PhaseSettling},
-		{at: 120, want: PhaseRecovery},
-	}
-	for _, test := range tests {
-		if got := lifecyclePhase(auction, test.at); got != test.want {
-			t.Fatalf("at %d expected %s, got %s", test.at, test.want, got)
-		}
-	}
-	auction.Status = starknet.WhisperStatusAborted
-	if got := lifecyclePhase(auction, 50); got != PhaseAborted {
-		t.Fatalf("expected aborted, got %s", got)
-	}
-}
-
-type fakeRoundStore struct {
-	round     CanonicalRound
-	billboard *BillboardRecord
-	err       error
-}
-
-func (s fakeRoundStore) Current(context.Context, string) (CanonicalRound, error) {
-	return s.round, s.err
-}
-
-func (s fakeRoundStore) Controller(context.Context, string) (ControllerRecord, error) {
-	if s.round.ClaimedController == "" || s.round.ClaimedAt == nil {
-		return ControllerRecord{}, ErrNoController
-	}
-	return ControllerRecord{
-		Address: s.round.ClaimedController, ClaimedAt: *s.round.ClaimedAt,
-		StartsAt: s.round.BillboardStartsAt, ActiveArtworkID: s.round.ActiveArtworkID,
-	}, nil
-}
-
-func (s fakeRoundStore) CurrentBillboard(
-	context.Context,
-	string,
-) (BillboardRecord, error) {
-	if s.billboard == nil {
-		return BillboardRecord{}, ErrNoBillboard
-	}
-	return *s.billboard, nil
-}
-
-type fakeWhisperReader struct {
-	auction        starknet.WhisperAuction
-	result         starknet.WhisperResult
-	chainTimestamp uint64
-	err            error
-	auctionCalls   int
-}
-
-func (r *fakeWhisperReader) Auction(
-	context.Context,
-	string,
-	uint64,
-) (starknet.WhisperAuction, error) {
-	r.auctionCalls++
-	return r.auction, r.err
-}
-
-func (r *fakeWhisperReader) Result(
-	context.Context,
-	string,
-	uint64,
-) (starknet.WhisperResult, error) {
-	return r.result, r.err
-}
-
-func (r *fakeWhisperReader) ChainTimestamp(context.Context) (uint64, error) {
-	return r.chainTimestamp, r.err
-}
-
-func canonicalRoundFixture() CanonicalRound {
-	return CanonicalRound{
-		Network: "SN_SEPOLIA", RoundID: 4, WhisperAddress: "0x123", AuctionID: 7,
-		ExpectedCreator: "0x111", PaymentToken: "0x222", MetadataHash: "0x333",
-		WinnerPayloadDomain: "0x444", VaultAddress: "0x555",
-	}
-}
-
-func whisperAuctionFixture(status starknet.WhisperStatus) starknet.WhisperAuction {
-	return starknet.WhisperAuction{
-		ID: 7, Creator: "0x111", PaymentToken: "0x222", MetadataHash: "0x333",
-		FulfillmentKind:     starknet.WhisperFulfillmentOffchain,
-		FulfillmentStatus:   starknet.WhisperFulfillmentStatusOffchain,
-		AssetToken:          "0x0",
-		AssetTokenID:        "0",
-		AssetAmount:         "0",
-		WinnerPayloadDomain: "0x444", ReservePrice: "100", MaxBids: 16,
-		Schedule: starknet.WhisperSchedule{
-			Kind:                    starknet.WhisperScheduleAbsolute,
-			AbsoluteBiddingDeadline: 100, AbsoluteForceRevealAfter: 110,
-			AbsoluteAbortAfter: 120,
+func TestServiceRejectsInconsistentChainState(t *testing.T) {
+	for name, mutate := range map[string]func(*fakeBeaconReader){
+		"pending round with a leader": func(reader *fakeBeaconReader) {
+			reader.status.Auction.Leader = "0xabc"
 		},
-		BiddingDeadline: 100, ForceRevealAfter: 110, AbortAfter: 120,
-		VaultAddress: "0x555", RevealPublicKey: "0x777",
-		SubmissionCount: 3, BidCount: 2,
-		Status: status, SettlementHash: "0x999",
+		"bidding round without a leader": func(reader *fakeBeaconReader) {
+			reader.status.Auction = biddingAuction(7, "0x0", "120", 1_000, 2_000)
+		},
+		"settled current round": func(reader *fakeBeaconReader) {
+			reader.status.Auction = settledAuction(7, "0xabc", "120")
+		},
+		"first round overlaps Whisper history": func(reader *fakeBeaconReader) {
+			reader.status.FirstRoundID = 6
+		},
+		"unsettled predecessor": func(reader *fakeBeaconReader) {
+			reader.status.Auction = pendingAuction(8)
+			reader.auctions[7] = biddingAuction(7, "0xabc", "120", 1_000, 2_000)
+		},
+		"predecessor below reserve": func(reader *fakeBeaconReader) {
+			reader.status.Auction = pendingAuction(8)
+			reader.auctions[7] = settledAuction(7, "0xabc", "99")
+		},
+		"chain unavailable": func(reader *fakeBeaconReader) {
+			reader.statusErr = errors.New("offline")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, db := openStore(t)
+			seedWhisperController(t, db, 6, "0x666")
+			reader := newFakeBeaconReader(7, 7, pendingAuction(7))
+			mutate(reader)
+			if _, err := newTestService(store, reader).Current(context.Background()); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
 	}
+}
+
+func TestProjectorBoundsEachPass(t *testing.T) {
+	store, _ := openStore(t)
+	current := uint64(maxProjectedRoundsPerSync + 3)
+	reader := newFakeBeaconReader(current, 1, pendingAuction(current))
+	for roundID := uint64(1); roundID < current; roundID++ {
+		reader.auctions[roundID] = settledAuction(roundID, "0xabc", "100")
+	}
+	projector := NewSettlementProjector(store, reader, "SN_SEPOLIA")
+	if err := projector.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, projected, err := store.ProjectionCursor(context.Background(), "SN_SEPOLIA")
+	if err != nil || projected != maxProjectedRoundsPerSync {
+		t.Fatalf("projected %d rounds, err %v", projected, err)
+	}
+	if err := projector.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, projected, _ = store.ProjectionCursor(context.Background(), "SN_SEPOLIA")
+	if projected != current-1 {
+		t.Fatalf("expected catch-up to %d, got %d", current-1, projected)
+	}
+}
+
+func TestControllerSourceFailsClosedWhenChainIsUnavailable(t *testing.T) {
+	store, db := openStore(t)
+	seedWhisperController(t, db, 6, "0x666")
+	reader := newFakeBeaconReader(7, 7, pendingAuction(7))
+	reader.statusErr = errors.New("offline")
+	source := NewControllerSource(store, NewSettlementProjector(store, reader, "SN_SEPOLIA"))
+	if _, _, _, err := source.CurrentController(context.Background(), "SN_SEPOLIA"); err == nil ||
+		!strings.Contains(err.Error(), "offline") {
+		t.Fatalf("expected chain failure, got %v", err)
+	}
+	reader.statusErr = nil
+	roundID, address, _, err := source.CurrentController(context.Background(), "SN_SEPOLIA")
+	if err != nil || roundID != 6 || address != "0x666" {
+		t.Fatalf("unexpected controller %d %q %v", roundID, address, err)
+	}
+}
+
+func newTestService(store *Store, reader *fakeBeaconReader) *Service {
+	return NewService(
+		store, reader, NewSettlementProjector(store, reader, "SN_SEPOLIA"),
+		"SN_SEPOLIA", testAuctionAddress,
+	)
+}
+
+type fakeBeaconReader struct {
+	status    starknet.BeaconStatus
+	auctions  map[uint64]starknet.BeaconAuction
+	timestamp uint64
+	statusErr error
+}
+
+func newFakeBeaconReader(
+	currentRoundID, firstRoundID uint64,
+	current starknet.BeaconAuction,
+) *fakeBeaconReader {
+	current.RoundID = currentRoundID
+	return &fakeBeaconReader{
+		status: starknet.BeaconStatus{
+			Initialized: true, FirstRoundID: firstRoundID, Auction: current,
+			MinimumBid: current.ReservePrice,
+		},
+		auctions:  make(map[uint64]starknet.BeaconAuction),
+		timestamp: 1_000,
+	}
+}
+
+func (r *fakeBeaconReader) Status(context.Context) (starknet.BeaconStatus, error) {
+	return r.status, r.statusErr
+}
+
+func (r *fakeBeaconReader) Auction(_ context.Context, roundID uint64) (starknet.BeaconAuction, error) {
+	auction, ok := r.auctions[roundID]
+	if !ok {
+		return starknet.BeaconAuction{}, errors.New("beacon round not found")
+	}
+	return auction, nil
+}
+
+func (r *fakeBeaconReader) ChainTimestamp(context.Context) (uint64, error) {
+	return r.timestamp, nil
+}
+
+func pendingAuction(roundID uint64) starknet.BeaconAuction {
+	return starknet.BeaconAuction{
+		RoundID: roundID, Status: starknet.BeaconAuctionPending,
+		PaymentToken: "0x4718", ProceedsRecipient: "0x999", ReservePrice: "100",
+		MinRaiseBps: 1000, BiddingDurationSeconds: 259200, ExtensionSeconds: 300,
+		Leader: "0x0", LeadingBid: "0",
+	}
+}
+
+func biddingAuction(
+	roundID uint64,
+	leader, leadingBid string,
+	startedAt, endsAt uint64,
+) starknet.BeaconAuction {
+	auction := pendingAuction(roundID)
+	auction.Status = starknet.BeaconAuctionBidding
+	auction.Leader, auction.LeadingBid = leader, leadingBid
+	auction.StartedAt, auction.EndsAt, auction.BidCount = startedAt, endsAt, 2
+	return auction
+}
+
+func settledAuction(roundID uint64, winner, winningBid string) starknet.BeaconAuction {
+	auction := biddingAuction(roundID, winner, winningBid, roundID*1_000, roundID*1_000+400)
+	auction.Status = starknet.BeaconAuctionSettled
+	auction.SettledAt = roundID*1_000 + 500
+	return auction
 }

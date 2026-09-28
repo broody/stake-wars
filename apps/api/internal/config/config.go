@@ -10,20 +10,14 @@ import (
 )
 
 const (
-	defaultPort                      = "8080"
-	defaultDatabasePath              = "./stakewars.db"
-	defaultStarknetChainID           = "SN_MAIN"
-	defaultMaxImageBytes             = int64(2 * 1024 * 1024)
-	defaultChallengeTTL              = 5 * time.Minute
-	defaultSessionTTL                = 15 * time.Minute
-	defaultBeaconBiddingDuration     = 72 * time.Hour
-	defaultBeaconAcceptanceDuration  = 15 * time.Minute
-	defaultBeaconSettlementDuration  = 6 * time.Hour
-	defaultBeaconReservePrice        = "100000000000000000"
-	defaultBeaconMaxBids             = 32
-	defaultBeaconWinnerPayloadDomain = "0x5354414b45574152535f424541434f4e5f5631"
-	maxConfiguredImageBytes          = int64(100 * 1024 * 1024)
-	productionEnvironmentName        = "production"
+	defaultPort               = "8080"
+	defaultDatabasePath       = "./stakewars.db"
+	defaultStarknetChainID    = "SN_MAIN"
+	defaultMaxImageBytes      = int64(2 * 1024 * 1024)
+	defaultChallengeTTL       = 5 * time.Minute
+	defaultSessionTTL         = 15 * time.Minute
+	maxConfiguredImageBytes   = int64(100 * 1024 * 1024)
+	productionEnvironmentName = "production"
 )
 
 var productionOrigins = []string{
@@ -44,15 +38,8 @@ type Config struct {
 	MaxImageBytes              int64
 	ChallengeTTL               time.Duration
 	SessionTTL                 time.Duration
-	BeaconBiddingDuration      time.Duration
-	BeaconAcceptanceDuration   time.Duration
-	BeaconSettlementDuration   time.Duration
-	BeaconCoordinatorURL       string
-	BeaconCoordinatorToken     string
-	BeaconPaymentToken         string
-	BeaconReservePrice         string
-	BeaconMaxBids              uint32
-	BeaconWinnerPayloadDomain  string
+	BeaconSystemAddress        string
+	BeaconKeeper               bool
 	AllowedOrigins             []string
 	ControlSystemAddress       string
 	SupplyDropSystemAddress    string
@@ -95,49 +82,9 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("AUTH_SESSION_TTL must be positive")
 	}
 
-	beaconBiddingDuration, err := durationValue("BEACON_BIDDING_DURATION", defaultBeaconBiddingDuration)
-	if err != nil {
-		return Config{}, err
-	}
-	beaconAcceptanceDuration, err := durationValue("BEACON_ACCEPTANCE_DURATION", defaultBeaconAcceptanceDuration)
-	if err != nil {
-		return Config{}, err
-	}
-	beaconSettlementDuration, err := durationValue("BEACON_SETTLEMENT_DURATION", defaultBeaconSettlementDuration)
-	if err != nil {
-		return Config{}, err
-	}
-	if beaconAcceptanceDuration <= 0 || beaconAcceptanceDuration%time.Second != 0 ||
-		beaconSettlementDuration <= 0 || beaconSettlementDuration%time.Second != 0 {
-		return Config{}, fmt.Errorf("Beacon acceptance and settlement durations must be positive whole seconds")
-	}
-	beaconCoordinatorURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BEACON_COORDINATOR_URL")), "/")
-	beaconCoordinatorToken := strings.TrimSpace(os.Getenv("BEACON_COORDINATOR_TOKEN"))
-	beaconPaymentToken := strings.TrimSpace(os.Getenv("BEACON_PAYMENT_TOKEN"))
-	configuredCoordinatorValues := 0
-	for _, value := range []string{beaconCoordinatorURL, beaconCoordinatorToken, beaconPaymentToken} {
-		if value != "" {
-			configuredCoordinatorValues++
-		}
-	}
-	if configuredCoordinatorValues != 0 && configuredCoordinatorValues != 3 {
-		return Config{}, fmt.Errorf("BEACON_COORDINATOR_URL, BEACON_COORDINATOR_TOKEN, and BEACON_PAYMENT_TOKEN must be configured together")
-	}
-	if beaconCoordinatorURL != "" {
-		parsed, err := url.Parse(beaconCoordinatorURL)
-		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-			return Config{}, fmt.Errorf("BEACON_COORDINATOR_URL must be an absolute HTTP(S) URL")
-		}
-		if len(beaconCoordinatorToken) < 32 {
-			return Config{}, fmt.Errorf("BEACON_COORDINATOR_TOKEN must contain at least 32 characters")
-		}
-	}
-	beaconMaxBidsValue, err := int64Value("BEACON_MAX_BIDS", defaultBeaconMaxBids)
-	if err != nil || beaconMaxBidsValue < 1 || beaconMaxBidsValue > 256 {
-		return Config{}, fmt.Errorf("BEACON_MAX_BIDS must be between 1 and 256")
-	}
-	if beaconBiddingDuration <= 0 || beaconBiddingDuration%time.Second != 0 {
-		return Config{}, fmt.Errorf("BEACON_BIDDING_DURATION must be a positive whole number of seconds")
+	beaconSystemAddress := strings.TrimSpace(os.Getenv("BEACON_SYSTEM_ADDRESS"))
+	if beaconSystemAddress != "" && strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" {
+		return Config{}, fmt.Errorf("BEACON_SYSTEM_ADDRESS requires STARKNET_RPC_URL")
 	}
 
 	supplyDropSystemAddress := strings.TrimSpace(os.Getenv("SUPPLY_DROP_SYSTEM_ADDRESS"))
@@ -165,6 +112,13 @@ func Load() (Config, error) {
 		strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" ||
 		strings.TrimSpace(os.Getenv("TORII_URL")) == "") {
 		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED requires the SupplyDrop keeper configuration, CONTROL_SYSTEM_ADDRESS, STARKNET_RPC_URL, and TORII_URL")
+	}
+	beaconKeeper, err := strconv.ParseBool(valueOrDefault("BEACON_KEEPER_ENABLED", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("BEACON_KEEPER_ENABLED must be a boolean")
+	}
+	if beaconKeeper && (configuredSupplyDropKeeperValues != 3 || beaconSystemAddress == "") {
+		return Config{}, fmt.Errorf("BEACON_KEEPER_ENABLED requires the SupplyDrop keeper configuration and BEACON_SYSTEM_ADDRESS")
 	}
 	origins := productionOrigins
 	if environment != productionEnvironmentName {
@@ -219,15 +173,8 @@ func Load() (Config, error) {
 		MaxImageBytes:              maxImageBytes,
 		ChallengeTTL:               challengeTTL,
 		SessionTTL:                 sessionTTL,
-		BeaconBiddingDuration:      beaconBiddingDuration,
-		BeaconAcceptanceDuration:   beaconAcceptanceDuration,
-		BeaconSettlementDuration:   beaconSettlementDuration,
-		BeaconCoordinatorURL:       beaconCoordinatorURL,
-		BeaconCoordinatorToken:     beaconCoordinatorToken,
-		BeaconPaymentToken:         beaconPaymentToken,
-		BeaconReservePrice:         valueOrDefault("BEACON_RESERVE_PRICE", defaultBeaconReservePrice),
-		BeaconMaxBids:              uint32(beaconMaxBidsValue),
-		BeaconWinnerPayloadDomain:  valueOrDefault("BEACON_WINNER_PAYLOAD_DOMAIN", defaultBeaconWinnerPayloadDomain),
+		BeaconSystemAddress:        beaconSystemAddress,
+		BeaconKeeper:               beaconKeeper,
 		AllowedOrigins:             origins,
 		ControlSystemAddress:       strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
 		SupplyDropSystemAddress:    supplyDropSystemAddress,
@@ -241,10 +188,6 @@ func Load() (Config, error) {
 		S3AccessKeyID:              s3AccessKeyID,
 		S3SecretAccessKey:          s3SecretAccessKey,
 	}, nil
-}
-
-func (c Config) BeaconCoordinatorEnabled() bool {
-	return c.BeaconCoordinatorURL != ""
 }
 
 func (c Config) ImageStorageEnabled() bool {

@@ -1,7 +1,7 @@
 # Orbital Beacon Concept
 
-**Status:** Superseded for the first Beacon release by the billboard workstream in `STRK20_INTEGRATION_PLAN.md`
-**Last updated:** 2026-08-24
+**Status:** Superseded for the first Beacon release by the billboard workstream. The Beacon now runs as an open ascending auction in the Dojo Beacon System; see `docs/PRD.md`. The Whisper sealed-bid release is recorded in `STRK20_INTEGRATION_PLAN.md`.
+**Last updated:** 2026-09-28
 
 ## Summary
 

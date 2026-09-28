@@ -19,10 +19,10 @@ const (
 var ErrInvalidHistoryQuery = errors.New("invalid Beacon history query")
 
 type HistoryEntry struct {
-	RoundID       uint64  `json:"roundId"`
-	WinnerAddress *string `json:"winnerAddress"`
-	BidCount      uint32  `json:"bidCount"`
-	WinningBid    string  `json:"winningBid"`
+	RoundID       uint64 `json:"roundId"`
+	WinnerAddress string `json:"winnerAddress"`
+	BidCount      uint32 `json:"bidCount"`
+	WinningBid    string `json:"winningBid"`
 }
 
 type HistoryPage struct {
@@ -72,14 +72,11 @@ func (s *HistoryService) List(
 		return HistoryPage{}, err
 	}
 	for index := range entries {
-		if entries[index].WinnerAddress == nil {
-			continue
-		}
-		normalized, err := starknet.NormalizeAddress(*entries[index].WinnerAddress)
+		normalized, err := starknet.NormalizeAddress(entries[index].WinnerAddress)
 		if err != nil {
 			return HistoryPage{}, fmt.Errorf("validate Beacon history winner: %w", err)
 		}
-		entries[index].WinnerAddress = &normalized
+		entries[index].WinnerAddress = normalized
 	}
 
 	page := HistoryPage{Entries: entries}

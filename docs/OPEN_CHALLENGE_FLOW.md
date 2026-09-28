@@ -97,5 +97,4 @@ actions.
 
 Addresses, delegation, cumulative commitments, incremental additions, timing,
 current leadership, sacrifices, deadlines, and results are public onchain.
-STRK20 is used only by Whisper's separate sealed-bid auction flow; it does not
-hide deployed game strength or Challenge activity.
+Stake Wars does not hide deployed game strength or Challenge activity.

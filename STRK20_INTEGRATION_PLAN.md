@@ -1,5 +1,11 @@
 # STRK20 Privacy Integration Plan — Stake Wars + Whisper sealed bidding
 
+> **Superseded 2026-09-28.** The Beacon now runs as an open ascending auction in
+> the Dojo Beacon System, and Stake Wars no longer depends on Whisper, its
+> operator, or STRK20 private bidding. This document is kept as the record of
+> the STRK20 Private Sprint release. Whisper-era winners remain in Beacon
+> history; see `docs/PRD.md` and the cutover runbook in `AGENTS.md`.
+
 Updated 2026-08-31 by the strk20-privacy-integration skill. Stake Wars' STRK20 scope is exclusively Whisper's private sealed-bidding mechanism for the Beacon billboard.
 
 **Status:** Phases A through C are complete and the Phase D sprint release is

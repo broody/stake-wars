@@ -16,49 +16,22 @@ export interface StakeWarsApiConfig {
   supportedImageTypes: string[];
 }
 
-export type BeaconPhase =
-  | 'none'
-  | 'pending'
-  | 'bidding'
-  | 'acceptance'
-  | 'settling'
-  | 'recovery'
-  | 'settled'
-  | 'aborted';
-
-export interface BeaconRoundResult {
-  hasWinner: boolean;
-  winnerCommitment: string;
-  winningBid: string;
-  secondHighestBid: string;
-  clearingPrice: string;
-  settledAt: string;
-}
+export type BeaconPhase = 'none' | 'pending' | 'bidding' | 'settling';
 
 export interface BeaconRound {
   id: number;
-  whisperAddress: string;
-  auctionId: number;
+  auctionAddress: string;
   paymentToken: string;
-  winnerPayloadDomain: string;
   reservePrice: string;
-  maxBids: number;
-  vaultAddress: string;
-  revealPublicKey: string;
-  schedule: {
-    kind: 'absolute' | 'start-on-bid';
-    biddingDurationSeconds: number;
-    acceptanceDurationSeconds: number;
-    settlementDurationSeconds: number;
-  };
+  minRaiseBps: number;
+  biddingDurationSeconds: number;
+  extensionSeconds: number;
   startedAt: string | null;
-  biddingDeadline: string | null;
-  forceRevealAfter: string | null;
-  abortAfter: string | null;
-  submissionCount: number;
-  fundedTrancheCount: number;
-  status: 'pending' | 'bidding' | 'settled' | 'aborted';
-  result: BeaconRoundResult | null;
+  endsAt: string | null;
+  leader: string | null;
+  leadingBid: string;
+  minimumBid: string;
+  bidCount: number;
 }
 
 export interface BeaconSnapshot {
@@ -68,10 +41,9 @@ export interface BeaconSnapshot {
   round: BeaconRound | null;
   controller: {
     address: string;
+    roundId: number;
     claimedAt: string;
-    startsAt: string | null;
-    expiresAt: string | null;
-    hasPublished?: boolean;
+    hasPublished: boolean;
   } | null;
   billboard: {
     imageUrl: string;
@@ -84,7 +56,7 @@ export interface BeaconSnapshot {
 
 export interface BeaconHistoryEntry {
   roundId: number;
-  winnerAddress: string | null;
+  winnerAddress: string;
   bidCount: number;
   winningBid: string;
 }

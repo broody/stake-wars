@@ -36,7 +36,7 @@ An Operator captures a neutral Sector by choosing how much FORCE, backed by dele
 *   **Sector Sacrifice:** Voluntarily giving up another owned, uncontested Sector while initiating or escalating a Challenge. The sector becomes neutral and its garrison returns to Available Force for the same atomic Challenge transaction; any assets remain attached to the sector.
 *   **SupplyDrop:** A time-bounded, sponsor-funded reward round that selects one Sector using committed future-block-hash pseudo-randomness and pays the wallet that controlled it at the round deadline.
 *   **SupplyDrop Sponsor:** The game admin or a wallet holding `SUPPLY_DROP_CREATOR_ROLE` that creates a SupplyDrop and escrows its complete token prize before the round begins. Multiple sponsors may be authorized while the initial release still permits only one active SupplyDrop globally.
-*   **Keeper:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, Operator synchronization, and SupplyDrop locking and settlement. The Keeper cannot select winners, alter commitments, or bypass contract validation.
+*   **Keeper:** An unprivileged keeper service that observes indexed onchain state and submits permissionless maintenance transactions, including expired-Challenge settlement, older losing-position resolution, Operator synchronization, SupplyDrop locking and settlement, and expired Beacon auction settlement. The Keeper cannot select winners, alter commitments, or bypass contract validation.
 
 ---
 
@@ -82,7 +82,7 @@ The protocol utilizes a **"Dual-Layer" architecture**. The **Consensus Layer** (
 *   **Keeper Maintenance:** The Keeper monitors expired Challenges, calls `settle_challenge`, and then calls `resolve_challenge_position` for any older unresolved losers. These entrypoints remain permissionless so another account may perform the work if the Keeper is delayed or offline.
 *   Stake Wars never transfers, escrows, or slashes STRK. Spent Force is permanent game accounting for the Operator address; the underlying STRK remains directly delegated and reward-bearing under the official pool rules.
 *   **Public Deployment:** Operator identities, direct delegation, cumulative commitments, incremental additions, Challenge timing, current leadership, sacrifices, deadlines, and settlement are public onchain.
-*   **STRK20 Scope:** Stake Wars uses STRK20 only through Whisper's sealed-bid auction flow. Direct delegation, FORCE commitments, Challenge activity, and Sector control remain public onchain.
+*   **Beacon Bids:** Beacon bids are public STRK transfers escrowed by the Beacon System, never delegated or staked STRK, and they do not affect FORCE. Direct delegation, FORCE commitments, Challenge activity, Sector control, and Beacon bids are all public onchain.
 
 #### 3.1.6. Withdrawal and Permanent Retirement
 *   **Retirement:** Initiating an unpool or withdrawal from the official staking contract permanently retires that address from Stake Wars. Its ownership generation is invalidated, its Sectors become neutral, and it may never capture, reinforce, or challenge again.
@@ -181,7 +181,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
 *   **Runtime:** A Go API service deployed on Fly.io at `api.stakewars.gg`. The initial target is one shared-CPU Machine with 512 MB RAM in the `sjc` region. CPU and memory may be increased if observed load requires it.
 *   **Responsibilities:**
     *   Verify wallet challenges and current on-chain Sector ownership.
-    *   Run the unprivileged Keeper loop that settles expired Challenges, resolves remaining losing positions, synchronizes known active Operators against the official staking contract, and locks and settles expired SupplyDrops.
+    *   Run the unprivileged Keeper loop that settles expired Challenges, resolves remaining losing positions, synchronizes known active Operators against the official staking contract, locks and settles expired SupplyDrops, and settles expired Beacon auctions.
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
     *   Serve game metadata and apply rate limits per wallet and IP address.
@@ -270,12 +270,13 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
     *   Minimum viable image reporting and administrative removal.
     *   One role-authorized Sector SupplyDrop at a time with multiple possible creators, ERC-20, ERC-721, or ERC-1155 escrow, permissionless future-block-hash drawing, no-winner rollover, and Keeper maintenance.
-*   **Phase 2: Whisper-Powered Beacon Auctions**
-    *   Consume Whisper as a pinned, standalone companion library for private STRK20 Vickrey auctions; Whisper owns the reusable contract, SDK, encrypted capsule, vault operator, and post-settlement winner disclosure, while Stake Wars owns the game UX, canonical round, automatic controller resolution, and billboard fulfillment.
-    *   Keep one canonical start-on-bid auction available. The first sealed bid starts a three-day bidding window; until another qualifying winner is confirmed and automatically resolved, the current Beacon controller and signal remain active. Settled no-winner and aborted rounds do not remove the current controller.
-    *   Give each newly confirmed controller one immutable transmission containing a required image, an optional plain-text description of at most 280 characters, and an optional absolute HTTP(S) destination link. Clicking the Beacon or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot. The preceding transmission remains active after control changes and is replaced atomically only when the new controller publishes.
-    *   Run auction cycling as an idempotent duty of the backend Beacon worker. After a terminal round, it creates and registers the next pending auction without changing controller state; the authorized onchain transaction builder remains isolated from the worker's other permissionless maintenance duties.
-    *   Gate Stake Wars bidding, winner resolution, and Mainnet launch milestones on the corresponding Whisper wallet, operator, deployment, and recovery milestones recorded in `STRK20_INTEGRATION_PLAN.md`.
+*   **Phase 2: Open Beacon Auctions**
+    *   Run one canonical open ascending auction at a time in the Dojo World's Beacon System, paid in STRK. The first bid at or above the reserve starts a three-day bidding window. Every later bid is public, must exceed the lead by at least 10% rounded up to the next base unit, and cannot come from the current leader. A bid placed in the final five minutes extends the deadline to five minutes after that bid.
+    *   Escrow only the leading bid and refund the displaced leader in the same transaction. After the deadline, any account may settle: settlement sends the winning bid to the admin-configured proceeds recipient, makes the leader the Beacon controller, and opens the next pending round atomically. Every settled round therefore has a winner, and the backend never discovers a winner from an off-chain party.
+    *   The current controller and signal remain active until a later round settles. Pending, open, and awaiting-settlement rounds never remove the current controller. Rule changes apply to the current round only while it has no bids.
+    *   Give each newly settled controller one immutable transmission containing a required image, an optional plain-text description of at most 280 characters, and an optional absolute HTTP(S) destination link. Clicking the Beacon or its projection opens the sponsored transmission panel in the upper-right Core HUD. After the first successful publication, the controller cannot edit or replace any part of the transmission; a later winner receives a fresh publication slot. The preceding transmission remains active after control changes and is replaced atomically only when the new controller publishes.
+    *   The Keeper settles expired rounds; settlement remains permissionless and available while gameplay is paused. The API projects settled rounds into Beacon history and re-verifies control against the chain before authorizing or publishing a transmission.
+    *   Preserve every winner from the earlier Whisper sealed-bid rounds in Beacon history and controller continuity; the Beacon System's first round continues their numbering.
 *   **Phase 3: The Command Expansion**
     *   Yield tracking dashboard.
     *   Live capture ticker, searchable gallery, and Operator profiles.

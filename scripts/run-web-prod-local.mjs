@@ -24,20 +24,18 @@ if (torii.origin !== new URL(environment.VITE_API_DOMAIN).origin) {
 const upstreams = {
   api: environment.VITE_API_DOMAIN,
   rpc: rpc.origin,
-  operator: environment.VITE_WHISPER_OPERATOR_URL,
   assets: 'https://assets.stakewars.gg',
 };
 Object.assign(process.env, environment, {
   VITE_API_DOMAIN: `${local}/api`,
   VITE_STARKNET_RPC_URL: `${local}/rpc${rpc.pathname}${rpc.search}`,
   VITE_TORII_GRAPHQL_URL: `${local}/api${torii.pathname}${torii.search}`,
-  VITE_WHISPER_OPERATOR_URL: `${local}/operator`,
 });
 
 function installGateway(server) {
   server.middlewares.use(async (request, response, next) => {
     const match = request.url?.match(
-      /^\/__prod\/(api|rpc|operator|assets)(\/.*|$)/
+      /^\/__prod\/(api|rpc|assets)(\/.*|$)/
     );
     if (!match) return next();
 

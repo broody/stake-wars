@@ -14,20 +14,22 @@ import type {
   BeaconRound,
   BeaconSnapshot,
 } from '../../services/api';
-import type { BeaconBidReceipt } from '../../services/whisperBid';
-import type { StoredBeaconBid } from '../../services/beaconBidStorage';
 import { api, type PreparedBeaconImage } from '../../services/api';
 import { useBeacon } from '../../contexts/useBeacon';
 import { useWallet } from '../../contexts/WalletContext';
 import { prepareBeaconImage } from '../../utils/beaconImage';
 import { clipboardImageFile } from '../../utils/sectorImage';
 import {
-  beaconCountdown,
   beaconDeadline,
   beaconPhaseLabel,
   formatBeaconAmount,
 } from '../../utils/beacon';
-import { addressesMatch, formatStrk, shortAddress } from '../../utils/format';
+import {
+  addressesMatch,
+  formatStrk,
+  parseStrk,
+  shortAddress,
+} from '../../utils/format';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 
@@ -41,15 +43,14 @@ interface BeaconConsoleProps extends BeaconModalProps {
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onPlaceBid?: (amount: string) => Promise<BeaconBidReceipt>;
+  onPlaceBid?: (amount: string) => Promise<void>;
+  onSettle?: () => Promise<void>;
+  viewerAddress?: string | null;
   bidStatusLabel?: string;
   presentation?: 'hud' | 'page';
   title?: string;
   view?: 'auction' | 'history';
   history?: BeaconHistoryEntry[];
-  ownBids?: StoredBeaconBid[];
-  ownBidsLoading?: boolean;
-  ownBidsError?: string | null;
 }
 
 interface BeaconSummaryCardProps extends BeaconModalProps {
@@ -96,8 +97,9 @@ export function BeaconSummaryCard({
       snapshot?.controller &&
       addressesMatch(viewerAddress, snapshot.controller.address)
   );
-  const currentControllerHasPublished =
-    snapshot?.controller?.hasPublished ?? Boolean(snapshot?.billboard);
+  const currentControllerHasPublished = Boolean(
+    snapshot?.controller?.hasPublished
+  );
 
   useEffect(() => {
     if (!isOpen || !isCurrentController || currentControllerHasPublished) {
@@ -231,14 +233,13 @@ export function BeaconConsole({
   error,
   onRefresh,
   onPlaceBid,
+  onSettle,
+  viewerAddress,
   bidStatusLabel,
   presentation = 'hud',
   title = 'THE BEACON',
   view = 'auction',
   history = [],
-  ownBids = [],
-  ownBidsLoading = false,
-  ownBidsError = null,
 }: BeaconConsoleProps) {
   const chainNow = useBeaconChainNow(isOpen, snapshot?.observedAt);
   useCloseOnEscape(isOpen && presentation === 'hud', onClose);
@@ -323,10 +324,9 @@ export function BeaconConsole({
           round={round}
           chainNow={chainNow}
           onPlaceBid={onPlaceBid}
+          onSettle={onSettle}
+          viewerAddress={viewerAddress}
           bidStatusLabel={bidStatusLabel}
-          ownBids={ownBids}
-          ownBidsLoading={ownBidsLoading}
-          ownBidsError={ownBidsError}
         />
       ) : null}
 
@@ -356,7 +356,7 @@ export function BeaconConsole({
 
       <footer className="flex items-center justify-between border-t border-grid px-4 py-3 text-[8px] tracking-[0.18em] text-dim sm:px-6">
         <span>VERIFIED ONCHAIN</span>
-        <span>SEALED VICKREY AUCTION</span>
+        <span>OPEN ASCENDING AUCTION</span>
       </footer>
     </Container>
   );
@@ -367,61 +367,104 @@ function AuctionPanel({
   round,
   chainNow,
   onPlaceBid,
+  onSettle,
+  viewerAddress,
   bidStatusLabel,
-  ownBids,
-  ownBidsLoading,
-  ownBidsError,
 }: {
   phase: BeaconPhase;
   round: BeaconRound;
   chainNow: number;
-  onPlaceBid?: (amount: string) => Promise<BeaconBidReceipt>;
+  onPlaceBid?: (amount: string) => Promise<void>;
+  onSettle?: () => Promise<void>;
+  viewerAddress?: string | null;
   bidStatusLabel?: string;
-  ownBids: StoredBeaconBid[];
-  ownBidsLoading: boolean;
-  ownBidsError: string | null;
 }) {
-  const reserveBid = formatStrk(BigInt(round.reservePrice), 18);
-  const [bidAmount, setBidAmount] = useState(reserveBid);
+  const minimumBid = strkInputValue(round.minimumBid);
+  const [bidAmount, setBidAmount] = useState(minimumBid);
   const [isSubmitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
-  const [receipt, setReceipt] = useState<BeaconBidReceipt | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const submissionInFlight = useRef(false);
+  const edited = useRef(false);
   const state = auctionState(phase, round);
   const canBid = phase === 'pending' || phase === 'bidding';
-  const bidIsValid = Number(bidAmount) > 0;
+  const isLeader = Boolean(
+    viewerAddress && round.leader && addressesMatch(viewerAddress, round.leader)
+  );
+  const bidIsValid = meetsMinimum(bidAmount, round.minimumBid);
 
   useEffect(() => {
-    setBidAmount(reserveBid);
+    edited.current = false;
     setBidError(null);
-    setReceipt(null);
-  }, [reserveBid, round.id]);
+    setNotice(null);
+  }, [round.id]);
 
-  const submitBid = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (
-      !onPlaceBid ||
-      !bidIsValid ||
-      isSubmitting ||
-      submissionInFlight.current
-    ) {
-      return;
-    }
+  // A rival bid raises the minimum. Keep the viewer's own amount while it
+  // still qualifies; otherwise move the input to the new minimum.
+  useEffect(() => {
+    setBidAmount((current) =>
+      edited.current && meetsMinimum(current, round.minimumBid)
+        ? current
+        : minimumBid
+    );
+  }, [minimumBid, round.id, round.minimumBid]);
+
+  const runAction = async (action: () => Promise<void>, success: string) => {
+    if (isSubmitting || submissionInFlight.current) return;
     submissionInFlight.current = true;
     setBidError(null);
-    setReceipt(null);
+    setNotice(null);
     setSubmitting(true);
     try {
-      setReceipt(await onPlaceBid(bidAmount));
+      await action();
+      edited.current = false;
+      setNotice(success);
     } catch (reason) {
       setBidError(
-        reason instanceof Error ? reason.message : 'Private bid failed.'
+        reason instanceof Error ? reason.message : 'Transaction failed.'
       );
     } finally {
       submissionInFlight.current = false;
       setSubmitting(false);
     }
   };
+
+  const submitBid = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onPlaceBid || !bidIsValid || isLeader) return;
+    void runAction(() => onPlaceBid(bidAmount), 'BID CONFIRMED // YOU LEAD');
+  };
+
+  const details =
+    phase === 'pending'
+      ? [
+          { label: 'RESERVE', value: formatBeaconAmount(round.reservePrice) },
+          {
+            label: 'WINDOW',
+            value: formatDuration(round.biddingDurationSeconds),
+          },
+          { label: 'MIN RAISE', value: formatRaise(round.minRaiseBps) },
+        ]
+      : phase === 'settling'
+        ? [
+            {
+              label: 'WINNING BID',
+              value: formatBeaconAmount(round.leadingBid),
+            },
+            { label: 'BIDS', value: String(round.bidCount) },
+            { label: 'RESERVE', value: formatBeaconAmount(round.reservePrice) },
+          ]
+        : [
+            {
+              label: 'LEADING BID',
+              value: formatBeaconAmount(round.leadingBid),
+            },
+            { label: 'BIDS', value: String(round.bidCount) },
+            {
+              label: 'NEXT MINIMUM',
+              value: formatBeaconAmount(round.minimumBid),
+            },
+          ];
 
   return (
     <section className="bg-black px-5 py-6 sm:px-7 sm:py-8">
@@ -439,139 +482,135 @@ function AuctionPanel({
           </p>
 
           <div className="mt-6 grid gap-px bg-grid sm:grid-cols-3">
-            <CompactDetail
-              label="RESERVE"
-              value={formatBeaconAmount(round.reservePrice)}
-            />
-            <CompactDetail label="BIDS" value={String(round.submissionCount)} />
-            <CompactDetail
-              label="WINDOW"
-              value={formatDuration(round.schedule.biddingDurationSeconds)}
-            />
+            {details.map((detail) => (
+              <CompactDetail
+                key={detail.label}
+                label={detail.label}
+                value={detail.value}
+              />
+            ))}
           </div>
 
-          <OwnBidsPanel
-            bids={ownBids}
-            isLoading={ownBidsLoading}
-            error={ownBidsError}
-          />
+          {round.leader ? (
+            <section
+              aria-label="Leading bidder"
+              className="mt-5 flex items-center justify-between gap-3 border-l border-fg bg-white/[0.035] px-4 py-3"
+            >
+              <MetricText
+                label={phase === 'settling' ? 'WINNER' : 'LEADER'}
+                value={shortAddress(round.leader)}
+              />
+              {isLeader ? (
+                <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
+                  YOU
+                </span>
+              ) : null}
+            </section>
+          ) : null}
 
           {canBid ? (
             <form className="mt-6" onSubmit={submitBid}>
               <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.18em]">
                 <label htmlFor="beacon-bid-amount" className="text-neutral-500">
-                  YOUR SEALED BID
+                  YOUR BID
                 </label>
                 <span className={onPlaceBid ? 'text-fg' : 'text-neutral-600'}>
                   {bidStatusLabel ||
-                    (onPlaceBid
-                      ? 'READY WALLET // PRIVATE'
-                      : 'READY WALLET REQUIRED')}
+                    (onPlaceBid ? 'PUBLIC BID // STRK' : 'WALLET REQUIRED')}
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] border border-neutral-600 focus-within:border-fg">
                 <input
                   id="beacon-bid-amount"
                   type="number"
-                  min={reserveBid}
-                  step="0.01"
+                  min={minimumBid}
+                  step="any"
                   inputMode="decimal"
                   value={bidAmount}
+                  disabled={isLeader}
                   onChange={(event) => {
+                    edited.current = true;
                     setBidAmount(event.target.value);
-                    setReceipt(null);
+                    setNotice(null);
                     setBidError(null);
                   }}
-                  className="min-w-0 bg-black px-4 py-4 text-2xl font-bold tabular-nums tracking-[-0.04em] text-fg outline-none"
+                  className="min-w-0 bg-black px-4 py-4 text-2xl font-bold tabular-nums tracking-[-0.04em] text-fg outline-none disabled:text-neutral-600"
                 />
                 <span className="grid place-items-center border-l border-grid px-4 text-[10px] tracking-[0.16em] text-neutral-400">
                   STRK
                 </span>
               </div>
+              <p className="mt-2 text-[9px] leading-4 text-neutral-500">
+                {phase === 'pending'
+                  ? `Minimum ${formatBeaconAmount(round.minimumBid)}.`
+                  : `Minimum ${formatBeaconAmount(round.minimumBid)} (+${formatRaise(round.minRaiseBps)}).`}{' '}
+                Outbid bids are refunded in the same transaction.
+                {round.extensionSeconds > 0
+                  ? ` A bid in the final ${formatWindow(round.extensionSeconds)} extends the deadline to ${formatWindow(round.extensionSeconds)} after that bid.`
+                  : ''}
+              </p>
               <button
                 type="submit"
-                disabled={!onPlaceBid || !bidIsValid || isSubmitting}
+                disabled={
+                  !onPlaceBid || !bidIsValid || isSubmitting || isLeader
+                }
                 title={
                   onPlaceBid
-                    ? 'Place a sealed bid'
-                    : bidStatusLabel || 'Private wallet bidding is unavailable'
+                    ? 'Place a public bid'
+                    : bidStatusLabel || 'Wallet bidding is unavailable'
                 }
                 className="mt-3 w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
                 {isSubmitting
-                  ? 'CONFIRM IN READY…'
-                  : receipt
-                    ? 'BID SUBMITTED'
-                    : 'PLACE SEALED BID'}
+                  ? 'CONFIRM IN WALLET…'
+                  : isLeader
+                    ? 'YOU HOLD THE LEAD'
+                    : 'PLACE BID'}
               </button>
-              {receipt?.storageStatus === 'failed' ? (
-                <p
-                  className="mt-2 text-[9px] leading-4 text-red-400"
-                  role="alert"
-                >
-                  BID SUBMITTED // COULD NOT SAVE ON THIS DEVICE
-                </p>
-              ) : null}
-              {bidError ? (
-                <p
-                  className="mt-2 text-[9px] leading-4 text-red-400"
-                  role="alert"
-                >
-                  {bidError}
-                </p>
-              ) : null}
             </form>
+          ) : null}
+
+          {phase === 'settling' ? (
+            <div className="mt-6">
+              <button
+                type="button"
+                disabled={!onSettle || isSubmitting}
+                onClick={() => {
+                  if (onSettle) {
+                    void runAction(onSettle, 'ROUND SETTLED');
+                  }
+                }}
+                title={
+                  onSettle
+                    ? 'Finalize this round'
+                    : 'Connect a wallet to finalize this round'
+                }
+                className="w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+              >
+                {isSubmitting ? 'CONFIRM IN WALLET…' : 'SETTLE ROUND'}
+              </button>
+              <p className="mt-2 text-[9px] leading-4 text-neutral-500">
+                Anyone can finalize the round; the keeper usually does it within
+                a minute.
+              </p>
+            </div>
+          ) : null}
+
+          {notice ? (
+            <p
+              className="mt-2 text-[9px] tracking-[0.14em] text-fg"
+              role="status"
+            >
+              {notice}
+            </p>
+          ) : null}
+          {bidError ? (
+            <p className="mt-2 text-[9px] leading-4 text-red-400" role="alert">
+              {bidError}
+            </p>
           ) : null}
         </div>
       </div>
-    </section>
-  );
-}
-
-function OwnBidsPanel({
-  bids,
-  isLoading,
-  error,
-}: {
-  bids: StoredBeaconBid[];
-  isLoading: boolean;
-  error: string | null;
-}) {
-  if (!isLoading && bids.length === 0 && !error) return null;
-
-  const totalCommitted = bids
-    .reduce((total, bid) => total + BigInt(bid.amount), 0n)
-    .toString();
-
-  return (
-    <section
-      aria-label="Your sealed bids"
-      className="mt-5 border-l border-fg bg-white/[0.035] px-4 py-3"
-    >
-      <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.2em]">
-        <span className="text-neutral-500">YOUR COMMITTED TOTAL</span>
-        <span className="text-neutral-600">SAVED ON THIS DEVICE</span>
-      </div>
-      {isLoading ? (
-        <div className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500">
-          RESTORING…
-        </div>
-      ) : null}
-      {!isLoading && bids.length > 0 ? (
-        <div className="mt-2 flex items-end justify-between gap-4">
-          <span className="text-2xl font-bold tabular-nums tracking-[-0.05em] text-fg">
-            {formatBeaconAmount(totalCommitted)}
-          </span>
-          <span className="pb-1 text-right text-[8px] tracking-[0.16em] text-neutral-500">
-            {bids.length} SEALED {bids.length === 1 ? 'BID' : 'BIDS'}
-          </span>
-        </div>
-      ) : null}
-      {error ? (
-        <div className="mt-3 text-[9px] tracking-[0.14em] text-red-400">
-          {error}
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -637,18 +676,10 @@ function HistoryPanel({ entries }: { entries: BeaconHistoryEntry[] }) {
               <HistoryCell
                 label="WINNER"
                 className="px-5 py-4 sm:py-5"
-                title={
-                  entry.winnerAddress ?? 'The winning wallet is being verified'
-                }
+                title={entry.winnerAddress}
               >
-                <span
-                  className={`text-sm font-bold tracking-[-0.03em] ${
-                    entry.winnerAddress ? 'text-fg' : 'text-neutral-500'
-                  }`}
-                >
-                  {entry.winnerAddress
-                    ? shortAddress(entry.winnerAddress)
-                    : 'VERIFYING'}
+                <span className="text-sm font-bold tracking-[-0.03em] text-fg">
+                  {shortAddress(entry.winnerAddress)}
                 </span>
               </HistoryCell>
               <HistoryCell
@@ -1268,42 +1299,17 @@ function auctionState(phase: BeaconPhase, round: BeaconRound) {
     case 'pending':
       return {
         title: 'Start the clock',
-        body: `The first sealed bid opens a ${formatAuctionWindow(round.schedule.biddingDurationSeconds)} auction.`,
+        body: `The first bid at or above the reserve opens a ${formatAuctionWindow(round.biddingDurationSeconds)} auction.`,
       };
     case 'bidding':
       return {
         title: 'Bidding is open',
-        body: 'Bid privately. Control changes only after the result is confirmed.',
-      };
-    case 'acceptance':
-      return {
-        title: 'Finalizing bids',
-        body: 'Submitted bids can be funded until the settlement window opens.',
+        body: 'Every bid is public. The highest bid when the clock runs out wins control of the Beacon.',
       };
     case 'settling':
       return {
-        title: 'Choosing the winner',
-        body: 'The settlement proof is being generated and confirmed onchain.',
-      };
-    case 'recovery':
-      return {
-        title: 'Awaiting recovery',
-        body: 'The current controller stays in place while the round recovers.',
-      };
-    case 'settled':
-      return round.result?.hasWinner
-        ? {
-            title: 'Winner confirmed',
-            body: 'The winning wallet is being verified for control.',
-          }
-        : {
-            title: 'Control stays put',
-            body: 'No bid cleared the reserve. A new auction can begin.',
-          };
-    case 'aborted':
-      return {
-        title: 'Control stays put',
-        body: 'This round ended without a winner. A new auction can begin.',
+        title: 'Bidding closed',
+        body: 'The leading bid won. Settlement hands control to the winner and opens the next round.',
       };
     default:
       return {
@@ -1322,19 +1328,12 @@ function orbitValue(
   if (phase === 'bidding' && deadline) {
     return compactAuctionCountdown(deadline.at, chainNow);
   }
-  if (phase === 'acceptance' && deadline) {
-    return beaconCountdown(deadline.at, chainNow);
-  }
-  if (phase === 'settling') return 'PROVING';
-  if (phase === 'settled') return 'FINAL';
-  if (phase === 'aborted') return 'ENDED';
-  if (phase === 'recovery') return 'HOLD';
+  if (phase === 'settling') return 'FINAL';
   return '—';
 }
 
 function orbitLabel(phase: BeaconPhase) {
   if (phase === 'bidding') return 'BIDDING CLOSES IN';
-  if (phase === 'acceptance') return 'SETTLEMENT STARTS IN';
   if (phase === 'settling') return 'SETTLEMENT';
   if (phase === 'pending') return 'AUCTION';
   return beaconPhaseLabel(phase);
@@ -1345,18 +1344,9 @@ function auctionProgress(
   round: BeaconRound,
   chainNow: number
 ) {
-  if (phase === 'settling' || phase === 'settled') {
-    return 1;
-  }
-  if (phase === 'acceptance') {
-    return timedProgress(
-      round.biddingDeadline,
-      round.forceRevealAfter,
-      chainNow
-    );
-  }
+  if (phase === 'settling') return 1;
   if (phase === 'bidding') {
-    return timedProgress(round.startedAt, round.biddingDeadline, chainNow);
+    return timedProgress(round.startedAt, round.endsAt, chainNow);
   }
   return 0;
 }
@@ -1387,6 +1377,38 @@ function formatDuration(seconds: number) {
   }
   if (seconds % 3600 === 0) return `${seconds / 3600} HOURS`;
   return `${Math.round(seconds / 60)} MINUTES`;
+}
+
+function formatRaise(bps: number) {
+  return `${Number((bps / 100).toFixed(2))}%`;
+}
+
+function formatWindow(seconds: number) {
+  if (seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  if (seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  }
+  return `${seconds} seconds`;
+}
+
+function strkInputValue(value: string) {
+  try {
+    return formatStrk(BigInt(value), 18).replace(/,/g, '');
+  } catch {
+    return '';
+  }
+}
+
+function meetsMinimum(amount: string, minimum: string) {
+  try {
+    return parseStrk(amount) >= BigInt(minimum) && BigInt(minimum) > 0n;
+  } catch {
+    return false;
+  }
 }
 
 function formatAuctionWindow(seconds: number) {

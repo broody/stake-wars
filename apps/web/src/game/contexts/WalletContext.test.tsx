@@ -326,8 +326,8 @@ describe('wallet automatic reconnection', () => {
   });
 });
 
-describe('privacy capability probe', () => {
-  it('treats a synchronous Not implemented throw as unsupported without crashing', async () => {
+describe('wallet capabilities', () => {
+  it('connects wallets that do not implement the privacy Wallet API', async () => {
     const braavos = braavosWallet();
     await mount(discovery([braavos.wallet]).store);
 
@@ -336,8 +336,9 @@ describe('privacy capability probe', () => {
     expect(current.isConnected).toBe(true);
     expect(current.walletName).toBe('Braavos');
     expect(current.walletId).toBe('braavos');
-    expect(current.shieldedStrkStatus).toBe('unsupported');
-    expect(current.isPrivacyWalletSupported).toBe(false);
     expect(container.textContent).toBe(current.address);
+    expect(braavos.request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'wallet_supportedWalletApi' })
+    );
   });
 });
