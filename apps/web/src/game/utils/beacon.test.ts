@@ -39,6 +39,6 @@ describe('Beacon lifecycle presentation', () => {
     expect(
       beaconCountdown(round.endsAt!, Date.parse('2026-08-24T10:58:57Z'))
     ).toBe('01:01:03');
-    expect(formatBeaconAmount(round.reservePrice)).toBe('1.5 [STRK]');
+    expect(formatBeaconAmount(round.reservePrice)).toBe('1.5 STRK');
   });
 });

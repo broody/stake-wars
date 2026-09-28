@@ -29,8 +29,8 @@ export function beaconCountdown(at: string, now: number): string {
 
 export function formatBeaconAmount(value: string): string {
   try {
-    return `${formatStrk(BigInt(value))} [STRK]`;
+    return `${formatStrk(BigInt(value))} STRK`;
   } catch {
-    return '— [STRK]';
+    return '— STRK';
   }
 }

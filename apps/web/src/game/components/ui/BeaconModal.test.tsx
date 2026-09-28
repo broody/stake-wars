@@ -70,9 +70,9 @@ describe('BeaconConsole', () => {
     expect(markup).toContain('BIDDING CLOSES IN');
     expect(markup).toContain('1H 00M');
     expect(markup).toContain('LEADING BID');
-    expect(markup).toContain('2 [STRK]');
+    expect(markup).toContain('2 STRK');
     expect(markup).toContain('NEXT MINIMUM');
-    expect(markup).toContain('2.2 [STRK]');
+    expect(markup).toContain('2.2 STRK');
     expect(markup).toContain('>3</div>');
     expect(markup).toContain('LEADER');
     expect(markup).toContain('0x0777aa…ccdddd');
@@ -124,7 +124,7 @@ describe('BeaconConsole', () => {
       'first bid at or above the reserve opens a 5-minute auction'
     );
     expect(markup).toContain('RESERVE');
-    expect(markup).toContain('1.5 [STRK]');
+    expect(markup).toContain('1.5 STRK');
     expect(markup).toContain('MIN RAISE');
     expect(markup).toContain('10%');
     expect(markup).toContain('WALLET REQUIRED');
@@ -210,7 +210,7 @@ describe('BeaconConsole', () => {
     expect(markup).not.toContain('BIDDERS');
     expect(markup).toContain('WINNING BID');
     expect(markup).toContain('22');
-    expect(markup).toContain('41.75 [STRK]');
+    expect(markup).toContain('41.75 STRK');
     expect(markup).not.toContain('VERIFYING');
   });
 });
