@@ -22,7 +22,6 @@ import {
   parseStrk,
 } from '../../utils/format';
 import { stakeRequestSearch } from '../../utils/stakingRequest';
-import { ActionBrief, type ActionBriefKind } from './ActionBrief';
 import { WalletButton } from './WalletButton';
 
 interface CaptureControlProps {
@@ -30,7 +29,7 @@ interface CaptureControlProps {
 }
 
 type Phase = 'idle' | 'submitting' | 'confirming';
-type Action = ActionBriefKind;
+type Action = 'capture' | 'takeover' | 'reinforce';
 
 const MAX_U128 = (1n << 128n) - 1n;
 
@@ -262,17 +261,19 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
         <span>{copy.title}</span>
         <span className="text-[8px] text-dim">FORCE ACTION</span>
       </header>
-      <ActionBrief kind={action} />
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
-        <label
-          className="block pt-1 text-dim"
-          htmlFor={`allocation-${sector?.id ?? 'none'}`}
-        >
-          {action === 'reinforce' ? 'ADD FORCE' : 'YOUR DEFENSE'}
-        </label>
+        {action === 'reinforce' ? (
+          <label
+            className="block pt-1 text-dim"
+            htmlFor={`allocation-${sector?.id ?? 'none'}`}
+          >
+            ADD FORCE
+          </label>
+        ) : null}
         <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
           <input
             id={`allocation-${sector?.id ?? 'none'}`}
+            aria-label={action === 'reinforce' ? undefined : 'FORCE to commit'}
             value={allocation}
             onChange={(event) => setAllocation(event.target.value)}
             inputMode="decimal"

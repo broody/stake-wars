@@ -16,7 +16,11 @@ import type {
   OperatorStatus,
   ControlView,
 } from '../types';
-import { getSectorStatuses, getOperatorStatus } from '../services/starknet';
+import {
+  getOperatorStatus,
+  getSectorStatus,
+  getSectorStatuses,
+} from '../services/starknet';
 import { useWallet } from './WalletContext';
 import { isSectorId } from '../utils/sectorGeometry';
 import { addressesMatch, isZeroAddress } from '../utils/format';
@@ -409,6 +413,21 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
   const readsSelectionFromChain =
     minimumStake === null && sectorIndexError !== null;
+
+  // One background chain read for a single selected Sector catches what Torii
+  // cannot show yet, such as an owner who unpooled outside the game.
+  const singleSelectedSectorId =
+    selectedSectorIds.length === 1 ? selectedSectorIds[0] : null;
+  useEffect(() => {
+    if (singleSelectedSectorId === null || readsSelectionFromChain) return;
+    const controller = new AbortController();
+    getSectorStatus(singleSelectedSectorId, controller.signal)
+      .then(rememberSector)
+      .catch(() => {
+        // The indexed status stays on screen; actions re-read the chain.
+      });
+    return () => controller.abort();
+  }, [readsSelectionFromChain, rememberSector, singleSelectedSectorId]);
 
   useEffect(() => {
     const controller = new AbortController();

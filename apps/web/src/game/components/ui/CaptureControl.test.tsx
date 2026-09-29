@@ -139,7 +139,7 @@ describe('CaptureControl', () => {
       sector({ controller: '0x0', captureForce: 0n, requiredStake: force(10) })
     );
 
-    expect(text).toContain('Your FORCE becomes this Sector’s defense.');
+    expect(text).toContain('CAPTURE SECTOR');
     expect(text).toContain('CONNECT WALLET TO CAPTURE');
     expect(text).not.toContain('CONNECT OPERATOR');
   });
@@ -165,13 +165,8 @@ describe('CaptureControl', () => {
     connect();
     const text = await render(sector());
     expect(text).toContain('TAKE OVER SECTOR');
-    expect(text).toContain(
-      'Beat its defense by 10% and it’s yours right away.'
-    );
     expect(text).toContain('TAKE OVER · 110 FORCE');
-
-    await click('HOW IT WORKS');
-    expect(container.textContent).toContain('The owner gets their FORCE back.');
+    expect(text).not.toContain('YOUR DEFENSE');
 
     await click('TAKE OVER · 110 FORCE');
 
