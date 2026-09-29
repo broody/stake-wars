@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { isSupportedWallet } from '../../utils/wallets';
+import { BusyLabel } from './Spinner';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -76,8 +77,9 @@ export function WalletButton({
     menuRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [isBlock, isOpen]);
 
+  // The spinner stands in for the prompt while connecting.
   const label = isConnecting
-    ? '> CONNECTING'
+    ? 'CONNECTING'
     : isConnected
       ? '> OPERATOR'
       : (disconnectedLabel ?? '> CONNECT_WALLET');
@@ -124,7 +126,7 @@ export function WalletButton({
             : 'border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm'
         }
       >
-        {label}
+        <BusyLabel busy={isConnecting}>{label}</BusyLabel>
       </button>
 
       {isOpen ? (

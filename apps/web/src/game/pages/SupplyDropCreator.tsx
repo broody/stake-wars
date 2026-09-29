@@ -7,6 +7,7 @@ import { shortString, TransactionExecutionStatus } from 'starknet';
 import { Link } from 'react-router-dom';
 import { SupplyDropTopUp } from '../components/ui/SupplyDropTopUp';
 import { WalletButton } from '../components/ui/WalletButton';
+import { BusyLabel } from '../components/ui/Spinner';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
@@ -742,13 +743,17 @@ function SupplyDropCreationForm({
               }
               className="mt-5 w-full border border-[#d6a84b] bg-[#d6a84b] px-4 py-4 text-[10px] font-semibold tracking-[0.22em] text-black transition-colors hover:bg-black hover:text-[#e4bd6b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-950 disabled:text-neutral-600 motion-reduce:transition-none"
             >
-              {phase === 'submitting'
-                ? 'AUTHORIZE APPROVAL + CREATION…'
-                : phase === 'confirming'
-                  ? 'CONFIRMING SUPPLY_DROP…'
-                  : phase === 'confirmed'
-                    ? 'SUPPLY_DROP ARMED'
-                    : disabledReason || 'APPROVE PRIZE + CREATE SUPPLY_DROP'}
+              <BusyLabel
+                busy={phase === 'submitting' || phase === 'confirming'}
+              >
+                {phase === 'submitting'
+                  ? 'AUTHORIZE APPROVAL + CREATION…'
+                  : phase === 'confirming'
+                    ? 'CONFIRMING SUPPLY_DROP…'
+                    : phase === 'confirmed'
+                      ? 'SUPPLY_DROP ARMED'
+                      : disabledReason || 'APPROVE PRIZE + CREATE SUPPLY_DROP'}
+              </BusyLabel>
             </button>
 
             {parsedForm.error || authorizationError || submissionError ? (

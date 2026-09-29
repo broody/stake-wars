@@ -6,6 +6,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useClipboardImagePaste } from '../../hooks/useClipboardImagePaste';
 import { api, type PreparedSectorImage } from '../../services/api';
 import { prepareSectorImage } from '../../utils/sectorImage';
+import { BusyLabel } from './Spinner';
 
 function formatMebibytes(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -219,6 +220,12 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
     !prepared ||
     !placementDraft?.placement ||
     imageUploadSectorIds.length === 0;
+  const isUploadBusy =
+    isImageServiceLoading ||
+    isUploading ||
+    (imageUploadSectorIds.length > 0 &&
+      Boolean(prepared) &&
+      !placementDraft?.placement);
 
   const exitImageUpload = () => {
     if (isUploading) return;
@@ -314,11 +321,13 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
           </span>
           <span>
             <span className="block text-[10px] tracking-[0.16em] text-neutral-300">
-              {isPreparing
-                ? 'PREPARING IMAGE…'
-                : prepared
-                  ? 'CHANGE IMAGE'
-                  : 'CHOOSE, DROP, OR PASTE'}
+              <BusyLabel busy={isPreparing}>
+                {isPreparing
+                  ? 'PREPARING IMAGE…'
+                  : prepared
+                    ? 'CHANGE IMAGE'
+                    : 'CHOOSE, DROP, OR PASTE'}
+              </BusyLabel>
             </span>
             <span className="mt-1 block break-all text-[9px] leading-relaxed tracking-[0.08em] text-neutral-600">
               {fileName || 'WEBP · JPEG · PNG · CTRL/⌘V'}
@@ -375,17 +384,19 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
           onClick={() => void upload()}
           className="mt-4 w-full border border-white bg-white px-4 py-3 text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
         >
-          {isImageServiceLoading
-            ? 'CHECKING IMAGE SERVICE…'
-            : isUploading
-              ? 'PUBLISHING IMAGE…'
-              : imageUploadSectorIds.length === 0
-                ? 'SELECT SECTORS'
-                : !prepared
-                  ? 'CHOOSE IMAGE'
-                  : placementDraft?.placement
-                    ? `PUBLISH ACROSS ${imageUploadSectorIds.length} SECTOR${imageUploadSectorIds.length === 1 ? '' : 'S'}`
-                    : 'LOCKING CAMERA…'}
+          <BusyLabel busy={isUploadBusy}>
+            {isImageServiceLoading
+              ? 'CHECKING IMAGE SERVICE…'
+              : isUploading
+                ? 'PUBLISHING IMAGE…'
+                : imageUploadSectorIds.length === 0
+                  ? 'SELECT SECTORS'
+                  : !prepared
+                    ? 'CHOOSE IMAGE'
+                    : placementDraft?.placement
+                      ? `PUBLISH ACROSS ${imageUploadSectorIds.length} SECTOR${imageUploadSectorIds.length === 1 ? '' : 'S'}`
+                      : 'LOCKING CAMERA…'}
+          </BusyLabel>
         </button>
 
         <div className="mt-4 border-t border-grid pt-3 text-[8px] leading-relaxed tracking-[0.11em] text-neutral-600">

@@ -23,6 +23,7 @@ import {
 } from '../../utils/format';
 import { stakeRequestSearch } from '../../utils/stakingRequest';
 import { WalletButton } from './WalletButton';
+import { BusyLabel } from './Spinner';
 
 interface CaptureControlProps {
   sectors: SectorStatus[];
@@ -325,7 +326,7 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
             disabled={Boolean(disabledReason) || phase !== 'idle'}
             className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
           >
-            {label}
+            <BusyLabel busy={phase !== 'idle'}>{label}</BusyLabel>
           </button>
         )}
       </div>

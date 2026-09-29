@@ -6,6 +6,7 @@ import {
 import { TransactionExecutionStatus } from 'starknet';
 import { SupplyDropLogo } from '../components/3d/SupplyDropLogo';
 import { WalletButton } from '../components/ui/WalletButton';
+import { BusyLabel } from '../components/ui/Spinner';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
@@ -498,13 +499,20 @@ export function SupplyDrop() {
                           }
                           className="border border-[#d6a84b] bg-[#d6a84b] px-4 py-2 text-[9px] tracking-[0.16em] text-black transition-colors hover:bg-black hover:text-[#d6a84b] disabled:cursor-wait disabled:opacity-50"
                         >
-                          {claimingId === supplyDrop.id
-                            ? 'CLAIMING…'
-                            : !policy
-                              ? 'VERIFYING…'
-                              : policy.stakingRequired
-                                ? 'CLAIM & STAKE'
-                                : 'CLAIM PRIZE'}
+                          <BusyLabel
+                            busy={
+                              claimingId === supplyDrop.id ||
+                              (!policy && !policyError)
+                            }
+                          >
+                            {claimingId === supplyDrop.id
+                              ? 'CLAIMING…'
+                              : !policy
+                                ? 'VERIFYING…'
+                                : policy.stakingRequired
+                                  ? 'CLAIM & STAKE'
+                                  : 'CLAIM PRIZE'}
+                          </BusyLabel>
                         </button>
                       ) : (
                         <div className="text-[9px] tracking-[0.14em] text-neutral-600">

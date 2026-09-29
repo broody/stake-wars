@@ -31,6 +31,7 @@ import {
   shortAddress,
 } from '../../utils/format';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
+import { BusyLabel } from './Spinner';
 import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 
 interface BeaconModalProps {
@@ -570,11 +571,13 @@ function AuctionPanel({
                 }
                 className="mt-3 w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
-                {isSubmitting
-                  ? 'CONFIRM IN WALLET…'
-                  : isLeader
-                    ? 'YOU HOLD THE LEAD'
-                    : 'PLACE BID'}
+                <BusyLabel busy={isSubmitting}>
+                  {isSubmitting
+                    ? 'CONFIRM IN WALLET…'
+                    : isLeader
+                      ? 'YOU HOLD THE LEAD'
+                      : 'PLACE BID'}
+                </BusyLabel>
               </button>
             </form>
           ) : null}
@@ -596,7 +599,9 @@ function AuctionPanel({
                 }
                 className="w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
-                {isSubmitting ? 'CONFIRM IN WALLET…' : 'SETTLE ROUND'}
+                <BusyLabel busy={isSubmitting}>
+                  {isSubmitting ? 'CONFIRM IN WALLET…' : 'SETTLE ROUND'}
+                </BusyLabel>
               </button>
               <p className="mt-2 text-[9px] leading-4 text-neutral-500">
                 Anyone can finalize the round; the keeper usually does it within
@@ -1257,18 +1262,20 @@ function BeaconProjectionUpload({
         onClick={() => void upload()}
         className="mt-3 w-full border border-fg bg-fg px-3 py-3 text-[10px] font-semibold tracking-[0.18em] text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
       >
-        {isCheckingService
-          ? 'CHECKING IMAGE SERVICE…'
-          : isPreparing
-            ? 'PREPARING IMAGE…'
-            : isUploading
-              ? 'PUBLISHING TRANSMISSION…'
-              : !prepared
-                ? 'CHOOSE IMAGE'
-                : destinationUrl.trim() !== '' &&
-                    !isValidBeaconDestination(destinationUrl)
-                  ? 'ADD VALID LINK'
-                  : 'PUBLISH TRANSMISSION'}
+        <BusyLabel busy={isCheckingService || isPreparing || isUploading}>
+          {isCheckingService
+            ? 'CHECKING IMAGE SERVICE…'
+            : isPreparing
+              ? 'PREPARING IMAGE…'
+              : isUploading
+                ? 'PUBLISHING TRANSMISSION…'
+                : !prepared
+                  ? 'CHOOSE IMAGE'
+                  : destinationUrl.trim() !== '' &&
+                      !isValidBeaconDestination(destinationUrl)
+                    ? 'ADD VALID LINK'
+                    : 'PUBLISH TRANSMISSION'}
+        </BusyLabel>
       </button>
     </section>
   );

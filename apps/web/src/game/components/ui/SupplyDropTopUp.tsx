@@ -20,6 +20,7 @@ import type { SupplyDrop } from '../../types';
 import { addressesMatch, formatStrk } from '../../utils/format';
 import { voyagerTransactionUrl } from '../../utils/voyager';
 import { WalletButton } from './WalletButton';
+import { BusyLabel } from './Spinner';
 
 export function SupplyDropTopUp({
   supplyDrop,
@@ -231,7 +232,9 @@ export function SupplyDropTopUp({
               disabled={busy || added === null || Boolean(validationError)}
               className="border border-[#d6a84b] px-5 py-3 text-[9px] tracking-[0.16em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy ? 'CONFIRMING…' : 'ADD TO SUPPLY_DROP'}
+              <BusyLabel busy={busy}>
+                {busy ? 'CONFIRMING…' : 'ADD TO SUPPLY_DROP'}
+              </BusyLabel>
             </button>
           </div>
           {!isStrk && supplyDrop.prizeKind === 1 ? (

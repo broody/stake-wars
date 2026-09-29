@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BusyLabel } from './Spinner';
 import {
   useProvider,
   useSendTransaction,
@@ -124,7 +125,9 @@ export function SupplyDropHoldBanner() {
               onClick={() => void recover()}
               className="mt-3 border border-[#d6a84b] px-3 py-2 text-[#d6a84b] disabled:opacity-50"
             >
-              {pending ? 'STAKING…' : 'STAKE REMAINING DROP'}
+              <BusyLabel busy={pending}>
+                {pending ? 'STAKING…' : 'STAKE REMAINING DROP'}
+              </BusyLabel>
             </button>
           )}
           <Link to="/staking" className="ml-3 underline">

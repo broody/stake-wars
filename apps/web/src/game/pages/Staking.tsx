@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
 import { ForceBreakdown } from '../components/ui/ForceBreakdown';
+import { BusyLabel } from '../components/ui/Spinner';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
@@ -348,12 +349,14 @@ export function Staking() {
               disabled={Boolean(stakeDisabledReason) || isBusy}
               className="mt-5 w-full border border-white bg-white px-4 py-4 text-[10px] font-semibold tracking-[0.22em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
             >
-              {stakePhase === 'submitting'
-                ? 'AUTHORIZE STAKE…'
-                : stakePhase === 'confirming'
-                  ? 'CONFIRMING…'
-                  : stakeDisabledReason ||
-                    `STAKE ${formatStrk(parsedAmount.value ?? 0n, 18)} STRK`}
+              <BusyLabel busy={stakePhase !== 'idle'}>
+                {stakePhase === 'submitting'
+                  ? 'AUTHORIZE STAKE…'
+                  : stakePhase === 'confirming'
+                    ? 'CONFIRMING…'
+                    : stakeDisabledReason ||
+                      `STAKE ${formatStrk(parsedAmount.value ?? 0n, 18)} STRK`}
+              </BusyLabel>
             </button>
 
             {parsedAmount.error || walletError || stakeError ? (
@@ -436,13 +439,15 @@ export function Staking() {
               }
               className="mt-4 w-full border border-neutral-500 px-4 py-3 text-[9px] tracking-[0.2em] text-white transition-colors hover:border-white hover:bg-white hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
             >
-              {claimPhase === 'submitting'
-                ? 'AUTHORIZE CLAIM…'
-                : claimPhase === 'confirming'
-                  ? 'CONFIRMING CLAIM…'
-                  : summary?.unclaimedRewards
-                    ? `CLAIM ${formatStrk(summary.unclaimedRewards, 6)} STRK`
-                    : 'NO YIELD TO CLAIM'}
+              <BusyLabel busy={claimPhase !== 'idle'}>
+                {claimPhase === 'submitting'
+                  ? 'AUTHORIZE CLAIM…'
+                  : claimPhase === 'confirming'
+                    ? 'CONFIRMING CLAIM…'
+                    : summary?.unclaimedRewards
+                      ? `CLAIM ${formatStrk(summary.unclaimedRewards, 6)} STRK`
+                      : 'NO YIELD TO CLAIM'}
+              </BusyLabel>
             </button>
           </div>
         </section>
@@ -492,13 +497,15 @@ export function Staking() {
                 disabled={!withdrawalUnlocked || isBusy}
                 className="mt-4 w-full border border-amber-400 px-4 py-3 text-[9px] tracking-[0.18em] text-amber-300 transition-colors hover:bg-amber-400 hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:text-neutral-600"
               >
-                {withdrawPhase === 'submitting'
-                  ? 'AUTHORIZE WITHDRAWAL…'
-                  : withdrawPhase === 'confirming'
-                    ? 'CONFIRMING WITHDRAWAL…'
-                    : withdrawalUnlocked
-                      ? `WITHDRAW ${formatStrk(summary?.unpoolAmount ?? 0n, 6)} STRK`
-                      : 'WITHDRAWAL LOCKED'}
+                <BusyLabel busy={withdrawPhase !== 'idle'}>
+                  {withdrawPhase === 'submitting'
+                    ? 'AUTHORIZE WITHDRAWAL…'
+                    : withdrawPhase === 'confirming'
+                      ? 'CONFIRMING WITHDRAWAL…'
+                      : withdrawalUnlocked
+                        ? `WITHDRAW ${formatStrk(summary?.unpoolAmount ?? 0n, 6)} STRK`
+                        : 'WITHDRAWAL LOCKED'}
+                </BusyLabel>
               </button>
             </div>
           ) : (
@@ -521,11 +528,13 @@ export function Staking() {
                     disabled={isBusy || !summary?.stakedAmount}
                     className="border border-amber-400 bg-amber-400 px-4 py-3 text-[9px] font-semibold tracking-[0.16em] text-black transition-colors hover:bg-black hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
                   >
-                    {unstakePhase === 'submitting'
-                      ? 'AUTHORIZE EXIT…'
-                      : unstakePhase === 'confirming'
-                        ? 'CONFIRMING EXIT…'
-                        : 'CONFIRM PERMANENT EXIT'}
+                    <BusyLabel busy={unstakePhase !== 'idle'}>
+                      {unstakePhase === 'submitting'
+                        ? 'AUTHORIZE EXIT…'
+                        : unstakePhase === 'confirming'
+                          ? 'CONFIRMING EXIT…'
+                          : 'CONFIRM PERMANENT EXIT'}
+                    </BusyLabel>
                   </button>
                   <button
                     type="button"

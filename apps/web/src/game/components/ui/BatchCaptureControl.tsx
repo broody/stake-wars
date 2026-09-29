@@ -32,6 +32,7 @@ import {
   type SplitTransactionBatch,
 } from './SplitTransactionModal';
 import { WalletButton } from './WalletButton';
+import { BusyLabel } from './Spinner';
 
 interface BatchCaptureControlProps {
   sectors: SectorStatus[];
@@ -497,7 +498,7 @@ export function BatchCaptureControl({
             disabled={Boolean(disabledReason) || isBusy}
             className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
           >
-            {actionLabel}
+            <BusyLabel busy={isBusy}>{actionLabel}</BusyLabel>
           </button>
         )}
       </div>
