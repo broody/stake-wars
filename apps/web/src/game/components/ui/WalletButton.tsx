@@ -5,6 +5,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { isSupportedWallet } from '../../utils/wallets';
 import { BusyLabel } from './Spinner';
+import { AddressLink } from './AddressLink';
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -146,7 +147,9 @@ export function WalletButton({
                   {walletName || 'WALLET'} CONNECTED
                 </div>
                 <div className="mt-2 text-[9px] tabular-nums text-neutral-600">
-                  {shortAddress(address)}
+                  <AddressLink address={address}>
+                    {shortAddress(address)}
+                  </AddressLink>
                 </div>
               </div>
 

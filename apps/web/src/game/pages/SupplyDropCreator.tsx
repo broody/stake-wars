@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { SupplyDropTopUp } from '../components/ui/SupplyDropTopUp';
 import { WalletButton } from '../components/ui/WalletButton';
 import { BusyLabel } from '../components/ui/Spinner';
+import { AddressLink } from '../components/ui/AddressLink';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
@@ -528,7 +529,7 @@ function SupplyDropCreationForm({
                 <div className="text-right text-[8px] tracking-[0.15em] text-neutral-600">
                   SPONSOR
                   <div className="mt-1 text-[10px] text-neutral-400">
-                    {shortAddress(address)}
+                    <AddressLink address={address} />
                   </div>
                 </div>
               ) : (

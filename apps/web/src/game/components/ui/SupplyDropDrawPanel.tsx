@@ -3,12 +3,8 @@ import { Link } from 'react-router-dom';
 import type { SupplyDrop } from '../../types';
 import { config } from '../../services/config';
 import { isSupplyDropDrawPending } from '../../services/supplyDrop';
-import {
-  addressesMatch,
-  formatStrk,
-  isZeroAddress,
-  shortAddress,
-} from '../../utils/format';
+import { AddressLink } from './AddressLink';
+import { addressesMatch, formatStrk, isZeroAddress } from '../../utils/format';
 
 function prizeLabel(supplyDrop: SupplyDrop): string {
   if (supplyDrop.prizeKind === 1) {
@@ -118,7 +114,7 @@ export function SupplyDropDrawPanel({
               </span>
             </div>
             <div className="relative mt-3 border-t border-[#d6a84b]/30 pt-3 text-base text-neutral-100">
-              {shortAddress(supplyDrop.winner)}
+              <AddressLink address={supplyDrop.winner} />
             </div>
           </section>
         ) : (

@@ -1,15 +1,11 @@
 import { useEffect } from 'react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
-import {
-  addressesMatch,
-  formatStrk,
-  isZeroAddress,
-  shortAddress,
-} from '../../utils/format';
+import { addressesMatch, formatStrk, isZeroAddress } from '../../utils/format';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import { CaptureControl } from './CaptureControl';
 import { BatchCaptureControl } from './BatchCaptureControl';
+import { AddressLink } from './AddressLink';
 import { groupBatchSectors } from '../../services/sectorBatch';
 
 function ImageUploadAction({
@@ -157,12 +153,14 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
                 OWNER
               </div>
               <div className="mt-1 flex items-baseline gap-2 tracking-wider text-neutral-300">
-                <span title={selectedSector?.controller}>
-                  {!selectedSector
-                    ? '---'
-                    : neutral
-                      ? 'NONE · UNCLAIMED'
-                      : shortAddress(selectedSector.controller)}
+                <span>
+                  {!selectedSector ? (
+                    '---'
+                  ) : neutral ? (
+                    'NONE · UNCLAIMED'
+                  ) : (
+                    <AddressLink address={selectedSector.controller} />
+                  )}
                 </span>
                 {controlledByOperator && (
                   <span

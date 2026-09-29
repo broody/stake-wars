@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { OperatorActivity, OperatorActivityType } from '../../types';
 import {
   getOperatorActivityFeedPage,
   type OperatorActivityFeedCursor,
 } from '../../services/torii';
-import { formatStrk, shortAddress } from '../../utils/format';
+import { formatStrk } from '../../utils/format';
 import { voyagerTransactionUrl } from '../../utils/voyager';
+import { AddressLink } from './AddressLink';
 
 interface OperatorActivityTableProps {
   operator: string;
@@ -139,13 +146,19 @@ function stakeDetail(activity: OperatorActivity): string {
   }
 }
 
-function counterpartyDetail(activity: OperatorActivity): string {
+function counterpartyDetail(activity: OperatorActivity): ReactNode {
   if (!activity.counterparty) return '—';
-  if (activity.type === 'yield_claim') {
-    return `TO ${shortAddress(activity.counterparty)}`;
-  }
-  const prefix = activity.type === 'displacement' ? 'BY' : 'FROM';
-  return `${prefix} ${shortAddress(activity.counterparty)}`;
+  const prefix =
+    activity.type === 'yield_claim'
+      ? 'TO'
+      : activity.type === 'displacement'
+        ? 'BY'
+        : 'FROM';
+  return (
+    <>
+      {prefix} <AddressLink address={activity.counterparty} />
+    </>
+  );
 }
 
 function mergeActivity(

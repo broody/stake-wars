@@ -24,14 +24,10 @@ import {
   beaconPhaseLabel,
   formatBeaconAmount,
 } from '../../utils/beacon';
-import {
-  addressesMatch,
-  formatStrk,
-  parseStrk,
-  shortAddress,
-} from '../../utils/format';
+import { addressesMatch, formatStrk, parseStrk } from '../../utils/format';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { BusyLabel } from './Spinner';
+import { AddressLink } from './AddressLink';
 import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 
 interface BeaconModalProps {
@@ -172,7 +168,7 @@ export function BeaconSummaryCard({
             <div className="flex items-end justify-between gap-3">
               <MetricText
                 label="CURRENT CONTROLLER"
-                value={shortAddress(snapshot.controller.address)}
+                value={<AddressLink address={snapshot.controller.address} />}
               />
               {isCurrentController ? (
                 <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
@@ -508,7 +504,7 @@ function AuctionPanel({
             >
               <MetricText
                 label={phase === 'settling' ? 'WINNER' : 'LEADER'}
-                value={shortAddress(round.leader)}
+                value={<AddressLink address={round.leader} />}
               />
               {isLeader ? (
                 <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
@@ -693,7 +689,7 @@ function HistoryPanel({ entries }: { entries: BeaconHistoryEntry[] }) {
                 title={entry.winnerAddress}
               >
                 <span className="text-sm font-bold tracking-[-0.03em] text-fg">
-                  {shortAddress(entry.winnerAddress)}
+                  <AddressLink address={entry.winnerAddress} />
                 </span>
               </HistoryCell>
               <HistoryCell
@@ -1281,13 +1277,16 @@ function BeaconProjectionUpload({
   );
 }
 
-function MetricText({ label, value }: { label: string; value: string }) {
+function MetricText({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
       <div className="text-[8px] tracking-[0.16em] text-neutral-500">
         {label}
       </div>
-      <div className="mt-1 truncate text-[11px] text-white" title={value}>
+      <div
+        className="mt-1 truncate text-[11px] text-white"
+        title={typeof value === 'string' ? value : undefined}
+      >
         {value}
       </div>
     </div>

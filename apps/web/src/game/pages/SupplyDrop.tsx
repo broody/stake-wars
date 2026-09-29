@@ -7,6 +7,7 @@ import { TransactionExecutionStatus } from 'starknet';
 import { SupplyDropLogo } from '../components/3d/SupplyDropLogo';
 import { WalletButton } from '../components/ui/WalletButton';
 import { BusyLabel } from '../components/ui/Spinner';
+import { AddressLink } from '../components/ui/AddressLink';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
 import { config } from '../services/config';
@@ -19,12 +20,7 @@ import { prepareSupplyDropClaim } from '../services/supplyDropClaims';
 import { useSectors } from '../contexts/SectorContext';
 import { useYield } from '../contexts/useYield';
 import type { SupplyDrop as SupplyDropRecord } from '../types';
-import {
-  addressesMatch,
-  formatStrk,
-  isZeroAddress,
-  shortAddress,
-} from '../utils/format';
+import { addressesMatch, formatStrk, isZeroAddress } from '../utils/format';
 
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -78,7 +74,7 @@ function PrizeToken({ supplyDrop }: { supplyDrop: SupplyDropRecord }) {
         {prizeStandard(supplyDrop.prizeKind)}
       </span>
       <span className="tabular-nums">
-        TOKEN {shortAddress(supplyDrop.token)}
+        TOKEN <AddressLink address={supplyDrop.token} />
       </span>
     </div>
   );
@@ -353,7 +349,7 @@ export function SupplyDrop() {
                           SPONSOR
                         </div>
                         <div className="mt-1 text-sm text-neutral-200">
-                          {shortAddress(current.sponsor)}
+                          <AddressLink address={current.sponsor} />
                         </div>
                       </div>
                     </div>
@@ -464,9 +460,11 @@ export function SupplyDrop() {
                         WINNER · SECTOR {supplyDrop.lastDrawnSectorId}
                       </div>
                       <div className="mt-2 text-xs text-neutral-200">
-                        {isZeroAddress(supplyDrop.winner)
-                          ? 'NOT RECORDED'
-                          : shortAddress(supplyDrop.winner)}
+                        {isZeroAddress(supplyDrop.winner) ? (
+                          'NOT RECORDED'
+                        ) : (
+                          <AddressLink address={supplyDrop.winner} />
+                        )}
                       </div>
                       {winnerConnected ? (
                         <div className="mt-1 text-[8px] tracking-[0.14em] text-[#d6a84b]">
@@ -485,7 +483,7 @@ export function SupplyDrop() {
                             {formatDate(supplyDrop.claimedAt)}
                           </div>
                           <div className="mt-1 text-[8px] text-neutral-600">
-                            TO {shortAddress(supplyDrop.claimedBy)}
+                            TO <AddressLink address={supplyDrop.claimedBy} />
                           </div>
                         </div>
                       ) : canClaim ? (

@@ -2,7 +2,7 @@ import { WalletButton } from '../components/ui/WalletButton';
 import { OperatorActivityTable } from '../components/ui/OperatorActivityTable';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
-import { shortAddress } from '../utils/format';
+import { AddressLink } from '../components/ui/AddressLink';
 
 export function Operator() {
   const { isConnected, address, walletName } = useWallet();
@@ -51,7 +51,7 @@ export function Operator() {
               {walletName || 'WALLET'}
             </div>
             <div className="mt-1 text-[9px] tabular-nums text-neutral-500">
-              {address ? shortAddress(address) : 'NOT CONNECTED'}
+              {address ? <AddressLink address={address} /> : 'NOT CONNECTED'}
             </div>
           </div>
         </header>

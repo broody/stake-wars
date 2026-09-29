@@ -1,9 +1,15 @@
 import { config } from '../services/config';
 
+function voyagerOrigin(): string {
+  return config.starknetChainId === 'SN_MAIN'
+    ? 'https://voyager.online'
+    : 'https://sepolia.voyager.online';
+}
+
 export function voyagerTransactionUrl(hash: string): string {
-  const origin =
-    config.starknetChainId === 'SN_MAIN'
-      ? 'https://voyager.online'
-      : 'https://sepolia.voyager.online';
-  return `${origin}/tx/${hash}`;
+  return `${voyagerOrigin()}/tx/${hash}`;
+}
+
+export function voyagerContractUrl(address: string): string {
+  return `${voyagerOrigin()}/contract/${address}`;
 }
