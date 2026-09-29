@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
 import { ForceBreakdown } from '../components/ui/ForceBreakdown';
 import { useSectors } from '../contexts/SectorContext';
@@ -7,7 +7,10 @@ import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
 import { getStrkBalance } from '../services/starknet';
 import { formatStrk, parseStrk } from '../utils/format';
-import { stakeAmountFromSearch } from '../utils/stakingRequest';
+import {
+  stakeAmountFromSearch,
+  stakeReturnsToCore,
+} from '../utils/stakingRequest';
 import { calculateYieldMetrics } from '../utils/yield';
 
 const MAX_U128 = (1n << 128n) - 1n;
@@ -93,6 +96,7 @@ function percentValue(value: number | null): string {
 
 export function Staking() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { address, isConnected } = useWallet();
   const { operatorStatus, isOperatorLoading, operatorError, refreshOperator } =
     useSectors();
@@ -228,8 +232,10 @@ export function Staking() {
 
   const submitStake = async () => {
     if (stakeDisabledReason || parsedAmount.value === null) return;
-    await stake(parsedAmount.value);
+    const staked = await stake(parsedAmount.value);
     setBalanceRevision((current) => current + 1);
+    // A stake started from a Sector action returns there to finish it.
+    if (staked && stakeReturnsToCore(searchParams)) navigate('/');
   };
 
   if (!isConnected) {

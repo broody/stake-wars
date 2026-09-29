@@ -17,7 +17,8 @@ export interface YieldContextValue {
   withdrawPhase: StakingActionPhase;
   stakingError: string | null;
   refreshStaking: () => void;
-  stake: (amount: bigint) => Promise<void>;
+  /** Resolves true once the stake is confirmed onchain. */
+  stake: (amount: bigint) => Promise<boolean>;
   claimYield: () => Promise<void>;
   unstakeAll: () => Promise<void>;
   withdrawUnstaked: () => Promise<void>;

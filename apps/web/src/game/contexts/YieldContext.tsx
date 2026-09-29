@@ -203,7 +203,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
         !config.stakingPoolAddress ||
         !config.strkTokenAddress
       ) {
-        return;
+        return false;
       }
 
       let submittedHash: string | null = null;
@@ -231,6 +231,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
         notifyConfirmed(submittedHash);
         refreshOperator();
         refreshStaking();
+        return true;
       } catch (stakeFailure) {
         const message = messageFrom(
           stakeFailure,
@@ -238,6 +239,7 @@ export function YieldProvider({ children }: PropsWithChildren) {
         );
         if (submittedHash) notifyFailed(submittedHash, message);
         setStakeError(message);
+        return false;
       } finally {
         setStakePhase('idle');
       }
