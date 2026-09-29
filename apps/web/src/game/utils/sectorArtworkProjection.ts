@@ -38,9 +38,11 @@ export function createProjectedArtworkGeometry(
   heights: ReadonlyMap<number, number>,
   columns: number,
   rows: number,
-  paddingFraction = 0
+  paddingFraction = 0,
+  hiddenSectorIds?: ReadonlySet<number>
 ): THREE.BufferGeometry {
   const positions: number[] = [];
+  const concealable: number[] = [];
   const projectorClips: number[] = [];
   const placements: number[] = [];
   const aspects: number[] = [];
@@ -91,6 +93,7 @@ export function createProjectedArtworkGeometry(
         imageAspects.push(artwork.placement.imageAspect ?? 1);
         atlasRects.push(left, bottom, width, height);
         sectorCenters.push(sectorCenter.x, sectorCenter.y, sectorCenter.z);
+        concealable.push(hiddenSectorIds?.has(sectorId) ? 1 : 0);
       }
     });
   });
@@ -123,6 +126,10 @@ export function createProjectedArtworkGeometry(
   geometry.setAttribute(
     'sectorCenter',
     new THREE.Float32BufferAttribute(sectorCenters, 3)
+  );
+  geometry.setAttribute(
+    'concealable',
+    new THREE.Float32BufferAttribute(concealable, 1)
   );
   geometry.computeBoundingSphere();
   return geometry;

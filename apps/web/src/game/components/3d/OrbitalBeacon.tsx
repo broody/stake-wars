@@ -81,9 +81,8 @@ export function OrbitalBeacon({
   isCoreProjectionSettled?: boolean;
 }) {
   const { snapshot, isLoading } = useBeacon();
-  const { isProjectionVisible: isCoreProjectionVisible } = useSectors();
-  const isProjectionVisible =
-    isCoreProjectionVisible && isCoreProjectionSettled;
+  const { isCoreWaveFlipped } = useSectors();
+  const isProjectionVisible = isCoreWaveFlipped && isCoreProjectionSettled;
   const orbitSystemRef = useRef<THREE.Group>(null);
   const beaconRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);

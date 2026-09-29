@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import type {
   SectorOwnership,
   SectorStatus,
@@ -28,10 +27,6 @@ import { getSectorIndex } from '../services/torii';
 import { updateSectorSelection } from '../utils/sectorSelection';
 import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
 import {
-  isProjectionModeEnabled,
-  setProjectionMode,
-} from '../utils/gameViewSearch';
-import {
   pruneKnownSectors,
   sectorStatusFromIndex,
   sectorStatusMatchesIndexedState,
@@ -44,8 +39,9 @@ import {
 
 interface SectorContextValue {
   controlView: ControlView;
-  isProjectionVisible: boolean;
   isCoreWaveFlipped: boolean;
+  /** Shows only the connected Operator's Sectors, and limits selection to them. */
+  isOwnedSectorsView: boolean;
   isImageUploadMode: boolean;
   imageUploadSectorIds: number[];
   isSectorInteractionLocked: boolean;
@@ -69,8 +65,8 @@ interface SectorContextValue {
   hasLoadedSectorIndex: boolean;
   sectorIndexError: string | null;
   changeControlView: (view: ControlView) => void;
-  setProjectionVisible: (visible: boolean) => void;
   setCoreWaveFlipped: (flipped: boolean) => void;
+  setOwnedSectorsView: (visible: boolean) => void;
   beginImageUpload: (sectorIds: number[]) => void;
   endImageUpload: () => void;
   selectSector: (sectorId: number | null, extendSelection?: boolean) => void;
@@ -102,11 +98,9 @@ const SECTOR_INDEX_REFRESH_MS = 30_000;
 
 export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const isProjectionVisible = isProjectionModeEnabled(searchParams);
   const [controlView, setControlView] = useState<ControlView>('flat');
-  const [isCoreWaveFlipped, setCoreWaveFlipState] =
-    useState(isProjectionVisible);
+  const [isCoreWaveFlipped, setCoreWaveFlipState] = useState(true);
+  const [isOwnedSectorsView, setOwnedSectorsViewState] = useState(false);
   const [isImageUploadMode, setImageUploadMode] = useState(false);
   const [imageUploadSectorIds, setImageUploadSectorIds] = useState<number[]>(
     []
@@ -187,19 +181,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
     setControlView(view);
   }, []);
 
-  const setProjectionVisible = useCallback(
-    (visible: boolean) => {
-      setSearchParams((current) => setProjectionMode(current, visible));
-    },
-    [setSearchParams]
-  );
-
-  useEffect(() => {
-    setCoreWaveFlipState(isProjectionVisible);
-  }, [isProjectionVisible]);
-
-  // Normal projection changes drive the wave flip. Keep an explicit setter so
-  // a future Beacon ability can control the visual state independently.
+  // The Core shows artwork by default. Keep an explicit setter so a future
+  // Beacon ability can flip it back to the control face.
   const setCoreWaveFlipped = useCallback((flipped: boolean) => {
     setCoreWaveFlipState(flipped);
   }, []);
@@ -643,6 +626,24 @@ export function SectorProvider({ children }: PropsWithChildren) {
     };
   }, [activeSectors, address]);
 
+  useEffect(() => {
+    if (ownedSectorIds.length === 0) setOwnedSectorsViewState(false);
+  }, [ownedSectorIds]);
+
+  const setOwnedSectorsView = useCallback(
+    (visible: boolean) => {
+      if (visible && ownedSectorIds.length === 0) return;
+      setOwnedSectorsViewState(visible);
+      if (!visible) return;
+      const owned = new Set(ownedSectorIds);
+      const unowned = selectedSectorIdsRef.current.filter(
+        (sectorId) => !owned.has(sectorId)
+      );
+      if (unowned.length > 0) removeSelectedSectors(unowned);
+    },
+    [ownedSectorIds, removeSelectedSectors]
+  );
+
   const beginImageUpload = useCallback(
     (sectorIds: number[]) => {
       if (sectorIds.some((id) => !isSectorId(id))) {
@@ -679,8 +680,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const value = useMemo<SectorContextValue>(
     () => ({
       controlView,
-      isProjectionVisible,
       isCoreWaveFlipped,
+      isOwnedSectorsView,
       isImageUploadMode,
       imageUploadSectorIds,
       isSectorInteractionLocked,
@@ -704,8 +705,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
       hasLoadedSectorIndex,
       sectorIndexError,
       changeControlView,
-      setProjectionVisible,
       setCoreWaveFlipped,
+      setOwnedSectorsView,
       beginImageUpload,
       endImageUpload,
       selectSector,
@@ -721,8 +722,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
     }),
     [
       controlView,
-      isProjectionVisible,
       isCoreWaveFlipped,
+      isOwnedSectorsView,
       isImageUploadMode,
       imageUploadSectorIds,
       isSectorInteractionLocked,
@@ -746,8 +747,8 @@ export function SectorProvider({ children }: PropsWithChildren) {
       hasLoadedSectorIndex,
       sectorIndexError,
       changeControlView,
-      setProjectionVisible,
       setCoreWaveFlipped,
+      setOwnedSectorsView,
       beginImageUpload,
       endImageUpload,
       selectSector,

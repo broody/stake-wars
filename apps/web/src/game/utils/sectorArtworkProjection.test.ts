@@ -95,6 +95,33 @@ describe('artwork atlas source key', () => {
     geometry.dispose();
   });
 
+  it('marks art on Sectors that can flip away', () => {
+    const shared = artwork('https://images.example/shared.webp');
+    shared.targets = [
+      { sectorId: 1977, ownershipGeneration: 1 },
+      { sectorId: 1978, ownershipGeneration: 1 },
+    ];
+    const slots = [{ artwork: shared, column: 0, row: 0 }];
+    const concealable = (hiddenSectorIds?: ReadonlySet<number>) => {
+      const geometry = createProjectedArtworkGeometry(
+        slots,
+        new Map(),
+        1,
+        1,
+        0,
+        hiddenSectorIds
+      );
+      const values = Array.from(
+        geometry.getAttribute('concealable').array as Float32Array
+      );
+      geometry.dispose();
+      return values;
+    };
+
+    expect(concealable(new Set([1978]))).toEqual([0, 0, 0, 1, 1, 1]);
+    expect(concealable()).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
   it('fits a wide image to the same selected surface at a lower height', () => {
     const projectorMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
     const square = suggestedPlacement(projectorMatrix, 10, 1, [1977]);

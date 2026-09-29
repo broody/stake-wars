@@ -249,8 +249,8 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
 
       <div className="px-4 py-3">
         <p className="leading-relaxed text-neutral-400">
-          The selected surface is isolated on the Core. Choose one image, then
-          position it from your current view.
+          Your selected Sectors are highlighted on the Core. Choose one image,
+          then position it from your current view.
         </p>
 
         <div className="mt-4">
@@ -269,7 +269,7 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
                 {imageUploadSectorIds.length}
               </span>
               <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                SECTOR{imageUploadSectorIds.length === 1 ? '' : 'S'} ISOLATED
+                SECTOR{imageUploadSectorIds.length === 1 ? '' : 'S'} TARGETED
               </span>
             </div>
             <span className="h-2 w-2 bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.65)]" />

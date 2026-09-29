@@ -243,7 +243,7 @@ describe('BeaconSummaryCard', () => {
     expect(markup).not.toContain('CURRENT PROJECTION');
     expect(markup).toContain('BID FOR BEACON CONTROL');
     expect(markup).not.toContain('UNTIL NEXT WINNER');
-    expect(markup).toContain('/beacon?projection=1&amp;tracking=beacon');
+    expect(markup).toContain('/beacon?tracking=beacon');
   });
 
   it('shows the projection action only to the current controller', () => {
@@ -269,24 +269,6 @@ describe('BeaconSummaryCard', () => {
     expect(markup).toContain('01 AVAILABLE');
     expect(markup).not.toContain('16:9');
     expect(markup).not.toContain('SET SIGNAL // SOON');
-  });
-
-  it('preserves projection mode when opening the Beacon page', () => {
-    const markup = renderToStaticMarkup(
-      <MemoryRouter initialEntries={['/?projection=1']}>
-        <BeaconSummaryCard
-          isOpen
-          snapshot={biddingSnapshot}
-          isLoading={false}
-          error={null}
-          onClose={() => undefined}
-          onRefresh={() => undefined}
-        />
-      </MemoryRouter>
-    );
-
-    expect(markup).toContain('projection=1');
-    expect(markup).toContain('tracking=beacon');
   });
 
   it('shows the transmission and locks further publication', () => {

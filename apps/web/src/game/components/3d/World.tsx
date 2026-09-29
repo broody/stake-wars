@@ -24,6 +24,7 @@ import {
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { MAX_SECTOR_SELECTION } from '../../services/sectorLimits';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import { SECTOR_COUNT } from '../../utils/sectorGeometry';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { BeaconModal } from '../ui/BeaconModal';
@@ -441,10 +442,12 @@ export function World({ active = true }: { active?: boolean }) {
   const {
     selectedSectorIds,
     imageUploadSectorIds,
+    ownedSectorIds,
     opponentSectorIds,
     isSectorInteractionLocked,
     isImageUploadMode,
-    isProjectionVisible,
+    isOwnedSectorsView,
+    isCoreWaveFlipped,
     selectSectors,
   } = useSectors();
   const { isPlacementLocked } = useSectorImages();
@@ -573,10 +576,17 @@ export function World({ active = true }: { active?: boolean }) {
     window.addEventListener('click', stopTrackingOnClick, true);
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
   }, [active, isSupplyDropOpen, setSupplyDropTracking]);
-  const opponentSectorIdSet = useMemo(
-    () => new Set(opponentSectorIds),
-    [opponentSectorIds]
-  );
+  // Box selection skips other players' Sectors, and in YOUR SECTORS takes only
+  // the Operator's own.
+  const marqueeExcludedSectorIds = useMemo(() => {
+    if (!isOwnedSectorsView) return new Set(opponentSectorIds);
+    const owned = new Set(ownedSectorIds);
+    const excluded = new Set<number>();
+    for (let sectorId = 0; sectorId < SECTOR_COUNT; sectorId += 1) {
+      if (!owned.has(sectorId)) excluded.add(sectorId);
+    }
+    return excluded;
+  }, [isOwnedSectorsView, opponentSectorIds, ownedSectorIds]);
   const disableIdleRotation =
     !active ||
     selectedSectorIds.length > 0 ||
@@ -716,7 +726,7 @@ export function World({ active = true }: { active?: boolean }) {
 
         <MarqueeSelector
           ref={selectorRef}
-          excludedSectorIds={opponentSectorIdSet}
+          excludedSectorIds={marqueeExcludedSectorIds}
         />
         <PlacementCameraCapture />
 
@@ -745,7 +755,7 @@ export function World({ active = true }: { active?: boolean }) {
         <IdleCameraRotation disabled={disableIdleRotation} />
         <BeaconCameraTracker
           active={active && isBeaconOpen}
-          projectionActive={isProjectionVisible}
+          projectionActive={isCoreWaveFlipped}
         />
         <SupplyDropCameraTracker
           active={active && !isBeaconOpen}

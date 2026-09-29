@@ -22,6 +22,13 @@ export interface FlipProgressRef {
   readonly current: number;
 }
 
+/** Art on these Sectors flips away and back with its own clock. */
+export interface ArtworkPresence {
+  sectorIds: ReadonlySet<number>;
+  progress: FlipProgressRef;
+  shown: boolean;
+}
+
 const vertexShader = `
   attribute vec3 projectorClip;
   attribute vec4 placement;
@@ -29,6 +36,8 @@ const vertexShader = `
   attribute float imageAspect;
   attribute vec4 atlasRect;
   attribute vec3 sectorCenter;
+  attribute float concealable;
+  varying float vConcealable;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
@@ -42,6 +51,7 @@ const vertexShader = `
     vImageAspect = imageAspect;
     vAtlasRect = atlasRect;
     vSectorCenter = sectorCenter;
+    vConcealable = concealable;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -55,12 +65,24 @@ const fragmentShader = `
   uniform vec3 waveOrigin;
   uniform vec2 waveDistanceRange;
   uniform float waveDelayAmount;
+  uniform float presenceProgress;
+  uniform float presenceDirection;
+  varying float vConcealable;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
   varying float vViewportAspect;
   varying float vImageAspect;
   varying vec4 vAtlasRect;
   varying vec3 vSectorCenter;
+  float localProgress(float progress, float direction, float delay) {
+    float waveProgress = direction > 0.0 ? progress : 1.0 - progress;
+    float localWaveProgress = clamp(
+      (waveProgress - delay) / max(1.0 - waveDelayAmount, 0.000001),
+      0.0,
+      1.0
+    );
+    return direction > 0.0 ? localWaveProgress : 1.0 - localWaveProgress;
+  }
   void main() {
     float angularDistance = acos(clamp(
       dot(normalize(vSectorCenter), normalize(waveOrigin)),
@@ -74,18 +96,18 @@ const fragmentShader = `
       1.0
     );
     float sectorWaveDelay = normalizedDistance * waveDelayAmount;
-    float waveProgress = flipDirection > 0.0
-      ? flipProgress
-      : 1.0 - flipProgress;
-    float localWaveProgress = clamp(
-      (waveProgress - sectorWaveDelay)
-        / max(1.0 - waveDelayAmount, 0.000001),
-      0.0,
-      1.0
+    float localFlipProgress = localProgress(
+      flipProgress,
+      flipDirection,
+      sectorWaveDelay
     );
-    float localFlipProgress = flipDirection > 0.0
-      ? localWaveProgress
-      : 1.0 - localWaveProgress;
+    if (
+      vConcealable > 0.5
+        && localProgress(presenceProgress, presenceDirection, sectorWaveDelay)
+          < 0.92
+    ) {
+      discard;
+    }
     // Artwork is normally visible on the unified Core's settled front and
     // back faces, but disappears through the middle of a wave flip so it
     // never reads as a static panel behind the moving Sector.
@@ -123,6 +145,7 @@ function ProjectedArtworkMesh({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces = false,
+  presence,
   opacity = 1,
   renderOrder = 3,
   atlasColumns = 1,
@@ -137,11 +160,13 @@ function ProjectedArtworkMesh({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces?: boolean;
+  presence?: ArtworkPresence;
   opacity?: number;
   renderOrder?: number;
   atlasColumns?: number;
   atlasRows?: number;
 }) {
+  const presenceSectorIds = presence?.sectorIds;
   const geometry = useMemo(
     () =>
       createProjectedArtworkGeometry(
@@ -149,9 +174,10 @@ function ProjectedArtworkMesh({
         heights,
         atlasColumns,
         atlasRows,
-        0.02
+        0.02,
+        presenceSectorIds
       ),
-    [atlasColumns, atlasRows, heights, slots]
+    [atlasColumns, atlasRows, heights, presenceSectorIds, slots]
   );
   const material = useMemo(
     () =>
@@ -165,6 +191,8 @@ function ProjectedArtworkMesh({
           waveOrigin: { value: waveOrigin },
           waveDistanceRange: { value: waveDistanceRange },
           waveDelayAmount: { value: waveDelay },
+          presenceProgress: { value: 1 },
+          presenceDirection: { value: 1 },
         },
         vertexShader,
         fragmentShader,
@@ -192,6 +220,9 @@ function ProjectedArtworkMesh({
   useFrame(() => {
     material.uniforms.flipProgress.value = flipProgress.current;
     material.uniforms.flipDirection.value = flipped ? 1 : -1;
+    material.uniforms.presenceProgress.value = presence?.progress.current ?? 1;
+    material.uniforms.presenceDirection.value =
+      presence && !presence.shown ? -1 : 1;
   });
   return (
     <mesh
@@ -212,6 +243,7 @@ function ArtworkAtlasPage({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces,
+  presence,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -222,6 +254,7 @@ function ArtworkAtlasPage({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces: boolean;
+  presence?: ArtworkPresence;
   onLoadingChange?: (pageId: string, loading: boolean) => void;
 }) {
   const pageId = artworks[0].id;
@@ -259,6 +292,7 @@ function ArtworkAtlasPage({
       waveDistanceRange={waveDistanceRange}
       waveDelay={waveDelay}
       visibleOnBothFaces={visibleOnBothFaces}
+      presence={presence}
       atlasColumns={columns}
       atlasRows={rows}
     />
@@ -275,6 +309,7 @@ export function SectorImageLayer({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces = false,
+  presence,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -286,6 +321,7 @@ export function SectorImageLayer({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces?: boolean;
+  presence?: ArtworkPresence;
   onLoadingChange?: (loading: boolean) => void;
 }) {
   const loadingPageIdsRef = useRef(new Set<string>());
@@ -326,6 +362,7 @@ export function SectorImageLayer({
           waveDistanceRange={waveDistanceRange}
           waveDelay={waveDelay}
           visibleOnBothFaces={visibleOnBothFaces}
+          presence={presence}
           onLoadingChange={reportPageLoading}
         />
       ))}
@@ -342,6 +379,7 @@ export function SectorDetailImageLayer({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces = false,
+  presence,
 }: {
   artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
@@ -351,6 +389,7 @@ export function SectorDetailImageLayer({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces?: boolean;
+  presence?: ArtworkPresence;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const slots = useMemo(() => [{ artwork, column: 0, row: 0 }], [artwork]);
@@ -382,6 +421,7 @@ export function SectorDetailImageLayer({
       waveDistanceRange={waveDistanceRange}
       waveDelay={waveDelay}
       visibleOnBothFaces={visibleOnBothFaces}
+      presence={presence}
       renderOrder={4}
       atlasColumns={1}
       atlasRows={1}
@@ -399,6 +439,7 @@ export function SectorDetailImageLayers({
   waveDistanceRange,
   waveDelay,
   visibleOnBothFaces = false,
+  presence,
 }: {
   artworks: readonly SectorArtwork[];
   priorityArtworkIds: readonly string[];
@@ -409,6 +450,7 @@ export function SectorDetailImageLayers({
   waveDistanceRange: THREE.Vector2;
   waveDelay: number;
   visibleOnBothFaces?: boolean;
+  presence?: ArtworkPresence;
 }) {
   const { camera, gl } = useThree();
   const [detailArtworkIds, setDetailArtworkIds] = useState<string[]>([]);
@@ -464,6 +506,7 @@ export function SectorDetailImageLayers({
         waveDistanceRange={waveDistanceRange}
         waveDelay={waveDelay}
         visibleOnBothFaces={visibleOnBothFaces}
+        presence={presence}
       />
     );
   });

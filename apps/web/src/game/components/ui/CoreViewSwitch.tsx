@@ -1,60 +1,39 @@
 import { useSectors } from '../../contexts/SectorContext';
-import { useSectorImages } from '../../contexts/SectorImageContext';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 
 export function CoreViewSwitch() {
   const {
-    isProjectionVisible,
-    setProjectionVisible,
-    setCoreWaveFlipped,
+    ownedSectorIds,
+    isOwnedSectorsView,
+    setOwnedSectorsView,
     isImageUploadMode,
-    isSectorIndexLoading,
   } = useSectors();
-  const { isLoading, isThumbnailAtlasLoading } = useSectorImages();
-  const isProjectionLoading =
-    isLoading || isSectorIndexLoading || isThumbnailAtlasLoading;
 
-  if (isImageUploadMode) return null;
+  if (isImageUploadMode || ownedSectorIds.length === 0) return null;
 
   return (
-    <label
+    <button
+      type="button"
       data-preserve-core-tracking
-      aria-busy={isProjectionLoading}
-      className={`pointer-events-auto absolute bottom-5 left-1/2 flex w-48 -translate-x-1/2 select-none items-center justify-center gap-2 bg-black/25 px-3 py-2.5 font-mono text-[10px] tracking-[0.16em] text-neutral-500 backdrop-blur-[2px] transition-colors ${
-        isProjectionLoading ? 'cursor-wait' : 'cursor-pointer hover:text-white'
+      aria-pressed={isOwnedSectorsView}
+      onClick={() => setOwnedSectorsView(!isOwnedSectorsView)}
+      className={`pointer-events-auto absolute bottom-5 left-1/2 flex w-48 -translate-x-1/2 select-none items-center justify-center gap-2 border bg-black/25 px-3 py-2.5 font-mono text-[10px] tracking-[0.16em] backdrop-blur-[2px] transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white ${
+        isOwnedSectorsView
+          ? 'border-[#ffb82e]/60 text-white'
+          : 'border-transparent text-neutral-500'
       }`}
     >
-      <input
-        type="checkbox"
-        checked={isProjectionVisible}
-        disabled={isProjectionLoading}
-        onChange={(event) => {
-          const visible = event.target.checked;
-          setProjectionVisible(visible);
-          setCoreWaveFlipped(visible);
+      <span
+        aria-hidden="true"
+        className="h-2.5 w-2.5 rotate-45 border transition-colors"
+        style={{
+          borderColor: SECTOR_COLORS.owned,
+          backgroundColor: isOwnedSectorsView
+            ? SECTOR_COLORS.owned
+            : 'transparent',
         }}
-        className="peer sr-only"
       />
-      {isProjectionLoading ? (
-        <span
-          aria-hidden="true"
-          className="h-3.5 w-3.5 animate-spin rounded-full border border-neutral-700 border-t-neutral-300 motion-reduce:animate-none"
-        />
-      ) : (
-        <span
-          aria-hidden="true"
-          className={`grid h-3.5 w-3.5 place-items-center border transition-colors peer-focus-visible:outline peer-focus-visible:outline-1 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-white ${
-            isProjectionVisible
-              ? 'border-white bg-white text-black'
-              : 'border-neutral-600 bg-black'
-          }`}
-        >
-          {isProjectionVisible ? '×' : ''}
-        </span>
-      )}
-      <span>SHOW ARTWORK</span>
-      {isProjectionLoading ? (
-        <span className="sr-only">Loading projection thumbnails</span>
-      ) : null}
-    </label>
+      <span>YOUR SECTORS</span>
+    </button>
   );
 }

@@ -29,6 +29,7 @@ import {
   SectorDetailImageLayers,
   SectorImageLayer,
   PlacementPreviewLayer,
+  type ArtworkPresence,
 } from './SectorImageLayer';
 import { artworkForSector } from '../../utils/sectorArtworkProjection';
 import {
@@ -55,7 +56,6 @@ const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 const SECTOR_GRID_FULL_DISTANCE = 10;
 const SECTOR_GRID_FADE_DISTANCE = 22;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
-const EMPTY_SECTOR_IDS: number[] = [];
 const CORE_WAVE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
 const RELIEF_TRANSITION_SECONDS = 0.55;
 const RELIEF_TRANSITION_MS = RELIEF_TRANSITION_SECONDS * 1_000;
@@ -1488,6 +1488,10 @@ interface SectorOwnershipLayersProps {
   waveDistanceRange?: THREE.Vector2;
   waveDelay?: number;
   loadRevealAnimation?: SectorLoadRevealAnimationRef;
+  /** Other players' Sectors flip away while false and flip back when true. */
+  opponentsVisible?: boolean;
+  /** Keeps other players' control faces hidden while they flip out or in. */
+  opponentRevealAnimation?: SectorLoadRevealAnimationRef;
   onClickSector: (sectorId: number, event: ThreeEvent<MouseEvent>) => void;
   onDoubleClickSector?: (
     sectorId: number,
@@ -1513,6 +1517,8 @@ export function SectorOwnershipLayers({
   waveDistanceRange,
   waveDelay,
   loadRevealAnimation,
+  opponentsVisible = true,
+  opponentRevealAnimation,
   onClickSector,
   onDoubleClickSector,
   onHoverSector,
@@ -1524,6 +1530,9 @@ export function SectorOwnershipLayers({
   });
   const activeLoadRevealAnimation =
     loadRevealAnimation ?? completedLoadRevealAnimation;
+  const activeOpponentRevealAnimation =
+    opponentRevealAnimation ?? activeLoadRevealAnimation;
+  const opponentsFlipped = flipped && opponentsVisible;
   const occupiedSectorIds = useMemo(
     () => [...ownedSectorIds, ...opponentSectorIds],
     [opponentSectorIds, ownedSectorIds]
@@ -1583,8 +1592,8 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
-        loadRevealAnimation={activeLoadRevealAnimation}
-        flipped={flipped}
+        loadRevealAnimation={activeOpponentRevealAnimation}
+        flipped={opponentsFlipped}
         interactive={interactive}
         waveOrigin={activeWaveOrigin}
         waveDistanceRange={activeWaveDistanceRange}
@@ -1626,8 +1635,8 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
-        loadRevealAnimation={activeLoadRevealAnimation}
-        flipped={flipped}
+        loadRevealAnimation={activeOpponentRevealAnimation}
+        flipped={opponentsFlipped}
         waveOrigin={activeWaveOrigin}
         waveDistanceRange={activeWaveDistanceRange}
         waveDelay={activeWaveDelay}
@@ -1656,7 +1665,7 @@ export function SectorOwnershipLayers({
         flatHeights={flatHeights}
         stakedHeights={stakedHeights}
         reliefAnimation={reliefAnimation}
-        loadRevealAnimation={activeLoadRevealAnimation}
+        loadRevealAnimation={activeOpponentRevealAnimation}
         rimColor={SECTOR_COLORS.opponentReliefRim}
         showBaseShadow={opponentSectorsHaveRelief}
       />
@@ -1695,8 +1704,8 @@ export function Planet({
   } = useSectorImages();
   const {
     controlView,
-    isProjectionVisible,
     isCoreWaveFlipped,
+    isOwnedSectorsView,
     isImageUploadMode,
     imageUploadSectorIds,
     isSectorInteractionLocked,
@@ -1719,32 +1728,32 @@ export function Planet({
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
   );
-  const visibleOwnedSectorIds = isImageUploadMode
-    ? imageUploadSectorIds
-    : ownedSectorIds;
-  const visibleOpponentSectorIds = isImageUploadMode
-    ? EMPTY_SECTOR_IDS
-    : opponentSectorIds;
-  const visibleOccupiedSectorIds = isImageUploadMode
-    ? imageUploadSectorIds
-    : occupiedSectorIds;
-  const visibleSectorOwnerGroups = useMemo(
-    () => (isImageUploadMode ? [imageUploadSectorIds] : sectorOwnerGroups),
-    [imageUploadSectorIds, isImageUploadMode, sectorOwnerGroups]
+  // YOUR SECTORS leaves only the Operator's Sectors on the Core. Other
+  // players' Sectors and art flip away, and flip back after.
+  const showsOnlyOwnedSectors = isOwnedSectorsView;
+  const ownedSectorIdSet = useMemo(
+    () => new Set(ownedSectorIds),
+    [ownedSectorIds]
   );
-  const visibleArtworks = useMemo(() => {
-    if (!isImageUploadMode) return artworks;
-    const visibleSectorIdSet = new Set(imageUploadSectorIds);
-    return artworks
-      .map((artwork) => ({
-        ...artwork,
-        targets: artwork.targets.filter((target) =>
-          visibleSectorIdSet.has(target.sectorId)
-        ),
-      }))
-      .filter((artwork) => artwork.targets.length > 0);
-  }, [artworks, imageUploadSectorIds, isImageUploadMode]);
-  const shouldShowProjection = isProjectionVisible || isImageUploadMode;
+  const opponentPresence = useFlipProgress(!showsOnlyOwnedSectors);
+  const opponentRevealAnimation = useRef<SectorLoadRevealAnimationState>({
+    progress: sectorLoadRevealAnimation.current.progress,
+  });
+  useFrame(() => {
+    opponentRevealAnimation.current.progress = Math.min(
+      sectorLoadRevealAnimation.current.progress,
+      opponentPresence.current
+    );
+  });
+  const opponentArtworkPresence = useMemo<ArtworkPresence>(
+    () => ({
+      sectorIds: opponentSectorIdSet,
+      progress: opponentPresence,
+      shown: !showsOnlyOwnedSectors,
+    }),
+    [opponentPresence, opponentSectorIdSet, showsOnlyOwnedSectors]
+  );
+  const shouldShowProjection = isCoreWaveFlipped || isImageUploadMode;
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
   const prefersReducedMotion = useMemo(
     () =>
@@ -1763,11 +1772,14 @@ export function Planet({
   // Images follow one clock so an image that loads mid-flip still waits for
   // its panel to land.
   const imageFlipProgress = useFlipProgress(coreFlipped);
+  // Each flip, including showing or hiding other players' Sectors, starts
+  // its wave from a new point.
   const flipWaveOrigin = useMemo(() => {
     void isCoreWaveFlipped;
     void isIntroFlipReleased;
+    void showsOnlyOwnedSectors;
     return randomVisibleOutsideSectorWaveOrigin(
-      visibleOccupiedSectorIds,
+      occupiedSectorIds,
       camera,
       TENURE_SURFACE_RADIUS
     );
@@ -1775,20 +1787,19 @@ export function Planet({
     camera,
     isCoreWaveFlipped,
     isIntroFlipReleased,
-    visibleOccupiedSectorIds,
+    occupiedSectorIds,
+    showsOnlyOwnedSectors,
   ]);
   const flipWaveDistanceRange = useMemo(
     () =>
       createSectorWaveDistanceRange(
-        visibleOccupiedSectorIds,
+        occupiedSectorIds,
         flipWaveOrigin,
         TENURE_SURFACE_RADIUS
       ),
-    [flipWaveOrigin, visibleOccupiedSectorIds]
+    [flipWaveOrigin, occupiedSectorIds]
   );
-  const flipWaveDelay = sectorFlipWaveDelayForCount(
-    visibleOccupiedSectorIds.length
-  );
+  const flipWaveDelay = sectorFlipWaveDelayForCount(occupiedSectorIds.length);
 
   useEffect(() => () => fullSphereGeometry.dispose(), [fullSphereGeometry]);
 
@@ -1811,6 +1822,36 @@ export function Planet({
     );
     return () => window.clearTimeout(timeout);
   }, [prefersReducedMotion, shouldShowProjection]);
+
+  // Once other players' art has flipped away, spend the detail budget on the
+  // Operator's own art.
+  const [areOpponentsHidden, setOpponentsHidden] = useState(false);
+  useEffect(() => {
+    if (!showsOnlyOwnedSectors) {
+      setOpponentsHidden(false);
+      return;
+    }
+    if (prefersReducedMotion) {
+      setOpponentsHidden(true);
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setOpponentsHidden(true),
+      CORE_WAVE_FLIP_DURATION_MS
+    );
+    return () => window.clearTimeout(timeout);
+  }, [prefersReducedMotion, showsOnlyOwnedSectors]);
+  const detailArtworks = useMemo(() => {
+    if (!areOpponentsHidden) return artworks;
+    return artworks
+      .map((artwork) => ({
+        ...artwork,
+        targets: artwork.targets.filter((target) =>
+          ownedSectorIdSet.has(target.sectorId)
+        ),
+      }))
+      .filter((artwork) => artwork.targets.length > 0);
+  }, [areOpponentsHidden, artworks, ownedSectorIdSet]);
 
   useEffect(() => {
     if (!tenureExtrusionEnabled) return;
@@ -1898,25 +1939,25 @@ export function Planet({
     if (!shouldShowProjection) return [];
     const ids: string[] = [];
     if (isImageUploadMode && featuredArtworkId) {
-      const featured = visibleArtworks.find(
+      const featured = detailArtworks.find(
         (artwork) => artwork.id === featuredArtworkId
       );
       if (featured) ids.push(featured.id);
     }
     const selectedArtwork =
       selectedSectorId !== null
-        ? artworkForSector(visibleArtworks, selectedSectorId)
+        ? artworkForSector(detailArtworks, selectedSectorId)
         : null;
     if (selectedArtwork) ids.push(selectedArtwork.id);
     const hoveredArtwork =
       hoveredSectorId !== null
-        ? artworkForSector(visibleArtworks, hoveredSectorId)
+        ? artworkForSector(detailArtworks, hoveredSectorId)
         : null;
     if (hoveredArtwork) ids.push(hoveredArtwork.id);
     return [...new Set(ids)];
   }, [
     hoveredSectorId,
-    visibleArtworks,
+    detailArtworks,
     featuredArtworkId,
     isImageUploadMode,
     selectedSectorId,
@@ -1958,6 +1999,7 @@ export function Planet({
     }
 
     if (isImageUploadMode) return;
+    if (isOwnedSectorsView && !ownedSectorIdSet.has(sectorId)) return;
 
     selectSector(sectorId, event.nativeEvent.shiftKey);
   };
@@ -1982,6 +2024,7 @@ export function Planet({
     }
 
     if (isImageUploadMode) return;
+    if (isOwnedSectorsView && !ownedSectorIdSet.has(sectorId)) return;
 
     const extendSelection = event.nativeEvent.shiftKey;
     const ownerGroup = sectorOwnerGroups.find((group) =>
@@ -2028,7 +2071,12 @@ export function Planet({
       setHoveredSectorId(null);
       return;
     }
-    setHoveredSectorId(isImageUploadMode ? null : sectorId);
+    setHoveredSectorId(
+      isImageUploadMode ||
+        (isOwnedSectorsView && !ownedSectorIdSet.has(sectorId))
+        ? null
+        : sectorId
+    );
   };
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
@@ -2089,17 +2137,18 @@ export function Planet({
           wireframe
           side={THREE.DoubleSide}
           transparent
-          opacity={isImageUploadMode ? 0.24 : 0.42}
+          opacity={showsOnlyOwnedSectors || isImageUploadMode ? 0.24 : 0.42}
         />
       </mesh>
 
       <SectorImageLayer
-        artworks={visibleArtworks}
+        artworks={artworks}
         heights={imageHeights}
         flipped={coreFlipped}
         flipProgress={imageFlipProgress}
         visible={projectionSurfaceVisible}
         visibleOnBothFaces={isImageUploadMode}
+        presence={opponentArtworkPresence}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
@@ -2108,12 +2157,13 @@ export function Planet({
 
       {shouldShowProjection && projectionSurfaceVisible ? (
         <SectorDetailImageLayers
-          artworks={visibleArtworks}
+          artworks={detailArtworks}
           priorityArtworkIds={priorityDetailArtworkIds}
           heights={imageHeights}
           flipped={coreFlipped}
           flipProgress={imageFlipProgress}
           visibleOnBothFaces={isImageUploadMode}
+          presence={opponentArtworkPresence}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
           waveDelay={flipWaveDelay}
@@ -2134,9 +2184,9 @@ export function Planet({
       ) : null}
 
       <SectorOwnershipLayers
-        ownedSectorIds={visibleOwnedSectorIds}
-        opponentSectorIds={visibleOpponentSectorIds}
-        sectorOwnerGroups={visibleSectorOwnerGroups}
+        ownedSectorIds={ownedSectorIds}
+        opponentSectorIds={opponentSectorIds}
+        sectorOwnerGroups={sectorOwnerGroups}
         sectorHeights={sectorHeights}
         extrusionHeights={extrusionHeights}
         flatHeights={flatSectorHeights}
@@ -2149,6 +2199,8 @@ export function Planet({
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
         loadRevealAnimation={sectorLoadRevealAnimation}
+        opponentsVisible={!showsOnlyOwnedSectors}
+        opponentRevealAnimation={opponentRevealAnimation}
         onClickSector={handleSectorClick}
         onDoubleClickSector={handleSectorDoubleClick}
         onHoverSector={handleSectorHover}
