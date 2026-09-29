@@ -7,7 +7,7 @@ import { createSectorGeometry, isSectorId } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import type { OwnershipScenario } from '../../utils/ownershipScenarios';
 import { stakeReliefHeight } from '../../utils/sectorStakeRelief';
-import { SectorContestLayer, SectorOwnershipLayers } from './Planet';
+import { SectorOwnershipLayers } from './Planet';
 import {
   ExampleDetailImageLayer,
   ExampleImageLayer,
@@ -104,10 +104,6 @@ function OwnershipSphere({
     });
     return heights;
   }, [sectorOwnerGroups, reliefMode, scenario]);
-  const contestedSectorIds = useMemo(
-    () => [...scenario.contestedSectorIds],
-    [scenario]
-  );
   const detailSectorId =
     selectedDetailSectorId !== null &&
     imageSectorIdSet.has(selectedDetailSectorId)
@@ -210,12 +206,6 @@ function OwnershipSphere({
           heights={sectorHeights}
         />
       )}
-
-      <SectorContestLayer
-        sectorIds={contestedSectorIds}
-        heights={sectorHeights}
-        color={SECTOR_COLORS.contested}
-      />
     </group>
   );
 }
@@ -248,7 +238,7 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
     <div
       className="h-full min-h-[320px] w-full"
       role="img"
-      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedSectorIds.length} unoccupied Sectors, ${scenario.contestedSectorIds.length} contested, ${imageSectorIds.length} example images, ${flipped ? 'projection' : 'control'} mode, and ${reliefMode === 'stake' ? 'stake-based logarithmic relief' : 'flat relief'}`}
+      aria-label={`${scenario.title}: ${scenario.ownerCount} simulated owners, ${scenario.unoccupiedSectorIds.length} unoccupied Sectors, ${imageSectorIds.length} example images, ${flipped ? 'projection' : 'control'} mode, and ${reliefMode === 'stake' ? 'stake-based logarithmic relief' : 'flat relief'}`}
     >
       <Canvas
         camera={{ position: [0, 0, 13], fov: 48 }}

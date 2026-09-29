@@ -18,8 +18,7 @@ export function groupBatchSectors(
   };
 
   for (const sector of sectors) {
-    const actionable =
-      !sector.stale && !sector.needsSync && sector.activeChallengeId === 0n;
+    const actionable = !sector.stale && !sector.needsSync;
 
     if (actionable && isZeroAddress(sector.controller)) {
       groups.neutral.push(sector);

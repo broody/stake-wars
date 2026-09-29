@@ -2,8 +2,6 @@ import { hash } from 'starknet';
 import { config } from './config';
 import type {
   SectorStatus,
-  ChallengeStatus,
-  ChallengeParticipantStatus,
   OperatorStatus,
   PoolMemberInfo,
   StakingPoolInfo,
@@ -436,11 +434,13 @@ export async function getSectorStatus(
     [encodeRpcFelt(sectorId)],
     signal
   );
-  if (result.length !== 11) {
+  if (result.length !== SECTOR_STATUS_WIDTH) {
     throw new Error('Control System returned an invalid Sector status');
   }
   return decodeSectorStatus(result, 0);
 }
+
+const SECTOR_STATUS_WIDTH = 8;
 
 function decodeSectorStatus(result: string[], offset: number): SectorStatus {
   return {
@@ -451,14 +451,8 @@ function decodeSectorStatus(result: string[], offset: number): SectorStatus {
     controlledSince:
       parseTimestamp(result[offset + 4], 'control start time') || null,
     requiredStake: parseFelt(result[offset + 5], 'required stake'),
-    activeChallengeId: parseFelt(result[offset + 6], 'active challenge ID'),
-    challengeLeadChangeCount: Number(
-      parseFelt(result[offset + 7], 'challenge lead change count')
-    ),
-    challengeDeadline:
-      parseTimestamp(result[offset + 8], 'challenge deadline') || null,
-    stale: parseFelt(result[offset + 9], 'stale flag') !== 0n,
-    needsSync: parseFelt(result[offset + 10], 'sync flag') !== 0n,
+    stale: parseFelt(result[offset + 6], 'stale flag') !== 0n,
+    needsSync: parseFelt(result[offset + 7], 'sync flag') !== 0n,
   };
 }
 
@@ -467,16 +461,15 @@ export function decodeSectorStatusesResult(
   expectedCount: number
 ): SectorStatus[] {
   const resultLength = Number(parseFelt(result[0], 'Sector status count'));
-  const statusWidth = 11;
   if (
     resultLength !== expectedCount ||
-    result.length !== 1 + resultLength * statusWidth
+    result.length !== 1 + resultLength * SECTOR_STATUS_WIDTH
   ) {
     throw new Error('Control System returned an invalid status batch');
   }
 
   return Array.from({ length: resultLength }, (_, index) =>
-    decodeSectorStatus(result, 1 + index * statusWidth)
+    decodeSectorStatus(result, 1 + index * SECTOR_STATUS_WIDTH)
   );
 }
 
@@ -556,7 +549,7 @@ export function decodeOperatorStatusResult(
   result: string[],
   operator: string
 ): OperatorStatus {
-  if (result.length !== 12) {
+  if (result.length !== 9) {
     throw new Error('Control System returned an invalid Operator status');
   }
 
@@ -564,78 +557,12 @@ export function decodeOperatorStatusResult(
     operator: result[0] ?? operator,
     liveDelegatedAmount: parseFelt(result[1], 'staked STRK'),
     sectorForce: parseFelt(result[2], 'sector commitments'),
-    challengeForce: parseFelt(result[3], 'challenge commitments'),
-    spentForce: parseFelt(result[4], 'spent force'),
-    availableForce: parseFelt(result[5], 'available force'),
-    generation: parseFelt(result[6], 'operator generation'),
-    controlledSectorCount: Number(parseFelt(result[7], 'owned sector count')),
-    activeChallengeCount: Number(
-      parseFelt(result[8], 'active challenge count')
-    ),
-    retired: parseFelt(result[9], 'retired flag') !== 0n,
-    exiting: parseFelt(result[10], 'exiting flag') !== 0n,
-    needsSync: parseFelt(result[11], 'operator sync flag') !== 0n,
-  };
-}
-
-export async function getChallengeStatus(
-  challengeId: bigint,
-  signal?: AbortSignal
-): Promise<ChallengeStatus> {
-  const result = await callControlSystem(
-    'get_challenge_status',
-    [encodeRpcFelt(challengeId)],
-    signal
-  );
-  return decodeChallengeStatusResult(result);
-}
-
-export function decodeChallengeStatusResult(result: string[]): ChallengeStatus {
-  if (result.length !== 14) {
-    throw new Error('Control System returned an invalid Challenge status');
-  }
-  return {
-    id: parseFelt(result[0], 'challenge ID'),
-    sectorId: Number(parseFelt(result[1], 'Sector ID')),
-    incumbent: result[2] ?? '0x0',
-    leader: result[3] ?? '0x0',
-    leadingForce: parseFelt(result[4], 'leading force'),
-    lastLoser: result[5] ?? '0x0',
-    lastLosingForce: parseFelt(result[6], 'last losing force'),
-    deadline: parseTimestamp(result[7], 'challenge deadline'),
-    leadChangeCount: Number(parseFelt(result[8], 'lead change count')),
-    participantCount: Number(parseFelt(result[9], 'participant count')),
-    settled: parseFelt(result[10], 'settled flag') !== 0n,
-    winner: result[11] ?? '0x0',
-    winningForce: parseFelt(result[12], 'winning force'),
-    losingForce: parseFelt(result[13], 'losing force'),
-  };
-}
-
-export async function getChallengeParticipantStatus(
-  challengeId: bigint,
-  operator: string,
-  signal?: AbortSignal
-): Promise<ChallengeParticipantStatus> {
-  const result = await callControlSystem(
-    'get_challenge_participant_status',
-    [encodeRpcFelt(challengeId), operator],
-    signal
-  );
-  if (result.length !== 8) {
-    throw new Error(
-      'Control System returned an invalid Challenge participant status'
-    );
-  }
-  return {
-    challengeId: parseFelt(result[0], 'challenge ID'),
-    operator: result[1] ?? operator,
-    committedForce: parseFelt(result[2], 'participant committed force'),
-    sectorForceIncluded: parseFelt(result[3], 'participant sector force'),
-    additionalForce: parseFelt(result[4], 'participant additional force'),
-    joined: parseFelt(result[5], 'participant joined flag') !== 0n,
-    resolved: parseFelt(result[6], 'participant resolved flag') !== 0n,
-    won: parseFelt(result[7], 'participant winner flag') !== 0n,
+    availableForce: parseFelt(result[3], 'available force'),
+    generation: parseFelt(result[4], 'operator generation'),
+    controlledSectorCount: Number(parseFelt(result[5], 'owned sector count')),
+    retired: parseFelt(result[6], 'retired flag') !== 0n,
+    exiting: parseFelt(result[7], 'exiting flag') !== 0n,
+    needsSync: parseFelt(result[8], 'operator sync flag') !== 0n,
   };
 }
 

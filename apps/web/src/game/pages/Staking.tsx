@@ -381,7 +381,7 @@ export function Staking() {
               <p>
                 Every 1 STRK delegated generates 1 FORCE. FORCE is allocation
                 accounting, not a separate token, and can be assigned to
-                captures, reinforcements, and challenges.
+                captures, takeovers, and reinforcements.
               </p>
             </div>
           </div>

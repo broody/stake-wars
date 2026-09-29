@@ -13,9 +13,9 @@ mod tests {
     use stakewars::models::{
         CONFIG_ID, GameConfig, SUPPLY_DROP_PRIZE_ERC1155, SUPPLY_DROP_PRIZE_ERC20,
         SUPPLY_DROP_PRIZE_ERC721, SUPPLY_DROP_STATUS_ACTIVE, SUPPLY_DROP_STATUS_SETTLED, SupplyDrop,
-        m_Challenge, m_ChallengeCounter, m_ChallengeParticipant, m_GameConfig, m_OperatorState,
-        m_Sector, m_SupplyDrop, m_SupplyDropCounter, m_SupplyDropHold, m_SupplyDropOperatorSnapshot,
-        m_SupplyDropSectorSnapshot, m_SupplyDropStakingPolicy,
+        m_GameConfig, m_OperatorState, m_Sector, m_SupplyDrop, m_SupplyDropCounter,
+        m_SupplyDropHold, m_SupplyDropOperatorSnapshot, m_SupplyDropSectorSnapshot,
+        m_SupplyDropStakingPolicy,
     };
     use stakewars::systems::admin::{IRolesDispatcher, IRolesDispatcherTrait, admin as admin_system};
     use stakewars::systems::control::{IControlDispatcher, IControlDispatcherTrait, control};
@@ -75,21 +75,14 @@ mod tests {
                 TestResource::Model(m_SupplyDropStakingPolicy::TEST_CLASS_HASH),
                 TestResource::Event(control::e_SupplyDropHoldCleared::TEST_CLASS_HASH),
                 TestResource::Model(m_Sector::TEST_CLASS_HASH),
-                TestResource::Model(m_ChallengeCounter::TEST_CLASS_HASH),
-                TestResource::Model(m_Challenge::TEST_CLASS_HASH),
-                TestResource::Model(m_ChallengeParticipant::TEST_CLASS_HASH),
                 TestResource::Model(m_SupplyDropCounter::TEST_CLASS_HASH),
                 TestResource::Model(m_SupplyDrop::TEST_CLASS_HASH),
                 TestResource::Model(m_SupplyDropSectorSnapshot::TEST_CLASS_HASH),
                 TestResource::Model(m_SupplyDropOperatorSnapshot::TEST_CLASS_HASH),
                 TestResource::Event(control::e_SectorCaptured::TEST_CLASS_HASH),
+                TestResource::Event(control::e_SectorTakenOver::TEST_CLASS_HASH),
                 TestResource::Event(control::e_SectorReinforced::TEST_CLASS_HASH),
                 TestResource::Event(control::e_SectorReleased::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ChallengeInitiated::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ChallengeEscalated::TEST_CLASS_HASH),
-                TestResource::Event(control::e_SectorSacrificed::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ChallengeSettled::TEST_CLASS_HASH),
-                TestResource::Event(control::e_ChallengePositionResolved::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorDisqualified::TEST_CLASS_HASH),
                 TestResource::Event(control::e_OperatorRetired::TEST_CLASS_HASH),
                 TestResource::Event(supply_drop::e_SupplyDropCreated::TEST_CLASS_HASH),
@@ -122,14 +115,10 @@ mod tests {
         [
             resource_selector(@"SupplyDropHold"), resource_selector(@"SupplyDropHoldCleared"),
             resource_selector(@"OperatorState"), resource_selector(@"Sector"),
-            resource_selector(@"ChallengeCounter"), resource_selector(@"Challenge"),
-            resource_selector(@"ChallengeParticipant"), resource_selector(@"SectorCaptured"),
+            resource_selector(@"SectorCaptured"), resource_selector(@"SectorTakenOver"),
             resource_selector(@"SupplyDropSectorSnapshot"),
             resource_selector(@"SupplyDropOperatorSnapshot"),
             resource_selector(@"SectorReinforced"), resource_selector(@"SectorReleased"),
-            resource_selector(@"ChallengeInitiated"), resource_selector(@"ChallengeEscalated"),
-            resource_selector(@"SectorSacrificed"), resource_selector(@"ChallengeSettled"),
-            resource_selector(@"ChallengePositionResolved"),
             resource_selector(@"OperatorDisqualified"), resource_selector(@"OperatorRetired"),
         ]
             .span()
@@ -675,7 +664,31 @@ mod tests {
 
     #[test]
     #[available_gas(900000000)]
-    fn incumbent_wins_when_the_selected_sector_was_contested_at_expiry() {
+    fn takeover_after_expiry_does_not_change_the_winner() {
+        let (_, control, supply_drop, pool) = setup();
+        capture_only_sector(control, pool);
+        let token_address = deploy_erc20(admin(), 1_000);
+        testing::set_contract_address(admin());
+        IMockERC20ControlDispatcher { contract_address: token_address }
+            .approve(supply_drop.contract_address, 500);
+        let supply_drop_id = supply_drop
+            .create_supply_drop(DURATION, SUPPLY_DROP_PRIZE_ERC20, token_address, 0, 500);
+
+        pool.set_amount(challenger(), 1_000);
+        testing::set_block_timestamp(STARTED_AT + DURATION);
+        testing::set_contract_address(challenger());
+        control.capture(0, 110);
+        assert_eq!(control.get_sector_status(0).controller, challenger());
+
+        lock_and_make_randomness_ready(supply_drop, supply_drop_id);
+        supply_drop.settle_supply_drop(supply_drop_id);
+
+        assert_eq!(supply_drop.get_supply_drop(supply_drop_id).winner, operator());
+    }
+
+    #[test]
+    #[available_gas(900000000)]
+    fn takeover_before_expiry_makes_the_new_controller_eligible() {
         let (_, control, supply_drop, pool) = setup();
         capture_only_sector(control, pool);
         let token_address = deploy_erc20(admin(), 1_000);
@@ -688,20 +701,12 @@ mod tests {
         pool.set_amount(challenger(), 1_000);
         testing::set_block_timestamp(STARTED_AT + DURATION - 100);
         testing::set_contract_address(challenger());
-        control.challenge(0, 110);
+        control.capture(0, 110);
 
-        testing::set_block_timestamp(STARTED_AT + DURATION);
-        testing::set_block_number(LOCK_BLOCK);
-        supply_drop.lock_supply_drop(supply_drop_id);
-        testing::set_block_timestamp(STARTED_AT + DURATION + 10_700);
-        control.settle_challenge(0);
-        assert_eq!(control.get_sector_status(0).controller, challenger());
-
-        testing::set_block_hash(RANDOMNESS_BLOCK, BLOCK_HASH);
-        testing::set_block_number(SETTLEMENT_BLOCK);
+        lock_and_make_randomness_ready(supply_drop, supply_drop_id);
         supply_drop.settle_supply_drop(supply_drop_id);
 
-        assert_eq!(supply_drop.get_supply_drop(supply_drop_id).winner, operator());
+        assert_eq!(supply_drop.get_supply_drop(supply_drop_id).winner, challenger());
     }
 
     #[test]
@@ -890,17 +895,17 @@ mod tests {
     }
 
     #[test]
-    fn hold_does_not_block_opponents_or_challenge_settlement() {
+    fn hold_does_not_block_opponent_takeovers() {
         let (_, control, supply_drop, pool, id, _) = staking_drop();
         supply_drop.claim_prize(id, operator());
         pool.set_amount(challenger(), 1_000);
         testing::set_contract_address(challenger());
-        control.challenge(0, 110);
-        testing::set_block_timestamp(STARTED_AT + DURATION + 10_801);
-        control.settle_challenge(0);
+        control.capture(0, 110);
         assert_eq!(control.get_sector_status(0).controller, challenger());
         assert!(control.get_supply_drop_hold(operator()).held);
-        assert!(!control.get_operator_status(operator()).retired);
+        let displaced = control.get_operator_status(operator());
+        assert!(!displaced.retired);
+        assert_eq!(displaced.sector_force, 0);
     }
 
     #[test]
@@ -1030,18 +1035,14 @@ mod tests {
 
     #[test]
     #[should_panic(expected: ('stake supply drop first', 'ENTRYPOINT_FAILED'))]
-    fn claim_only_blocks_challenge() {
-        let (_, control, supply_drop, _, id, _) = staking_drop();
+    fn claim_only_blocks_takeover() {
+        let (_, control, supply_drop, pool, id, _) = staking_drop();
+        pool.set_amount(challenger(), 1_000);
+        testing::set_contract_address(challenger());
+        control.capture(0, 110);
+        testing::set_contract_address(operator());
         supply_drop.claim_prize(id, operator());
-        control.challenge(0, 110);
-    }
-
-    #[test]
-    #[should_panic(expected: ('stake supply drop first', 'ENTRYPOINT_FAILED'))]
-    fn claim_only_blocks_sacrifice() {
-        let (_, control, supply_drop, _, id, _) = staking_drop();
-        supply_drop.claim_prize(id, operator());
-        control.challenge_with_sacrifice(0, 0, 110);
+        control.capture(0, 121);
     }
 
     fn account_staking_drop() -> (
@@ -1131,7 +1132,6 @@ mod tests {
         assert_eq!(token.balance_of(pool.contract_address), 500);
         assert_eq!(control.get_operator_status(account).live_delegated_amount, 1_500);
         assert_eq!(control.get_supply_drop_hold(account).required_stake, 0);
-        assert_eq!(control.get_operator_status(account).spent_force, 0);
         assert!(!control.get_operator_status(account).retired);
     }
 

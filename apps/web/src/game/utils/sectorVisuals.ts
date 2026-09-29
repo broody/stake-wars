@@ -11,7 +11,7 @@ export const SECTOR_COLORS = {
   opponentReliefRim: '#ffffff',
   reliefShadow: '#000000',
   reliefTopEdge: '#1a1205',
-  contested: '#e53935',
+  takeover: '#e53935',
   selected: '#86b8c2',
   transaction: '#ffd166',
   hover: '#ffffff',

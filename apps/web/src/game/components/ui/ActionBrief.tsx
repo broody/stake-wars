@@ -1,88 +1,43 @@
 import { useId, useState } from 'react';
-import { formatDurationWords } from '../../utils/format';
 
-export type ActionBriefKind =
-  | 'capture'
-  | 'reinforce'
-  | 'challenge'
-  | 'join'
-  | 'defend'
-  | 'leading'
-  | 'settle';
+export type ActionBriefKind = 'capture' | 'takeover' | 'reinforce';
 
 interface Brief {
   summary: string;
   details: string[];
 }
 
-function briefFor(kind: ActionBriefKind, windowSeconds: number | null): Brief {
-  const challengeRules = [
-    windowSeconds === null
-      ? 'Each new lead resets the timer.'
-      : `Each new lead resets the timer to ${formatDurationWords(windowSeconds)}.`,
-    'Top bid when time runs out wins the Sector.',
-    'Losing bids are spent. Your STRK stays staked.',
-  ];
+const BRIEFS: Record<ActionBriefKind, Brief> = {
+  capture: {
+    summary: 'Your FORCE becomes this Sector’s defense.',
+    details: [
+      'Anyone can take it by committing 10% more.',
+      'If they do, your FORCE comes back to you.',
+      'Each Sector is one entry in the Supply Drop.',
+      'Your STRK stays staked and earning.',
+    ],
+  },
+  takeover: {
+    summary: 'Beat its defense by 10% and it’s yours right away.',
+    details: [
+      'The owner gets their FORCE back.',
+      'They can take it back by beating you by 10%.',
+      'Your STRK stays staked and earning.',
+    ],
+  },
+  reinforce: {
+    summary: 'Add FORCE to raise this Sector’s defense.',
+    details: [
+      'Anyone taking it must beat the new total by 10%.',
+      'If it’s taken, all of your FORCE comes back.',
+    ],
+  },
+};
 
-  switch (kind) {
-    case 'capture':
-      return {
-        summary: 'Your FORCE becomes this Sector’s defense.',
-        details: [
-          'Challengers must beat it by 10%.',
-          'Each Sector is one entry in the Supply Drop.',
-          'Your STRK stays staked and earning.',
-        ],
-      };
-    case 'reinforce':
-      return {
-        summary: 'Add FORCE to raise this Sector’s defense.',
-        details: [
-          'Challengers must beat it by 10%.',
-          'Lose the Sector and this FORCE is spent.',
-        ],
-      };
-    case 'challenge':
-      return {
-        summary: 'Bid 10% over the defense to start a challenge.',
-        details: challengeRules,
-      };
-    case 'join':
-      return {
-        summary: 'Bid 10% over the top bid to take the lead.',
-        details: challengeRules,
-      };
-    case 'defend':
-      return {
-        summary: 'You’re under challenge. Outbid them or lose this Sector.',
-        details: [
-          'Your defense already counts as your bid.',
-          ...challengeRules,
-        ],
-      };
-    case 'leading':
-      return {
-        summary: 'You’re winning. Hold the lead until time runs out.',
-        details: challengeRules,
-      };
-    case 'settle':
-      return {
-        summary: 'Time’s up. Settle to give the Sector to the top bidder.',
-        details: ['Anyone can settle. A keeper usually does it for you.'],
-      };
-  }
-}
-
-export function ActionBrief({
-  kind,
-  windowSeconds,
-}: {
-  kind: ActionBriefKind;
-  windowSeconds: number | null;
-}) {
+export function ActionBrief({ kind }: { kind: ActionBriefKind }) {
   const [isOpen, setIsOpen] = useState(false);
   const detailsId = useId();
-  const brief = briefFor(kind, windowSeconds);
+  const brief = BRIEFS[kind];
 
   return (
     <div className="border-b border-grid px-3 py-2.5">

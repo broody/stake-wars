@@ -13,7 +13,6 @@ import (
 	"stakewars.com/api/internal/api"
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/beacon"
-	"stakewars.com/api/internal/challenge"
 	"stakewars.com/api/internal/config"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
@@ -119,21 +118,6 @@ func run() error {
 			supplyDropSubmitter,
 			supplydrop.NewDuty(supplyDropReader, supplyDropSubmitter),
 		)
-		if configuration.ChallengeKeeper {
-			challengeReader, err := starknet.NewChallengeReader(
-				configuration.StarknetRPCURL, configuration.ToriiURL, configuration.ControlSystemAddress,
-			)
-			if err != nil {
-				return err
-			}
-			challengeSubmitter, err := starknet.NewChallengeSubmitter(supplyDropSubmitter, configuration.ControlSystemAddress)
-			if err != nil {
-				return err
-			}
-			maintenanceDuties = append(maintenanceDuties, challenge.NewDuty(challengeReader, challengeSubmitter))
-			slog.Info("Challenge keeper enabled", "account", configuration.SupplyDropKeeperAccount,
-				"system", configuration.ControlSystemAddress)
-		}
 		if configuration.BeaconKeeper {
 			beaconSubmitter, err := starknet.NewBeaconSubmitter(
 				supplyDropSubmitter, configuration.BeaconSystemAddress,

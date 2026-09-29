@@ -19,19 +19,6 @@ const SECTORS_QUERY = `
           capture_force
           ownership_generation
           controlled_since
-          active_challenge_id
-        }
-      }
-    }
-  }
-`;
-
-const GAME_RULES_QUERY = `
-  query StakeWarsGameRules {
-    stakewarsGameConfigModels(first: 1) {
-      edges {
-        node {
-          challenge_period_seconds
         }
       }
     }
@@ -54,134 +41,19 @@ const OPERATOR_GENERATIONS_QUERY = `
   }
 `;
 
-const OPERATOR_ACTIVITY_QUERY = `
-  query StakeWarsOperatorActivity($operator: ContractAddress!) {
-    captures: stakewarsSectorCapturedModels(
-      first: 1000
-      where: { controller: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          sector_id
-          controller
-          capture_force
-          ownership_generation
-        }
-      }
-    }
-    losses: stakewarsChallengePositionResolvedModels(
-      first: 1000
-      where: { operator: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          challenge_id
-          sector_id
-          operator
-          lost_force
-        }
-      }
-    }
-    initiations: stakewarsChallengeInitiatedModels(
-      first: 1000
-      where: { challenger: $operator }
-    ) {
-      edges { cursor node { challenge_id sector_id incumbent challenger defender_force_at_risk committed_force deadline } }
-    }
-    escalations: stakewarsChallengeEscalatedModels(
-      first: 1000
-      where: { challenger: $operator }
-    ) {
-      edges { cursor node { challenge_id sector_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
-    }
-    settlements: stakewarsChallengeSettledModels(
-      first: 1000
-      where: { winner: $operator }
-    ) {
-      edges { cursor node { challenge_id sector_id winner loser winning_force losing_force ownership_generation } }
-    }
-    reinforcements: stakewarsSectorReinforcedModels(
-      first: 1000
-      where: { controller: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          sector_id
-          controller
-          added_force
-          capture_force
-          ownership_generation
-        }
-      }
-    }
-    releases: stakewarsSectorReleasedModels(
-      first: 1000
-      where: { previous_controller: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          sector_id
-          previous_controller
-          released_force
-          ownership_generation
-        }
-      }
-    }
-    disqualifications: stakewarsOperatorDisqualifiedModels(
-      first: 1000
-      where: { operator: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          operator
-          previous_generation
-          new_generation
-          invalidated_force
-          live_delegated_amount
-          invalidated_sector_count
-        }
-      }
-    }
-    relinquishments: stakewarsOperatorRetiredModels(
-      first: 1000
-      where: { operator: $operator }
-    ) {
-      edges {
-        cursor
-        node {
-          operator
-          previous_generation
-          new_generation
-          invalidated_force
-          released_sector_count
-        }
-      }
-    }
-  }
-`;
-
 const OPERATOR_ACTIVITY_PAGE_QUERY = `
   query StakeWarsOperatorActivityPage(
     $operator: ContractAddress!
     $capturesFirst: Int!
-    $lossesFirst: Int!
-    $initiationsFirst: Int!
-    $escalationsFirst: Int!
-    $settlementsFirst: Int!
+    $takeoversFirst: Int!
+    $displacementsFirst: Int!
     $reinforcementsFirst: Int!
     $releasesFirst: Int!
     $disqualificationsFirst: Int!
     $relinquishmentsFirst: Int!
     $capturesAfter: Cursor
-    $lossesAfter: Cursor
-    $initiationsAfter: Cursor
-    $escalationsAfter: Cursor
-    $settlementsAfter: Cursor
+    $takeoversAfter: Cursor
+    $displacementsAfter: Cursor
     $reinforcementsAfter: Cursor
     $releasesAfter: Cursor
     $disqualificationsAfter: Cursor
@@ -195,36 +67,20 @@ const OPERATOR_ACTIVITY_PAGE_QUERY = `
       edges { cursor node { sector_id controller capture_force ownership_generation } }
       pageInfo { hasNextPage endCursor }
     }
-    losses: stakewarsChallengePositionResolvedModels(
-      first: $lossesFirst
-      after: $lossesAfter
-      where: { operator: $operator }
+    takeovers: stakewarsSectorTakenOverModels(
+      first: $takeoversFirst
+      after: $takeoversAfter
+      where: { controller: $operator }
     ) {
-      edges { cursor node { challenge_id sector_id operator lost_force } }
+      edges { cursor node { sector_id controller previous_controller capture_force returned_force } }
       pageInfo { hasNextPage endCursor }
     }
-    initiations: stakewarsChallengeInitiatedModels(
-      first: $initiationsFirst
-      after: $initiationsAfter
-      where: { challenger: $operator }
+    displacements: stakewarsSectorTakenOverModels(
+      first: $displacementsFirst
+      after: $displacementsAfter
+      where: { previous_controller: $operator }
     ) {
-      edges { cursor node { challenge_id sector_id incumbent challenger defender_force_at_risk committed_force deadline } }
-      pageInfo { hasNextPage endCursor }
-    }
-    escalations: stakewarsChallengeEscalatedModels(
-      first: $escalationsFirst
-      after: $escalationsAfter
-      where: { challenger: $operator }
-    ) {
-      edges { cursor node { challenge_id sector_id challenger committed_force added_force previous_leader previous_leading_force deadline } }
-      pageInfo { hasNextPage endCursor }
-    }
-    settlements: stakewarsChallengeSettledModels(
-      first: $settlementsFirst
-      after: $settlementsAfter
-      where: { winner: $operator }
-    ) {
-      edges { cursor node { challenge_id sector_id winner loser winning_force losing_force ownership_generation } }
+      edges { cursor node { sector_id controller previous_controller capture_force returned_force } }
       pageInfo { hasNextPage endCursor }
     }
     reinforcements: stakewarsSectorReinforcedModels(
@@ -311,7 +167,6 @@ interface ToriiSectorNode {
   capture_force: string;
   ownership_generation: string;
   controlled_since?: string | null;
-  active_challenge_id: string;
 }
 
 interface ToriiOperatorGenerationResponse {
@@ -376,51 +231,19 @@ interface RelinquishmentEventNode {
   released_sector_count: number | string;
 }
 
-interface ChallengeInitiatedEventNode {
-  challenge_id: number | string;
+interface TakeoverEventNode {
   sector_id: number | string;
-  incumbent: string;
-  challenger: string;
-  defender_force_at_risk: string;
-  committed_force: string;
-  deadline: string;
-}
-
-interface ChallengeEscalatedEventNode {
-  challenge_id: number | string;
-  sector_id: number | string;
-  challenger: string;
-  committed_force: string;
-  added_force: string;
-  previous_leader: string;
-  previous_leading_force: string;
-  deadline: string;
-}
-
-interface ChallengePositionResolvedEventNode {
-  challenge_id: number | string;
-  sector_id: number | string;
-  operator: string;
-  lost_force: string;
-}
-
-interface SettlementEventNode {
-  challenge_id: number | string;
-  sector_id: number | string;
-  winner: string;
-  loser: string;
-  winning_force: string;
-  losing_force: string;
-  ownership_generation: string;
+  controller: string;
+  previous_controller: string;
+  capture_force: string;
+  returned_force: string;
 }
 
 interface ToriiOperatorActivityResponse {
   data?: {
     captures?: ToriiConnection<CaptureEventNode>;
-    losses?: ToriiConnection<ChallengePositionResolvedEventNode>;
-    initiations?: ToriiConnection<ChallengeInitiatedEventNode>;
-    escalations?: ToriiConnection<ChallengeEscalatedEventNode>;
-    settlements?: ToriiConnection<SettlementEventNode>;
+    takeovers?: ToriiConnection<TakeoverEventNode>;
+    displacements?: ToriiConnection<TakeoverEventNode>;
     reinforcements?: ToriiConnection<ReinforcementEventNode>;
     releases?: ToriiConnection<ReleaseEventNode>;
     disqualifications?: ToriiConnection<DisqualificationEventNode>;
@@ -580,49 +403,28 @@ export function parseOperatorActivity(
     );
   });
 
-  edges(payload.data.losses).forEach((edge) => {
+  edges(payload.data.takeovers).forEach((edge) => {
     append(
       activityFromEdge(edge, (position, node) => ({
         ...position,
-        type: 'loss',
+        type: 'takeover',
         sectorId: parseSectorId(node.sector_id),
-        amount: parseBigInt(node.lost_force, 'lost challenge force'),
+        amount: parseBigInt(node.capture_force, 'takeover force'),
+        secondaryAmount: parseBigInt(node.returned_force, 'displaced force'),
+        counterparty: node.previous_controller,
       }))
     );
   });
 
-  edges(payload.data.initiations).forEach((edge) => {
+  edges(payload.data.displacements).forEach((edge) => {
     append(
       activityFromEdge(edge, (position, node) => ({
         ...position,
-        type: 'challenge_initiated',
+        type: 'displacement',
         sectorId: parseSectorId(node.sector_id),
-        amount: parseBigInt(node.committed_force, 'committed challenge force'),
-        counterparty: node.incumbent,
-      }))
-    );
-  });
-
-  edges(payload.data.escalations).forEach((edge) => {
-    append(
-      activityFromEdge(edge, (position, node) => ({
-        ...position,
-        type: 'challenge_escalated',
-        sectorId: parseSectorId(node.sector_id),
-        amount: parseBigInt(node.committed_force, 'committed challenge force'),
-        counterparty: node.previous_leader,
-      }))
-    );
-  });
-
-  edges(payload.data.settlements).forEach((edge) => {
-    append(
-      activityFromEdge(edge, (position, node) => ({
-        ...position,
-        type: 'settlement',
-        sectorId: parseSectorId(node.sector_id),
-        amount: parseBigInt(node.winning_force, 'winning force'),
-        secondaryAmount: parseBigInt(node.losing_force, 'last losing force'),
+        amount: parseBigInt(node.returned_force, 'returned force'),
+        secondaryAmount: parseBigInt(node.capture_force, 'takeover force'),
+        counterparty: node.controller,
       }))
     );
   });
@@ -918,14 +720,24 @@ const ACTIVITY_SOURCE_PAGE_SIZE = 20;
 
 interface OperatorControlActivityCursor {
   captures: string | null;
-  losses: string | null;
-  initiations: string | null;
-  escalations: string | null;
-  settlements: string | null;
+  takeovers: string | null;
+  displacements: string | null;
   reinforcements: string | null;
   releases: string | null;
   disqualifications: string | null;
   relinquishments: string | null;
+}
+
+function exhaustedControlActivityCursor(): OperatorControlActivityCursor {
+  return {
+    captures: null,
+    takeovers: null,
+    displacements: null,
+    reinforcements: null,
+    releases: null,
+    disqualifications: null,
+    relinquishments: null,
+  };
 }
 
 export interface OperatorActivityFeedCursor
@@ -973,10 +785,8 @@ async function getOperatorControlActivityPage(
       OperatorActivityType
     > = {
       captures: 'capture',
-      losses: 'loss',
-      initiations: 'challenge_initiated',
-      escalations: 'challenge_escalated',
-      settlements: 'settlement',
+      takeovers: 'takeover',
+      displacements: 'displacement',
       reinforcements: 'reinforcement',
       releases: 'release',
       disqualifications: 'disqualification',
@@ -990,17 +800,7 @@ async function getOperatorControlActivityPage(
   ) {
     return {
       activity: [],
-      cursor: cursor ?? {
-        captures: null,
-        losses: null,
-        initiations: null,
-        escalations: null,
-        settlements: null,
-        reinforcements: null,
-        releases: null,
-        disqualifications: null,
-        relinquishments: null,
-      },
+      cursor: cursor ?? exhaustedControlActivityCursor(),
     };
   }
   const active = (key: keyof OperatorControlActivityCursor) =>
@@ -1011,14 +811,12 @@ async function getOperatorControlActivityPage(
       operator,
       capturesFirst: active('captures') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
       capturesAfter: cursor?.captures ?? null,
-      lossesFirst: active('losses') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
-      lossesAfter: cursor?.losses ?? null,
-      initiationsFirst: active('initiations') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
-      initiationsAfter: cursor?.initiations ?? null,
-      escalationsFirst: active('escalations') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
-      escalationsAfter: cursor?.escalations ?? null,
-      settlementsFirst: active('settlements') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
-      settlementsAfter: cursor?.settlements ?? null,
+      takeoversFirst: active('takeovers') ? ACTIVITY_SOURCE_PAGE_SIZE : 0,
+      takeoversAfter: cursor?.takeovers ?? null,
+      displacementsFirst: active('displacements')
+        ? ACTIVITY_SOURCE_PAGE_SIZE
+        : 0,
+      displacementsAfter: cursor?.displacements ?? null,
       reinforcementsFirst: active('reinforcements')
         ? ACTIVITY_SOURCE_PAGE_SIZE
         : 0,
@@ -1041,17 +839,7 @@ async function getOperatorControlActivityPage(
   if (!data) {
     return {
       activity: parseOperatorActivity(payload),
-      cursor: {
-        captures: null,
-        losses: null,
-        initiations: null,
-        escalations: null,
-        settlements: null,
-        reinforcements: null,
-        releases: null,
-        disqualifications: null,
-        relinquishments: null,
-      },
+      cursor: exhaustedControlActivityCursor(),
     };
   }
 
@@ -1061,17 +849,11 @@ async function getOperatorControlActivityPage(
       captures: active('captures')
         ? nextActivityCursor(data.captures, 'capture activity')
         : null,
-      losses: active('losses')
-        ? nextActivityCursor(data.losses, 'loss activity')
+      takeovers: active('takeovers')
+        ? nextActivityCursor(data.takeovers, 'takeover activity')
         : null,
-      initiations: active('initiations')
-        ? nextActivityCursor(data.initiations, 'challenge initiation activity')
-        : null,
-      escalations: active('escalations')
-        ? nextActivityCursor(data.escalations, 'challenge escalation activity')
-        : null,
-      settlements: active('settlements')
-        ? nextActivityCursor(data.settlements, 'settlement activity')
+      displacements: active('displacements')
+        ? nextActivityCursor(data.displacements, 'displacement activity')
         : null,
       reinforcements: active('reinforcements')
         ? nextActivityCursor(data.reinforcements, 'reinforcement activity')
@@ -1144,10 +926,8 @@ export async function getOperatorActivityFeedPage(
   const controlCursor = cursor
     ? {
         captures: cursor.captures,
-        losses: cursor.losses,
-        initiations: cursor.initiations,
-        escalations: cursor.escalations,
-        settlements: cursor.settlements,
+        takeovers: cursor.takeovers,
+        displacements: cursor.displacements,
         reinforcements: cursor.reinforcements,
         releases: cursor.releases,
         disqualifications: cursor.disqualifications,
@@ -1177,17 +957,7 @@ export async function getOperatorActivityFeedPage(
       ? controlResult.value
       : {
           activity: [],
-          cursor: {
-            captures: null,
-            losses: null,
-            initiations: null,
-            escalations: null,
-            settlements: null,
-            reinforcements: null,
-            releases: null,
-            disqualifications: null,
-            relinquishments: null,
-          },
+          cursor: exhaustedControlActivityCursor(),
         };
   const claims =
     claimResult.status === 'fulfilled'
@@ -1221,68 +991,6 @@ export async function getOperatorActivityFeedPage(
     cursor: hasActivityCursor(nextCursor) ? nextCursor : null,
     warning,
   };
-}
-
-export async function getOperatorActivity(
-  operator: string,
-  signal?: AbortSignal
-): Promise<OperatorActivity[]> {
-  if (isZeroAddress(operator)) {
-    throw new Error('A connected Operator is required for activity');
-  }
-
-  const payload = await queryTorii<ToriiOperatorActivityResponse>(
-    OPERATOR_ACTIVITY_QUERY,
-    { operator },
-    signal
-  );
-
-  return parseOperatorActivity(payload);
-}
-
-interface ToriiGameRulesResponse {
-  data?: {
-    stakewarsGameConfigModels?: {
-      edges?: Array<{
-        node?: { challenge_period_seconds?: string | null } | null;
-      }>;
-    };
-  };
-  errors?: Array<{ message?: string }>;
-}
-
-export function parseChallengeWindowSeconds(
-  payload: ToriiGameRulesResponse
-): number {
-  if (payload.errors?.length) {
-    throw new Error(
-      payload.errors[0]?.message || 'Torii rejected the game rules query'
-    );
-  }
-  const value =
-    payload.data?.stakewarsGameConfigModels?.edges?.[0]?.node
-      ?.challenge_period_seconds;
-  if (value === null || value === undefined) {
-    throw new Error('Torii omitted the game rules');
-  }
-  const seconds = parseUnixTimestamp(value, 'challenge window');
-  if (seconds === null) {
-    throw new Error('Torii returned an invalid challenge window');
-  }
-  return seconds;
-}
-
-// Discovery only: the Control System remains authoritative when a Challenge
-// deadline is written. The UI uses this to describe the window in plain text.
-export async function getChallengeWindowSeconds(
-  signal?: AbortSignal
-): Promise<number> {
-  const payload = await queryTorii<ToriiGameRulesResponse>(
-    GAME_RULES_QUERY,
-    {},
-    signal
-  );
-  return parseChallengeWindowSeconds(payload);
 }
 
 export function parseIndexedSectors(
@@ -1324,10 +1032,6 @@ export function parseIndexedSectors(
       controlledSince: parseUnixTimestamp(
         node.controlled_since,
         'control start time'
-      ),
-      activeChallengeId: parseBigInt(
-        node.active_challenge_id,
-        'active challenge ID'
       ),
     });
   });

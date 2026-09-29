@@ -7,7 +7,6 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useSectors } from '../../contexts/SectorContext';
-import { useWallet } from '../../contexts/WalletContext';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import {
@@ -849,33 +848,6 @@ function AnimatedStripeSectorLayer({
   );
 }
 
-export function SectorContestLayer({
-  sectorIds,
-  heights,
-  color,
-  loadRevealAnimation,
-}: {
-  sectorIds: number[];
-  heights: ReadonlyMap<number, number>;
-  color: THREE.ColorRepresentation;
-  loadRevealAnimation?: SectorLoadRevealAnimationRef;
-}) {
-  if (sectorIds.length === 0) return null;
-
-  return (
-    <AnimatedStripeSectorLayer
-      sectorIds={sectorIds}
-      heights={heights}
-      color={color}
-      baseOpacity={0}
-      stripeOpacity={1}
-      stripeAngleDegrees={45}
-      scale={1.012}
-      loadRevealAnimation={loadRevealAnimation}
-    />
-  );
-}
-
 function copyReliefVectorAttribute(
   geometry: THREE.BufferGeometry,
   name: string,
@@ -1714,7 +1686,6 @@ export function Planet({
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
   const { camera } = useThree();
-  const { isConnected } = useWallet();
   const { notifyWarning } = useTransactionToast();
   const {
     artworks,
@@ -1733,7 +1704,6 @@ export function Planet({
     selectedSectorId,
     ownedSectorIds,
     opponentSectorIds,
-    contestedSectorIds,
     occupiedSectorIds,
     sectorOwnerGroups,
     sectorControlledSince,
@@ -1749,10 +1719,6 @@ export function Planet({
     () => new Set(opponentSectorIds),
     [opponentSectorIds]
   );
-  const contestedSectorIdSet = useMemo(
-    () => new Set(contestedSectorIds),
-    [contestedSectorIds]
-  );
   const visibleOwnedSectorIds = isImageUploadMode
     ? imageUploadSectorIds
     : ownedSectorIds;
@@ -1762,20 +1728,6 @@ export function Planet({
   const visibleOccupiedSectorIds = isImageUploadMode
     ? imageUploadSectorIds
     : occupiedSectorIds;
-  const visibleContestedSectorIds = useMemo(
-    () =>
-      isImageUploadMode
-        ? imageUploadSectorIds.filter((sectorId) =>
-            contestedSectorIdSet.has(sectorId)
-          )
-        : contestedSectorIds,
-    [
-      contestedSectorIdSet,
-      contestedSectorIds,
-      imageUploadSectorIds,
-      isImageUploadMode,
-    ]
-  );
   const visibleSectorOwnerGroups = useMemo(
     () => (isImageUploadMode ? [imageUploadSectorIds] : sectorOwnerGroups),
     [imageUploadSectorIds, isImageUploadMode, sectorOwnerGroups]
@@ -2089,33 +2041,17 @@ export function Planet({
     () => (isImageUploadMode ? imageUploadSectorIds : selectedSectorIds),
     [imageUploadSectorIds, isImageUploadMode, selectedSectorIds]
   );
-  const selectedContestedSectorIds = useMemo(
+  const pendingTakeoverSectorIds = useMemo(
     () =>
-      activeSectorIds.filter((sectorId) => contestedSectorIdSet.has(sectorId)),
-    [activeSectorIds, contestedSectorIdSet]
-  );
-  const standardActiveSectorIds = useMemo(
-    () =>
-      activeSectorIds.filter((sectorId) => !contestedSectorIdSet.has(sectorId)),
-    [activeSectorIds, contestedSectorIdSet]
-  );
-  const pendingChallengeSectorIds = useMemo(
-    () =>
-      selectedSectorIds.filter(
-        (sectorId) =>
-          opponentSectorIdSet.has(sectorId) &&
-          !contestedSectorIdSet.has(sectorId)
-      ),
-    [contestedSectorIdSet, opponentSectorIdSet, selectedSectorIds]
+      selectedSectorIds.filter((sectorId) => opponentSectorIdSet.has(sectorId)),
+    [opponentSectorIdSet, selectedSectorIds]
   );
   const pendingStandardSectorIds = useMemo(
     () =>
       selectedSectorIds.filter(
-        (sectorId) =>
-          !opponentSectorIdSet.has(sectorId) &&
-          !contestedSectorIdSet.has(sectorId)
+        (sectorId) => !opponentSectorIdSet.has(sectorId)
       ),
-    [contestedSectorIdSet, opponentSectorIdSet, selectedSectorIds]
+    [opponentSectorIdSet, selectedSectorIds]
   );
   const hoveredSectorIds = useMemo(
     () => (hoveredSectorId === null ? [] : [hoveredSectorId]),
@@ -2234,7 +2170,7 @@ export function Planet({
       {placementDraft === null ? (
         <>
           <SectorLayer
-            sectorIds={standardActiveSectorIds}
+            sectorIds={activeSectorIds}
             color={SECTOR_COLORS.selected}
             opacity={isImageUploadMode ? 0.28 : 0.2}
             scale={isImageUploadMode ? 1.006 : 1.01}
@@ -2242,35 +2178,15 @@ export function Planet({
             renderOrder={isImageUploadMode ? 9 : undefined}
           />
 
-          {standardActiveSectorIds.length > 0 ? (
+          {activeSectorIds.length > 0 ? (
             <ThickSectorBorderLayer
-              sectorIds={standardActiveSectorIds}
+              sectorIds={activeSectorIds}
               color={SECTOR_COLORS.selected}
               scale={1.014}
               heights={sectorHeights}
             />
           ) : null}
         </>
-      ) : null}
-
-      {visibleContestedSectorIds.length > 0 ? (
-        <SectorContestLayer
-          sectorIds={visibleContestedSectorIds}
-          heights={sectorHeights}
-          loadRevealAnimation={sectorLoadRevealAnimation}
-          color={
-            isConnected ? SECTOR_COLORS.contested : SECTOR_COLORS.neutralGrid
-          }
-        />
-      ) : null}
-
-      {selectedContestedSectorIds.length > 0 ? (
-        <ThickSectorBorderLayer
-          sectorIds={selectedContestedSectorIds}
-          color={SECTOR_COLORS.contested}
-          scale={1.018}
-          heights={sectorHeights}
-        />
       ) : null}
 
       {isSectorInteractionLocked && pendingStandardSectorIds.length > 0 ? (
@@ -2285,11 +2201,11 @@ export function Planet({
         />
       ) : null}
 
-      {isSectorInteractionLocked && pendingChallengeSectorIds.length > 0 ? (
+      {isSectorInteractionLocked && pendingTakeoverSectorIds.length > 0 ? (
         <AnimatedStripeSectorLayer
-          sectorIds={pendingChallengeSectorIds}
+          sectorIds={pendingTakeoverSectorIds}
           heights={sectorHeights}
-          color={SECTOR_COLORS.contested}
+          color={SECTOR_COLORS.takeover}
           baseOpacity={0}
           stripeOpacity={0.5}
           stripeAngleDegrees={45}

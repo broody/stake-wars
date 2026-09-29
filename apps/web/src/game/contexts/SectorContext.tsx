@@ -51,7 +51,6 @@ interface SectorContextValue {
   occupiedSectorIds: number[];
   ownedSectorIds: number[];
   opponentSectorIds: number[];
-  contestedSectorIds: number[];
   sectorOwnerGroups: number[][];
   sectorControlledSince: ReadonlyMap<number, number>;
   sectorCaptureForce: ReadonlyMap<number, bigint>;
@@ -274,7 +273,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
             captureForce: sector.captureForce,
             ownershipGeneration: sector.ownershipGeneration,
             controlledSince: sector.controlledSince,
-            activeChallengeId: sector.activeChallengeId,
           });
         });
         return next;
@@ -319,7 +317,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
             captureForce: sector.captureForce,
             ownershipGeneration: sector.ownershipGeneration,
             controlledSince: sector.controlledSince,
-            activeChallengeId: sector.activeChallengeId,
           });
         });
         return next;
@@ -452,7 +449,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
         captureForce: bigint;
         ownershipGeneration: bigint;
         controlledSince: number | null;
-        activeChallengeId: bigint;
       }
     >();
 
@@ -463,7 +459,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
           captureForce: sector.captureForce,
           ownershipGeneration: sector.ownershipGeneration,
           controlledSince: sector.controlledSince,
-          activeChallengeId: sector.activeChallengeId,
         });
       }
     });
@@ -486,7 +481,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
             (indexed && addressesMatch(indexed.controller, status.controller)
               ? indexed.controlledSince
               : null),
-          activeChallengeId: status.activeChallengeId,
         });
       }
     });
@@ -498,7 +492,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
     occupiedSectorIds,
     ownedSectorIds,
     opponentSectorIds,
-    contestedSectorIds,
     sectorOwnerGroups,
     sectorControlledSince,
     sectorCaptureForce,
@@ -507,7 +500,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
     const occupied: number[] = [];
     const owned: number[] = [];
     const opponents: number[] = [];
-    const contested: number[] = [];
     const ownerGroups = new Map<string, number[]>();
     const controlledSince = new Map<number, number>();
     const captureForce = new Map<number, bigint>();
@@ -531,9 +523,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
       } else {
         opponents.push(id);
       }
-      if (sector.activeChallengeId !== 0n) {
-        contested.push(id);
-      }
       if (sector.controlledSince !== null) {
         controlledSince.set(id, sector.controlledSince);
       }
@@ -543,13 +532,11 @@ export function SectorProvider({ children }: PropsWithChildren) {
     occupied.sort(ascending);
     owned.sort(ascending);
     opponents.sort(ascending);
-    contested.sort(ascending);
 
     return {
       occupiedSectorIds: occupied,
       ownedSectorIds: owned,
       opponentSectorIds: opponents,
-      contestedSectorIds: contested,
       sectorOwnerGroups: [...ownerGroups.values()].map((ids) =>
         ids.sort(ascending)
       ),
@@ -608,7 +595,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
       occupiedSectorIds,
       ownedSectorIds,
       opponentSectorIds,
-      contestedSectorIds,
       sectorOwnerGroups,
       sectorControlledSince,
       sectorCaptureForce,
@@ -650,7 +636,6 @@ export function SectorProvider({ children }: PropsWithChildren) {
       occupiedSectorIds,
       ownedSectorIds,
       opponentSectorIds,
-      contestedSectorIds,
       sectorOwnerGroups,
       sectorControlledSince,
       sectorCaptureForce,

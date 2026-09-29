@@ -269,7 +269,7 @@ export function SupplyDrop() {
               <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
                 Claiming automatically stakes the full drop in the same
                 transaction. Until it is staked, Sector actions and image
-                changes pause. Your Sectors remain open to challenges.
+                changes pause. Your Sectors remain open to takeover.
               </p>
             ) : null}
           </div>

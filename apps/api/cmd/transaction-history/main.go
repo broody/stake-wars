@@ -32,7 +32,7 @@ func run() error {
 	limit := flag.Int("limit", 20, "maximum attempts (1-100); includes up to 100 recent events each")
 	attempt := flag.Int64("attempt", 0, "specific attempt ID")
 	network := flag.String("network", "", "network filter, e.g. SN_MAIN")
-	target := flag.String("target", "", "target ID, e.g. Sector 527")
+	target := flag.String("target", "", "target ID, e.g. SupplyDrop 7")
 	flag.Parse()
 	absolute, err := filepath.Abs(*path)
 	if err != nil {

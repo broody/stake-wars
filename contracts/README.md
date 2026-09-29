@@ -3,8 +3,7 @@
 The Stake Wars game layer is a Dojo World. It never holds or transfers an
 Operator's delegated STRK. It reads each Operator's live delegation and
 unpooling state from the official Stake Wars delegation pool. Game capacity is
-derived as live delegation minus Sector garrisons, active cumulative challenge
-commitments, and permanently spent game force. The separate SupplyDrop System may
+derived as live delegation minus Sector garrisons. The separate SupplyDrop System may
 escrow a role-authorized ERC-20, ERC-721, or ERC-1155 reward for its active
 round; that escrow is never sourced from Operator delegation or FORCE.
 
@@ -37,18 +36,16 @@ System models and events are World resources and need no extra configuration.
 ## Control System
 
 The Control System exposes authoritative `get_operator_status`,
-`get_sector_status`, `get_sector_statuses`,
-`get_challenge_status`, `get_challenge_participant_status`, and
+`get_sector_status`, `get_sector_statuses`, `required_stake`, and
 `can_manage_image` views. The batched sector-status view reads up to 200 Control
 Sectors. Stale Torii models are safe for discovery while security-sensitive
 clients confirm effective control onchain. Permissionless reconciliation may
 call `sync_operator` or batch up to 50 addresses with `sync_operators`.
 
-Every `capture`, `reinforce`, and `challenge` call includes a visible STRK
-amount. `capture_many` and `reinforce_many` apply up to 200 per-sector requests
+Every `capture` and `reinforce` call includes a visible STRK amount.
+`capture_many` and `reinforce_many` apply up to 200 per-sector requests
 atomically while reading shared Operator and delegation state once. An Operator
-may manage multiple Sectors and lead multiple challenges when their
-aggregate commitments fit within live delegation.
+may hold any number of Sectors while their garrisons fit within live delegation.
 
 The network deployment presets use 18-decimal STRK base units:
 
@@ -60,40 +57,25 @@ World initialization must pass the applicable preset into
 `GameConfig.minimum_stake`; the frontend reads the resulting onchain rule and
 must not substitute its own environment-specific minimum.
 
-An occupied sector is contested through `challenge` or
-`challenge_with_sacrifice`:
+An occupied Sector is taken over through the same `capture` entrypoint:
 
-- The initiating commitment must exceed the sector's garrison by at least 10%,
-  rounded up to the next STRK base unit. The incumbent's garrison and the
-  challenger's commitment remain locked and at risk until settlement.
-- Any eligible Operator except the current leader may publicly commit at least
-  10% more force than the current lead, rounded up to the next STRK base unit. A
-  returning participant locks only the difference between the new commitment
-  and that Operator's own prior maximum.
-- Losing the lead does not spend a position. Each participant's highest
-  commitment remains locked so they may continue escalating incrementally.
-- Every accepted escalation sets a fresh full response-window deadline. There
-  is no absolute challenge-duration cap, and the current leader cannot extend
-  the clock by challenging itself.
-- After the deadline, any account may call `settle_challenge`. The current
-  leader's exact commitment becomes the new garrison and losing participants
-  spend their own highest commitments as game force.
+- The commitment must be at least the Sector's `required_stake`: 10% more than
+  its garrison, rounded up to the next STRK base unit, and never below
+  `GameConfig.minimum_stake`.
+- Ownership changes in that transaction. The displaced Controller's garrison
+  returns to its available FORCE in full, and `SectorTakenOver` records the new
+  and previous Controller, the new garrison, and the returned amount.
+- A Sector whose recorded Controller has retired, been disqualified, or holds a
+  stale generation is neutral and is captured at the minimum stake.
+- The Controller cannot take over its own Sector; `reinforce` raises the
+  garrison, and therefore the takeover price, instead.
 
-Each challenge action is constant-cost. Settlement resolves the winner,
-incumbent, and final runner-up without iterating an unbounded participant list.
-Any additional losing position remains locked—which has the same Ready STRK
-effect as spent force—until any account calls
-`resolve_challenge_position(challenge_id, operator)` to move it to the
-Operator's Spent Force in O(1).
-
-`challenge_with_sacrifice(target, source, committed_force)` atomically
-neutralizes an owned, uncontested source sector before validating the new
-commitment. Its garrison returns to the Operator's Ready STRK; it is not
-duplicated or automatically spent.
-
-Spent force is permanent accounting for that Operator address. The contracts do
-not slash, escrow, or transfer the underlying STRK, which remains in the official
-delegation pool under its normal staking and reward rules.
+Earlier releases contested Sectors through open Challenges with a response
+window, settlement, Sector Sacrifice, and permanently Spent Force. Those
+entrypoints, models, and events are gone from this package. The
+`OperatorState` Challenge and Spent Force fields and `Sector.active_challenge_id`
+remain only because Dojo cannot remove fields from registered models; Available
+Force ignores them, so any recorded Spent Force is forgiven.
 
 ## Beacon System
 
@@ -138,10 +120,8 @@ through Starknet's block-hash syscall. The resulting Poseidon hash selects one
 Sector from the round's snapshotted Sector range.
 
 The wallet controlling the selected Sector at the exact round deadline wins.
-An active Challenge does not displace that Controller: if the Challenge settles
-after the deadline, the incumbent still receives the SupplyDrop. Control lazily
-records the pre-change Sector and Operator state the first time either changes
-after expiry, so releases, captures, Challenge settlements, stake
+Control lazily records the pre-change Sector and Operator state the first time
+either changes after expiry, so releases, captures, takeovers, stake
 disqualifications, and retirements can continue without redirecting the prize.
 A Sector that was neutral or already stale at the deadline has no winner and
 rolls the escrow into another full-duration round. A valid selection records
@@ -159,8 +139,6 @@ retires the address rather than creating reusable backing.
 Before a production deployment, supply the Mainnet RPC and deployment keystore
 outside version control, initialize the World with the official Stake Wars STRK
 delegation-pool address and base-unit rule values, and place World ownership,
-namespace ownership, and the game-admin role under the approved multisig. The
-admin may update `challenge_period_seconds`; each subsequent valid lead change
-uses the current configured period when it resets the deadline. Sepolia uses
-180 seconds (3 minutes) for testing; Mainnet launches with 10,800 seconds (3
-hours).
+namespace ownership, and the game-admin role under the approved multisig.
+`initialize` and `set_rules` still accept the legacy `challenge_period_seconds`
+from the retired open-Challenge rules; it is stored but has no gameplay effect.

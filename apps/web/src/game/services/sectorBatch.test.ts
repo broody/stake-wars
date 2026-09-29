@@ -14,9 +14,6 @@ function sector(
     ownershipGeneration: 0n,
     controlledSince: null,
     requiredStake: 100n,
-    activeChallengeId: 0n,
-    challengeLeadChangeCount: 0,
-    challengeDeadline: null,
     stale: false,
     needsSync: false,
     ...overrides,
@@ -24,7 +21,7 @@ function sector(
 }
 
 describe('batch Sector grouping', () => {
-  it('keeps neutral captures and owned fortifications batchable', () => {
+  it('keeps neutral captures and owned reinforcements batchable', () => {
     const groups = groupBatchSectors(
       [sector(1, '0x0'), sector(2, '0xabc'), sector(3, '0xdef')],
       '0xabc'
@@ -35,10 +32,9 @@ describe('batch Sector grouping', () => {
     expect(groups.individualOnly.map(({ id }) => id)).toEqual([3]);
   });
 
-  it('excludes challenged and stale sectors from batching', () => {
+  it('excludes stale sectors from batching', () => {
     const groups = groupBatchSectors(
       [
-        sector(1, '0x0', { activeChallengeId: 4n }),
         sector(2, '0xabc', { stale: true }),
         sector(3, '0xabc', { needsSync: true }),
       ],
@@ -47,6 +43,6 @@ describe('batch Sector grouping', () => {
 
     expect(groups.neutral).toEqual([]);
     expect(groups.owned).toEqual([]);
-    expect(groups.individualOnly.map(({ id }) => id)).toEqual([1, 2, 3]);
+    expect(groups.individualOnly.map(({ id }) => id)).toEqual([2, 3]);
   });
 });

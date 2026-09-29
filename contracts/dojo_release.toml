@@ -4,7 +4,7 @@ description = "Stake Wars core territory-control world"
 website = "https://stakewars.gg"
 seed = "stakewars-mainnet"
 # Initialize GameConfig.minimum_stake with 100000000000000000000 (100 STRK).
-# Initialize GameConfig.challenge_period_seconds with 10800 (3 hours).
+# Initialize the legacy GameConfig.challenge_period_seconds (no gameplay effect) with 10800 (3 hours).
 
 [world.socials]
 github = "https://github.com/broody/stake-wars"
@@ -28,9 +28,6 @@ world_block = 14066846
 "stakewars-GameConfig" = ["stakewars-admin"]
 "stakewars-OperatorState" = ["stakewars-control"]
 "stakewars-Sector" = ["stakewars-control"]
-"stakewars-ChallengeCounter" = ["stakewars-control"]
-"stakewars-Challenge" = ["stakewars-control"]
-"stakewars-ChallengeParticipant" = ["stakewars-control"]
 "stakewars-SupplyDropCounter" = ["stakewars-supply_drop"]
 "stakewars-SupplyDrop" = ["stakewars-supply_drop"]
 "stakewars-SupplyDropSectorSnapshot" = ["stakewars-control"]
@@ -41,13 +38,9 @@ world_block = 14066846
 "stakewars-StakingPoolChanged" = ["stakewars-admin"]
 "stakewars-AdminTransferred" = ["stakewars-admin"]
 "stakewars-SectorCaptured" = ["stakewars-control"]
+"stakewars-SectorTakenOver" = ["stakewars-control"]
 "stakewars-SectorReinforced" = ["stakewars-control"]
 "stakewars-SectorReleased" = ["stakewars-control"]
-"stakewars-ChallengeInitiated" = ["stakewars-control"]
-"stakewars-ChallengeEscalated" = ["stakewars-control"]
-"stakewars-SectorSacrificed" = ["stakewars-control"]
-"stakewars-ChallengeSettled" = ["stakewars-control"]
-"stakewars-ChallengePositionResolved" = ["stakewars-control"]
 "stakewars-OperatorDisqualified" = ["stakewars-control"]
 "stakewars-OperatorRetired" = ["stakewars-control"]
 "stakewars-SupplyDropCreated" = ["stakewars-supply_drop"]

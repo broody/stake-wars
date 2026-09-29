@@ -3,7 +3,6 @@ import {
   NEW_POOL_MEMBER_SELECTOR,
   POOL_MEMBER_REWARD_CLAIMED_SELECTOR,
   filterSectorsByOperatorGeneration,
-  parseChallengeWindowSeconds,
   parseIndexedSectors,
   parseOperatorActivity,
   parsePoolMemberStartPage,
@@ -34,7 +33,6 @@ describe('Torii Sector parsing', () => {
                   capture_force: '0x2386f26fc10000',
                   ownership_generation: '0x2',
                   controlled_since: '0x64',
-                  active_challenge_id: '0x7',
                 },
               },
               {
@@ -44,7 +42,6 @@ describe('Torii Sector parsing', () => {
                   controller_generation: '0x3',
                   capture_force: '0x1',
                   ownership_generation: '0x1',
-                  active_challenge_id: '0x0',
                 },
               },
             ],
@@ -59,7 +56,6 @@ describe('Torii Sector parsing', () => {
         captureForce: 1n,
         ownershipGeneration: 1n,
         controlledSince: null,
-        activeChallengeId: 0n,
       },
       {
         id: 1275,
@@ -68,7 +64,6 @@ describe('Torii Sector parsing', () => {
         captureForce: 10_000_000_000_000_000n,
         ownershipGeneration: 2n,
         controlledSince: 100,
-        activeChallengeId: 7n,
       },
     ]);
   });
@@ -92,7 +87,6 @@ describe('Torii Sector parsing', () => {
                   controller_generation: '0x1',
                   capture_force: '0x1',
                   ownership_generation: '0x1',
-                  active_challenge_id: '0x0',
                 },
               },
             ],
@@ -113,7 +107,6 @@ describe('Torii Sector parsing', () => {
             captureForce: 10n,
             ownershipGeneration: 1n,
             controlledSince: null,
-            activeChallengeId: 0n,
           },
           {
             id: 2,
@@ -122,7 +115,6 @@ describe('Torii Sector parsing', () => {
             captureForce: 20n,
             ownershipGeneration: 1n,
             controlledSince: null,
-            activeChallengeId: 0n,
           },
           {
             id: 3,
@@ -131,7 +123,6 @@ describe('Torii Sector parsing', () => {
             captureForce: 0n,
             ownershipGeneration: 1n,
             controlledSince: null,
-            activeChallengeId: 0n,
           },
         ],
         [{ operator: '0xabc', generation: 4n }]
@@ -143,10 +134,8 @@ describe('Torii Sector parsing', () => {
 describe('Torii Operator activity parsing', () => {
   const emptyCollections = {
     captures: { edges: [] },
-    losses: { edges: [] },
-    initiations: { edges: [] },
-    escalations: { edges: [] },
-    settlements: { edges: [] },
+    takeovers: { edges: [] },
+    displacements: { edges: [] },
     reinforcements: { edges: [] },
     releases: { edges: [] },
     disqualifications: { edges: [] },
@@ -169,15 +158,16 @@ describe('Torii Operator activity parsing', () => {
             },
           ],
         },
-        losses: {
+        displacements: {
           edges: [
             {
-              cursor: activityCursor(12, '0xloss', 3),
+              cursor: activityCursor(12, '0xdisplace', 3),
               node: {
                 sector_id: 42,
-                challenge_id: 1,
-                operator: '0xabc',
-                lost_force: '0x27147114878000',
+                controller: '0xdef',
+                previous_controller: '0xabc',
+                capture_force: '0x2b0a1a4c5a0000',
+                returned_force: '0x27147114878000',
               },
             },
           ],
@@ -198,15 +188,16 @@ describe('Torii Operator activity parsing', () => {
     });
 
     expect(activity.map(({ type }) => type)).toEqual([
-      'loss',
+      'displacement',
       'reinforcement',
       'capture',
     ]);
     expect(activity[0]).toMatchObject({
       blockNumber: 12,
-      transactionHash: '0xloss',
+      transactionHash: '0xdisplace',
       sectorId: 42,
       amount: 11_000_000_000_000_000n,
+      counterparty: '0xdef',
     });
     expect(activity[1]).toMatchObject({
       amount: 75n,
@@ -214,39 +205,20 @@ describe('Torii Operator activity parsing', () => {
     });
   });
 
-  it('distinguishes challenge initiation from escalation', () => {
+  it('reports a takeover with the displaced Operator and returned FORCE', () => {
     const activity = parseOperatorActivity({
       data: {
         ...emptyCollections,
-        initiations: {
+        takeovers: {
           edges: [
             {
-              cursor: activityCursor(20, '0xinitiate', 1),
+              cursor: activityCursor(20, '0xtakeover', 1),
               node: {
-                challenge_id: 7,
                 sector_id: 42,
-                incumbent: '0xdef',
-                challenger: '0xabc',
-                defender_force_at_risk: '500',
-                committed_force: '550',
-                deadline: '1000',
-              },
-            },
-          ],
-        },
-        escalations: {
-          edges: [
-            {
-              cursor: activityCursor(21, '0xescalate', 2),
-              node: {
-                challenge_id: 7,
-                sector_id: 42,
-                challenger: '0xabc',
-                committed_force: '700',
-                added_force: '150',
-                previous_leader: '0xdef',
-                previous_leading_force: '600',
-                deadline: '1100',
+                controller: '0xabc',
+                previous_controller: '0xdef',
+                capture_force: '550',
+                returned_force: '500',
               },
             },
           ],
@@ -256,13 +228,10 @@ describe('Torii Operator activity parsing', () => {
 
     expect(activity).toMatchObject([
       {
-        type: 'challenge_escalated',
-        amount: 700n,
-        counterparty: '0xdef',
-      },
-      {
-        type: 'challenge_initiated',
+        type: 'takeover',
+        sectorId: 42,
         amount: 550n,
+        secondaryAmount: 500n,
         counterparty: '0xdef',
       },
     ]);
@@ -440,27 +409,5 @@ describe('Torii pool membership parsing', () => {
       hasNextPage: false,
       endCursor: null,
     });
-  });
-});
-
-describe('Torii game rules parsing', () => {
-  it('reads the Challenge response window', () => {
-    expect(
-      parseChallengeWindowSeconds({
-        data: {
-          stakewarsGameConfigModels: {
-            edges: [{ node: { challenge_period_seconds: '0x2a30' } }],
-          },
-        },
-      })
-    ).toBe(10_800);
-  });
-
-  it('rejects a missing game configuration', () => {
-    expect(() =>
-      parseChallengeWindowSeconds({
-        data: { stakewarsGameConfigModels: { edges: [] } },
-      })
-    ).toThrow('Torii omitted the game rules');
   });
 });

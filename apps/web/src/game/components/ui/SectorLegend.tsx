@@ -68,7 +68,6 @@ export function SectorLegend() {
     occupiedSectorIds,
     ownedSectorIds,
     opponentSectorIds,
-    contestedSectorIds,
     isSectorIndexLoading,
     sectorIndexError,
     refreshSectorIndex,
@@ -83,13 +82,6 @@ export function SectorLegend() {
     MULTI_SELECT_HINT_KEY,
     selectedSectorIds.length > 1
   );
-  const contestedSectorIdSet = new Set(contestedSectorIds);
-  const uncontestedOwnedCount = ownedSectorIds.filter(
-    (sectorId) => !contestedSectorIdSet.has(sectorId)
-  ).length;
-  const uncontestedOpponentCount = opponentSectorIds.filter(
-    (sectorId) => !contestedSectorIdSet.has(sectorId)
-  ).length;
 
   if (isImageUploadMode) return null;
 
@@ -133,21 +125,14 @@ export function SectorLegend() {
           <LegendRow
             color={SECTOR_COLORS.owned}
             label="YOURS"
-            value={uncontestedOwnedCount}
+            value={ownedSectorIds.length}
           />
         ) : null}
         <LegendRow
           color={SECTOR_COLORS.opponent}
           label={isConnected ? 'OTHER PLAYERS' : 'CLAIMED'}
-          value={uncontestedOpponentCount}
+          value={opponentSectorIds.length}
         />
-        {contestedSectorIds.length > 0 ? (
-          <LegendRow
-            color={SECTOR_COLORS.contested}
-            label="UNDER CHALLENGE"
-            value={contestedSectorIds.length}
-          />
-        ) : null}
         {neutralCount > 0 ? (
           <LegendRow
             color={SECTOR_COLORS.neutralGrid}

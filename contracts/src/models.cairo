@@ -1,11 +1,11 @@
 use starknet::ContractAddress;
 
 pub const CONFIG_ID: u8 = 0;
-pub const CHALLENGE_COUNTER_ID: u8 = 0;
 pub const SUPPLY_DROP_COUNTER_ID: u8 = 0;
 pub const MAX_SECTORS: u32 = 2_000;
 pub const SEPOLIA_MINIMUM_STAKE: u128 = 100_000_000_000_000_000; // 0.1 STRK
 pub const MAINNET_MINIMUM_STAKE: u128 = 100_000_000_000_000_000_000; // 100 STRK
+// Retained for the admin rules interface; instant takeovers have no response window.
 pub const SEPOLIA_CHALLENGE_PERIOD_SECONDS: u64 = 180; // 3 minutes
 pub const MAINNET_CHALLENGE_PERIOD_SECONDS: u64 = 10_800; // 3 hours
 
@@ -33,6 +33,7 @@ pub struct GameConfig {
     pub admin: ContractAddress,
     pub staking_pool: ContractAddress,
     pub minimum_stake: u128,
+    /// Legacy open-Challenge response window. Kept for storage layout; no gameplay effect.
     pub challenge_period_seconds: u64,
     pub sector_limit: u32,
     pub paused: bool,
@@ -45,9 +46,12 @@ pub struct OperatorState {
     pub operator: ContractAddress,
     pub generation: u64,
     pub sector_force: u128,
+    /// Legacy open-Challenge commitment. Kept for storage layout; never read.
     pub challenge_force: u128,
+    /// Legacy Spent Force, forgiven by the instant-takeover rules. Kept for storage layout.
     pub spent_force: u128,
     pub controlled_sector_count: u32,
+    /// Legacy open-Challenge position count. Kept for storage layout; never read.
     pub active_challenge_count: u32,
     pub retired: bool,
 }
@@ -82,52 +86,8 @@ pub struct Sector {
     pub capture_force: u128,
     pub ownership_generation: u64,
     pub controlled_since: u64,
+    /// Legacy open-Challenge reference. Kept for storage layout; never read.
     pub active_challenge_id: u64,
-}
-
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct ChallengeCounter {
-    #[key]
-    pub id: u8,
-    pub next_id: u64,
-}
-
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct Challenge {
-    #[key]
-    pub id: u64,
-    pub sector_id: u32,
-    pub incumbent: ContractAddress,
-    pub leader: ContractAddress,
-    pub leader_generation: u64,
-    pub leading_force: u128,
-    pub last_loser: ContractAddress,
-    pub last_losing_force: u128,
-    pub deadline: u64,
-    pub lead_change_count: u32,
-    pub participant_count: u32,
-    pub settled: bool,
-    pub winner: ContractAddress,
-    pub winning_force: u128,
-    pub losing_force: u128,
-    pub settled_at: u64,
-}
-
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct ChallengeParticipant {
-    #[key]
-    pub challenge_id: u64,
-    #[key]
-    pub operator: ContractAddress,
-    pub committed_force: u128,
-    pub sector_force_included: u128,
-    pub operator_generation: u64,
-    pub joined: bool,
-    pub resolved: bool,
-    pub won: bool,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]

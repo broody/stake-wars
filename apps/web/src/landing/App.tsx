@@ -63,11 +63,11 @@ function LandingApp() {
       title: '01. STAKE',
       description: (
         <>
-          Stake $STRK with the Stake Wars validator to generate{' '}
+          Stake $STRK to generate{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
             FORCE
           </span>
-          . Use FORCE to capture Sectors or initiate Challenges.
+          . Use FORCE to capture Sectors.
         </>
       ),
     },
@@ -75,26 +75,25 @@ function LandingApp() {
       title: '02. HOLD',
       description: (
         <>
-          A custom image can be beamed onto the Sector. As long as you hold the
-          high ground, your staked $STRK is{' '}
+          Beam a custom image onto your Sector for as long as you hold it. Your
+          staked $STRK keeps earning{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            generating real protocol yield
-          </span>{' '}
-          in the background. You are now a guardian of the network.
+            real protocol yield
+          </span>
+          .
         </>
       ),
     },
     {
-      title: '03. CHALLENGE',
+      title: '03. FIGHT',
       description: (
         <>
-          Challenge an occupied Sector by committing FORCE. Every escalation
-          restarts the response window, and any Operator can{' '}
+          Commit{' '}
           <span className="text-fg font-bold border-b border-dotted border-dim">
-            take the lead
+            10% more FORCE
           </span>{' '}
-          until the opposition runs out of FORCE or chooses to stop. Displaced
-          losing commitments are permanently spent.
+          than a Sector&apos;s defense to take it. The previous owner gets their
+          FORCE back to use again.
         </>
       ),
     },
@@ -216,9 +215,9 @@ function LandingApp() {
                   FORCE represents your usable power in Stake Wars. It is
                   calculated from the $STRK you stake with the Stake Wars
                   validator and stays synchronized with your current staking
-                  position. Use FORCE to capture Sectors and initiate or contest
-                  Challenges. Currently, FORCE is tracked within the Stake Wars
-                  contract rather than issued as a separate ERC-20 token.
+                  position. Use FORCE to capture and take over Sectors.
+                  Currently, FORCE is tracked within the Stake Wars contract
+                  rather than issued as a separate ERC-20 token.
                 </p>
               </FaqItem>
 
@@ -274,10 +273,9 @@ function LandingApp() {
                   Yes. Stake Wars reads your current delegated stake from the
                   official Starknet Staking contract, so your FORCE updates
                   automatically no matter where you stake. However, beginning an
-                  unstaking withdrawal permanently retires your address because
-                  that FORCE may already have been spent. All its Sectors and
-                  FORCE are immediately zeroed, and the address cannot
-                  participate again.
+                  unstaking withdrawal permanently retires your address. All its
+                  Sectors and FORCE are immediately zeroed, and the address
+                  cannot participate again.
                 </p>
               </FaqItem>
             </div>

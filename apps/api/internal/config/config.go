@@ -45,7 +45,6 @@ type Config struct {
 	SupplyDropSystemAddress    string
 	SupplyDropKeeperAccount    string
 	SupplyDropKeeperPrivateKey string
-	ChallengeKeeper            bool
 	ImageBucket                string
 	ImagePublicURL             string
 	S3Endpoint                 string
@@ -102,16 +101,6 @@ func Load() (Config, error) {
 	}
 	if configuredSupplyDropKeeperValues != 0 && configuredSupplyDropKeeperValues != 3 {
 		return Config{}, fmt.Errorf("SUPPLY_DROP_SYSTEM_ADDRESS, SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS, and SUPPLY_DROP_KEEPER_PRIVATE_KEY must be configured together")
-	}
-	challengeKeeper, err := strconv.ParseBool(valueOrDefault("CHALLENGE_KEEPER_ENABLED", "false"))
-	if err != nil {
-		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED must be a boolean")
-	}
-	if challengeKeeper && (configuredSupplyDropKeeperValues != 3 ||
-		strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")) == "" ||
-		strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" ||
-		strings.TrimSpace(os.Getenv("TORII_URL")) == "") {
-		return Config{}, fmt.Errorf("CHALLENGE_KEEPER_ENABLED requires the SupplyDrop keeper configuration, CONTROL_SYSTEM_ADDRESS, STARKNET_RPC_URL, and TORII_URL")
 	}
 	beaconKeeper, err := strconv.ParseBool(valueOrDefault("BEACON_KEEPER_ENABLED", "false"))
 	if err != nil {
@@ -180,7 +169,6 @@ func Load() (Config, error) {
 		SupplyDropSystemAddress:    supplyDropSystemAddress,
 		SupplyDropKeeperAccount:    supplyDropKeeperAccount,
 		SupplyDropKeeperPrivateKey: supplyDropKeeperPrivateKey,
-		ChallengeKeeper:            challengeKeeper,
 		ImageBucket:                imageBucket,
 		ImagePublicURL:             imagePublicURL,
 		S3Endpoint:                 s3Endpoint,

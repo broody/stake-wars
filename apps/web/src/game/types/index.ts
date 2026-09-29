@@ -16,9 +16,6 @@ export interface SectorStatus {
   ownershipGeneration: bigint;
   controlledSince: number | null;
   requiredStake: bigint;
-  activeChallengeId: bigint;
-  challengeLeadChangeCount: number;
-  challengeDeadline: number | null;
   stale: boolean;
   needsSync: boolean;
 }
@@ -30,7 +27,6 @@ export interface IndexedSector {
   captureForce: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
-  activeChallengeId: bigint;
 }
 
 export interface SectorOwnership {
@@ -69,53 +65,20 @@ export interface OperatorStatus {
   operator: string;
   liveDelegatedAmount: bigint;
   sectorForce: bigint;
-  challengeForce: bigint;
-  spentForce: bigint;
   availableForce: bigint;
   generation: bigint;
   controlledSectorCount: number;
-  activeChallengeCount: number;
   retired: boolean;
   exiting: boolean;
   needsSync: boolean;
 }
 
-export interface ChallengeStatus {
-  id: bigint;
-  sectorId: number;
-  incumbent: string;
-  leader: string;
-  leadingForce: bigint;
-  lastLoser: string;
-  lastLosingForce: bigint;
-  deadline: number;
-  leadChangeCount: number;
-  participantCount: number;
-  settled: boolean;
-  winner: string;
-  winningForce: bigint;
-  losingForce: bigint;
-}
-
-export interface ChallengeParticipantStatus {
-  challengeId: bigint;
-  operator: string;
-  committedForce: bigint;
-  sectorForceIncluded: bigint;
-  additionalForce: bigint;
-  joined: boolean;
-  resolved: boolean;
-  won: boolean;
-}
-
 export type OperatorActivityType =
   | 'capture'
-  | 'loss'
+  | 'takeover'
+  | 'displacement'
   | 'reinforcement'
   | 'release'
-  | 'challenge_initiated'
-  | 'challenge_escalated'
-  | 'settlement'
   | 'retirement'
   | 'disqualification'
   | 'relinquishment'

@@ -25,7 +25,6 @@ export interface OwnershipScenario {
   ownerBySector: readonly number[];
   sectorIdsByOwner: readonly (readonly number[])[];
   unoccupiedSectorIds: readonly number[];
-  contestedSectorIds: readonly number[];
   ownerAddresses: readonly string[];
   stakedStrkByOwner: readonly number[];
   counts: readonly number[];
@@ -452,89 +451,6 @@ function mixedOwnership(
   return assignments;
 }
 
-function contestedOwnershipFronts(
-  ownerBySector: readonly number[],
-  ownerCount: number,
-  seed: number
-): number[] {
-  const boundarySectorIds = ownerBySector.flatMap((owner, sectorId) =>
-    owner >= 0 &&
-    adjacentSectorIds(sectorId).some((neighborId) => {
-      const neighborOwner = ownerBySector[neighborId];
-      return neighborOwner >= 0 && neighborOwner !== owner;
-    })
-      ? [sectorId]
-      : []
-  );
-  const boundarySet = new Set(boundarySectorIds);
-  const random = createRandom(seed ^ 0x7f4a7c15);
-
-  for (let index = boundarySectorIds.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(random() * (index + 1));
-    [boundarySectorIds[index], boundarySectorIds[swapIndex]] = [
-      boundarySectorIds[swapIndex],
-      boundarySectorIds[index],
-    ];
-  }
-
-  const targetCount = Math.min(
-    boundarySectorIds.length,
-    Math.round(18 + Math.sqrt(ownerCount) * 5)
-  );
-  const frontCount = Math.min(
-    6,
-    Math.max(2, Math.round(Math.log2(ownerCount) / 2))
-  );
-  const selected = new Set<number>();
-  let seedIndex = 0;
-
-  for (let front = 0; front < frontCount; front += 1) {
-    while (
-      seedIndex < boundarySectorIds.length &&
-      selected.has(boundarySectorIds[seedIndex])
-    ) {
-      seedIndex += 1;
-    }
-    const frontSeed = boundarySectorIds[seedIndex];
-    if (frontSeed === undefined) break;
-    seedIndex += 1;
-
-    const frontTarget = Math.ceil(
-      (targetCount - selected.size) / (frontCount - front)
-    );
-    const pending = [frontSeed];
-    const queued = new Set(pending);
-    let addedToFront = 0;
-
-    while (pending.length > 0 && addedToFront < frontTarget) {
-      const sectorId = pending.shift();
-      if (sectorId === undefined || selected.has(sectorId)) continue;
-      selected.add(sectorId);
-      addedToFront += 1;
-
-      const neighbors = [...adjacentSectorIds(sectorId)];
-      if (random() > 0.5) neighbors.reverse();
-      neighbors.forEach((neighborId) => {
-        if (
-          boundarySet.has(neighborId) &&
-          !selected.has(neighborId) &&
-          !queued.has(neighborId)
-        ) {
-          pending.push(neighborId);
-          queued.add(neighborId);
-        }
-      });
-    }
-  }
-
-  for (const sectorId of boundarySectorIds) {
-    if (selected.size >= targetCount) break;
-    selected.add(sectorId);
-  }
-
-  return [...selected].sort((left, right) => left - right);
-}
-
 function mockOwnerAddress(owner: number, seed: number): string {
   const random = createRandom(seed + owner * 1_009 + 17);
   const chunks = Array.from({ length: 8 }, () =>
@@ -610,11 +526,6 @@ export function createOwnershipScenario(
     ownerBySector,
     sectorIdsByOwner,
     unoccupiedSectorIds,
-    contestedSectorIds: contestedOwnershipFronts(
-      ownerBySector,
-      definition.ownerCount,
-      definition.seed
-    ),
     ownerAddresses: Array.from({ length: definition.ownerCount }, (_, owner) =>
       mockOwnerAddress(owner, definition.seed)
     ),

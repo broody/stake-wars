@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   addressesMatch,
   formatCountdown,
-  formatDurationWords,
   formatStrk,
   formatStrkFixed,
   isZeroAddress,
@@ -67,15 +66,5 @@ describe('Sector formatting', () => {
     expect(() => parseStrk('1.0000000000000000001')).toThrow(
       'valid STRK amount'
     );
-  });
-});
-
-describe('formatDurationWords', () => {
-  it('names whole Challenge windows in the largest exact unit', () => {
-    expect(formatDurationWords(10_800)).toBe('3 hours');
-    expect(formatDurationWords(180)).toBe('3 minutes');
-    expect(formatDurationWords(5_400)).toBe('90 minutes');
-    expect(formatDurationWords(86_400)).toBe('1 day');
-    expect(formatDurationWords(45)).toBe('45 seconds');
   });
 });

@@ -121,14 +121,6 @@ function OwnershipScenarioCard({
               </div>
             </div>
             <div>
-              <div className="text-xl tabular-nums text-red-500">
-                {scenario.contestedSectorIds.length}
-              </div>
-              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
-                CONTESTED
-              </div>
-            </div>
-            <div>
               <div className="text-xl tabular-nums text-fg">
                 {imageSectorIds.length.toLocaleString()}
               </div>
@@ -273,8 +265,6 @@ export function CoreLab() {
             </span>
             <span className="text-neutral-600">MARKED OWNER</span>
             <span className="text-right text-amber-300">LIGHT GOLD</span>
-            <span className="text-neutral-600">CONTESTED</span>
-            <span className="text-right text-red-500">RED STRIPES</span>
             <span className="text-neutral-600">IMAGES</span>
             <span className="text-right text-fg">
               {imageSectorIds.length.toLocaleString()}

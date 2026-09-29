@@ -24,7 +24,6 @@ function sector(overrides: Partial<IndexedSector> = {}): IndexedSector {
     captureForce: 25n,
     ownershipGeneration: 2n,
     controlledSince: 1_725_000_000,
-    activeChallengeId: 7n,
     ...overrides,
   };
 }
@@ -50,7 +49,7 @@ describe('occupied Sector cache', () => {
     storage.setItem(
       key,
       JSON.stringify({
-        version: 1,
+        version: 2,
         sectors: [
           {
             id: 42,
@@ -59,7 +58,6 @@ describe('occupied Sector cache', () => {
             captureForce: 'not-a-number',
             ownershipGeneration: '2',
             controlledSince: 1_725_000_000,
-            activeChallengeId: '7',
           },
         ],
       })

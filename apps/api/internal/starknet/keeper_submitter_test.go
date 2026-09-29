@@ -13,42 +13,39 @@ import (
 	starknetrpc "github.com/NethermindEth/starknet.go/rpc"
 )
 
-func TestChallengeSubmitterUsesControlSystemAndSectorID(t *testing.T) {
+func TestKeeperSubmitsSupplyDropSystemCalls(t *testing.T) {
 	account := &fakeKeeperAccount{}
 	keeper := &AccountSupplyDropSubmitter{account: account, supplyDropSystem: new(felt.Felt).SetUint64(111)}
-	submitter, err := NewChallengeSubmitter(keeper, "0xabc")
+	if _, err := keeper.LockSupplyDrop(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := keeper.SettleSupplyDrop(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash, err := submitter.SettleChallenge(context.Background(), 527)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hash != "0x1" || len(account.calls) != 1 {
+	if hash != "0x2" || len(account.calls) != 2 {
 		t.Fatalf("unexpected submission: %s, %v", hash, account.calls)
 	}
-	call := account.calls[0]
-	if call.FunctionName != "settle_challenge" || call.ContractAddress.String() != "0xabc" || len(call.CallData) != 1 || call.CallData[0].Uint64() != 527 {
-		t.Fatalf("incorrect settlement call: %+v", call)
+	for i, entrypoint := range []string{"lock_supply_drop", "settle_supply_drop"} {
+		call := account.calls[i]
+		if call.FunctionName != entrypoint || call.ContractAddress.Uint64() != 111 || len(call.CallData) != 1 || call.CallData[0].Uint64() != 7 {
+			t.Fatalf("incorrect %s call: %+v", entrypoint, call)
+		}
 	}
 }
 
-func TestKeeperResolvesTimedOutReceiptBeforeEitherDutySends(t *testing.T) {
-	for _, nextIsSupplyDrop := range []bool{false, true} {
+func TestKeeperResolvesTimedOutReceiptBeforeNextSend(t *testing.T) {
+	for _, nextIsLock := range []bool{false, true} {
 		account := &fakeKeeperAccount{waitErrors: []error{context.DeadlineExceeded, nil, nil}}
 		keeper := &AccountSupplyDropSubmitter{account: account, supplyDropSystem: new(felt.Felt).SetUint64(111)}
-		submitter, err := NewChallengeSubmitter(keeper, "0xabc")
-		if err != nil {
-			t.Fatal(err)
-		}
-		hash, err := submitter.SettleChallenge(context.Background(), 527)
+		hash, err := keeper.SettleSupplyDrop(context.Background(), 7)
 		if !errors.Is(err, context.DeadlineExceeded) || hash != "0x1" {
 			t.Fatalf("lost submitted hash: %s %v", hash, err)
 		}
-		if nextIsSupplyDrop {
-			_, err = keeper.LockSupplyDrop(context.Background(), 7)
+		if nextIsLock {
+			_, err = keeper.LockSupplyDrop(context.Background(), 8)
 		} else {
-			_, err = submitter.SettleChallenge(context.Background(), 528)
+			_, err = keeper.SettleSupplyDrop(context.Background(), 8)
 		}
 		if !errors.Is(err, ErrKeeperRecheckRequired) {
 			t.Fatalf("expected state recheck: %v", err)
@@ -56,7 +53,7 @@ func TestKeeperResolvesTimedOutReceiptBeforeEitherDutySends(t *testing.T) {
 		if len(account.calls) != 1 || account.waits != 2 {
 			t.Fatalf("resent before resolving pending receipt: %+v", account)
 		}
-		if _, err = submitter.SettleChallenge(context.Background(), 528); err != nil {
+		if _, err = keeper.SettleSupplyDrop(context.Background(), 8); err != nil {
 			t.Fatal(err)
 		}
 		if len(account.calls) != 2 {
@@ -68,8 +65,7 @@ func TestKeeperResolvesTimedOutReceiptBeforeEitherDutySends(t *testing.T) {
 func TestKeeperRetainsPendingHashOnRepeatedReceiptFailure(t *testing.T) {
 	account := &fakeKeeperAccount{waitErrors: []error{context.DeadlineExceeded, errors.New("RPC offline")}}
 	keeper := &AccountSupplyDropSubmitter{account: account, supplyDropSystem: new(felt.Felt).SetUint64(111)}
-	submitter, _ := NewChallengeSubmitter(keeper, "0xabc")
-	_, _ = submitter.SettleChallenge(context.Background(), 527)
+	_, _ = keeper.LockSupplyDrop(context.Background(), 7)
 	if _, err := keeper.SettleSupplyDrop(context.Background(), 7); err == nil {
 		t.Fatal("expected pending error")
 	}
@@ -94,21 +90,19 @@ func TestKeeperWaitsForAcceptedReceipt(t *testing.T) {
 func TestKeeperReportsRevertAndAllowsLaterRetry(t *testing.T) {
 	account := &fakeKeeperAccount{revert: true}
 	keeper := &AccountSupplyDropSubmitter{account: account, supplyDropSystem: new(felt.Felt).SetUint64(111)}
-	submitter, _ := NewChallengeSubmitter(keeper, "0xabc")
-	hash, err := submitter.SettleChallenge(context.Background(), 527)
+	hash, err := keeper.SettleSupplyDrop(context.Background(), 7)
 	if err == nil || !strings.Contains(err.Error(), "reverted") || hash != "0x1" || keeper.pending != nil {
 		t.Fatalf("incorrect revert handling: %s %v", hash, err)
 	}
 	account.revert = false
-	if _, err = submitter.SettleChallenge(context.Background(), 528); err != nil {
+	if _, err = keeper.SettleSupplyDrop(context.Background(), 8); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestKeeperSerializesChallengeAndSupplyDropTransactions(t *testing.T) {
+func TestKeeperSerializesSupplyDropTransactions(t *testing.T) {
 	account := &fakeKeeperAccount{}
 	keeper := &AccountSupplyDropSubmitter{account: account, supplyDropSystem: new(felt.Felt).SetUint64(111)}
-	submitter, _ := NewChallengeSubmitter(keeper, "0xabc")
 	var group sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		group.Add(1)
@@ -116,7 +110,7 @@ func TestKeeperSerializesChallengeAndSupplyDropTransactions(t *testing.T) {
 			defer group.Done()
 			var err error
 			if i%2 == 0 {
-				_, err = submitter.SettleChallenge(context.Background(), uint32(i))
+				_, err = keeper.SettleSupplyDrop(context.Background(), uint64(i))
 			} else {
 				_, err = keeper.LockSupplyDrop(context.Background(), uint64(i))
 			}
@@ -165,6 +159,6 @@ func (a *fakeKeeperAccount) WaitForTransactionReceipt(_ context.Context, hash *f
 		a.inFlight = false
 	}
 	return &starknetrpc.TransactionReceiptWithBlockInfo{TransactionReceipt: starknetrpc.TransactionReceipt{
-		Hash: hash, FinalityStatus: finality, ExecutionStatus: status, RevertReason: "challenge already settled",
+		Hash: hash, FinalityStatus: finality, ExecutionStatus: status, RevertReason: "supply drop not active",
 	}}, nil
 }

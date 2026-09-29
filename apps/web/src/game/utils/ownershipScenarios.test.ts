@@ -37,23 +37,6 @@ describe('ownership scenarios', () => {
           (sectorId) => scenario.ownerBySector[sectorId] === -1
         )
       ).toBe(true);
-      expect(scenario.contestedSectorIds.length).toBeGreaterThan(0);
-      expect(new Set(scenario.contestedSectorIds).size).toBe(
-        scenario.contestedSectorIds.length
-      );
-      expect(
-        scenario.contestedSectorIds.every(
-          (sectorId) =>
-            scenario.ownerBySector[sectorId] >= 0 &&
-            adjacentSectorIds(sectorId).some((neighborId) => {
-              const neighborOwner = scenario.ownerBySector[neighborId];
-              return (
-                neighborOwner >= 0 &&
-                neighborOwner !== scenario.ownerBySector[sectorId]
-              );
-            })
-        )
-      ).toBe(true);
     }
   );
 

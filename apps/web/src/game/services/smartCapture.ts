@@ -3,11 +3,7 @@ import { MAX_CONTROL_ACTION_BATCH } from './sectorLimits';
 
 interface GameActionCallsOptions {
   controlSystemAddress: string;
-  entrypoint:
-    | 'capture'
-    | 'reinforce'
-    | 'challenge'
-    | 'challenge_with_sacrifice';
+  entrypoint: 'capture' | 'reinforce';
   calldata: string[];
 }
 
@@ -26,15 +22,6 @@ export function stakeDeficit(
   availableForce: bigint
 ): bigint {
   return allocation > availableForce ? allocation - availableForce : 0n;
-}
-
-export function incrementalCommittedForce(
-  newCommitment: bigint,
-  previousCommitment: bigint
-): bigint {
-  return newCommitment > previousCommitment
-    ? newCommitment - previousCommitment
-    : 0n;
 }
 
 export function buildGameActionCalls({
@@ -82,12 +69,4 @@ export function buildBatchGameActionCalls({
           ],
         },
   ];
-}
-
-export function buildControlCall(
-  controlSystemAddress: string,
-  entrypoint: 'release' | 'settle_challenge' | 'resolve_challenge_position',
-  calldata: string[]
-): Call[] {
-  return [{ contractAddress: controlSystemAddress, entrypoint, calldata }];
 }

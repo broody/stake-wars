@@ -12,7 +12,6 @@ const indexed: IndexedSector = {
   captureForce: 100n,
   ownershipGeneration: 2n,
   controlledSince: 123,
-  activeChallengeId: 0n,
 };
 
 const status: SectorStatus = {
@@ -22,9 +21,6 @@ const status: SectorStatus = {
   ownershipGeneration: 2n,
   controlledSince: 123,
   requiredStake: 0n,
-  activeChallengeId: 0n,
-  challengeLeadChangeCount: 0,
-  challengeDeadline: null,
   stale: false,
   needsSync: false,
 };
@@ -56,7 +52,7 @@ describe('effective Sector state comparisons', () => {
     expect(
       sectorStatusesHaveSameEffectiveState(
         status,
-        { ...status, requiredStake: 999n, challengeLeadChangeCount: 4 },
+        { ...status, requiredStake: 999n },
         indexed
       )
     ).toBe(true);

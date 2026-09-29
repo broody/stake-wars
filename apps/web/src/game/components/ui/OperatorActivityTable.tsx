@@ -23,9 +23,14 @@ const eventPresentation: Record<
     label: 'CAPTURED',
     markerClassName: 'border-white text-white',
   },
-  loss: {
+  takeover: {
+    marker: '>',
+    label: 'TOOK OVER',
+    markerClassName: 'border-white text-white',
+  },
+  displacement: {
     marker: '!',
-    label: 'LOST CHALLENGE',
+    label: 'LOST SECTOR',
     markerClassName: 'border-amber-500 text-amber-400',
   },
   reinforcement: {
@@ -37,21 +42,6 @@ const eventPresentation: Record<
     marker: '−',
     label: 'RELEASED',
     markerClassName: 'border-neutral-600 text-neutral-400',
-  },
-  challenge_initiated: {
-    marker: '>',
-    label: 'INITIATED CHALLENGE',
-    markerClassName: 'border-white text-white',
-  },
-  challenge_escalated: {
-    marker: '↑',
-    label: 'ESCALATED CHALLENGE',
-    markerClassName: 'border-white text-white',
-  },
-  settlement: {
-    marker: '◆',
-    label: 'SETTLED',
-    markerClassName: 'border-white text-white',
   },
   retirement: {
     marker: '×',
@@ -83,13 +73,11 @@ const activityFilterOptions: Array<{
 }> = [
   { value: 'all', label: 'ALL EVENTS' },
   { value: 'capture', label: 'CAPTURED' },
-  { value: 'loss', label: 'LOST CHALLENGE' },
+  { value: 'takeover', label: 'TOOK OVER' },
+  { value: 'displacement', label: 'LOST SECTOR' },
   { value: 'yield_claim', label: 'YIELD CLAIMED' },
   { value: 'reinforcement', label: 'REINFORCED' },
   { value: 'release', label: 'RELEASED' },
-  { value: 'challenge_initiated', label: 'INITIATED CHALLENGE' },
-  { value: 'challenge_escalated', label: 'ESCALATED CHALLENGE' },
-  { value: 'settlement', label: 'SETTLED' },
   { value: 'retirement', label: 'RETIRED' },
   { value: 'disqualification', label: 'BACKING FAILURE' },
   { value: 'relinquishment', label: 'RELINQUISHED ALL' },
@@ -102,21 +90,19 @@ function sectorLabel(id: number | undefined): string {
 function eventDetail(activity: OperatorActivity): string {
   switch (activity.type) {
     case 'capture':
-      return activity.counterparty ? 'TOOK HIGH GROUND' : 'NEUTRAL POINT';
-    case 'loss':
-      return 'FINAL COMMITMENT SPENT AT SETTLEMENT';
+      return 'NEUTRAL SECTOR';
+    case 'takeover':
+      return activity.secondaryAmount === undefined
+        ? 'SECTOR TAKEN OVER'
+        : `${formatStrk(activity.secondaryAmount)} FORCE RETURNED TO PREVIOUS OWNER`;
+    case 'displacement':
+      return 'FORCE RETURNED TO AVAILABLE';
     case 'reinforcement':
       return activity.secondaryAmount === undefined
         ? 'CAPTURE FORCE INCREASED'
         : `NEW FORCE ${formatStrk(activity.secondaryAmount)} FORCE`;
     case 'release':
       return 'CONTROL VOLUNTARILY RELEASED';
-    case 'challenge_initiated':
-      return 'PUBLIC CHALLENGE OPENED';
-    case 'challenge_escalated':
-      return 'NEW LEADER ESTABLISHED';
-    case 'settlement':
-      return 'CHALLENGE FINALIZED';
     case 'retirement':
       return 'ADDRESS PERMANENTLY RETIRED';
     case 'disqualification':
@@ -135,8 +121,8 @@ function stakeDetail(activity: OperatorActivity): string {
     activity.type === 'yield_claim' ? 6 : 4
   )} ${unit}`;
   switch (activity.type) {
-    case 'loss':
-      return `${amount} DEFEATED`;
+    case 'displacement':
+      return `+${amount} RETURNED`;
     case 'release':
       return `${amount} PRIOR FORCE`;
     case 'retirement':
@@ -158,7 +144,7 @@ function counterpartyDetail(activity: OperatorActivity): string {
   if (activity.type === 'yield_claim') {
     return `TO ${shortAddress(activity.counterparty)}`;
   }
-  const prefix = activity.type === 'loss' ? 'BY' : 'FROM';
+  const prefix = activity.type === 'displacement' ? 'BY' : 'FROM';
   return `${prefix} ${shortAddress(activity.counterparty)}`;
 }
 
@@ -406,8 +392,8 @@ export function OperatorActivityTable({
           <div className="activity-scrollbar overflow-x-auto border-l border-t border-grid">
             <table className="w-full min-w-[760px] border-collapse text-left">
               <caption className="sr-only">
-                Captures, challenges, reinforcements, releases, command resets,
-                retirements, and yield claims for this Operator
+                Captures, takeovers, lost Sectors, reinforcements, releases,
+                command resets, retirements, and yield claims for this Operator
               </caption>
               <thead>
                 <tr className="text-[9px] tracking-[0.2em] text-dim">

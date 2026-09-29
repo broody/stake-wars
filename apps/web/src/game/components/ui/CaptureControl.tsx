@@ -5,96 +5,71 @@ import {
 } from '@starknetfoundation/starknet-start-react';
 import { Link } from 'react-router-dom';
 import { TransactionExecutionStatus } from 'starknet';
-import type {
-  ChallengeParticipantStatus,
-  ChallengeStatus,
-  SectorStatus,
-} from '../../types';
+import type { SectorStatus } from '../../types';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { config } from '../../services/config';
+import { getSectorStatus, getOperatorStatus } from '../../services/starknet';
 import {
-  getChallengeParticipantStatus,
-  getChallengeStatus,
-  getSectorStatus,
-  getOperatorStatus,
-} from '../../services/starknet';
-import {
-  buildControlCall,
   buildGameActionCalls,
-  incrementalCommittedForce,
   stakeDeficit,
 } from '../../services/smartCapture';
 import {
   addressesMatch,
-  formatCountdown,
   formatStrk,
+  isZeroAddress,
   parseStrk,
-  shortAddress,
 } from '../../utils/format';
 import { stakeRequestSearch } from '../../utils/stakingRequest';
-import { useChallengeWindowSeconds } from '../../hooks/useChallengeWindow';
 import { ActionBrief, type ActionBriefKind } from './ActionBrief';
 import { WalletButton } from './WalletButton';
 
 interface CaptureControlProps {
   sectors: SectorStatus[];
-  intent?: 'capture' | 'fortify';
 }
 
 type Phase = 'idle' | 'submitting' | 'confirming';
-type Action = 'capture' | 'reinforce' | 'challenge' | 'settle';
+type Action = ActionBriefKind;
 
 const MAX_U128 = (1n << 128n) - 1n;
 
-const TITLES: Record<ActionBriefKind, string> = {
-  capture: 'CAPTURE SECTOR',
-  reinforce: 'REINFORCE SECTOR',
-  challenge: 'CHALLENGE SECTOR',
-  join: 'CHALLENGE IN PROGRESS',
-  defend: 'DEFEND YOUR SECTOR',
-  leading: 'YOU ARE LEADING',
-  settle: 'CHALLENGE ENDED',
+const ACTION_COPY: Record<
+  Action,
+  { title: string; verb: string; toast: string; gerund: string }
+> = {
+  capture: {
+    title: 'CAPTURE SECTOR',
+    verb: 'CAPTURE',
+    toast: 'CAPTURE',
+    gerund: 'capturing',
+  },
+  takeover: {
+    title: 'TAKE OVER SECTOR',
+    verb: 'TAKE OVER',
+    toast: 'TAKEOVER',
+    gerund: 'taking over',
+  },
+  reinforce: {
+    title: 'REINFORCE SECTOR',
+    verb: 'REINFORCE',
+    toast: 'REINFORCEMENT',
+    gerund: 'reinforcing',
+  },
 };
 
-const BUTTON_LABELS: Record<ActionBriefKind, string> = {
-  capture: 'CAPTURE',
-  reinforce: 'REINFORCE',
-  challenge: 'START CHALLENGE',
-  join: 'PLACE BID',
-  defend: 'DEFEND',
-  leading: 'LEADING',
-  settle: 'SETTLE CHALLENGE',
-};
-
-function Row({
-  label,
-  note,
-  children,
-}: {
-  label: string;
-  note?: ReactNode;
-  children: ReactNode;
-}) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-4">
-        <span>{label}</span>
-        <span className="text-right tabular-nums text-neutral-300">
-          {children}
-        </span>
-      </div>
-      {note ? (
-        <div className="mt-0.5 text-right text-[8px] tracking-[0.14em] text-dim">
-          {note}
-        </div>
-      ) : null}
+    <div className="flex items-baseline justify-between gap-4">
+      <span>{label}</span>
+      <span className="text-right tabular-nums text-neutral-300">
+        {children}
+      </span>
     </div>
   );
 }
 
-export function CaptureControl({ sectors, intent }: CaptureControlProps) {
+export function CaptureControl({ sectors }: CaptureControlProps) {
   const sector = sectors[0];
   const { address, isConnected } = useWallet();
   const {
@@ -108,102 +83,27 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
   const transaction = useSendTransaction({});
-  const challengeWindowSeconds = useChallengeWindowSeconds();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [allocation, setAllocation] = useState('');
-  const [collateralId, setCollateralId] = useState('');
-  const [challenge, setChallenge] = useState<ChallengeStatus | null>(null);
-  const [participant, setParticipant] =
-    useState<ChallengeParticipantStatus | null>(null);
-  const [challengeLoading, setChallengeLoading] = useState(false);
-  const [clockSeconds, setClockSeconds] = useState(() =>
-    Math.floor(Date.now() / 1_000)
-  );
 
-  const sectorId = sector?.id;
-  const activeChallengeId = sector?.activeChallengeId ?? 0n;
-  const challenged = activeChallengeId !== 0n;
-  const owned = Boolean(
-    address && sector && addressesMatch(sector.controller, address)
-  );
-  const neutral = sector?.captureForce === 0n;
-  const expired = Boolean(
-    challenged &&
-      sector.challengeDeadline &&
-      sector.challengeDeadline <= clockSeconds
-  );
-  const action: Action = expired
-    ? 'settle'
-    : challenged
-      ? 'challenge'
-      : neutral
-        ? 'capture'
-        : owned || intent === 'fortify'
-          ? 'reinforce'
-          : 'challenge';
+  const action: Action =
+    !sector || isZeroAddress(sector.controller)
+      ? 'capture'
+      : address && addressesMatch(sector.controller, address)
+        ? 'reinforce'
+        : 'takeover';
+  const copy = ACTION_COPY[action];
   const availableForce = operatorStatus?.availableForce ?? 0n;
   const requiredForce = sector?.requiredStake ?? 0n;
-  const currentLeader = Boolean(
-    address && challenge && addressesMatch(challenge.leader, address)
-  );
-  const suggestedAllocation =
-    action === 'capture' || action === 'challenge' ? requiredForce : 0n;
-
-  useEffect(() => {
-    if (!challenged || !sector?.challengeDeadline) return;
-
-    const updateClock = () => setClockSeconds(Math.floor(Date.now() / 1_000));
-    updateClock();
-    const interval = window.setInterval(updateClock, 1_000);
-    return () => window.clearInterval(interval);
-  }, [challenged, sector?.challengeDeadline]);
+  const suggestedAllocation = action === 'reinforce' ? 0n : requiredForce;
 
   useEffect(() => {
     setError(null);
-    setCollateralId('');
     setAllocation(
       suggestedAllocation > 0n ? formatStrk(suggestedAllocation, 18) : ''
     );
   }, [action, sector?.id, suggestedAllocation]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!challenged || sectorId === undefined) {
-      setChallenge(null);
-      setParticipant(null);
-      setChallengeLoading(false);
-      return () => controller.abort();
-    }
-    setChallengeLoading(true);
-    Promise.all([
-      getChallengeStatus(activeChallengeId, controller.signal),
-      address
-        ? getChallengeParticipantStatus(
-            activeChallengeId,
-            address,
-            controller.signal
-          )
-        : Promise.resolve(null),
-    ])
-      .then(([nextChallenge, nextParticipant]) => {
-        setChallenge(nextChallenge);
-        setParticipant(nextParticipant);
-      })
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Unable to read the challenge.'
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setChallengeLoading(false);
-      });
-    return () => controller.abort();
-  }, [activeChallengeId, address, challenged, sectorId]);
 
   const parsedAllocation = useMemo(() => {
     if (!allocation.trim()) return { value: 0n, error: null };
@@ -221,241 +121,93 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     }
   }, [allocation]);
   const selectedAllocation = parsedAllocation.value;
-  const personalCommitment = participant?.joined
-    ? participant.committedForce
-    : 0n;
-  const requestedForce = action === 'settle' ? 0n : (selectedAllocation ?? 0n);
-  const additionalCommittedForce =
-    action === 'challenge'
-      ? incrementalCommittedForce(requestedForce, personalCommitment)
-      : requestedForce;
-  const deficit = stakeDeficit(additionalCommittedForce, availableForce);
-  const currentPosition =
-    action === 'reinforce' ? (sector?.captureForce ?? 0n) : 0n;
-  const projectedCommitment = currentPosition + requestedForce;
+  const requestedForce = selectedAllocation ?? 0n;
+  const deficit = stakeDeficit(requestedForce, availableForce);
 
-  const commonDisabledReason = useMemo(() => {
+  const disabledReason = useMemo(() => {
     if (sectors.length !== 1 || !sector) return 'SELECT ONE SECTOR';
     if (!isConnected || !address) return 'CONNECT WALLET';
-    if (action === 'settle') return null;
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
     if (operatorStatus.retired) return 'ADDRESS PERMANENTLY RETIRED';
     if (operatorStatus.needsSync) return 'OPERATOR SYNC REQUIRED';
-    if (challenged && challengeLoading) return 'READING CHALLENGE';
-    if (action === 'challenge' && currentLeader)
-      return 'YOU ARE CURRENTLY LEADING';
     if (parsedAllocation.error) return 'ENTER A VALID FORCE AMOUNT';
+    if (selectedAllocation === null || selectedAllocation === 0n)
+      return 'ENTER FORCE AMOUNT';
+    if (action !== 'reinforce' && selectedAllocation < requiredForce) {
+      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} FORCE`;
+    }
     return null;
   }, [
     action,
     address,
-    challenged,
-    challengeLoading,
-    sectors.length,
-    currentLeader,
     isConnected,
     operatorStatus,
     parsedAllocation.error,
+    requiredForce,
     sector,
+    sectors.length,
+    selectedAllocation,
   ]);
 
-  const primaryDisabledReason = useMemo(() => {
-    if (commonDisabledReason) return commonDisabledReason;
-    if (action === 'settle') return null;
-    if (selectedAllocation === null || selectedAllocation === 0n)
-      return 'ENTER FORCE AMOUNT';
-    if (
-      (action === 'capture' || action === 'challenge') &&
-      selectedAllocation < requiredForce
-    ) {
-      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} FORCE`;
-    }
-    return null;
-  }, [action, commonDisabledReason, requiredForce, selectedAllocation]);
-
-  const collateralCommonDisabledReason = commonDisabledReason;
-
-  const submit = async (withSacrifice = false) => {
+  const submit = async () => {
     if (
       !sector ||
       !address ||
       !config.controlSystemAddress ||
-      (withSacrifice ? collateralCommonDisabledReason : primaryDisabledReason)
+      disabledReason ||
+      selectedAllocation === null
     ) {
       return;
     }
-    const allocationAmount = selectedAllocation ?? 0n;
     setError(null);
     setPhase('submitting');
     setSectorInteractionLocked(true);
     let hash: string | null = null;
     try {
-      const freshSector = await getSectorStatus(sector.id);
-      let calls;
-      let label: string;
-
-      if (action === 'settle') {
-        if (
-          freshSector.activeChallengeId === 0n ||
-          !freshSector.challengeDeadline ||
-          freshSector.challengeDeadline > Date.now() / 1_000
-        ) {
-          throw new Error(
-            'The response window is still active or already settled.'
-          );
-        }
-        calls = buildControlCall(
-          config.controlSystemAddress,
-          'settle_challenge',
-          [String(sector.id)]
+      const [freshSector, freshOperator] = await Promise.all([
+        getSectorStatus(sector.id),
+        getOperatorStatus(address),
+      ]);
+      const freshlyOwned =
+        !isZeroAddress(freshSector.controller) &&
+        addressesMatch(freshSector.controller, address);
+      if (action === 'reinforce' && !freshlyOwned) {
+        throw new Error('You no longer control this Sector.');
+      }
+      if (action !== 'reinforce' && freshlyOwned) {
+        throw new Error('You already control this Sector.');
+      }
+      if (
+        action !== 'reinforce' &&
+        selectedAllocation < freshSector.requiredStake
+      ) {
+        throw new Error(
+          `This Sector now needs at least ${formatStrk(
+            freshSector.requiredStake,
+            18
+          )} FORCE.`
         );
-        label = 'CHALLENGE SETTLEMENT';
-      } else {
-        if (!operatorStatus) throw new Error('Operator state is unavailable.');
-        const freshOperator = await getOperatorStatus(address);
-        if (action === 'reinforce') {
-          if (allocationAmount === 0n) {
-            throw new Error('Enter the additional FORCE allocation.');
-          }
-          const freshDeficit = stakeDeficit(
-            allocationAmount,
-            freshOperator.availableForce
-          );
-          if (freshDeficit > 0n) {
-            throw new Error(
-              `Stake ${formatStrk(freshDeficit, 18)} more STRK before reinforcing.`
-            );
-          }
-          calls = buildGameActionCalls({
-            controlSystemAddress: config.controlSystemAddress,
-            entrypoint: 'reinforce',
-            calldata: [String(sector.id), allocationAmount.toString()],
-          });
-          label = 'REINFORCEMENT';
-        } else if (action === 'challenge') {
-          if (
-            freshSector.activeChallengeId !== 0n &&
-            freshSector.challengeDeadline &&
-            freshSector.challengeDeadline <= Date.now() / 1_000
-          ) {
-            throw new Error(
-              'The challenge clock ran out. Settle the challenge.'
-            );
-          }
-          let previousPersonalCommitment = 0n;
-          if (freshSector.activeChallengeId !== 0n) {
-            const freshChallenge = await getChallengeStatus(
-              freshSector.activeChallengeId
-            );
-            if (addressesMatch(freshChallenge.leader, address)) {
-              throw new Error('You are already the current leader.');
-            }
-            const freshParticipant = await getChallengeParticipantStatus(
-              freshSector.activeChallengeId,
-              address
-            );
-            if (freshParticipant.joined && !freshParticipant.resolved) {
-              previousPersonalCommitment = freshParticipant.committedForce;
-            }
-          }
-
-          let sacrificedForce = 0n;
-          let source: number | null = null;
-          if (withSacrifice) {
-            source = Number(collateralId);
-            if (
-              !Number.isInteger(source) ||
-              source < 0 ||
-              source === sector.id
-            ) {
-              throw new Error(
-                'Enter a different owned Sector ID to sacrifice.'
-              );
-            }
-            const sourceSector = await getSectorStatus(source);
-            if (
-              !addressesMatch(sourceSector.controller, address) ||
-              sourceSector.activeChallengeId !== 0n
-            ) {
-              throw new Error(
-                'The sacrificed Sector must be uncontested and owned by you.'
-              );
-            }
-            sacrificedForce = sourceSector.captureForce;
-          }
-          if (allocationAmount < freshSector.requiredStake) {
-            throw new Error(
-              `Challenge force must reach at least ${formatStrk(
-                freshSector.requiredStake,
-                18
-              )} FORCE.`
-            );
-          }
-          const addedCommittedForce = incrementalCommittedForce(
-            allocationAmount,
-            previousPersonalCommitment
-          );
-          const allocationAfterSacrifice =
-            addedCommittedForce > sacrificedForce
-              ? addedCommittedForce - sacrificedForce
-              : 0n;
-          const freshDeficit = stakeDeficit(
-            allocationAfterSacrifice,
-            freshOperator.availableForce
-          );
-          if (freshDeficit > 0n) {
-            throw new Error(
-              `Stake ${formatStrk(freshDeficit, 18)} more STRK before challenging.`
-            );
-          }
-          calls = buildGameActionCalls({
-            controlSystemAddress: config.controlSystemAddress,
-            entrypoint: withSacrifice
-              ? 'challenge_with_sacrifice'
-              : 'challenge',
-            calldata: withSacrifice
-              ? [String(sector.id), String(source), allocationAmount.toString()]
-              : [String(sector.id), allocationAmount.toString()],
-          });
-          label = challenged
-            ? withSacrifice
-              ? 'SACRIFICED + ESCALATED CHALLENGE'
-              : 'ESCALATED CHALLENGE'
-            : withSacrifice
-              ? 'SACRIFICED + INITIATED CHALLENGE'
-              : 'INITIATED CHALLENGE';
-        } else {
-          if (allocationAmount < freshSector.requiredStake) {
-            throw new Error(
-              `Capture requires ${formatStrk(
-                freshSector.requiredStake,
-                18
-              )} FORCE.`
-            );
-          }
-          const freshDeficit = stakeDeficit(
-            allocationAmount,
-            freshOperator.availableForce
-          );
-          if (freshDeficit > 0n) {
-            throw new Error(
-              `Stake ${formatStrk(freshDeficit, 18)} more STRK before capturing.`
-            );
-          }
-          calls = buildGameActionCalls({
-            controlSystemAddress: config.controlSystemAddress,
-            entrypoint: 'capture',
-            calldata: [String(sector.id), allocationAmount.toString()],
-          });
-          label = 'CAPTURE';
-        }
+      }
+      const freshDeficit = stakeDeficit(
+        selectedAllocation,
+        freshOperator.availableForce
+      );
+      if (freshDeficit > 0n) {
+        throw new Error(
+          `Stake ${formatStrk(freshDeficit, 18)} more STRK before ${copy.gerund}.`
+        );
       }
 
+      const calls = buildGameActionCalls({
+        controlSystemAddress: config.controlSystemAddress,
+        entrypoint: action === 'reinforce' ? 'reinforce' : 'capture',
+        calldata: [String(sector.id), selectedAllocation.toString()],
+      });
       const result = await transaction.sendAsync(calls);
       hash = result.transaction_hash;
       notifySubmitting(
         hash,
-        `SECTOR-${String(sector.id).padStart(4, '0')} ${label}`
+        `SECTOR-${String(sector.id).padStart(4, '0')} ${copy.toast}`
       );
       setPhase('confirming');
       await provider.waitForTransaction(hash, {
@@ -476,168 +228,67 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     }
   };
 
-  const briefKind: ActionBriefKind =
-    action === 'settle'
-      ? 'settle'
-      : challenged && currentLeader
-        ? 'leading'
-        : challenged && owned
-          ? 'defend'
-          : challenged
-            ? 'join'
-            : action;
-  const verb =
-    action === 'settle'
-      ? 'SETTLE'
-      : action === 'reinforce'
-        ? 'REINFORCE'
-        : action === 'capture'
-          ? 'CAPTURE'
-          : challenged
-            ? 'BID'
-            : 'CHALLENGE';
-  const showAllocationInput = action !== 'settle' && briefKind !== 'leading';
-  const bidAtRisk =
-    briefKind !== 'leading' && requestedForce > personalCommitment
-      ? requestedForce
-      : personalCommitment;
   const label =
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING…'
-        : primaryDisabledReason
-          ? `${BUTTON_LABELS[briefKind]} · ${primaryDisabledReason}`
-          : action === 'settle'
-            ? BUTTON_LABELS[briefKind]
-            : `${BUTTON_LABELS[briefKind]} · ${formatStrk(
-                selectedAllocation ?? 0n,
-                18
-              )} FORCE`;
+        : disabledReason
+          ? `${copy.verb} · ${disabledReason}`
+          : `${copy.verb} · ${formatStrk(requestedForce, 18)} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
-        <span>{TITLES[briefKind]}</span>
-        {challenged && !expired ? (
-          <span className="flex items-center gap-1.5 text-[8px] text-red-400">
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 animate-pulse bg-red-500 motion-reduce:animate-none"
-            />
-            LIVE
-          </span>
-        ) : (
-          <span className="text-[8px] text-dim">FORCE ACTION</span>
-        )}
+        <span>{copy.title}</span>
+        <span className="text-[8px] text-dim">FORCE ACTION</span>
       </header>
-      <ActionBrief kind={briefKind} windowSeconds={challengeWindowSeconds} />
+      <ActionBrief kind={action} />
       <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
-        {challenged && !challenge && challengeLoading && (
-          <div className="text-dim">READING CHALLENGE…</div>
-        )}
-        {challenged && challenge && (
-          <div className="space-y-2 border-b border-grid pb-3">
-            {sector.challengeDeadline && (
-              <Row label="TIME LEFT">
-                <span className={expired ? 'text-dim' : 'text-fg'}>
-                  {expired
-                    ? 'ENDED'
-                    : formatCountdown(sector.challengeDeadline - clockSeconds)}
-                </span>
-              </Row>
-            )}
-            <Row
-              label={expired ? 'WINNING BID' : 'TOP BID'}
-              note={
-                <>
-                  <span title={challenge.leader}>
-                    {shortAddress(challenge.leader)}
-                  </span>
-                  {currentLeader && (
-                    <span className="text-amber-300"> (YOU)</span>
-                  )}
-                </>
-              }
-            >
-              <span className="text-fg">
-                {formatStrk(challenge.leadingForce, 18)} FORCE
-              </span>
-            </Row>
-            {personalCommitment > 0n && !currentLeader && (
-              <Row label="YOUR BID">
-                {formatStrk(personalCommitment, 18)} FORCE
-              </Row>
-            )}
+        <label
+          className="block pt-1 text-dim"
+          htmlFor={`allocation-${sector?.id ?? 'none'}`}
+        >
+          {action === 'reinforce' ? 'ADD FORCE' : 'YOUR DEFENSE'}
+        </label>
+        <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
+          <input
+            id={`allocation-${sector?.id ?? 'none'}`}
+            value={allocation}
+            onChange={(event) => setAllocation(event.target.value)}
+            inputMode="decimal"
+            placeholder="0"
+            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none"
+          />
+          <span className="px-2 text-dim">FORCE</span>
+        </div>
+        {parsedAllocation.error && (
+          <div className="leading-relaxed text-amber-400">
+            {parsedAllocation.error}
           </div>
         )}
-        {showAllocationInput && (
-          <>
-            <label
-              className="block pt-1 text-dim"
-              htmlFor={`allocation-${sector?.id ?? 'none'}`}
-            >
-              {action === 'reinforce'
-                ? 'ADD FORCE'
-                : action === 'capture'
-                  ? 'YOUR DEFENSE'
-                  : personalCommitment > 0n
-                    ? 'YOUR NEW TOTAL BID'
-                    : 'YOUR BID'}
-            </label>
-            <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
-              <input
-                id={`allocation-${sector?.id ?? 'none'}`}
-                value={allocation}
-                onChange={(event) => setAllocation(event.target.value)}
-                inputMode="decimal"
-                placeholder="0"
-                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none"
-              />
-              <span className="px-2 text-dim">FORCE</span>
-            </div>
-            {parsedAllocation.error && (
-              <div className="leading-relaxed text-amber-400">
-                {parsedAllocation.error}
-              </div>
-            )}
-            {action === 'reinforce' && (
-              <Row label="RESULTING DEFENSE">
-                {formatStrk(projectedCommitment, 18)} FORCE
-              </Row>
-            )}
-            {(action === 'capture' || action === 'challenge') && (
-              <Row label="MINIMUM">{formatStrk(requiredForce, 18)} FORCE</Row>
-            )}
-            {action === 'challenge' && personalCommitment > 0n && (
-              <Row label="YOU ADD">
-                +{formatStrk(additionalCommittedForce, 18)} FORCE
-              </Row>
-            )}
-            <Row label="AVAILABLE">{formatStrk(availableForce, 18)} FORCE</Row>
-          </>
+        {action === 'reinforce' ? (
+          <Row label="RESULTING DEFENSE">
+            {formatStrk((sector?.captureForce ?? 0n) + requestedForce, 18)}{' '}
+            FORCE
+          </Row>
+        ) : (
+          <Row label="MINIMUM">{formatStrk(requiredForce, 18)} FORCE</Row>
         )}
-        {(action === 'challenge' || briefKind === 'leading') &&
-          bidAtRisk > 0n && (
-            <div className="border-l-2 border-amber-400 bg-amber-400/[0.04] px-2 py-1.5 text-[10px] leading-relaxed tracking-[0.02em] text-amber-300">
-              {briefKind === 'defend'
-                ? `Lose and you forfeit the Sector and ${formatStrk(bidAtRisk, 18)} FORCE.`
-                : briefKind === 'leading'
-                  ? `Lose the lead and your ${formatStrk(bidAtRisk, 18)} FORCE is at risk.`
-                  : `Lose and your ${formatStrk(bidAtRisk, 18)} FORCE is spent.`}{' '}
-              <span className="text-neutral-400">STRK stays staked.</span>
-            </div>
-          )}
+        <Row label="AVAILABLE">{formatStrk(availableForce, 18)} FORCE</Row>
         {error && (
           <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">
             ACTION FAILED · {error}
           </div>
         )}
-        {briefKind === 'leading' ? null : !isConnected || !address ? (
+        {!isConnected || !address ? (
           <div className="mt-2">
-            <WalletButton variant="block" label={`CONNECT WALLET TO ${verb}`} />
+            <WalletButton
+              variant="block"
+              label={`CONNECT WALLET TO ${copy.verb}`}
+            />
           </div>
-        ) : deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
+        ) : deficit > 0n && !disabledReason ? (
           <Link
             to={{
               pathname: '/staking',
@@ -645,13 +296,13 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             }}
             className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
           >
-            STAKE {formatStrk(deficit, 18)} STRK TO {verb}
+            STAKE {formatStrk(deficit, 18)} STRK TO {copy.verb}
           </Link>
         ) : (
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
+            disabled={Boolean(disabledReason) || phase !== 'idle'}
             className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
           >
             {label}

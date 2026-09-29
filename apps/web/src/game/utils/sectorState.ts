@@ -6,7 +6,6 @@ interface EffectiveSectorState {
   captureForce: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
-  activeChallengeId: bigint;
 }
 
 function effectiveIndexedSectorState(
@@ -18,7 +17,6 @@ function effectiveIndexedSectorState(
     captureForce: sector.captureForce,
     ownershipGeneration: sector.ownershipGeneration,
     controlledSince: sector.controlledSince,
-    activeChallengeId: sector.activeChallengeId,
   };
 }
 
@@ -39,7 +37,6 @@ function effectiveSectorStatusState(
       (indexed && addressesMatch(indexed.controller, status.controller)
         ? indexed.controlledSince
         : null),
-    activeChallengeId: status.activeChallengeId,
   };
 }
 
@@ -52,8 +49,7 @@ function effectiveSectorStatesMatch(
     addressesMatch(left.controller, right.controller) &&
     left.captureForce === right.captureForce &&
     left.ownershipGeneration === right.ownershipGeneration &&
-    left.controlledSince === right.controlledSince &&
-    left.activeChallengeId === right.activeChallengeId
+    left.controlledSince === right.controlledSince
   );
 }
 

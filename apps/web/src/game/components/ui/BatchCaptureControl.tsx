@@ -63,7 +63,7 @@ function assertBatchIsActionable(
 ) {
   for (const sector of sectors) {
     const label = `SECTOR-${String(sector.id).padStart(4, '0')}`;
-    if (sector.stale || sector.needsSync || sector.activeChallengeId !== 0n) {
+    if (sector.stale || sector.needsSync) {
       throw new Error(`${label} is no longer eligible for a batch action.`);
     }
     if (intent === 'capture') {

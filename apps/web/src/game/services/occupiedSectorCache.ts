@@ -3,7 +3,7 @@ import { isZeroAddress } from '../utils/format';
 import { isSectorId } from '../utils/sectorGeometry';
 import { config } from './config';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 interface OccupiedSectorCacheStorage {
   getItem(key: string): string | null;
@@ -18,7 +18,6 @@ interface CachedOccupiedSector {
   captureForce: string;
   ownershipGeneration: string;
   controlledSince: number | null;
-  activeChallengeId: string;
 }
 
 interface OccupiedSectorCachePayload {
@@ -79,7 +78,6 @@ function parseCachedSector(value: unknown): IndexedSector | null {
   const ownershipGeneration = parseNonNegativeBigInt(
     candidate.ownershipGeneration
   );
-  const activeChallengeId = parseNonNegativeBigInt(candidate.activeChallengeId);
   const controlledSince = candidate.controlledSince;
 
   if (
@@ -88,7 +86,6 @@ function parseCachedSector(value: unknown): IndexedSector | null {
     controllerGeneration === null ||
     captureForce === null ||
     ownershipGeneration === null ||
-    activeChallengeId === null ||
     (controlledSince !== null &&
       (typeof controlledSince !== 'number' ||
         !Number.isSafeInteger(controlledSince) ||
@@ -104,7 +101,6 @@ function parseCachedSector(value: unknown): IndexedSector | null {
     captureForce,
     ownershipGeneration,
     controlledSince,
-    activeChallengeId,
   };
 }
 
@@ -166,7 +162,6 @@ export function writeOccupiedSectorCache(
       captureForce: sector.captureForce.toString(),
       ownershipGeneration: sector.ownershipGeneration.toString(),
       controlledSince: sector.controlledSince,
-      activeChallengeId: sector.activeChallengeId.toString(),
     })),
   };
 

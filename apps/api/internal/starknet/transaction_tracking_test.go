@@ -145,7 +145,7 @@ func TestKeeperJournalFailureBlocksBroadcast(t *testing.T) {
 func TestKeeperPreparationErrorRecordsRPCDataAndRetryHistory(t *testing.T) {
 	ctx := context.Background()
 	db, journal := trackingDB(t)
-	rpcErr := &starknetrpc.RPCError{Code: 41, Message: "Transaction execution error", Data: &starknetrpc.TransactionExecErrData{TransactionIndex: 0, ExecutionError: starknetrpc.ContractExecutionError{Message: "challenge already settled"}}}
+	rpcErr := &starknetrpc.RPCError{Code: 41, Message: "Transaction execution error", Data: &starknetrpc.TransactionExecErrData{TransactionIndex: 0, ExecutionError: starknetrpc.ContractExecutionError{Message: "supply drop not active"}}}
 	account := &trackedKeeperAccount{prepareErr: rpcErr}
 	keeper := &AccountSupplyDropSubmitter{account: account, journal: journal, network: "SN_SEPOLIA", keeperAddress: "0x1", supplyDropSystem: new(felt.Felt).SetUint64(2)}
 	for i := 0; i < 2; i++ {
@@ -159,7 +159,7 @@ func TestKeeperPreparationErrorRecordsRPCDataAndRetryHistory(t *testing.T) {
 	}
 	var code int
 	var data string
-	if err := db.QueryRow(`SELECT rpc_code,error_data FROM transaction_attempt_events WHERE status='failed' LIMIT 1`).Scan(&code, &data); err != nil || code != 41 || !strings.Contains(data, "challenge already settled") || !strings.Contains(data, "transaction_index") {
+	if err := db.QueryRow(`SELECT rpc_code,error_data FROM transaction_attempt_events WHERE status='failed' LIMIT 1`).Scan(&code, &data); err != nil || code != 41 || !strings.Contains(data, "supply drop not active") || !strings.Contains(data, "transaction_index") {
 		t.Fatalf("RPC details lost: %d %s %v", code, data, err)
 	}
 }

@@ -106,7 +106,7 @@ export function SupplyDropHoldBanner() {
           <p className="mt-2">
             Stake {formatStrk(hold.remainingStake, 6)} more STRK to clear your
             Drop hold. Sector actions and image changes are paused; opponents
-            can still challenge your Sectors.
+            can still take over your Sectors.
           </p>
           <p className="mt-1 text-neutral-500">
             {formatStrk(hold.liveStake, 6)} /{' '}

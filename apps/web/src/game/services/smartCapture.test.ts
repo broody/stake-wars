@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBatchGameActionCalls,
   buildGameActionCalls,
-  incrementalCommittedForce,
   stakeDeficit,
 } from './smartCapture';
 
@@ -11,34 +10,18 @@ const shared = {
 };
 
 describe('allocation action calls', () => {
-  it('builds a game action without staking calls', () => {
+  it('builds a capture or takeover without staking calls', () => {
     expect(
       buildGameActionCalls({
         ...shared,
-        entrypoint: 'challenge',
+        entrypoint: 'capture',
         calldata: ['7', '420'],
       })
     ).toEqual([
       {
         contractAddress: '0xcontrol',
-        entrypoint: 'challenge',
+        entrypoint: 'capture',
         calldata: ['7', '420'],
-      },
-    ]);
-  });
-
-  it('builds a collateral sacrifice call with its liquid contribution', () => {
-    expect(
-      buildGameActionCalls({
-        ...shared,
-        entrypoint: 'challenge_with_sacrifice',
-        calldata: ['7', '8', '420'],
-      })
-    ).toEqual([
-      {
-        contractAddress: '0xcontrol',
-        entrypoint: 'challenge_with_sacrifice',
-        calldata: ['7', '8', '420'],
       },
     ]);
   });
@@ -130,11 +113,6 @@ describe('allocation action calls', () => {
 });
 
 describe('staking arithmetic', () => {
-  it('locks only the increase over an operator previous challenge commitment', () => {
-    expect(incrementalCommittedForce(700n, 500n)).toBe(200n);
-    expect(incrementalCommittedForce(500n, 500n)).toBe(0n);
-  });
-
   it('stakes only the portion of a selected allocation that is unavailable', () => {
     expect(stakeDeficit(420n, 200n)).toBe(220n);
     expect(stakeDeficit(420n, 420n)).toBe(0n);

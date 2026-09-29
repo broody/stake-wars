@@ -197,17 +197,15 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
             {!isMultiSelection &&
               (selectedSector.stale || selectedSector.needsSync) && (
                 <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
-                  This Sector has stale Operator state and must be synced.
+                  Its last owner no longer has the stake to hold it, so it can
+                  be captured at the minimum.
                 </div>
               )}
 
-            {!isMultiSelection &&
-            ((!selectedSector.stale && !selectedSector.needsSync) ||
-              selectedSector.activeChallengeId !== 0n) ? (
+            {!isMultiSelection ? (
               <CaptureControl
-                key={`action-${selectedSector.id}-${selectedSector.activeChallengeId}`}
+                key={`action-${selectedSector.id}-${selectedSector.ownershipGeneration}`}
                 sectors={[selectedSector]}
-                intent={controlledByOperator ? 'fortify' : 'capture'}
               />
             ) : null}
             {!isMultiSelection &&
@@ -249,7 +247,7 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
                   <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
                     {batchGroups.individualOnly.length} selected Sector
                     {batchGroups.individualOnly.length === 1 ? '' : 's'} require
-                    an individual challenge or state sync and are excluded from
+                    an individual takeover or capture and are excluded from
                     batch actions.
                   </div>
                 )}

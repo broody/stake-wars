@@ -2,9 +2,9 @@
 
 Stake Wars is a persistent, non-custodial strategy game that turns Starknet
 validator delegation into a battle for territory. Players deploy their
-delegated STRK as FORCE to capture and defend Sectors on the Core, challenge
-rivals, and decide how much strength to reveal—all without creating a separate
-game token or moving custody away from Starknet's staking system.
+delegated STRK as FORCE to capture and defend Sectors on the Core, take them
+from rivals, and decide how much strength to reveal—all without creating a
+separate game token or moving custody away from Starknet's staking system.
 
 This repository contains the web application, game API, and Dojo contracts.
 
@@ -109,11 +109,11 @@ temporary and removed on exit; press Ctrl+C to stop, then rerun the command to
 include code changes. Update the public Mainnet settings after production
 deployments change the configured addresses.
 
-The shared Sepolia World uses a 0.1 STRK minimum capture force, a 180-second
-response window, and 2,000 Sectors. Mainnet launches with a 100 STRK
-minimum and a 10,800-second response window. The game admin may change the
-response window through the on-chain rules configuration. Every accepted lead
-change uses the then-current window, with no absolute contest-duration cap.
+The shared Sepolia World uses a 0.1 STRK minimum capture force and 2,000
+Sectors; the game admin sets the Mainnet minimum through the on-chain rules
+configuration. An occupied Sector changes hands instantly to any Operator who
+commits at least 10% more FORCE than its garrison, and the displaced Controller's
+FORCE is returned in full.
 Deployed addresses in `apps/web/.env.sepolia` are updated only after a successful
 deployment proves the new addresses.
 

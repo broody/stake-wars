@@ -17,7 +17,7 @@ func TestHistorySurvivesCancellationRetryAndReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewStore(db)
-	metadata := Metadata{Network: "SN_SEPOLIA", Source: "keeper", Account: "0x1", Contract: "0x2", Entrypoint: "settle_challenge", TargetID: "527"}
+	metadata := Metadata{Network: "SN_SEPOLIA", Source: "keeper", Account: "0x1", Contract: "0x2", Entrypoint: "lock_supply_drop", TargetID: "7"}
 	first, err := store.Begin(ctx, metadata)
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +25,7 @@ func TestHistorySurvivesCancellationRetryAndReopen(t *testing.T) {
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
 	code := 41
-	if err := store.Record(cancelled, first, Event{Stage: "prepare", Status: "failed", Code: &code, Message: "Transaction execution error", Data: `{"transaction_index":0,"execution_error":{"contract_address":"0x2","error":"challenge not expired"},"request":{"calldata":["DO_NOT_STORE"]}}`}); err != nil {
+	if err := store.Record(cancelled, first, Event{Stage: "prepare", Status: "failed", Code: &code, Message: "Transaction execution error", Data: `{"transaction_index":0,"execution_error":{"contract_address":"0x2","error":"supply drop not expired"},"request":{"calldata":["DO_NOT_STORE"]}}`}); err != nil {
 		t.Fatal(err)
 	}
 	second, err := store.Begin(ctx, metadata)
@@ -58,13 +58,13 @@ func TestHistorySurvivesCancellationRetryAndReopen(t *testing.T) {
 	if err := db.QueryRow(`SELECT a.status,e.rpc_code,e.error_message,e.error_data FROM transaction_attempts a JOIN transaction_attempt_events e ON a.id=e.attempt_id WHERE a.id=? AND e.stage='prepare' AND e.status='failed'`, first).Scan(&status, &savedCode, &message, &data); err != nil {
 		t.Fatal(err)
 	}
-	if status != "failed" || savedCode != 41 || !strings.Contains(data, "challenge not expired") || strings.Contains(data, "DO_NOT_STORE") {
+	if status != "failed" || savedCode != 41 || !strings.Contains(data, "supply drop not expired") || strings.Contains(data, "DO_NOT_STORE") {
 		t.Fatalf("diagnostics lost or leaked: %s %d %s %s", status, savedCode, message, data)
 	}
 	if pending, err := NewStore(db).Pending(ctx, "SN_SEPOLIA", "keeper", "0x1"); err != nil || len(pending) != 0 {
 		t.Fatalf("terminal attempts pending: %v %v", pending, err)
 	}
-	history, err := NewStore(db).History(ctx, Filter{Limit: 1, TargetID: "527"})
+	history, err := NewStore(db).History(ctx, Filter{Limit: 1, TargetID: "7"})
 	if err != nil || len(history) != 1 || history[0].ID != second || history[0].EventCount != 3 || len(history[0].Events) != 3 {
 		t.Fatalf("incorrect history report: %+v %v", history, err)
 	}

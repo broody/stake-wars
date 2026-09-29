@@ -1,9 +1,9 @@
 # Stake Wars API
 
 The Go API owns wallet authentication, off-chain image metadata, and optional
-permissionless maintenance. Open Challenges and all winner decisions are
-handled directly by the Dojo World. When the keeper is enabled, the
-API holds only a dedicated unprivileged signing key and a small fee balance;
+permissionless maintenance. Sector captures, instant takeovers, and all winner
+decisions are handled directly by the Dojo World. When the keeper is enabled,
+the API holds only a dedicated unprivileged signing key and a small fee balance;
 it never holds game funds, prize assets, admin roles, or encryption keys. Image
 bytes are uploaded directly to Tigris rather than passing through this service.
 
@@ -87,11 +87,10 @@ else, including the winner, can submit the same call.
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
-| `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification and optional contest settlement. |
+| `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification. |
 | `SUPPLY_DROP_SYSTEM_ADDRESS` | unset | Deployed Dojo SupplyDrop System. Configuring this enables the periodic keeper. |
-| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop, Challenge, and Beacon duties. |
+| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop and Beacon duties. |
 | `SUPPLY_DROP_KEEPER_PRIVATE_KEY` | unset | Private key for the dedicated keeper account. Configure only as a server secret. |
-| `CHALLENGE_KEEPER_ENABLED` | `false` | Automatically settle expired contests using the existing SupplyDrop keeper signer. Requires all three SupplyDrop keeper variables, `CONTROL_SYSTEM_ADDRESS`, `STARKNET_RPC_URL`, and `TORII_URL`. |
 | `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Sector image objects. |
 | `IMAGE_PUBLIC_URL` | unset | Public CDN origin for image delivery, such as `https://assets.stakewars.gg`. |
 | `S3_ENDPOINT` | unset | S3-compatible API endpoint, such as `https://fly.storage.tigris.dev`. |
@@ -107,40 +106,26 @@ worker begins. The keeper runs every 20 seconds, locks expired active rounds,
 and settles drawing rounds only after the contract's block-hash availability
 delay has elapsed.
 
-Enable `CHALLENGE_KEEPER_ENABLED=true` to settle expired Sector contests in the
-same 20-second maintenance loop. The keeper discovers contested Sectors through
-paginated Torii queries, then checks each Sector's current challenge ID and
-deadline directly onchain. It compares deadlines with the latest block timestamp,
-so an incorrect server clock cannot trigger early settlement. Each pass attempts
-at most five settlements and rotates through the backlog to avoid starving later
-Sectors. Indexer lag, a new challenge, an escalation, or a user settling first
-causes stale work to be skipped or rechecked. The contract still determines the
-winner and all FORCE accounting; the backend receives no game privileges.
+SupplyDrop lock and settlement calls share one signer and nonce lock. Before
+broadcast, the signer persists the locally computed transaction hash in SQLite,
+then waits for an accepted receipt. A timeout or lost RPC response keeps that
+hash pending; startup restores it and maintenance checks its receipt before
+further sends. Completion is followed by a fresh onchain state read. Explicitly
+rejected transactions can be retried on later passes with a new attempt record.
 
-Challenge and SupplyDrop calls share one signer and nonce lock. Before broadcast,
-the signer persists the locally computed transaction hash in SQLite, then waits
-for an accepted receipt. A timeout or lost RPC response keeps that hash pending;
-startup restores it and maintenance checks its receipt before further sends.
-Completion is followed by a fresh onchain state read. Explicitly rejected
-transactions can be retried on later passes with a new attempt record.
+Keep the dedicated account funded with STRK for fees and monitor maintenance
+error logs. Manual locking and settlement remain available when the keeper is
+delayed or disabled. Sector captures and takeovers complete in the player's own
+transaction, so the keeper has no Sector duty.
 
-Keep the dedicated account funded with STRK for fees and monitor `Challenge
-settled` and maintenance error logs. Manual settlement remains available when
-the keeper is delayed or disabled. This duty covers `settle_challenge`;
-additional older losing positions still use the separate permissionless
-`resolve_challenge_position` entrypoint.
-
-Activation requires a backend deployment with the flag enabled and the existing
-keeper secrets configured for that network. Local API runs must use the shared
-Sepolia deployment and a Sepolia keeper; never inject the production signing key
-into a local frontend or demo. Setting the flag to `false` disables automatic
-contest settlement without disabling SupplyDrop maintenance.
+Local API runs must use the shared Sepolia deployment and a Sepolia keeper;
+never inject the production signing key into a local frontend or demo.
 
 ## Durable transaction diagnostics
 
 Migration `011_transaction_journal.sql` adds `transaction_attempts` and
 `transaction_attempt_events` to the existing application database. Keeper
-Challenge, Supply Drop, and Beacon settlement calls record an attempt before
+Supply Drop and Beacon settlement calls record an attempt before
 submitting work. Each attempt retains its network, source, signer (for
 local submissions), contract, entrypoint, target, timestamps, transaction hash
 when known, and status. Events append the lifecycle stage, receipt block, RPC
@@ -166,7 +151,7 @@ Inspect journal metadata with the read-only command (included in the API image):
 ```sh
 # Run inside the API container, or supply the path to an existing local database.
 stakewars-transaction-history --db /data/stakewars.db --limit 20
-stakewars-transaction-history --db /data/stakewars.db --target 527
+stakewars-transaction-history --db /data/stakewars.db --target 7
 stakewars-transaction-history --db /data/stakewars.db --attempt 123
 ```
 

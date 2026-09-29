@@ -20,29 +20,23 @@ type ControlReader interface {
 }
 
 type SectorStatus struct {
-	ID                       uint32
-	Controller               string
-	CaptureForce             string
-	OwnershipGeneration      uint64
-	ControlledSince          uint64
-	RequiredStake            string
-	ActiveChallengeID        uint64
-	ChallengeLeadChangeCount uint32
-	ChallengeDeadline        uint64
-	Stale                    bool
-	NeedsSync                bool
+	ID                  uint32
+	Controller          string
+	CaptureForce        string
+	OwnershipGeneration uint64
+	ControlledSince     uint64
+	RequiredStake       string
+	Stale               bool
+	NeedsSync           bool
 }
 
 type OperatorStatus struct {
 	Operator              string
 	LiveDelegatedAmount   string
 	SectorForce           string
-	ChallengeForce        string
-	SpentForce            string
 	AvailableForce        string
 	Generation            uint64
 	ControlledSectorCount uint32
-	ActiveChallengeCount  uint32
 	Retired               bool
 	Exiting               bool
 	NeedsSync             bool
@@ -74,7 +68,7 @@ func (r *RPCControlReader) SectorStatus(
 	if err != nil {
 		return SectorStatus{}, err
 	}
-	if len(result) != 11 {
+	if len(result) != 8 {
 		return SectorStatus{}, fmt.Errorf("unexpected sector status length %d", len(result))
 	}
 
@@ -102,39 +96,24 @@ func (r *RPCControlReader) SectorStatus(
 	if err != nil {
 		return SectorStatus{}, fieldError("required_stake", err)
 	}
-	activeChallengeID, err := parseUint(result[6], 64)
-	if err != nil {
-		return SectorStatus{}, fieldError("active_challenge_id", err)
-	}
-	challengeLeadChangeCount, err := parseUint(result[7], 32)
-	if err != nil {
-		return SectorStatus{}, fieldError("challenge_lead_change_count", err)
-	}
-	challengeDeadline, err := parseUint(result[8], 64)
-	if err != nil {
-		return SectorStatus{}, fieldError("challenge_deadline", err)
-	}
-	stale, err := parseBool(result[9])
+	stale, err := parseBool(result[6])
 	if err != nil {
 		return SectorStatus{}, fieldError("stale", err)
 	}
-	needsSync, err := parseBool(result[10])
+	needsSync, err := parseBool(result[7])
 	if err != nil {
 		return SectorStatus{}, fieldError("needs_sync", err)
 	}
 
 	return SectorStatus{
-		ID:                       uint32(id),
-		Controller:               controller,
-		CaptureForce:             captureForce,
-		OwnershipGeneration:      generation,
-		ControlledSince:          controlledSince,
-		RequiredStake:            requiredStake,
-		ActiveChallengeID:        activeChallengeID,
-		ChallengeLeadChangeCount: uint32(challengeLeadChangeCount),
-		ChallengeDeadline:        challengeDeadline,
-		Stale:                    stale,
-		NeedsSync:                needsSync,
+		ID:                  uint32(id),
+		Controller:          controller,
+		CaptureForce:        captureForce,
+		OwnershipGeneration: generation,
+		ControlledSince:     controlledSince,
+		RequiredStake:       requiredStake,
+		Stale:               stale,
+		NeedsSync:           needsSync,
 	}, nil
 }
 
@@ -150,7 +129,7 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, err
 	}
-	if len(result) != 12 {
+	if len(result) != 9 {
 		return OperatorStatus{}, fmt.Errorf("unexpected operator status length %d", len(result))
 	}
 
@@ -166,39 +145,27 @@ func (r *RPCControlReader) OperatorStatus(
 	if err != nil {
 		return OperatorStatus{}, fieldError("sector_force", err)
 	}
-	challengeForce, err := parseUintString(result[3], 128)
-	if err != nil {
-		return OperatorStatus{}, fieldError("challenge_force", err)
-	}
-	spentForce, err := parseUintString(result[4], 128)
-	if err != nil {
-		return OperatorStatus{}, fieldError("spent_force", err)
-	}
-	availableForce, err := parseUintString(result[5], 128)
+	availableForce, err := parseUintString(result[3], 128)
 	if err != nil {
 		return OperatorStatus{}, fieldError("available_force", err)
 	}
-	generation, err := parseUint(result[6], 64)
+	generation, err := parseUint(result[4], 64)
 	if err != nil {
 		return OperatorStatus{}, fieldError("generation", err)
 	}
-	sectorCount, err := parseUint(result[7], 32)
+	sectorCount, err := parseUint(result[5], 32)
 	if err != nil {
 		return OperatorStatus{}, fieldError("controlled_sector_count", err)
 	}
-	activeChallengeCount, err := parseUint(result[8], 32)
-	if err != nil {
-		return OperatorStatus{}, fieldError("active_challenge_count", err)
-	}
-	retired, err := parseBool(result[9])
+	retired, err := parseBool(result[6])
 	if err != nil {
 		return OperatorStatus{}, fieldError("retired", err)
 	}
-	exiting, err := parseBool(result[10])
+	exiting, err := parseBool(result[7])
 	if err != nil {
 		return OperatorStatus{}, fieldError("exiting", err)
 	}
-	needsSync, err := parseBool(result[11])
+	needsSync, err := parseBool(result[8])
 	if err != nil {
 		return OperatorStatus{}, fieldError("needs_sync", err)
 	}
@@ -207,12 +174,9 @@ func (r *RPCControlReader) OperatorStatus(
 		Operator:              returnedOperator,
 		LiveDelegatedAmount:   live,
 		SectorForce:           sectorForce,
-		ChallengeForce:        challengeForce,
-		SpentForce:            spentForce,
 		AvailableForce:        availableForce,
 		Generation:            generation,
 		ControlledSectorCount: uint32(sectorCount),
-		ActiveChallengeCount:  uint32(activeChallengeCount),
 		Retired:               retired,
 		Exiting:               exiting,
 		NeedsSync:             needsSync,

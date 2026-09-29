@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  decodeChallengeStatusResult,
   decodeSectorStatusesResult,
   decodeOperatorStatusResult,
   decodePoolMemberInfoResult,
@@ -30,9 +29,6 @@ describe('Starknet RPC calldata', () => {
           '0x2',
           '0x3b9aca00',
           '0x6e',
-          '0x1',
-          '0x3',
-          '0x4e20',
           '0x0',
           '0x1',
         ],
@@ -43,67 +39,47 @@ describe('Starknet RPC calldata', () => {
       captureForce: 100n,
       controlledSince: 1_000_000_000,
       requiredStake: 110n,
-      activeChallengeId: 1n,
-      challengeLeadChangeCount: 3,
-      challengeDeadline: 20_000,
       stale: false,
       needsSync: true,
     });
   });
 
-  it('decodes allocation and open-contest status widths', () => {
-    expect(
-      decodeOperatorStatusResult(
+  it('rejects Sector status batches with the retired Challenge fields', () => {
+    expect(() =>
+      decodeSectorStatusesResult(
         [
+          '0x1',
+          '0xa',
           '0xabc',
-          '0x3e8',
           '0x64',
-          '0xc8',
-          '0x12c',
-          '0x190',
           '0x2',
+          '0x3b9aca00',
+          '0x6e',
+          '0x1',
           '0x3',
-          '0x4',
-          '0x0',
+          '0x4e20',
           '0x0',
           '0x1',
         ],
+        1
+      )
+    ).toThrow('invalid status batch');
+  });
+
+  it('decodes Operator allocation status', () => {
+    expect(
+      decodeOperatorStatusResult(
+        ['0xabc', '0x3e8', '0x64', '0x384', '0x2', '0x3', '0x0', '0x0', '0x1'],
         '0xabc'
       )
     ).toMatchObject({
+      liveDelegatedAmount: 1_000n,
       sectorForce: 100n,
-      challengeForce: 200n,
-      spentForce: 300n,
-      availableForce: 400n,
-      activeChallengeCount: 4,
+      availableForce: 900n,
+      generation: 2n,
+      controlledSectorCount: 3,
+      retired: false,
       needsSync: true,
-    });
-
-    expect(
-      decodeChallengeStatusResult([
-        '0x1',
-        '0x2a',
-        '0x111',
-        '0x222',
-        '0x1f4',
-        '0x111',
-        '0x190',
-        '0x4e20',
-        '0x3',
-        '0x4',
-        '0x0',
-        '0x0',
-        '0x0',
-        '0x0',
-      ])
-    ).toMatchObject({
-      sectorId: 42,
-      leader: '0x222',
-      leadingForce: 500n,
-      lastLosingForce: 400n,
-      leadChangeCount: 3,
-      participantCount: 4,
-      settled: false,
     });
   });
 });
