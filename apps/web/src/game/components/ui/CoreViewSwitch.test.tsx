@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sectors = vi.hoisted(() => ({
+  controlView: 'flat' as 'flat' | 'staked',
+  changeControlView: vi.fn(),
   ownedSectorIds: [4, 9] as number[],
   isOwnedSectorsView: false,
   setOwnedSectorsView: vi.fn(),
@@ -14,34 +16,53 @@ vi.mock('../../contexts/SectorContext', () => ({
 
 import { CoreViewSwitch } from './CoreViewSwitch';
 
+function pressedStates(markup: string): string[] {
+  return [...markup.matchAll(/aria-pressed="(true|false)"/g)].map(
+    (match) => match[1]
+  );
+}
+
 describe('CoreViewSwitch', () => {
   beforeEach(() => {
+    sectors.controlView = 'flat';
     sectors.ownedSectorIds = [4, 9];
     sectors.isOwnedSectorsView = false;
     sectors.isImageUploadMode = false;
   });
 
-  it('offers YOUR SECTORS to an Operator who holds Sectors', () => {
+  it('offers STAKED VIEW and YOUR SECTORS to an Operator who holds Sectors', () => {
     const markup = renderToStaticMarkup(<CoreViewSwitch />);
 
     expect(markup).toContain('data-preserve-core-tracking="true"');
+    expect(markup).toContain('STAKED VIEW');
     expect(markup).toContain('YOUR SECTORS');
-    expect(markup).toContain('aria-pressed="false"');
+    expect(pressedStates(markup)).toEqual(['false', 'false']);
   });
 
-  it('shows when the owned-Sector view is active', () => {
+  it('shows which views are active', () => {
+    sectors.controlView = 'staked';
+    expect(pressedStates(renderToStaticMarkup(<CoreViewSwitch />))).toEqual([
+      'true',
+      'false',
+    ]);
+
+    sectors.controlView = 'flat';
     sectors.isOwnedSectorsView = true;
-
-    expect(renderToStaticMarkup(<CoreViewSwitch />)).toContain(
-      'aria-pressed="true"'
-    );
+    expect(pressedStates(renderToStaticMarkup(<CoreViewSwitch />))).toEqual([
+      'false',
+      'true',
+    ]);
   });
 
-  it('is hidden without owned Sectors or during image upload', () => {
+  it('offers only STAKED VIEW without owned Sectors', () => {
     sectors.ownedSectorIds = [];
-    expect(renderToStaticMarkup(<CoreViewSwitch />)).toBe('');
+    const markup = renderToStaticMarkup(<CoreViewSwitch />);
 
-    sectors.ownedSectorIds = [4];
+    expect(markup).toContain('STAKED VIEW');
+    expect(markup).not.toContain('YOUR SECTORS');
+  });
+
+  it('is hidden during image upload', () => {
     sectors.isImageUploadMode = true;
     expect(renderToStaticMarkup(<CoreViewSwitch />)).toBe('');
   });

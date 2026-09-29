@@ -29,6 +29,13 @@ export interface ArtworkPresence {
   shown: boolean;
 }
 
+/** Raises art with the Sector relief it sits on. */
+export interface ArtworkRelief {
+  heights: ReadonlyMap<number, number>;
+  /** 0 keeps art at its base heights; 1 places it on the relief. */
+  progress: FlipProgressRef;
+}
+
 const vertexShader = `
   attribute vec3 projectorClip;
   attribute vec4 placement;
@@ -37,6 +44,8 @@ const vertexShader = `
   attribute vec4 atlasRect;
   attribute vec3 sectorCenter;
   attribute float concealable;
+  attribute float reliefScale;
+  uniform float reliefProgress;
   varying float vConcealable;
   varying vec3 vProjectorClip;
   varying vec4 vPlacement;
@@ -52,7 +61,9 @@ const vertexShader = `
     vAtlasRect = atlasRect;
     vSectorCenter = sectorCenter;
     vConcealable = concealable;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec3 raisedPosition = position * mix(1.0, reliefScale, reliefProgress);
+    gl_Position = projectionMatrix * modelViewMatrix
+      * vec4(raisedPosition, 1.0);
   }
 `;
 
@@ -146,6 +157,7 @@ function ProjectedArtworkMesh({
   waveDelay,
   visibleOnBothFaces = false,
   presence,
+  relief,
   opacity = 1,
   renderOrder = 3,
   atlasColumns = 1,
@@ -161,12 +173,14 @@ function ProjectedArtworkMesh({
   waveDelay: number;
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
+  relief?: ArtworkRelief;
   opacity?: number;
   renderOrder?: number;
   atlasColumns?: number;
   atlasRows?: number;
 }) {
   const presenceSectorIds = presence?.sectorIds;
+  const reliefHeights = relief?.heights;
   const geometry = useMemo(
     () =>
       createProjectedArtworkGeometry(
@@ -175,9 +189,10 @@ function ProjectedArtworkMesh({
         atlasColumns,
         atlasRows,
         0.02,
-        presenceSectorIds
+        presenceSectorIds,
+        reliefHeights
       ),
-    [atlasColumns, atlasRows, heights, presenceSectorIds, slots]
+    [atlasColumns, atlasRows, heights, presenceSectorIds, reliefHeights, slots]
   );
   const material = useMemo(
     () =>
@@ -193,6 +208,7 @@ function ProjectedArtworkMesh({
           waveDelayAmount: { value: waveDelay },
           presenceProgress: { value: 1 },
           presenceDirection: { value: 1 },
+          reliefProgress: { value: 0 },
         },
         vertexShader,
         fragmentShader,
@@ -223,6 +239,7 @@ function ProjectedArtworkMesh({
     material.uniforms.presenceProgress.value = presence?.progress.current ?? 1;
     material.uniforms.presenceDirection.value =
       presence && !presence.shown ? -1 : 1;
+    material.uniforms.reliefProgress.value = relief?.progress.current ?? 0;
   });
   return (
     <mesh
@@ -244,6 +261,7 @@ function ArtworkAtlasPage({
   waveDelay,
   visibleOnBothFaces,
   presence,
+  relief,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -255,6 +273,7 @@ function ArtworkAtlasPage({
   waveDelay: number;
   visibleOnBothFaces: boolean;
   presence?: ArtworkPresence;
+  relief?: ArtworkRelief;
   onLoadingChange?: (pageId: string, loading: boolean) => void;
 }) {
   const pageId = artworks[0].id;
@@ -293,6 +312,7 @@ function ArtworkAtlasPage({
       waveDelay={waveDelay}
       visibleOnBothFaces={visibleOnBothFaces}
       presence={presence}
+      relief={relief}
       atlasColumns={columns}
       atlasRows={rows}
     />
@@ -310,6 +330,7 @@ export function SectorImageLayer({
   waveDelay,
   visibleOnBothFaces = false,
   presence,
+  relief,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -322,6 +343,7 @@ export function SectorImageLayer({
   waveDelay: number;
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
+  relief?: ArtworkRelief;
   onLoadingChange?: (loading: boolean) => void;
 }) {
   const loadingPageIdsRef = useRef(new Set<string>());
@@ -363,6 +385,7 @@ export function SectorImageLayer({
           waveDelay={waveDelay}
           visibleOnBothFaces={visibleOnBothFaces}
           presence={presence}
+          relief={relief}
           onLoadingChange={reportPageLoading}
         />
       ))}
@@ -380,6 +403,7 @@ export function SectorDetailImageLayer({
   waveDelay,
   visibleOnBothFaces = false,
   presence,
+  relief,
 }: {
   artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
@@ -390,6 +414,7 @@ export function SectorDetailImageLayer({
   waveDelay: number;
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
+  relief?: ArtworkRelief;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const slots = useMemo(() => [{ artwork, column: 0, row: 0 }], [artwork]);
@@ -422,6 +447,7 @@ export function SectorDetailImageLayer({
       waveDelay={waveDelay}
       visibleOnBothFaces={visibleOnBothFaces}
       presence={presence}
+      relief={relief}
       renderOrder={4}
       atlasColumns={1}
       atlasRows={1}
@@ -440,6 +466,7 @@ export function SectorDetailImageLayers({
   waveDelay,
   visibleOnBothFaces = false,
   presence,
+  relief,
 }: {
   artworks: readonly SectorArtwork[];
   priorityArtworkIds: readonly string[];
@@ -451,6 +478,7 @@ export function SectorDetailImageLayers({
   waveDelay: number;
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
+  relief?: ArtworkRelief;
 }) {
   const { camera, gl } = useThree();
   const [detailArtworkIds, setDetailArtworkIds] = useState<string[]>([]);
@@ -507,6 +535,7 @@ export function SectorDetailImageLayers({
         waveDelay={waveDelay}
         visibleOnBothFaces={visibleOnBothFaces}
         presence={presence}
+        relief={relief}
       />
     );
   });

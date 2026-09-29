@@ -1,5 +1,11 @@
+import { BEACON_ORBIT_RADIUS } from './beaconOrbit';
+import { BEACON_RADIUS } from './beaconVisuals';
+import { CORE_RADIUS } from './sectorGeometry';
+
 export const STAKE_RELIEF_CAP_STRK = 100_000;
-export const MAX_STAKE_RELIEF_HEIGHT = 0.9;
+// A Sector at the cap rises to just inside the Beacon's orbit.
+export const MAX_STAKE_RELIEF_HEIGHT =
+  BEACON_ORBIT_RADIUS - BEACON_RADIUS - CORE_RADIUS;
 
 const STRK_BASE_UNIT = 10n ** 18n;
 const STAKE_RELIEF_CAP_BASE_UNITS =

@@ -141,7 +141,8 @@ export default function EnemySwarms({
         sectorStakeHeights(
           controlView === 'staked',
           occupiedSectorIds,
-          sectorCaptureForce
+          sectorCaptureForce,
+          false
         )
       ),
     [controlView, occupiedSectorIds, sectorCaptureForce]

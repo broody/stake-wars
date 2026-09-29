@@ -39,9 +39,12 @@ export function createProjectedArtworkGeometry(
   columns: number,
   rows: number,
   paddingFraction = 0,
-  hiddenSectorIds?: ReadonlySet<number>
+  hiddenSectorIds?: ReadonlySet<number>,
+  reliefHeights?: ReadonlyMap<number, number>
 ): THREE.BufferGeometry {
   const positions: number[] = [];
+  const reliefScales: number[] = [];
+  let maxReliefOffset = 0;
   const concealable: number[] = [];
   const projectorClips: number[] = [];
   const placements: number[] = [];
@@ -73,14 +76,24 @@ export function createProjectedArtworkGeometry(
           (raw[2] + raw[5] + raw[8]) / 3
         )
         .normalize();
-      const radialScale =
-        (IMAGE_SURFACE_RADIUS + (heights.get(sectorId) ?? 0)) /
-        IMAGE_SURFACE_RADIUS;
+      const baseRadius = IMAGE_SURFACE_RADIUS + (heights.get(sectorId) ?? 0);
+      const radialScale = baseRadius / IMAGE_SURFACE_RADIUS;
+      // Relief moves the art radially without changing where the projector
+      // maps it, so each Sector keeps its piece of the image as it rises.
+      const reliefScale = reliefHeights
+        ? (IMAGE_SURFACE_RADIUS + (reliefHeights.get(sectorId) ?? 0)) /
+          baseRadius
+        : 1;
+      maxReliefOffset = Math.max(
+        maxReliefOffset,
+        Math.abs(reliefScale - 1) * baseRadius
+      );
       for (let offset = 0; offset < raw.length; offset += VALUES_PER_VERTEX) {
         position
           .set(raw[offset], raw[offset + 1], raw[offset + 2])
           .multiplyScalar(radialScale);
         positions.push(position.x, position.y, position.z);
+        reliefScales.push(reliefScale);
         clip.set(position.x, position.y, position.z, 1).applyMatrix4(projector);
         projectorClips.push(clip.x, clip.y, clip.w);
         placements.push(
@@ -102,6 +115,10 @@ export function createProjectedArtworkGeometry(
   geometry.setAttribute(
     'position',
     new THREE.Float32BufferAttribute(positions, 3)
+  );
+  geometry.setAttribute(
+    'reliefScale',
+    new THREE.Float32BufferAttribute(reliefScales, 1)
   );
   geometry.setAttribute(
     'projectorClip',
@@ -132,6 +149,9 @@ export function createProjectedArtworkGeometry(
     new THREE.Float32BufferAttribute(concealable, 1)
   );
   geometry.computeBoundingSphere();
+  // Cover the raised art as well so it is not culled.
+  if (geometry.boundingSphere)
+    geometry.boundingSphere.radius += maxReliefOffset;
   return geometry;
 }
 

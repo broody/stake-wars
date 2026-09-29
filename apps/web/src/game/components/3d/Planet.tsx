@@ -58,7 +58,10 @@ const SECTOR_GRID_FADE_DISTANCE = 22;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
 const CORE_WAVE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
 const RELIEF_TRANSITION_SECONDS = 0.55;
-const RELIEF_TRANSITION_MS = RELIEF_TRANSITION_SECONDS * 1_000;
+// Relief advances before any layer reads it (R3F runs frame callbacks in
+// mount order), so Sector tops and the art on them never drift a frame apart.
+// Negative priorities keep R3F's automatic rendering.
+const RELIEF_FRAME_PRIORITY = -1;
 
 interface ReliefAnimationState {
   mix: number;
@@ -110,7 +113,7 @@ function useReliefAnimation(
         ? visibilityTarget
         : animationRef.current.visibility +
           Math.sign(visibilityDistance) * step;
-  });
+  }, RELIEF_FRAME_PRIORITY);
 
   return animationRef;
 }
@@ -226,11 +229,13 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
 const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform float uLoadRevealProgress;
+  uniform float uReliefVisibility;
   varying float vFlipProgress;
   varying vec3 vViewNormal;
 
   void main() {
-    if (vFlipProgress >= 0.999) discard;
+    // Settled artwork faces keep their walls only while relief is raised.
+    if (vFlipProgress >= 0.999 && uReliefVisibility <= 0.0) discard;
     if (vFlipProgress < 0.5 && uLoadRevealProgress < 1.0) discard;
     vec3 viewNormal = normalize(vViewNormal);
     if (!gl_FrontFacing) viewNormal = -viewNormal;
@@ -1482,6 +1487,8 @@ interface SectorOwnershipLayersProps {
   stakedHeights?: ReadonlyMap<number, number>;
   reliefTarget?: number;
   reliefVisible?: boolean;
+  /** Shares relief timing with other layers; overrides the two props above. */
+  reliefAnimation?: ReliefAnimationRef;
   flipped?: boolean;
   interactive?: boolean;
   waveOrigin?: THREE.Vector3;
@@ -1511,6 +1518,7 @@ export function SectorOwnershipLayers({
   stakedHeights = sectorHeights,
   reliefTarget = 1,
   reliefVisible = true,
+  reliefAnimation: sharedReliefAnimation,
   flipped = false,
   interactive = true,
   waveOrigin,
@@ -1524,7 +1532,8 @@ export function SectorOwnershipLayers({
   onHoverSector,
   onPointerOut,
 }: SectorOwnershipLayersProps) {
-  const reliefAnimation = useReliefAnimation(reliefTarget, reliefVisible);
+  const ownReliefAnimation = useReliefAnimation(reliefTarget, reliefVisible);
+  const reliefAnimation = sharedReliefAnimation ?? ownReliefAnimation;
   const completedLoadRevealAnimation = useRef<SectorLoadRevealAnimationState>({
     progress: 1,
   });
@@ -1753,6 +1762,9 @@ export function Planet({
     }),
     [opponentPresence, opponentSectorIdSet, showsOnlyOwnedSectors]
   );
+  // STAKED VIEW raises each Sector by its Capture Force, carrying its artwork
+  // with it. Image upload keeps the Core flat while art is placed.
+  const isStakedView = controlView === 'staked' && !isImageUploadMode;
   const shouldShowProjection = isCoreWaveFlipped || isImageUploadMode;
   const [tenureClock, setTenureClock] = useState(() => Date.now() / 1_000);
   const prefersReducedMotion = useMemo(
@@ -1763,12 +1775,23 @@ export function Planet({
   );
   const [projectionSurfaceVisible, setProjectionSurfaceVisible] =
     useState(shouldShowProjection);
-  const [waveFlipActive, setWaveFlipActive] = useState(isCoreWaveFlipped);
-  const [reliefSurfaceVisible, setReliefSurfaceVisible] =
-    useState(!isCoreWaveFlipped);
-  const previousWaveFlipRef = useRef(isCoreWaveFlipped);
   // The load intro's flip onto the artwork is what first reveals the Sectors.
-  const coreFlipped = waveFlipActive && isIntroFlipReleased;
+  const coreFlipped = isCoreWaveFlipped && isIntroFlipReleased;
+  // The control face always shows relief; the artwork face only when staked.
+  const reliefAnimation = useReliefAnimation(
+    isStakedView ? 1 : 0,
+    isStakedView || !isCoreWaveFlipped
+  );
+  // Artwork follows the same eased relief as the Sector tops beneath it.
+  const artworkReliefProgress = useRef(0);
+  useFrame(() => {
+    const { mix, visibility } = reliefAnimation.current;
+    artworkReliefProgress.current =
+      mix *
+      mix *
+      (3 - 2 * mix) *
+      (visibility * visibility * (3 - 2 * visibility));
+  }, RELIEF_FRAME_PRIORITY);
   // Images follow one clock so an image that loads mid-flip still waits for
   // its panel to land.
   const imageFlipProgress = useFlipProgress(coreFlipped);
@@ -1862,42 +1885,6 @@ export function Planet({
     return () => window.clearInterval(interval);
   }, [tenureExtrusionEnabled]);
 
-  useEffect(() => {
-    const previousFlip = previousWaveFlipRef.current;
-    previousWaveFlipRef.current = isCoreWaveFlipped;
-
-    if (prefersReducedMotion) {
-      setReliefSurfaceVisible(!isCoreWaveFlipped);
-      setWaveFlipActive(isCoreWaveFlipped);
-      return;
-    }
-
-    if (isCoreWaveFlipped) {
-      setReliefSurfaceVisible(false);
-      if (!previousFlip && controlView === 'staked') {
-        setWaveFlipActive(false);
-        const timeout = window.setTimeout(
-          () => setWaveFlipActive(true),
-          RELIEF_TRANSITION_MS
-        );
-        return () => window.clearTimeout(timeout);
-      }
-      setWaveFlipActive(true);
-      return;
-    }
-
-    setWaveFlipActive(false);
-    if (previousFlip && controlView === 'staked') {
-      setReliefSurfaceVisible(false);
-      const timeout = window.setTimeout(
-        () => setReliefSurfaceVisible(true),
-        CORE_WAVE_FLIP_DURATION_MS
-      );
-      return () => window.clearTimeout(timeout);
-    }
-    setReliefSurfaceVisible(true);
-  }, [controlView, isCoreWaveFlipped, prefersReducedMotion]);
-
   const flatSectorHeights = useMemo(
     () =>
       sectorTenureHeights(
@@ -1916,7 +1903,8 @@ export function Planet({
     ]
   );
   const stakedSectorHeights = useMemo(
-    () => sectorStakeHeights(true, occupiedSectorIds, sectorCaptureForce, true),
+    () =>
+      sectorStakeHeights(true, occupiedSectorIds, sectorCaptureForce, false),
     [occupiedSectorIds, sectorCaptureForce]
   );
   const extrusionHeights = useMemo(() => {
@@ -1932,9 +1920,11 @@ export function Planet({
     });
     return heights;
   }, [flatSectorHeights, occupiedSectorIds, stakedSectorHeights]);
-  const sectorHeights = useMemo(() => {
-    return controlView === 'staked' ? stakedSectorHeights : flatSectorHeights;
-  }, [controlView, flatSectorHeights, stakedSectorHeights]);
+  const sectorHeights = isStakedView ? stakedSectorHeights : flatSectorHeights;
+  const artworkRelief = useMemo(
+    () => ({ heights: stakedSectorHeights, progress: artworkReliefProgress }),
+    [stakedSectorHeights]
+  );
   const priorityDetailArtworkIds = useMemo(() => {
     if (!shouldShowProjection) return [];
     const ids: string[] = [];
@@ -1963,7 +1953,7 @@ export function Planet({
     selectedSectorId,
     shouldShowProjection,
   ]);
-  const imageHeights = sectorHeights;
+  const imageHeights = flatSectorHeights;
   const placementArtwork = useMemo(() => {
     if (!placementDraft?.placement) return null;
     return {
@@ -2149,6 +2139,7 @@ export function Planet({
         visible={projectionSurfaceVisible}
         visibleOnBothFaces={isImageUploadMode}
         presence={opponentArtworkPresence}
+        relief={artworkRelief}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
@@ -2164,6 +2155,7 @@ export function Planet({
           flipProgress={imageFlipProgress}
           visibleOnBothFaces={isImageUploadMode}
           presence={opponentArtworkPresence}
+          relief={artworkRelief}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
           waveDelay={flipWaveDelay}
@@ -2191,8 +2183,7 @@ export function Planet({
         extrusionHeights={extrusionHeights}
         flatHeights={flatSectorHeights}
         stakedHeights={stakedSectorHeights}
-        reliefTarget={controlView === 'staked' ? 1 : 0}
-        reliefVisible={reliefSurfaceVisible}
+        reliefAnimation={reliefAnimation}
         flipped={coreFlipped}
         interactive={!isImageUploadMode}
         waveOrigin={flipWaveOrigin}

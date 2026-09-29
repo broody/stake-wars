@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import type { SectorArtwork } from '../types';
 import {
   artworkAtlasSourceKey,
@@ -120,6 +121,50 @@ describe('artwork atlas source key', () => {
 
     expect(concealable(new Set([1978]))).toEqual([0, 0, 0, 1, 1, 1]);
     expect(concealable()).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
+  it('raises art onto relief without moving its projection', () => {
+    const shared = artwork('https://images.example/shared.webp');
+    shared.targets = [
+      { sectorId: 1977, ownershipGeneration: 1 },
+      { sectorId: 1978, ownershipGeneration: 1 },
+    ];
+    const slots = [{ artwork: shared, column: 0, row: 0 }];
+    const flat = createProjectedArtworkGeometry(slots, new Map(), 1, 1);
+    const raised = createProjectedArtworkGeometry(
+      slots,
+      new Map(),
+      1,
+      1,
+      0,
+      undefined,
+      new Map([[1978, 0.5]])
+    );
+    const surfaceRadius = new THREE.Vector3()
+      .fromBufferAttribute(raised.getAttribute('position'), 0)
+      .length();
+
+    expect(
+      Array.from(raised.getAttribute('reliefScale').array as Float32Array)
+    ).toEqual(
+      [1, 1, 1, ...Array(3).fill((surfaceRadius + 0.5) / surfaceRadius)].map(
+        Math.fround
+      )
+    );
+    expect(raised.getAttribute('position').array).toEqual(
+      flat.getAttribute('position').array
+    );
+    expect(raised.getAttribute('projectorClip').array).toEqual(
+      flat.getAttribute('projectorClip').array
+    );
+    expect(Array.from(flat.getAttribute('reliefScale').array)).toEqual(
+      Array(6).fill(1)
+    );
+    expect(raised.boundingSphere!.radius).toBeCloseTo(
+      flat.boundingSphere!.radius + 0.5
+    );
+    flat.dispose();
+    raised.dispose();
   });
 
   it('fits a wide image to the same selected surface at a lower height', () => {
