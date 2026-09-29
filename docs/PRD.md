@@ -135,7 +135,7 @@ The first release intentionally excludes passive territory decay, recurring Oper
     *   **Empty Sector:** Wireframe outline.
     *   **Occupied Sector:** Solid fill (White) or displays the Operator's custom image.
     *   **Selected Sector:** Highlights and displays the Controller, Capture Force (labeled Defense), the Minimum Takeover Force, and the connected Operator's contextually relevant Available Force.
-    *   **Control Views:** Control mode offers `FLAT VIEW` and `STAKED VIEW`. Staked View extrudes each occupied Sector radially according to its committed Capture Force so Operators can compare targets before selecting a Sector to take over. Users may switch the fixed height scale between capped absolute and logarithmic mappings; the exact Capture Force remains visible in the selected Sector panel. Projection mode remains flat.
+    *   **Staked View:** A `STAKED VIEW` toggle raises each occupied Sector radially in proportion to its committed Capture Force so Operators can compare targets before selecting a Sector to take over. Height scales linearly up to a 100,000 STRK cap, at which a Sector rises to just inside the Beacon's orbit; the exact Capture Force remains visible in the selected Sector panel. Sector artwork stays visible and rises with its Sector, keeping its place in the projected image. Image upload keeps the Core flat while art is placed.
 *   **Parallax Background:** Pixel-art starfield that moves slowly in reverse of the camera rotation.
 
 ### 4.3. The HUD (Heads Up Display)
@@ -263,7 +263,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Mainnet integration with the Stake Wars validator's official STRK delegation pool.
     *   Starknet wallet connection and atomic stake-and-action multicalls.
     *   Torii-backed ownership and event updates in the frontend.
-    *   Flat and Staked Control views with capped absolute and logarithmic Capture Force relief scales.
+    *   Staked View with capped linear Capture Force relief that carries Sector artwork.
     *   Fly.io API with wallet-verified, ownership-bound upload authorization.
     *   Single-Machine Go API with SQLite on a Fly Volume, Litestream replication to a private Tigris backup bucket, and a tested recovery procedure before production data is accepted.
     *   Custom image uploads backed by Tigris and served from `assets.stakewars.gg`.
