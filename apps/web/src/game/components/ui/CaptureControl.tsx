@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   useProvider,
   useSendTransaction,
@@ -34,6 +34,9 @@ import {
   shortAddress,
 } from '../../utils/format';
 import { stakeRequestSearch } from '../../utils/stakingRequest';
+import { useChallengeWindowSeconds } from '../../hooks/useChallengeWindow';
+import { ActionBrief, type ActionBriefKind } from './ActionBrief';
+import { WalletButton } from './WalletButton';
 
 interface CaptureControlProps {
   sectors: SectorStatus[];
@@ -44,6 +47,52 @@ type Phase = 'idle' | 'submitting' | 'confirming';
 type Action = 'capture' | 'reinforce' | 'challenge' | 'settle';
 
 const MAX_U128 = (1n << 128n) - 1n;
+
+const TITLES: Record<ActionBriefKind, string> = {
+  capture: 'CAPTURE SECTOR',
+  reinforce: 'REINFORCE SECTOR',
+  challenge: 'CHALLENGE SECTOR',
+  join: 'CHALLENGE IN PROGRESS',
+  defend: 'DEFEND YOUR SECTOR',
+  leading: 'YOU ARE LEADING',
+  settle: 'CHALLENGE ENDED',
+};
+
+const BUTTON_LABELS: Record<ActionBriefKind, string> = {
+  capture: 'CAPTURE',
+  reinforce: 'REINFORCE',
+  challenge: 'START CHALLENGE',
+  join: 'PLACE BID',
+  defend: 'DEFEND',
+  leading: 'LEADING',
+  settle: 'SETTLE CHALLENGE',
+};
+
+function Row({
+  label,
+  note,
+  children,
+}: {
+  label: string;
+  note?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-4">
+        <span>{label}</span>
+        <span className="text-right tabular-nums text-neutral-300">
+          {children}
+        </span>
+      </div>
+      {note ? (
+        <div className="mt-0.5 text-right text-[8px] tracking-[0.14em] text-dim">
+          {note}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function CaptureControl({ sectors, intent }: CaptureControlProps) {
   const sector = sectors[0];
@@ -59,6 +108,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
   const { notifySubmitting, notifyConfirmed, notifyFailed } =
     useTransactionToast();
   const transaction = useSendTransaction({});
+  const challengeWindowSeconds = useChallengeWindowSeconds();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [allocation, setAllocation] = useState('');
@@ -145,7 +195,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           setError(
             reason instanceof Error
               ? reason.message
-              : 'Unable to read the open contest.'
+              : 'Unable to read the challenge.'
           );
         }
       })
@@ -186,12 +236,12 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
 
   const commonDisabledReason = useMemo(() => {
     if (sectors.length !== 1 || !sector) return 'SELECT ONE SECTOR';
-    if (!isConnected || !address) return 'CONNECT OPERATOR';
+    if (!isConnected || !address) return 'CONNECT WALLET';
     if (action === 'settle') return null;
     if (!operatorStatus) return 'WAITING FOR OPERATOR STATE';
     if (operatorStatus.retired) return 'ADDRESS PERMANENTLY RETIRED';
     if (operatorStatus.needsSync) return 'OPERATOR SYNC REQUIRED';
-    if (challenged && challengeLoading) return 'READING OPEN CONTEST';
+    if (challenged && challengeLoading) return 'READING CHALLENGE';
     if (action === 'challenge' && currentLeader)
       return 'YOU ARE CURRENTLY LEADING';
     if (parsedAllocation.error) return 'ENTER A VALID FORCE AMOUNT';
@@ -259,7 +309,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           'settle_challenge',
           [String(sector.id)]
         );
-        label = 'CONTEST SETTLEMENT';
+        label = 'CHALLENGE SETTLEMENT';
       } else {
         if (!operatorStatus) throw new Error('Operator state is unavailable.');
         const freshOperator = await getOperatorStatus(address);
@@ -273,7 +323,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           );
           if (freshDeficit > 0n) {
             throw new Error(
-              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before fortifying.`
+              `Stake ${formatStrk(freshDeficit, 18)} more STRK before reinforcing.`
             );
           }
           calls = buildGameActionCalls({
@@ -281,14 +331,16 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
             entrypoint: 'reinforce',
             calldata: [String(sector.id), allocationAmount.toString()],
           });
-          label = 'FORTIFICATION';
+          label = 'REINFORCEMENT';
         } else if (action === 'challenge') {
           if (
             freshSector.activeChallengeId !== 0n &&
             freshSector.challengeDeadline &&
             freshSector.challengeDeadline <= Date.now() / 1_000
           ) {
-            throw new Error('The response window ended. Settle the contest.');
+            throw new Error(
+              'The challenge clock ran out. Settle the challenge.'
+            );
           }
           let previousPersonalCommitment = 0n;
           if (freshSector.activeChallengeId !== 0n) {
@@ -353,7 +405,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           );
           if (freshDeficit > 0n) {
             throw new Error(
-              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before challenging.`
+              `Stake ${formatStrk(freshDeficit, 18)} more STRK before challenging.`
             );
           }
           calls = buildGameActionCalls({
@@ -387,7 +439,7 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
           );
           if (freshDeficit > 0n) {
             throw new Error(
-              `Generate ${formatStrk(freshDeficit, 18)} more FORCE before capturing.`
+              `Stake ${formatStrk(freshDeficit, 18)} more STRK before capturing.`
             );
           }
           calls = buildGameActionCalls({
@@ -424,77 +476,114 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
     }
   };
 
-  const actionLabel =
+  const briefKind: ActionBriefKind =
     action === 'settle'
-      ? 'SETTLE CONTEST'
-      : action === 'challenge'
-        ? 'CHALLENGE'
-        : action === 'reinforce'
-          ? 'FORTIFY'
-          : action.toUpperCase();
+      ? 'settle'
+      : challenged && currentLeader
+        ? 'leading'
+        : challenged && owned
+          ? 'defend'
+          : challenged
+            ? 'join'
+            : action;
+  const verb =
+    action === 'settle'
+      ? 'SETTLE'
+      : action === 'reinforce'
+        ? 'REINFORCE'
+        : action === 'capture'
+          ? 'CAPTURE'
+          : challenged
+            ? 'BID'
+            : 'CHALLENGE';
+  const showAllocationInput = action !== 'settle' && briefKind !== 'leading';
+  const bidAtRisk =
+    briefKind !== 'leading' && requestedForce > personalCommitment
+      ? requestedForce
+      : personalCommitment;
   const label =
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING…'
         : primaryDisabledReason
-          ? `${actionLabel} · ${primaryDisabledReason}`
-          : action === 'reinforce'
-            ? `${actionLabel} WITH ${formatStrk(
+          ? `${BUTTON_LABELS[briefKind]} · ${primaryDisabledReason}`
+          : action === 'settle'
+            ? BUTTON_LABELS[briefKind]
+            : `${BUTTON_LABELS[briefKind]} · ${formatStrk(
                 selectedAllocation ?? 0n,
                 18
-              )} FORCE`
-            : actionLabel;
+              )} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
-        <span>
-          {challenged
-            ? owned
-              ? 'DEFEND SECTOR'
-              : 'CONTEST SECTOR'
-            : neutral
-              ? 'CAPTURE SECTOR'
-              : owned
-                ? 'FORTIFY SECTOR'
-                : 'CHALLENGE SECTOR'}
-        </span>
-        <span className="text-[8px] text-dim">FORCE ACTION</span>
-      </header>
-      <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
-        {challenged && challenge && (
-          <>
-            <div className="flex justify-between gap-4">
-              <span>CURRENT LEADER</span>
-              <span className="flex items-baseline gap-2 text-fg">
-                <span title={challenge.leader}>
-                  {shortAddress(challenge.leader)}
-                </span>
-                {currentLeader && <span className="text-amber-300">(YOU)</span>}
-              </span>
-            </div>
-            {sector.challengeDeadline && (
-              <div className="flex justify-between gap-4">
-                <span>TIME LEFT</span>
-                <span className="text-fg tabular-nums">
-                  {formatCountdown(sector.challengeDeadline - clockSeconds)}
-                </span>
-              </div>
-            )}
-          </>
+        <span>{TITLES[briefKind]}</span>
+        {challenged && !expired ? (
+          <span className="flex items-center gap-1.5 text-[8px] text-red-400">
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 animate-pulse bg-red-500 motion-reduce:animate-none"
+            />
+            LIVE
+          </span>
+        ) : (
+          <span className="text-[8px] text-dim">FORCE ACTION</span>
         )}
-        {action !== 'settle' && (
+      </header>
+      <ActionBrief kind={briefKind} windowSeconds={challengeWindowSeconds} />
+      <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
+        {challenged && !challenge && challengeLoading && (
+          <div className="text-dim">READING CHALLENGE…</div>
+        )}
+        {challenged && challenge && (
+          <div className="space-y-2 border-b border-grid pb-3">
+            {sector.challengeDeadline && (
+              <Row label="TIME LEFT">
+                <span className={expired ? 'text-dim' : 'text-fg'}>
+                  {expired
+                    ? 'ENDED'
+                    : formatCountdown(sector.challengeDeadline - clockSeconds)}
+                </span>
+              </Row>
+            )}
+            <Row
+              label={expired ? 'WINNING BID' : 'TOP BID'}
+              note={
+                <>
+                  <span title={challenge.leader}>
+                    {shortAddress(challenge.leader)}
+                  </span>
+                  {currentLeader && (
+                    <span className="text-amber-300"> (YOU)</span>
+                  )}
+                </>
+              }
+            >
+              <span className="text-fg">
+                {formatStrk(challenge.leadingForce, 18)} FORCE
+              </span>
+            </Row>
+            {personalCommitment > 0n && !currentLeader && (
+              <Row label="YOUR BID">
+                {formatStrk(personalCommitment, 18)} FORCE
+              </Row>
+            )}
+          </div>
+        )}
+        {showAllocationInput && (
           <>
             <label
               className="block pt-1 text-dim"
               htmlFor={`allocation-${sector?.id ?? 'none'}`}
             >
               {action === 'reinforce'
-                ? 'ADDITIONAL FORCE'
-                : action === 'challenge'
-                  ? 'CHALLENGE FORCE'
-                  : 'CAPTURE FORCE'}
+                ? 'ADD FORCE'
+                : action === 'capture'
+                  ? 'YOUR DEFENSE'
+                  : personalCommitment > 0n
+                    ? 'YOUR NEW TOTAL BID'
+                    : 'YOUR BID'}
             </label>
             <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
               <input
@@ -513,51 +602,61 @@ export function CaptureControl({ sectors, intent }: CaptureControlProps) {
               </div>
             )}
             {action === 'reinforce' && (
-              <div className="flex justify-between gap-4">
-                <span>RESULTING GARRISON</span>
-                <span>{formatStrk(projectedCommitment, 18)} FORCE</span>
-              </div>
+              <Row label="RESULTING DEFENSE">
+                {formatStrk(projectedCommitment, 18)} FORCE
+              </Row>
             )}
             {(action === 'capture' || action === 'challenge') && (
-              <>
-                <div className="flex justify-between gap-4">
-                  <span>MINIMUM</span>
-                  <span>{formatStrk(requiredForce, 18)} FORCE</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>AVAILABLE</span>
-                  <span>{formatStrk(availableForce, 18)} FORCE</span>
-                </div>
-              </>
+              <Row label="MINIMUM">{formatStrk(requiredForce, 18)} FORCE</Row>
             )}
+            {action === 'challenge' && personalCommitment > 0n && (
+              <Row label="YOU ADD">
+                +{formatStrk(additionalCommittedForce, 18)} FORCE
+              </Row>
+            )}
+            <Row label="AVAILABLE">{formatStrk(availableForce, 18)} FORCE</Row>
           </>
         )}
+        {(action === 'challenge' || briefKind === 'leading') &&
+          bidAtRisk > 0n && (
+            <div className="border-l-2 border-amber-400 bg-amber-400/[0.04] px-2 py-1.5 text-[10px] leading-relaxed tracking-[0.02em] text-amber-300">
+              {briefKind === 'defend'
+                ? `Lose and you forfeit the Sector and ${formatStrk(bidAtRisk, 18)} FORCE.`
+                : briefKind === 'leading'
+                  ? `Lose the lead and your ${formatStrk(bidAtRisk, 18)} FORCE is at risk.`
+                  : `Lose and your ${formatStrk(bidAtRisk, 18)} FORCE is spent.`}{' '}
+              <span className="text-neutral-400">STRK stays staked.</span>
+            </div>
+          )}
         {error && (
           <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">
             ACTION FAILED · {error}
           </div>
         )}
-        {!(action === 'challenge' && currentLeader) &&
-          (deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
-            <Link
-              to={{
-                pathname: '/staking',
-                search: stakeRequestSearch(deficit),
-              }}
-              className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
-            >
-              GENERATE {formatStrk(deficit, 18)} MORE FORCE
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
-              className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
-            >
-              {label}
-            </button>
-          ))}
+        {briefKind === 'leading' ? null : !isConnected || !address ? (
+          <div className="mt-2">
+            <WalletButton variant="block" label={`CONNECT WALLET TO ${verb}`} />
+          </div>
+        ) : deficit > 0n && action !== 'settle' && !primaryDisabledReason ? (
+          <Link
+            to={{
+              pathname: '/staking',
+              search: stakeRequestSearch(deficit),
+            }}
+            className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
+          >
+            STAKE {formatStrk(deficit, 18)} STRK TO {verb}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={Boolean(primaryDisabledReason) || phase !== 'idle'}
+            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+          >
+            {label}
+          </button>
+        )}
       </div>
     </section>
   );

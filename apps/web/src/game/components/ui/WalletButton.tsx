@@ -23,7 +23,17 @@ function preferredDownload(downloads: Record<string, string>) {
   return downloads.chrome || Object.values(downloads)[0];
 }
 
-export function WalletButton() {
+interface WalletButtonProps {
+  /** `block` renders a full-width primary button with the menu in flow. */
+  variant?: 'nav' | 'block';
+  label?: string;
+}
+
+export function WalletButton({
+  variant = 'nav',
+  label: disconnectedLabel,
+}: WalletButtonProps = {}) {
+  const isBlock = variant === 'block';
   const location = useLocation();
   const {
     address,
@@ -60,11 +70,17 @@ export function WalletButton() {
     };
   }, [isOpen]);
 
+  // The block menu opens in flow, often inside a scrolling panel.
+  useEffect(() => {
+    if (!isOpen || !isBlock) return;
+    menuRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [isBlock, isOpen]);
+
   const label = isConnecting
     ? '> CONNECTING'
     : isConnected
       ? '> OPERATOR'
-      : '> CONNECT_WALLET';
+      : (disconnectedLabel ?? '> CONNECT_WALLET');
 
   const handleButtonClick = () => {
     setIsOpen((open) => !open);
@@ -89,7 +105,7 @@ export function WalletButton() {
   };
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className={isBlock ? 'w-full' : 'relative'}>
       <button
         type="button"
         onClick={handleButtonClick}
@@ -102,7 +118,11 @@ export function WalletButton() {
             ? `Open ${walletName || 'wallet'} Operator menu`
             : 'Connect a Starknet wallet')
         }
-        className="border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm"
+        className={
+          isBlock
+            ? 'w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50'
+            : 'border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm'
+        }
       >
         {label}
       </button>
@@ -110,7 +130,11 @@ export function WalletButton() {
       {isOpen ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-64 border border-grid bg-bg p-2 shadow-2xl"
+          className={
+            isBlock
+              ? 'mt-2 w-full border border-grid bg-bg p-2'
+              : 'absolute right-0 top-full z-50 mt-2 w-64 border border-grid bg-bg p-2 shadow-2xl'
+          }
         >
           {isConnected && address ? (
             <>

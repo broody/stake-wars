@@ -51,7 +51,7 @@ export function CoreViewSwitch() {
           {isProjectionVisible ? '×' : ''}
         </span>
       )}
-      <span>SHOW PROJECTION</span>
+      <span>SHOW ARTWORK</span>
       {isProjectionLoading ? (
         <span className="sr-only">Loading projection thumbnails</span>
       ) : null}

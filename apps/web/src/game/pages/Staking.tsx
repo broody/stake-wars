@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
+import { ForceBreakdown } from '../components/ui/ForceBreakdown';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
@@ -365,6 +366,11 @@ export function Staking() {
                 emphasis
               />
             </div>
+            {operatorStatus ? (
+              <div className="border-b border-grid px-4 py-3 text-[9px] tracking-[0.2em] text-neutral-500">
+                <ForceBreakdown status={operatorStatus} />
+              </div>
+            ) : null}
             <div className="space-y-3 p-5 text-xs leading-5 text-neutral-500">
               <p>
                 Your STRK is delegated directly to the Stake Wars validator

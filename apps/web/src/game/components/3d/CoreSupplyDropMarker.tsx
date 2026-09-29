@@ -18,6 +18,9 @@ const ARRIVAL_DURATION_SECONDS = 1.15;
 const DEPARTURE_DURATION_SECONDS = 0.9;
 const FLIGHT_DISTANCE = 2.1;
 const ARRIVAL_SCALE = 0.35;
+// Draw after the Beacon projection (renderOrder 5) so depth decides which is
+// in front; a fully shown projection writes depth.
+const MARKER_GROUP_RENDER_ORDER = 6;
 
 function easeOutCubic(value: number): number {
   return 1 - (1 - value) ** 3;
@@ -31,10 +34,13 @@ export function CoreSupplyDropMarker({
   supplyDrop,
   isOpen,
   onInspect,
+  canArrive = true,
 }: {
   supplyDrop: SupplyDrop;
   isOpen: boolean;
   onInspect: () => void;
+  /** On load, the marker arrives together with the Beacon projection. */
+  canArrive?: boolean;
 }) {
   const markerRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
@@ -102,6 +108,10 @@ export function CoreSupplyDropMarker({
     const marker = markerRef.current;
     const body = bodyRef.current;
     if (!marker || !body) return;
+    if (!canArrive && arrivalStartedAtRef.current === null) {
+      marker.visible = false;
+      return;
+    }
 
     const elapsed = clock.getElapsedTime();
     arrivalStartedAtRef.current ??= elapsed;
@@ -235,6 +245,7 @@ export function CoreSupplyDropMarker({
         position={prefersReducedMotion ? anchor.position : arrivalPosition}
         quaternion={anchor.orientation}
         scale={prefersReducedMotion ? 1 : ARRIVAL_SCALE}
+        renderOrder={MARKER_GROUP_RENDER_ORDER}
       >
         <mesh position={[0, -0.66, 0]} raycast={() => undefined}>
           <cylinderGeometry args={[0.008, 0.008, 0.52, 3]} />
@@ -246,7 +257,7 @@ export function CoreSupplyDropMarker({
           />
         </mesh>
 
-        <group ref={bodyRef}>
+        <group ref={bodyRef} renderOrder={MARKER_GROUP_RENDER_ORDER}>
           <mesh
             geometry={beaconGeometry}
             position={[0, -MARKER_HALF_HEIGHT, 0]}

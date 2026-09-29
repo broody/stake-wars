@@ -64,6 +64,24 @@ export function formatCountdown(remainingSeconds: number): string {
     .join(':');
 }
 
+const DURATION_UNITS = [
+  [86_400, 'day'],
+  [3_600, 'hour'],
+  [60, 'minute'],
+] as const;
+
+/** Formats a whole duration as words, e.g. 10800 → "3 hours". */
+export function formatDurationWords(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  for (const [size, unit] of DURATION_UNITS) {
+    if (seconds >= size && seconds % size === 0) {
+      const count = seconds / size;
+      return `${count} ${unit}${count === 1 ? '' : 's'}`;
+    }
+  }
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}
+
 export function shortAddress(address: string): string {
   return address.length > 14
     ? `${address.slice(0, 8)}…${address.slice(-6)}`

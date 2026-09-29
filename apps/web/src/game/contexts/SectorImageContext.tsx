@@ -11,6 +11,7 @@ import type { PropsWithChildren } from 'react';
 import type { ArtworkPlacement, SectorArtwork } from '../types';
 import { api } from '../services/api';
 import { addressesMatch } from '../utils/format';
+import { preloadArtworkThumbnails } from '../utils/artworkThumbnails';
 import { useSectors } from './SectorContext';
 
 export interface PlacementDraft {
@@ -152,6 +153,13 @@ export function SectorImageProvider({ children }: PropsWithChildren) {
             : DEFAULT_MAXIMUM_IMAGE_BYTES
         );
         setStoredArtworks(artworks);
+        // Download thumbnails while the Core is still initializing so the
+        // intro's artwork flip does not wait on them.
+        if (revision === 0) {
+          preloadArtworkThumbnails(
+            artworks.map((artwork) => artwork.thumbnailUrl)
+          );
+        }
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) {
