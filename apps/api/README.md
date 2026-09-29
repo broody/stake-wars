@@ -80,7 +80,7 @@ else, including the winner, can submit the same call.
 | `STARKNET_RPC_URL` | unset | Starknet JSON-RPC endpoint used for wallet signature verification and authoritative reads. |
 | `STARKNET_CHAIN_ID` | `SN_MAIN` | SNIP-12 authentication domain and public network identifier. |
 | `TORII_URL` | unset | Internal Torii HTTP origin. Production uses `http://127.0.0.1:8081`. |
-| `TORII_STAKING_POOL_ADDRESS` | unset | Indexed staking pool used to derive cached public staking statistics. |
+| `TORII_STAKING_POOL_ADDRESS` | unset | Stake Wars delegation pool. Derives cached public staking statistics and, with `STARKNET_RPC_URL`, enables the network staking index, which resolves the staking contract and featured validator from this pool. |
 | `BEACON_SYSTEM_ADDRESS` | unset | Deployed Dojo Beacon System. Requires `STARKNET_RPC_URL`. Unset reports no open round while still serving the preserved controller and history. |
 | `BEACON_KEEPER_ENABLED` | `false` | Automatically settle expired Beacon rounds using the existing SupplyDrop keeper signer. Requires all three SupplyDrop keeper variables and `BEACON_SYSTEM_ADDRESS`. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
@@ -167,6 +167,8 @@ GET  /healthz
 GET  /readyz
 GET  /v1/config
 GET  /v1/stats
+GET  /v1/staking
+GET  /v1/staking/history
 GET  /v1/beacon
 GET  /v1/beacon/history
 GET  /torii/health
@@ -179,6 +181,16 @@ POST /v1/sector-artworks/uploads/{uploadId}/complete
 POST /v1/beacon/artwork/uploads
 POST /v1/beacon/artwork/uploads/{uploadId}/complete
 ```
+
+`GET /v1/staking` serves the network staking snapshot: validators, per-token
+totals, APR, the current epoch, pending exits and their unlock schedule, and the
+featured Stake Wars validator. `GET /v1/staking/history` lists daily totals at
+each UTC day's last block, ending with the live observation. Both return `503`
+until the first snapshot is built. A dedicated worker indexes the official
+staking contract's events and delegation-pool member balances into rebuildable
+`staking_*` tables, resuming a backfill from its saved continuation token. The
+first backfill reads every staking event since launch and takes several
+minutes; the index can be rebuilt by deleting the `staking_*` rows.
 
 Image uploads are enabled only when all object-storage settings are present.
 The browser preserves the source aspect ratio while fitting each

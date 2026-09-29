@@ -153,6 +153,15 @@ The first release intentionally excludes passive territory decay, recurring Oper
 *   **Object Naming:** Images use randomized, versioned object keys such as `art/<network>/<random-artwork-id>/detail.webp`. Replacements receive a new URL to avoid stale CDN caches.
 *   **Moderation:** Every image record has a moderation status. The system must support reporting, administrative removal, rate limiting, and deletion of replaced or prohibited content.
 
+### 4.5. Network Staking Dashboard
+*   **Purpose:** The unlisted `/play/network` route shows network-wide Starknet staking state without a wallet connection. It is reachable directly but not linked from navigation. It is informational; staking actions remain on the Staking interface.
+*   **Featured Validator:** The Stake Wars validator, resolved from the configured delegation pool's staker address, leads the page with its rank, total and BTC stake, staking power, delegator APR, commission, delegators, pending exits, and stake trend, and links to the Staking interface.
+*   **Network Totals:** Total STRK and normalized BTC stake, per-token stake, pending unstake, active and exiting validators, delegators, maximum STRK and BTC APR, the current epoch, and protocol parameters. USD values are optional context from the Pragma oracle and are hidden when the oracle is unavailable or stale.
+*   **History:** Daily totals of staked STRK and BTC and of pending delegator exits, sampled at each UTC day's last block since staking launched.
+*   **Pending Unstake:** Delegator and validator self-stake exits, the amount withdrawable now, a daily unlock schedule for the exit window, the largest pending exits, and exiting validators.
+*   **Validators:** A searchable, sortable list of every registered validator with the Stake Wars validator pinned first. APR is shown for delegators after commission and assumes full attestation.
+*   **Definitions:** Staking power weighs a validator's share of STRK and of BTC by the protocol reward split. Maximum STRK APR is the minting curve's yearly mint times the STRK reward share divided by total STRK staking power. A validator's delegators are its delegation-pool positions that are active or awaiting withdrawal; the network count is the distinct delegator addresses behind them. Validator names are not onchain, so validators are identified by staker address.
+
 ---
 
 ## 5. Technical Architecture
@@ -184,6 +193,7 @@ Stake Wars is implemented as a Dojo World on Starknet Mainnet. Dojo models store
     *   Authorize narrowly scoped, short-lived image uploads to Tigris.
     *   Validate completed uploads before publishing their metadata.
     *   Serve game metadata and apply rate limits per wallet and IP address.
+    *   Index the official staking contract's validator, delegation-pool, and exit-intent events, plus delegation-pool member balances, into rebuildable SQLite tables, and serve the cached network staking snapshot and its daily history. The index resolves the staking contract from the configured delegation pool, backfills from the staking deployment block, and runs on its own worker so it never delays Keeper duties.
 *   **Initial Topology:** Run exactly one active API Machine while SQLite is the system of record. The Machine mounts a persistent Fly Volume at `/data`; normal deploys and restarts must preserve that volume. Do not add a second active API Machine that writes to the same SQLite database.
 *   **Storage Boundary:** Uploaded images are never stored on the Machine or Fly Volume. The volume contains only the SQLite database and its related files; image bytes are uploaded directly to Tigris.
 *   **Security:** Wallet challenges use short-lived, single-use nonces. Storage credentials and the dedicated Keeper private key are server-only secrets and must never be sent to the browser, logs, repository, or public configuration. The funded Keeper account has no privileged game role, prize custody, or settlement discretion: every submitted maintenance transaction is independently validated by the Dojo World, and no backend decryption key exists. On startup, the API derives the Keeper public key and verifies it against the configured account contract before enabling maintenance.

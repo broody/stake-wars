@@ -18,6 +18,7 @@ import (
 	"stakewars.com/api/internal/images"
 	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/objectstore"
+	"stakewars.com/api/internal/stakingstats"
 	"stakewars.com/api/internal/starknet"
 	"stakewars.com/api/internal/supplydrop"
 	"stakewars.com/api/internal/txjournal"
@@ -135,6 +136,26 @@ func run() error {
 	if len(maintenanceDuties) > 0 {
 		maintenanceWorker = beacon.NewWorker(20*time.Second, maintenanceDuties...)
 	}
+	// The staking index gets its own worker so a long backfill never delays
+	// keeper duties.
+	var stakingService *stakingstats.Service
+	var stakingWorker *beacon.Worker
+	if configuration.StarknetRPCURL != "" && configuration.ToriiStakingPoolAddress != "" {
+		stakingService, err = stakingstats.NewService(
+			starknet.NewChainClient(configuration.StarknetRPCURL),
+			stakingstats.NewStore(db, configuration.StarknetChainID),
+			stakingstats.Config{
+				Network:      configuration.StarknetChainID,
+				FeaturedPool: configuration.ToriiStakingPoolAddress,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		stakingWorker = beacon.NewWorker(time.Minute, stakingService)
+	} else {
+		slog.Warn("STARKNET_RPC_URL or TORII_STAKING_POOL_ADDRESS is not configured; staking statistics are disabled")
+	}
 	if configuration.StarknetRPCURL == "" {
 		slog.Warn("STARKNET_RPC_URL is not configured; session creation is disabled")
 	}
@@ -205,6 +226,7 @@ func run() error {
 				configuration.StarknetChainID,
 			),
 			NetworkStats: statsReader,
+			Staking:      stakingDependency(stakingService),
 			Config: api.PublicConfig{
 				Network:             configuration.StarknetChainID,
 				MaxImageBytes:       configuration.MaxImageBytes,
@@ -226,20 +248,29 @@ func run() error {
 		syscall.SIGTERM,
 	)
 	defer stop()
-	if maintenanceWorker != nil {
+	for _, worker := range []struct {
+		name   string
+		worker *beacon.Worker
+	}{
+		{name: "Maintenance", worker: maintenanceWorker},
+		{name: "Staking statistics", worker: stakingWorker},
+	} {
+		if worker.worker == nil {
+			continue
+		}
 		workerDone := make(chan struct{})
 		defer func() {
 			stop()
 			select {
 			case <-workerDone:
 			case <-time.After(shutdownPeriod):
-				slog.Error("Maintenance worker shutdown timed out")
+				slog.Error(worker.name + " worker shutdown timed out")
 			}
 		}()
 		go func() {
 			defer close(workerDone)
-			if err := maintenanceWorker.Run(ctx); err != nil {
-				slog.ErrorContext(ctx, "Maintenance worker stopped", "error", err)
+			if err := worker.worker.Run(ctx); err != nil {
+				slog.ErrorContext(ctx, worker.name+" worker stopped", "error", err)
 			}
 		}()
 	}
@@ -262,6 +293,14 @@ func run() error {
 	defer cancel()
 
 	return server.Shutdown(shutdownCtx)
+}
+
+// stakingDependency keeps a disabled service as a nil interface.
+func stakingDependency(service *stakingstats.Service) api.StakingReader {
+	if service == nil {
+		return nil
+	}
+	return service
 }
 
 func publicToriiURL(gateway *api.ToriiGateway) string {

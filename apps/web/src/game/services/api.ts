@@ -7,6 +7,7 @@ import type {
   SectorArtwork,
   SectorArtworkTarget,
 } from '../types';
+import type { StakingHistory, StakingSnapshot } from '../types/staking';
 
 export interface StakeWarsApiConfig {
   network: string;
@@ -199,6 +200,14 @@ export const api = {
 
   getBeaconHistory(signal?: AbortSignal): Promise<BeaconHistoryPage> {
     return requestJSON('/v1/beacon/history?limit=100', { signal });
+  },
+
+  getStaking(signal?: AbortSignal): Promise<StakingSnapshot> {
+    return requestJSON('/v1/staking', { signal });
+  },
+
+  getStakingHistory(signal?: AbortSignal): Promise<StakingHistory> {
+    return requestJSON('/v1/staking/history', { signal });
   },
 
   async getSectorArtworks(signal?: AbortSignal): Promise<SectorArtwork[]> {

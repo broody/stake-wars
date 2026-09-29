@@ -17,6 +17,7 @@ import (
 	"stakewars.com/api/internal/beacon"
 	"stakewars.com/api/internal/images"
 	"stakewars.com/api/internal/networkstats"
+	"stakewars.com/api/internal/stakingstats"
 )
 
 const maxJSONBodyBytes = 64 * 1024
@@ -40,6 +41,13 @@ type Dependencies struct {
 	Beacon         beaconReader
 	BeaconHistory  beaconHistoryReader
 	NetworkStats   networkstats.Reader
+	Staking        StakingReader
+}
+
+// StakingReader serves the cached Starknet staking snapshot and history.
+type StakingReader interface {
+	Current(ctx context.Context) (stakingstats.Snapshot, error)
+	History(ctx context.Context) (stakingstats.History, error)
 }
 
 type beaconReader interface {
@@ -58,6 +66,8 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /readyz", server.ready)
 	mux.HandleFunc("GET /v1/config", server.publicConfig)
 	mux.HandleFunc("GET /v1/stats", server.networkStats)
+	mux.HandleFunc("GET /v1/staking", server.stakingSnapshot)
+	mux.HandleFunc("GET /v1/staking/history", server.stakingHistory)
 	mux.HandleFunc("GET /v1/beacon", server.beaconState)
 	mux.HandleFunc("GET /v1/beacon/history", server.beaconHistory)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
@@ -88,6 +98,44 @@ func (s *server) networkStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "public, max-age=30, stale-while-revalidate=300")
 	writeJSON(w, http.StatusOK, snapshot)
+}
+
+func (s *server) stakingSnapshot(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Staking == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "staking unavailable", "staking statistics are not configured")
+		return
+	}
+	snapshot, err := s.dependencies.Staking.Current(r.Context())
+	if err != nil {
+		s.writeStakingError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=30, stale-while-revalidate=120")
+	writeJSON(w, http.StatusOK, snapshot)
+}
+
+func (s *server) stakingHistory(w http.ResponseWriter, r *http.Request) {
+	if s.dependencies.Staking == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "staking unavailable", "staking statistics are not configured")
+		return
+	}
+	history, err := s.dependencies.Staking.History(r.Context())
+	if err != nil {
+		s.writeStakingError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+	writeJSON(w, http.StatusOK, history)
+}
+
+func (s *server) writeStakingError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, stakingstats.ErrNotReady) {
+		w.Header().Set("Retry-After", "30")
+		writeProblem(w, http.StatusServiceUnavailable, "staking indexing", "staking statistics are still being prepared")
+		return
+	}
+	slog.ErrorContext(r.Context(), "read staking statistics", "error", err)
+	writeProblem(w, http.StatusBadGateway, "staking unavailable", "could not read staking statistics")
 }
 
 func (s *server) beaconHistory(w http.ResponseWriter, r *http.Request) {

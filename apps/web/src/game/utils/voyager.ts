@@ -13,3 +13,7 @@ export function voyagerTransactionUrl(hash: string): string {
 export function voyagerContractUrl(address: string): string {
   return `${voyagerOrigin()}/contract/${address}`;
 }
+
+export function voyagerValidatorUrl(stakerAddress: string): string {
+  return `${voyagerOrigin()}/staking?validator=${stakerAddress}`;
+}

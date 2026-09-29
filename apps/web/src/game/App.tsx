@@ -27,6 +27,12 @@ const CoreLab = lazy(() =>
   }))
 );
 
+const Network = lazy(() =>
+  import('./pages/Network').then((module) => ({
+    default: module.Network,
+  }))
+);
+
 const SupplyDropCreator = lazy(() =>
   import('./pages/SupplyDropCreator').then((module) => ({
     default: module.SupplyDropCreator,
@@ -58,6 +64,14 @@ function GamePages() {
           <Routes>
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/staking" element={<Staking />} />
+            <Route
+              path="/network"
+              element={
+                <Suspense fallback={null}>
+                  <Network />
+                </Suspense>
+              }
+            />
             <Route path="/beacon" element={<Beacon />} />
             <Route path="/beacon/history" element={<Beacon />} />
             <Route path="/operator" element={<Operator />} />
