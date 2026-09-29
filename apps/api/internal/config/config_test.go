@@ -1,9 +1,6 @@
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestLoadUsesConfigurableImageLimit(t *testing.T) {
 	t.Setenv("MAX_IMAGE_BYTES", "4194304")
@@ -22,58 +19,60 @@ func TestLoadUsesConfigurableImageLimit(t *testing.T) {
 	}
 }
 
-func TestLoadUsesConfigurableBeaconBiddingDuration(t *testing.T) {
-	t.Setenv("BEACON_BIDDING_DURATION", "5m")
-
+func TestBeaconSystemIsOptional(t *testing.T) {
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.BeaconBiddingDuration != 5*time.Minute {
-		t.Fatalf("expected five minutes, got %s", configuration.BeaconBiddingDuration)
+	if configuration.BeaconSystemAddress != "" || configuration.BeaconKeeper {
+		t.Fatalf("unexpected default Beacon config: %+v", configuration)
 	}
 }
 
-func TestLoadDefaultsBeaconBiddingDurationToThreeDays(t *testing.T) {
-	configuration, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if configuration.BeaconBiddingDuration != 72*time.Hour {
-		t.Fatalf("expected three days, got %s", configuration.BeaconBiddingDuration)
-	}
-}
-
-func TestLoadRejectsInvalidBeaconBiddingDuration(t *testing.T) {
-	t.Setenv("BEACON_BIDDING_DURATION", "500ms")
+func TestBeaconSystemRequiresRPC(t *testing.T) {
+	t.Setenv("BEACON_SYSTEM_ADDRESS", "0xbeac0")
+	t.Setenv("STARKNET_RPC_URL", "")
 	if _, err := Load(); err == nil {
-		t.Fatal("expected sub-second bidding duration to fail")
+		t.Fatal("accepted a Beacon system without RPC")
 	}
-}
-
-func TestLoadConfiguresBeaconCoordinator(t *testing.T) {
-	t.Setenv("BEACON_COORDINATOR_URL", "http://127.0.0.1:8082")
-	t.Setenv("BEACON_COORDINATOR_TOKEN", "0123456789abcdef0123456789abcdef")
-	t.Setenv("BEACON_PAYMENT_TOKEN", "0x123")
-	t.Setenv("BEACON_ACCEPTANCE_DURATION", "3m")
-	t.Setenv("BEACON_SETTLEMENT_DURATION", "22m")
-
+	t.Setenv("STARKNET_RPC_URL", "http://127.0.0.1:5050")
 	configuration, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !configuration.BeaconCoordinatorEnabled() ||
-		configuration.BeaconAcceptanceDuration != 3*time.Minute ||
-		configuration.BeaconSettlementDuration != 22*time.Minute {
-		t.Fatalf("unexpected Beacon coordinator config: %+v", configuration)
+	if configuration.BeaconSystemAddress != "0xbeac0" {
+		t.Fatalf("unexpected Beacon system %q", configuration.BeaconSystemAddress)
 	}
 }
 
-func TestLoadRejectsPartialBeaconCoordinator(t *testing.T) {
-	t.Setenv("BEACON_COORDINATOR_URL", "http://127.0.0.1:8082")
-	if _, err := Load(); err == nil {
-		t.Fatal("expected partial Beacon coordinator config to fail")
+func TestBeaconKeeperRequiresSignerAndSystem(t *testing.T) {
+	for _, name := range []string{"SUPPLY_DROP_KEEPER_PRIVATE_KEY", "BEACON_SYSTEM_ADDRESS"} {
+		t.Run(name, func(t *testing.T) {
+			beaconKeeperEnvironment(t)
+			t.Setenv(name, "")
+			if _, err := Load(); err == nil {
+				t.Fatalf("enabled Beacon keeper without %s", name)
+			}
+		})
 	}
+	beaconKeeperEnvironment(t)
+	configuration, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configuration.BeaconKeeper {
+		t.Fatal("expected Beacon keeper")
+	}
+}
+
+func beaconKeeperEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "0x123")
+	t.Setenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY", "0x789")
+	t.Setenv("STARKNET_RPC_URL", "http://127.0.0.1:5050")
+	t.Setenv("BEACON_SYSTEM_ADDRESS", "0xbeac0")
+	t.Setenv("BEACON_KEEPER_ENABLED", "true")
 }
 
 func TestLoadConfiguresSupplyDropKeeper(t *testing.T) {

@@ -73,12 +73,17 @@ function projectionDimensions(width: number, height: number) {
 export function OrbitalBeacon({
   isTracking,
   onInspect,
+  isCoreProjectionSettled = true,
 }: {
   isTracking: boolean;
   onInspect: () => void;
+  /** On load, the Beacon projects only after the Core's artwork has appeared. */
+  isCoreProjectionSettled?: boolean;
 }) {
   const { snapshot, isLoading } = useBeacon();
-  const { isProjectionVisible } = useSectors();
+  const { isProjectionVisible: isCoreProjectionVisible } = useSectors();
+  const isProjectionVisible =
+    isCoreProjectionVisible && isCoreProjectionSettled;
   const orbitSystemRef = useRef<THREE.Group>(null);
   const beaconRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);

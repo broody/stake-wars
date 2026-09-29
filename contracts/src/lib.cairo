@@ -5,6 +5,7 @@ pub mod supply_drop;
 
 pub mod systems {
     pub mod admin;
+    pub mod beacon;
     pub mod control;
     pub mod supply_drop;
 }
@@ -14,6 +15,7 @@ pub mod tests {
     mod mock_account;
     mod mock_staking_pool;
     mod mock_tokens;
+    mod test_beacon;
     mod test_supply_drop;
     mod test_world;
 }

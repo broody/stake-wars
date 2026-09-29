@@ -2,8 +2,8 @@ package beacon
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -11,258 +11,149 @@ import (
 	"stakewars.com/api/internal/database"
 )
 
-func TestStoreReturnsLatestRoundForNetwork(t *testing.T) {
-	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	for _, values := range []struct {
-		network string
-		roundID int
-	}{
-		{network: "SN_SEPOLIA", roundID: 1},
-		{network: "SN_MAIN", roundID: 9},
-		{network: "SN_SEPOLIA", roundID: 2},
-	} {
-		_, err := db.Exec(`
-			INSERT INTO beacon_rounds(
-				network, round_id, whisper_address, auction_id, expected_creator,
-				payment_token, metadata_hash, winner_payload_domain, vault_address
-			) VALUES (?, ?, ?, ?, '0x2', '0x3', '0x4', '0x5', '0x6')
-		`, values.network, values.roundID, "0x1", values.roundID)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	store := NewStore(db)
-	round, err := store.Current(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if round.RoundID != 2 || round.AuctionID != 2 || round.Network != "SN_SEPOLIA" {
-		t.Fatalf("unexpected current round: %+v", round)
-	}
-	if _, err := db.Exec(`
-		UPDATE beacon_rounds
-		SET claimed_controller = '0x777', claimed_at = 200, billboard_starts_at = 201
-		WHERE network = 'SN_SEPOLIA' AND round_id = 1
-	`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`
-		UPDATE beacon_rounds
-		SET claimed_controller = '0x888', claimed_at = 100, billboard_starts_at = 101
-		WHERE network = 'SN_SEPOLIA' AND round_id = 2
-	`); err != nil {
-		t.Fatal(err)
-	}
-	controller, err := store.Controller(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if controller.RoundID != 2 || controller.Address != "0x888" ||
-		controller.ClaimedAt.Unix() != 100 ||
-		controller.StartsAt == nil || controller.StartsAt.Unix() != 101 {
-		t.Fatalf("unexpected current controller: %+v", controller)
-	}
-
-	_, err = store.Current(context.Background(), "SN_INTEGRATION")
-	if !errors.Is(err, ErrNoRound) {
-		t.Fatalf("expected ErrNoRound, got %v", err)
-	}
-	_, err = store.Controller(context.Background(), "SN_INTEGRATION")
-	if !errors.Is(err, ErrNoController) {
+func TestStoreKeepsControllerAndBillboardContinuous(t *testing.T) {
+	store, db := openStore(t)
+	ctx := context.Background()
+	if _, err := store.Controller(ctx, "SN_SEPOLIA"); !errors.Is(err, ErrNoController) {
 		t.Fatalf("expected ErrNoController, got %v", err)
 	}
+	if _, err := store.CurrentBillboard(ctx, "SN_SEPOLIA"); !errors.Is(err, ErrNoBillboard) {
+		t.Fatalf("expected ErrNoBillboard, got %v", err)
+	}
+
+	seedWhisperController(t, db, 5, "0x555")
+	seedArtwork(t, db, 5, "0x555", "art-5")
+	seedWhisperController(t, db, 6, "0x666")
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", Settlement{
+		RoundID: 7, Controller: "0x777", WinningBid: "150", BidCount: 3,
+		SettledAt: time.Unix(700, 0).UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	controller, err := store.Controller(ctx, "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if controller.RoundID != 7 || controller.Address != "0x777" ||
+		controller.ClaimedAt.Unix() != 700 || controller.ActiveArtworkID != "" {
+		t.Fatalf("unexpected controller: %+v", controller)
+	}
+	// Newer winners inherit the last published signal until they publish.
+	billboard, err := store.CurrentBillboard(ctx, "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if billboard.ImageURL != "https://assets.test/art-5.webp" {
+		t.Fatalf("unexpected billboard: %+v", billboard)
+	}
+	if _, err := store.Controller(ctx, "SN_MAIN"); !errors.Is(err, ErrNoController) {
+		t.Fatalf("expected network isolation, got %v", err)
+	}
 }
 
-func TestStoreKeepsLatestPublishedBillboardUntilReplacement(t *testing.T) {
+func TestSaveSettlementIsIdempotentAndImmutable(t *testing.T) {
+	store, db := openStore(t)
+	ctx := context.Background()
+	settlement := Settlement{
+		RoundID: 7, Controller: "0x777", WinningBid: "150", BidCount: 3,
+		SettledAt: time.Unix(700, 0).UTC(),
+	}
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", settlement); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", settlement); err != nil {
+		t.Fatalf("replay should be a no-op: %v", err)
+	}
+	changed := settlement
+	changed.Controller = "0x888"
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", changed); err == nil {
+		t.Fatal("accepted a conflicting settlement")
+	}
+	seedWhisperController(t, db, 6, "0x666")
+	legacy := settlement
+	legacy.RoundID = 6
+	legacy.Controller = "0x666"
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", legacy); err == nil {
+		t.Fatal("overwrote a Whisper-era round")
+	}
+
+	legacyRound, openRound, err := store.ProjectionCursor(ctx, "SN_SEPOLIA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyRound != 6 || openRound != 7 {
+		t.Fatalf("unexpected cursor %d/%d", legacyRound, openRound)
+	}
+}
+
+func TestHistoryListsWhisperAndOpenRoundsNewestFirst(t *testing.T) {
+	store, db := openStore(t)
+	ctx := context.Background()
+	seedWhisperController(t, db, 4, "0x444")
+	seedWhisperController(t, db, 6, "0x666")
+	if err := store.SaveSettlement(ctx, "SN_SEPOLIA", Settlement{
+		RoundID: 7, Controller: "0x777", WinningBid: "150", BidCount: 3,
+		SettledAt: time.Unix(700, 0).UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := store.History(ctx, "SN_SEPOLIA", 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].RoundID != 7 || entries[0].WinnerAddress != "0x777" ||
+		entries[0].BidCount != 3 || entries[0].WinningBid != "150" || entries[1].RoundID != 6 {
+		t.Fatalf("unexpected first page: %+v", entries)
+	}
+	before := uint64(6)
+	entries, err = store.History(ctx, "SN_SEPOLIA", 2, &before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].RoundID != 4 {
+		t.Fatalf("unexpected second page: %+v", entries)
+	}
+}
+
+func openStore(t *testing.T) (*Store, *sql.DB) {
+	t.Helper()
 	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
+	return NewStore(db), db
+}
 
-	for roundID := 1; roundID <= 2; roundID++ {
-		if _, err := db.Exec(`
-			INSERT INTO beacon_rounds(
-				network, round_id, whisper_address, auction_id, expected_creator,
-				payment_token, metadata_hash, winner_payload_domain, vault_address,
-				claimed_controller, claimed_at
-			) VALUES ('SN_SEPOLIA', ?, '0x1', ?, '0x2', '0x3', '0x4', '0x5',
-				'0x6', ?, 100)
-		`, roundID, roundID, fmt.Sprintf("0x%d", roundID)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	insertBillboard := func(roundID int, id, description string, updatedAt int64) {
-		t.Helper()
-		if _, err := db.Exec(`
-			INSERT INTO beacon_artworks(
-				id, network, controller_round_id, owner_address, description,
-				destination_url, image_url, object_key, thumbnail_url,
-				thumbnail_object_key, content_hash, moderation_status, created_at,
-				updated_at
-			) VALUES (?, 'SN_SEPOLIA', ?, ?, ?, 'https://example.com', ?, ?, ?, ?,
-				'hash', 'approved', ?, ?)
-		`, id, roundID, fmt.Sprintf("0x%d", roundID), description,
-			"https://images.example/"+id+".webp", id+"-detail",
-			"https://images.example/"+id+"-thumb.webp", id+"-thumb",
-			updatedAt, updatedAt); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.Exec(`
-			UPDATE beacon_rounds SET active_artwork_id = ?
-			WHERE network = 'SN_SEPOLIA' AND round_id = ?
-		`, id, roundID); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	store := NewStore(db)
-	insertBillboard(1, "previous", "Previous signal", 110)
-	billboard, err := store.CurrentBillboard(context.Background(), "SN_SEPOLIA")
-	if err != nil {
+func seedWhisperController(t *testing.T, db *sql.DB, roundID uint64, controller string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO beacon_controllers(
+			network, round_id, source, controller, winning_bid, bid_count, settled_at
+		) VALUES ('SN_SEPOLIA', ?, 'whisper', ?, '100', 2, ?)
+	`, roundID, controller, roundID*100); err != nil {
 		t.Fatal(err)
-	}
-	if billboard.Description != "Previous signal" || billboard.UpdatedAt.Unix() != 110 {
-		t.Fatalf("unexpected retained billboard: %+v", billboard)
-	}
-
-	insertBillboard(2, "replacement", "Replacement signal", 120)
-	billboard, err = store.CurrentBillboard(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if billboard.Description != "Replacement signal" || billboard.UpdatedAt.Unix() != 120 {
-		t.Fatalf("unexpected replacement billboard: %+v", billboard)
 	}
 }
 
-func TestStoreProjectsImmutableWinnerHistory(t *testing.T) {
-	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon.db"))
-	if err != nil {
+func seedArtwork(t *testing.T, db *sql.DB, roundID uint64, owner, id string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO beacon_artworks(
+			id, network, controller_round_id, owner_address, image_url, object_key,
+			thumbnail_url, thumbnail_object_key, content_hash, moderation_status,
+			created_at, updated_at
+		) VALUES (?, 'SN_SEPOLIA', ?, ?, ?, ?, ?, ?, 'hash', 'approved', 1, 1)
+	`, id, roundID, owner, "https://assets.test/"+id+".webp", id+"/detail",
+		"https://assets.test/"+id+"-thumb.webp", id+"/thumbnail"); err != nil {
 		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	for roundID := 1; roundID <= 2; roundID++ {
-		if _, err := db.Exec(`
-			INSERT INTO beacon_rounds(
-				network, round_id, whisper_address, auction_id, expected_creator,
-				payment_token, metadata_hash, winner_payload_domain, vault_address
-			) VALUES ('SN_SEPOLIA', ?, '0x1', ?, '0x2', '0x3', '0x4', '0x5', '0x6')
-		`, roundID, roundID); err != nil {
-			t.Fatal(err)
-		}
 	}
 	if _, err := db.Exec(`
-		UPDATE beacon_rounds
-		SET claimed_controller = '0x0777', claimed_at = 100
-		WHERE network = 'SN_SEPOLIA' AND round_id = 1
-	`); err != nil {
+		UPDATE beacon_controllers SET active_artwork_id = ?
+		WHERE network = 'SN_SEPOLIA' AND round_id = ?
+	`, id, roundID); err != nil {
 		t.Fatal(err)
-	}
-
-	store := NewStore(db)
-	projection := SettlementProjection{
-		RoundID: 1, WhisperAddress: "0x1", AuctionID: 1, HasWinner: true,
-		WinnerGroupHandle: "0x7", WinnerCommitment: "0x8",
-		WinningBid: "100", SecondHighestBid: "80", ClearingPrice: "80",
-		FundedBidCount: 2, SettlementHash: "0x9",
-		SettlementTransactionHash: "0xa", SettledAt: time.Unix(125, 0).UTC(),
-	}
-	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
-		t.Fatal(err)
-	}
-	unresolved, err := store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(unresolved) != 0 {
-		t.Fatalf("already resolved winner should not be returned: %+v", unresolved)
-	}
-	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
-		t.Fatalf("idempotent projection failed: %v", err)
-	}
-	conflict := projection
-	conflict.WinningBid = "101"
-	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", conflict); err == nil {
-		t.Fatal("expected conflicting settlement to fail")
-	}
-
-	entries, err := store.History(context.Background(), "SN_SEPOLIA", 10, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 || entries[0].RoundID != 1 ||
-		entries[0].WinnerAddress == nil || *entries[0].WinnerAddress != "0x0777" ||
-		entries[0].BidCount != 2 || entries[0].WinningBid != "100" {
-		t.Fatalf("unexpected history: %+v", entries)
-	}
-
-	rounds, err := store.UnprojectedRounds(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rounds) != 1 || rounds[0].RoundID != 2 {
-		t.Fatalf("unexpected unprojected rounds: %+v", rounds)
-	}
-}
-
-func TestStoreResolvesSettledWinnerIdempotently(t *testing.T) {
-	db, err := database.Open(context.Background(), filepath.Join(t.TempDir(), "beacon.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	if _, err := db.Exec(`
-		INSERT INTO beacon_rounds(
-			network, round_id, whisper_address, auction_id, expected_creator,
-			payment_token, metadata_hash, winner_payload_domain, vault_address
-		) VALUES ('SN_SEPOLIA', 1, '0x1', 7, '0x2', '0x3', '0x4', '0x5', '0x6')
-	`); err != nil {
-		t.Fatal(err)
-	}
-	store := NewStore(db)
-	projection := SettlementProjection{
-		RoundID: 1, WhisperAddress: "0x1", AuctionID: 7, HasWinner: true,
-		WinnerGroupHandle: "0xabc", WinnerCommitment: "0xdef",
-		WinningBid: "200", SecondHighestBid: "150", ClearingPrice: "150",
-		FundedBidCount: 2, SettlementHash: "0x999",
-		SettlementTransactionHash: "0xaaa", SettledAt: time.Unix(125, 0).UTC(),
-	}
-	if err := store.SaveSettlement(context.Background(), "SN_SEPOLIA", projection); err != nil {
-		t.Fatal(err)
-	}
-	winners, err := store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(winners) != 1 || winners[0].AuctionID != 7 ||
-		winners[0].WinnerGroupHandle != "0xabc" || winners[0].SettledAt.Unix() != 125 {
-		t.Fatalf("unexpected unresolved winners: %+v", winners)
-	}
-	if err := store.ResolveWinner(context.Background(), "SN_SEPOLIA", winners[0], "0x777"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.ResolveWinner(context.Background(), "SN_SEPOLIA", winners[0], "0x777"); err != nil {
-		t.Fatalf("idempotent resolution failed: %v", err)
-	}
-	controller, err := store.Controller(context.Background(), "SN_SEPOLIA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if controller.Address != "0x777" || controller.ClaimedAt.Unix() != 125 ||
-		controller.StartsAt == nil || controller.StartsAt.Unix() != 125 {
-		t.Fatalf("unexpected resolved controller: %+v", controller)
-	}
-	winners, err = store.UnresolvedWinners(context.Background(), "SN_SEPOLIA")
-	if err != nil || len(winners) != 0 {
-		t.Fatalf("resolved winner remained pending: %+v, %v", winners, err)
 	}
 }

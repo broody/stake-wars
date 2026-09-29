@@ -8,8 +8,8 @@ import (
 
 func TestHistoryServicePaginatesAndNormalizesWinners(t *testing.T) {
 	store := &fakeHistoryStore{entries: []HistoryEntry{
-		{RoundID: 4, WinnerAddress: stringPointer("0x0777"), BidCount: 3, WinningBid: "100"},
-		{RoundID: 3, WinnerAddress: nil, BidCount: 2, WinningBid: "90"},
+		{RoundID: 4, WinnerAddress: "0x0777", BidCount: 3, WinningBid: "100"},
+		{RoundID: 3, WinnerAddress: "0x333", BidCount: 2, WinningBid: "90"},
 	}}
 	service := NewHistoryService(store, "SN_SEPOLIA")
 
@@ -19,11 +19,11 @@ func TestHistoryServicePaginatesAndNormalizesWinners(t *testing.T) {
 	}
 	if store.limit != 2 || store.network != "SN_SEPOLIA" ||
 		len(page.Entries) != 1 || page.NextCursor == nil ||
-		page.Entries[0].WinnerAddress == nil || *page.Entries[0].WinnerAddress != "0x777" {
+		page.Entries[0].WinnerAddress != "0x777" {
 		t.Fatalf("unexpected first history page: %+v", page)
 	}
 
-	store.entries = []HistoryEntry{{RoundID: 3, BidCount: 2, WinningBid: "90"}}
+	store.entries = []HistoryEntry{{RoundID: 3, WinnerAddress: "0x333", BidCount: 2, WinningBid: "90"}}
 	page, err = service.List(context.Background(), 1, *page.NextCursor)
 	if err != nil {
 		t.Fatal(err)
@@ -69,5 +69,3 @@ func (s *fakeHistoryStore) History(
 	s.before = beforeRoundID
 	return append([]HistoryEntry(nil), s.entries...), nil
 }
-
-func stringPointer(value string) *string { return &value }

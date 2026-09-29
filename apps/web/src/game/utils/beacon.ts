@@ -5,11 +5,7 @@ const PHASE_LABELS: Record<BeaconPhase, string> = {
   none: 'NO ROUND',
   pending: 'WAITING FOR FIRST BID',
   bidding: 'BIDDING OPEN',
-  acceptance: 'RESOLVING',
-  settling: 'RESOLVING',
-  recovery: 'RECOVERY',
-  settled: 'ROUND COMPLETE',
-  aborted: 'ROUND ENDED',
+  settling: 'SETTLING',
 };
 
 export function beaconPhaseLabel(phase: BeaconPhase): string {
@@ -20,22 +16,9 @@ export function beaconDeadline(
   phase: BeaconPhase,
   round: BeaconRound
 ): { label: string; at: string } | null {
-  switch (phase) {
-    case 'bidding':
-      return round.biddingDeadline
-        ? { label: 'BIDDING CLOSES', at: round.biddingDeadline }
-        : null;
-    case 'acceptance':
-      return round.forceRevealAfter
-        ? { label: 'FORCE REVEAL OPENS', at: round.forceRevealAfter }
-        : null;
-    case 'settling':
-      return round.abortAfter
-        ? { label: 'RECOVERY OPENS', at: round.abortAfter }
-        : null;
-    default:
-      return null;
-  }
+  return phase === 'bidding' && round.endsAt
+    ? { label: 'BIDDING CLOSES', at: round.endsAt }
+    : null;
 }
 
 export function beaconCountdown(at: string, now: number): string {
@@ -46,8 +29,8 @@ export function beaconCountdown(at: string, now: number): string {
 
 export function formatBeaconAmount(value: string): string {
   try {
-    return `${formatStrk(BigInt(value))} [STRK]`;
+    return `${formatStrk(BigInt(value))} STRK`;
   } catch {
-    return '— [STRK]';
+    return '— STRK';
   }
 }

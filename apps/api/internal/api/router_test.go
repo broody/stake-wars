@@ -126,11 +126,10 @@ func TestBeaconHasStableNoRoundResponse(t *testing.T) {
 
 func TestBeaconHistoryIsPaginatedAndPublic(t *testing.T) {
 	dependencies := testDependencies(t)
-	winner := "0x777"
 	dependencies.BeaconHistory = apiTestBeaconHistory{
 		page: beacon.HistoryPage{
 			Entries: []beacon.HistoryEntry{{
-				RoundID: 4, WinnerAddress: &winner, BidCount: 3, WinningBid: "100",
+				RoundID: 4, WinnerAddress: "0x777", BidCount: 3, WinningBid: "100",
 			}},
 		},
 	}
@@ -148,7 +147,7 @@ func TestBeaconHistoryIsPaginatedAndPublic(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(payload.Entries) != 1 || payload.Entries[0].RoundID != 4 ||
-		payload.Entries[0].WinnerAddress == nil || payload.Entries[0].BidCount != 3 {
+		payload.Entries[0].WinnerAddress != "0x777" || payload.Entries[0].BidCount != 3 {
 		t.Fatalf("unexpected history response: %+v", payload)
 	}
 	if got := response.Header().Get("Cache-Control"); got != "public, max-age=10" {

@@ -9,43 +9,6 @@ import (
 	"stakewars.com/api/internal/starknet"
 )
 
-func TestAuctionCycleDutyRestartsTerminalRound(t *testing.T) {
-	round := canonicalRoundFixture()
-	reader := &fakeWhisperReader{
-		auction: whisperAuctionFixture(starknet.WhisperStatusSettled),
-		result:  starknet.WhisperResult{AuctionID: round.AuctionID, HasWinner: true},
-	}
-	restarter := &fakeRoundRestarter{}
-	duty := NewAuctionCycleDuty(
-		fakeRoundStore{round: round}, reader, restarter, "SN_SEPOLIA",
-	)
-
-	if err := duty.Reconcile(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if restarter.calls != 1 || restarter.outcome.Result == nil ||
-		restarter.outcome.Round.RoundID != round.RoundID {
-		t.Fatalf("unexpected restart outcome: %+v", restarter.outcome)
-	}
-}
-
-func TestAuctionCycleDutyLeavesOpenRoundAlone(t *testing.T) {
-	restarter := &fakeRoundRestarter{}
-	duty := NewAuctionCycleDuty(
-		fakeRoundStore{round: canonicalRoundFixture()},
-		&fakeWhisperReader{auction: whisperAuctionFixture(starknet.WhisperStatusPending)},
-		restarter,
-		"SN_SEPOLIA",
-	)
-
-	if err := duty.Reconcile(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if restarter.calls != 0 {
-		t.Fatalf("expected no restart, got %d", restarter.calls)
-	}
-}
-
 func TestWorkerRetriesAfterTransientDutyFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	duty := &transientDuty{cancel: cancel}
@@ -59,9 +22,54 @@ func TestWorkerRetriesAfterTransientDutyFailure(t *testing.T) {
 	}
 }
 
-type fakeRoundRestarter struct {
-	calls   int
-	outcome CycleOutcome
+func TestSettlementDutyUsesTheChainDeadline(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		auction   starknet.BeaconAuction
+		chainTime uint64
+		want      bool
+	}{
+		{"expired", biddingAuction(7, "0xabc", "120", 1_000, 2_000), 2_001, true},
+		{"at deadline", biddingAuction(7, "0xabc", "120", 1_000, 2_000), 2_000, true},
+		{"still open on chain", biddingAuction(7, "0xabc", "120", 1_000, 2_000), 1_999, false},
+		{"pending without bids", pendingAuction(7), 9_999, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := newFakeBeaconReader(7, 7, test.auction)
+			reader.timestamp = test.chainTime
+			submitter := &fakeBeaconSubmitter{}
+			if err := NewSettlementDuty(reader, submitter).Reconcile(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if (len(submitter.rounds) == 1) != test.want ||
+				(test.want && submitter.rounds[0] != 7) {
+				t.Fatalf("unexpected settlements: %v", submitter.rounds)
+			}
+		})
+	}
+}
+
+func TestSettlementDutyToleratesRecheckAndReportsFailures(t *testing.T) {
+	reader := newFakeBeaconReader(7, 7, biddingAuction(7, "0xabc", "120", 1_000, 2_000))
+	reader.timestamp = 3_000
+	submitter := &fakeBeaconSubmitter{err: starknet.ErrKeeperRecheckRequired}
+	if err := NewSettlementDuty(reader, submitter).Reconcile(context.Background()); err != nil {
+		t.Fatalf("recheck must wait for the next pass: %v", err)
+	}
+	submitter.err = errors.New("reverted")
+	if err := NewSettlementDuty(reader, submitter).Reconcile(context.Background()); err == nil {
+		t.Fatal("expected submission failure")
+	}
+	reader.statusErr = errors.New("offline")
+	submitter.rounds = nil
+	if err := NewSettlementDuty(reader, submitter).Reconcile(context.Background()); err == nil ||
+		len(submitter.rounds) != 0 {
+		t.Fatal("submitted without verified state")
+	}
+	uninitialized := &fakeBeaconReader{}
+	if err := NewSettlementDuty(uninitialized, submitter).Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 type transientDuty struct {
@@ -78,11 +86,12 @@ func (d *transientDuty) Reconcile(context.Context) error {
 	return nil
 }
 
-func (r *fakeRoundRestarter) EnsureNextRound(
-	_ context.Context,
-	outcome CycleOutcome,
-) error {
-	r.calls++
-	r.outcome = outcome
-	return nil
+type fakeBeaconSubmitter struct {
+	rounds []uint64
+	err    error
+}
+
+func (s *fakeBeaconSubmitter) SettleBeaconAuction(_ context.Context, roundID uint64) (string, error) {
+	s.rounds = append(s.rounds, roundID)
+	return "0xabc", s.err
 }

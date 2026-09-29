@@ -11,28 +11,18 @@ const biddingSnapshot: BeaconSnapshot = {
   observedAt: '2026-08-24T10:00:00Z',
   round: {
     id: 4,
-    whisperAddress: '0x123',
-    auctionId: 7,
+    auctionAddress: '0xbeac0',
     paymentToken: '0x456',
-    winnerPayloadDomain: '0x789',
     reservePrice: '1500000000000000000',
-    maxBids: 16,
-    vaultAddress: '0xabc',
-    revealPublicKey: '0xdef',
-    schedule: {
-      kind: 'start-on-bid',
-      biddingDurationSeconds: 259200,
-      acceptanceDurationSeconds: 600,
-      settlementDurationSeconds: 1800,
-    },
+    minRaiseBps: 1000,
+    biddingDurationSeconds: 259200,
+    extensionSeconds: 300,
     startedAt: '2026-08-21T11:00:00Z',
-    biddingDeadline: '2026-08-24T11:00:00Z',
-    forceRevealAfter: '2026-08-24T11:10:00Z',
-    abortAfter: '2026-08-24T11:20:00Z',
-    submissionCount: 3,
-    fundedTrancheCount: 2,
-    status: 'bidding',
-    result: null,
+    endsAt: '2026-08-24T11:00:00Z',
+    leader: '0x0777aaaabbbbccccdddd',
+    leadingBid: '2000000000000000000',
+    minimumBid: '2200000000000000000',
+    bidCount: 3,
   },
   controller: null,
   billboard: null,
@@ -44,22 +34,25 @@ const pendingSnapshot: BeaconSnapshot = {
   observedAt: '2026-08-24T12:00:00Z',
   round: {
     ...biddingSnapshot.round!,
-    schedule: {
-      ...biddingSnapshot.round!.schedule,
-      biddingDurationSeconds: 300,
-    },
+    biddingDurationSeconds: 300,
     startedAt: null,
-    biddingDeadline: null,
-    forceRevealAfter: null,
-    abortAfter: null,
-    submissionCount: 0,
-    fundedTrancheCount: 0,
-    status: 'pending',
+    endsAt: null,
+    leader: null,
+    leadingBid: '0',
+    minimumBid: '1500000000000000000',
+    bidCount: 0,
   },
 };
 
+const controller = {
+  address: '0x777',
+  roundId: 3,
+  claimedAt: '2026-08-24T11:00:00Z',
+  hasPublished: false,
+};
+
 describe('BeaconConsole', () => {
-  it('shows only safe public counters during sealed bidding', () => {
+  it('shows the public lead, bid count, and exact next minimum', () => {
     const markup = renderToStaticMarkup(
       <BeaconConsole
         isOpen
@@ -68,28 +61,33 @@ describe('BeaconConsole', () => {
         error={null}
         onClose={() => undefined}
         onRefresh={() => undefined}
-        onPlaceBid={async () => ({
-          amount: '2000000000000000000',
-          transactionHash: '0x123',
-          groupHandle: '0x456',
-          bidHandle: '0x789',
-        })}
+        onPlaceBid={async () => undefined}
+        viewerAddress="0x999"
       />
     );
 
     expect(markup).toContain('BIDDING OPEN');
     expect(markup).toContain('BIDDING CLOSES IN');
     expect(markup).toContain('1H 00M');
-    expect(markup).toContain('BIDS');
-    expect(markup).not.toContain('FUNDED BIDS');
-    expect(markup).not.toContain('ACCEPTED BIDS');
-    expect(markup).toContain('PLACE SEALED BID');
-    expect(markup).toContain('READY WALLET // PRIVATE');
+    expect(markup).toContain('LEADING BID');
+    expect(markup).toContain('2 STRK');
+    expect(markup).toContain('NEXT MINIMUM');
+    expect(markup).toContain('2.2 STRK');
+    expect(markup).toContain('>3</div>');
+    expect(markup).toContain('LEADER');
+    expect(markup).toContain('0x0777aa…ccdddd');
+    expect(markup).toContain('value="2.2"');
+    expect(markup).toContain('(+10%)');
+    expect(markup).toContain('refunded in the same transaction');
+    expect(markup).toContain('final 5 minutes extends the deadline');
+    expect(markup).toContain('PLACE BID');
+    expect(markup).toContain('PUBLIC BID // STRK');
     expect(markup).not.toContain(' disabled=""');
-    expect(markup).not.toContain('WINNING BID');
+    expect(markup).not.toContain('SEALED');
+    expect(markup).not.toContain('SETTLE ROUND');
   });
 
-  it('shows the connected wallet total committed for the current round', () => {
+  it('marks the connected leader and blocks raising its own bid', () => {
     const markup = renderToStaticMarkup(
       <BeaconConsole
         isOpen
@@ -98,43 +96,14 @@ describe('BeaconConsole', () => {
         error={null}
         onClose={() => undefined}
         onRefresh={() => undefined}
-        ownBids={[
-          {
-            version: 1,
-            network: 'SN_SEPOLIA',
-            walletAddress: '0x999',
-            roundId: 4,
-            auctionId: 7,
-            whisperAddress: '0x123',
-            amount: '2250000000000000000',
-            groupHandle: '0x456',
-            bidHandle: '0x789',
-            transactionHash: null,
-            submittedAt: '2026-08-27T22:00:00.000Z',
-          },
-          {
-            version: 1,
-            network: 'SN_SEPOLIA',
-            walletAddress: '0x999',
-            roundId: 4,
-            auctionId: 7,
-            whisperAddress: '0x123',
-            amount: '1750000000000000000',
-            groupHandle: '0xabc',
-            bidHandle: '0xdef',
-            transactionHash: '0x111',
-            submittedAt: '2026-08-27T22:05:00.000Z',
-          },
-        ]}
+        onPlaceBid={async () => undefined}
+        viewerAddress="0x777aaaabbbbccccdddd"
       />
     );
 
-    expect(markup).toContain('YOUR COMMITTED TOTAL');
-    expect(markup).toContain('4 [STRK]');
-    expect(markup).toContain('2 SEALED BIDS');
-    expect(markup).not.toContain('2.25 [STRK]');
-    expect(markup).not.toContain('1.75 [STRK]');
-    expect(markup).toContain('SAVED ON THIS DEVICE');
+    expect(markup).toContain('>YOU</span>');
+    expect(markup).toContain('YOU HOLD THE LEAD');
+    expect(markup).toContain(' disabled=""');
   });
 
   it('explains that the first bid starts the pending auction', () => {
@@ -151,40 +120,23 @@ describe('BeaconConsole', () => {
 
     expect(markup).toContain('WAITING FOR FIRST BID');
     expect(markup).toContain('STARTS ON BID');
-    expect(markup).toContain('first sealed bid opens a 5-minute auction');
-    expect(markup).not.toContain('CURRENT WINNER');
-    expect(markup).not.toContain('CURRENT CONTROLLER');
-    expect(markup).not.toContain('UNCLAIMED');
-  });
-
-  it('counts down the acceptance window before settlement begins', () => {
-    const snapshot: BeaconSnapshot = {
-      ...biddingSnapshot,
-      phase: 'acceptance',
-      observedAt: '2026-08-24T11:08:11Z',
-    };
-    const markup = renderToStaticMarkup(
-      <BeaconConsole
-        isOpen
-        snapshot={snapshot}
-        isLoading={false}
-        error={null}
-        onClose={() => undefined}
-        onRefresh={() => undefined}
-      />
+    expect(markup).toContain(
+      'first bid at or above the reserve opens a 5-minute auction'
     );
-
-    expect(markup).toContain('Finalizing bids');
-    expect(markup).toContain('SETTLEMENT STARTS IN');
-    expect(markup).toContain('00:01:49');
-    expect(markup).not.toContain('>SEALED</div>');
+    expect(markup).toContain('RESERVE');
+    expect(markup).toContain('1.5 STRK');
+    expect(markup).toContain('MIN RAISE');
+    expect(markup).toContain('10%');
+    expect(markup).toContain('WALLET REQUIRED');
+    expect(markup).not.toContain('LEADER');
+    expect(markup).not.toContain('CURRENT CONTROLLER');
   });
 
-  it('shows proof generation after the settlement window opens', () => {
+  it('offers permissionless settlement once bidding closes', () => {
     const snapshot: BeaconSnapshot = {
       ...biddingSnapshot,
       phase: 'settling',
-      observedAt: '2026-08-24T11:10:01Z',
+      observedAt: '2026-08-24T11:00:01Z',
     };
     const markup = renderToStaticMarkup(
       <BeaconConsole
@@ -194,50 +146,22 @@ describe('BeaconConsole', () => {
         error={null}
         onClose={() => undefined}
         onRefresh={() => undefined}
+        onSettle={async () => undefined}
       />
     );
 
-    expect(markup).toContain('Choosing the winner');
-    expect(markup).toContain('SETTLEMENT');
-    expect(markup).toContain('PROVING');
-    expect(markup).toContain('generated and confirmed onchain');
+    expect(markup).toContain('Bidding closed');
+    expect(markup).toContain('FINAL');
+    expect(markup).toContain('WINNER');
+    expect(markup).toContain('WINNING BID');
+    expect(markup).not.toContain('NEXT MINIMUM');
+    expect(markup).toContain('SETTLE ROUND');
+    expect(markup).toContain('Anyone can finalize the round');
+    expect(markup).not.toContain('PLACE BID');
+    expect(markup).not.toContain(' disabled=""');
   });
 
-  it('keeps the settled round summary compact', () => {
-    const snapshot: BeaconSnapshot = {
-      ...biddingSnapshot,
-      phase: 'settled',
-      round: {
-        ...biddingSnapshot.round!,
-        status: 'settled',
-        result: {
-          hasWinner: true,
-          winnerCommitment: '0xabcdef1234567890',
-          winningBid: '2500000000000000000',
-          secondHighestBid: '2000000000000000000',
-          clearingPrice: '2000000000000000000',
-          settledAt: '2026-08-24T11:05:00Z',
-        },
-      },
-    };
-    const markup = renderToStaticMarkup(
-      <BeaconConsole
-        isOpen
-        snapshot={snapshot}
-        isLoading={false}
-        error={null}
-        onClose={() => undefined}
-        onRefresh={() => undefined}
-      />
-    );
-
-    expect(markup).toContain('Winner confirmed');
-    expect(markup).toContain('BIDS');
-    expect(markup).not.toContain('CLEARING PRICE');
-    expect(markup).not.toContain('WINNER COMMITMENT');
-  });
-
-  it('shows verified live state without development scenario controls', () => {
+  it('shows verified live state on the auction page', () => {
     const markup = renderToStaticMarkup(
       <BeaconConsole
         isOpen
@@ -250,23 +174,15 @@ describe('BeaconConsole', () => {
       />
     );
 
-    expect(markup).not.toContain('LOCAL SIGNAL');
-    expect(markup).toContain('BIDDING');
-    expect(markup).not.toContain('CURRENT WINNER');
-    expect(markup).not.toContain('CURRENT CONTROLLER');
-    expect(markup).not.toContain('UNCLAIMED');
     expect(markup).toContain('CURRENT ROUND');
     expect(markup).toContain('aria-label="Round 4"');
     expect(markup).toContain('>0004</span>');
-    expect(markup).toContain('BIDS');
-    expect(markup).toContain('>3</div>');
-    expect(markup).not.toContain('>2</div>');
-    expect(markup).not.toContain('2 / 16');
     expect(markup).toContain('VERIFIED ONCHAIN');
-    expect(markup).not.toContain('LOCAL PREVIEW');
+    expect(markup).toContain('OPEN ASCENDING AUCTION');
+    expect(markup).not.toContain('VICKREY');
   });
 
-  it('shows only winner, bidder count, and winning bid in history', () => {
+  it('shows winner, bid count, and winning bid in history', () => {
     const markup = renderToStaticMarkup(
       <BeaconConsole
         isOpen
@@ -289,38 +205,13 @@ describe('BeaconConsole', () => {
 
     expect(markup).toContain('Winner history');
     expect(markup).toContain('WINNER');
+    expect(markup).toContain('0x071a45…a2409f');
     expect(markup).toContain('BIDS');
     expect(markup).not.toContain('BIDDERS');
     expect(markup).toContain('WINNING BID');
     expect(markup).toContain('22');
-    expect(markup).toContain('41.75 [STRK]');
-    expect(markup).not.toContain('AUCTION DETAILS');
-  });
-
-  it('shows a verification label instead of a winner commitment', () => {
-    const markup = renderToStaticMarkup(
-      <BeaconConsole
-        isOpen
-        snapshot={biddingSnapshot}
-        isLoading={false}
-        error={null}
-        view="history"
-        history={[
-          {
-            roundId: 9,
-            winnerAddress: null,
-            bidCount: 1,
-            winningBid: '100000000000000000',
-          },
-        ]}
-        onClose={() => undefined}
-        onRefresh={() => undefined}
-      />
-    );
-
-    expect(markup).toContain('VERIFYING');
-    expect(markup).toContain('The winning wallet is being verified');
-    expect(markup).not.toContain('WINNER COMMITMENT');
+    expect(markup).toContain('41.75 STRK');
+    expect(markup).not.toContain('VERIFYING');
   });
 });
 
@@ -328,13 +219,7 @@ describe('BeaconSummaryCard', () => {
   it('shows controller state without duplicating auction status in Core', () => {
     const snapshot: BeaconSnapshot = {
       ...biddingSnapshot,
-      controller: {
-        address: '0x777',
-        claimedAt: '2026-08-24T11:00:00Z',
-        startsAt: '2026-08-24T11:00:00Z',
-        expiresAt: null,
-        hasPublished: false,
-      },
+      controller,
     };
     const markup = renderToStaticMarkup(
       <MemoryRouter>
@@ -362,29 +247,7 @@ describe('BeaconSummaryCard', () => {
   });
 
   it('shows the projection action only to the current controller', () => {
-    const snapshot: BeaconSnapshot = {
-      ...biddingSnapshot,
-      phase: 'settled',
-      controller: {
-        address: '0x777',
-        claimedAt: '2026-08-24T11:00:00Z',
-        startsAt: '2026-08-24T11:00:00Z',
-        expiresAt: null,
-        hasPublished: false,
-      },
-      round: {
-        ...biddingSnapshot.round!,
-        status: 'settled',
-        result: {
-          hasWinner: true,
-          winnerCommitment: '0x999',
-          winningBid: '2000000000000000000',
-          secondHighestBid: '1000000000000000000',
-          clearingPrice: '1000000000000000000',
-          settledAt: '2026-08-24T11:00:00Z',
-        },
-      },
-    };
+    const snapshot: BeaconSnapshot = { ...pendingSnapshot, controller };
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <BeaconSummaryCard
@@ -428,13 +291,7 @@ describe('BeaconSummaryCard', () => {
   it('shows the transmission and locks further publication', () => {
     const snapshot: BeaconSnapshot = {
       ...biddingSnapshot,
-      controller: {
-        address: '0x777',
-        claimedAt: '2026-08-24T11:00:00Z',
-        startsAt: '2026-08-24T11:00:00Z',
-        expiresAt: null,
-        hasPublished: true,
-      },
+      controller: { ...controller, hasPublished: true },
       billboard: {
         imageUrl: 'https://images.example/beacon.webp',
         thumbnailUrl: 'https://images.example/beacon-thumbnail.webp',
@@ -472,11 +329,10 @@ describe('BeaconSummaryCard', () => {
     const snapshot: BeaconSnapshot = {
       ...biddingSnapshot,
       controller: {
+        ...controller,
         address: '0x888',
+        roundId: 4,
         claimedAt: '2026-08-25T11:00:00Z',
-        startsAt: '2026-08-25T11:00:00Z',
-        expiresAt: null,
-        hasPublished: false,
       },
       billboard: {
         imageUrl: 'https://images.example/previous.webp',

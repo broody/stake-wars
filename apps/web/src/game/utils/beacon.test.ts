@@ -9,48 +9,36 @@ import {
 
 const round: BeaconRound = {
   id: 4,
-  whisperAddress: '0x123',
-  auctionId: 7,
+  auctionAddress: '0x123',
   paymentToken: '0x456',
-  winnerPayloadDomain: '0x789',
   reservePrice: '1500000000000000000',
-  maxBids: 16,
-  vaultAddress: '0xabc',
-  revealPublicKey: '0xdef',
-  schedule: {
-    kind: 'start-on-bid',
-    biddingDurationSeconds: 259200,
-    acceptanceDurationSeconds: 600,
-    settlementDurationSeconds: 1800,
-  },
+  minRaiseBps: 1000,
+  biddingDurationSeconds: 259200,
+  extensionSeconds: 300,
   startedAt: '2026-08-21T12:00:00Z',
-  biddingDeadline: '2026-08-24T12:00:00Z',
-  forceRevealAfter: '2026-08-24T12:10:00Z',
-  abortAfter: '2026-08-24T12:20:00Z',
-  submissionCount: 3,
-  fundedTrancheCount: 2,
-  status: 'bidding',
-  result: null,
+  endsAt: '2026-08-24T12:00:00Z',
+  leader: '0xabc',
+  leadingBid: '1500000000000000000',
+  minimumBid: '1650000000000000000',
+  bidCount: 1,
 };
 
 describe('Beacon lifecycle presentation', () => {
-  it('maps public lifecycle states without inventing bidder data', () => {
+  it('maps public lifecycle states to their deadlines', () => {
     expect(beaconPhaseLabel('pending')).toBe('WAITING FOR FIRST BID');
     expect(beaconPhaseLabel('bidding')).toBe('BIDDING OPEN');
+    expect(beaconPhaseLabel('settling')).toBe('SETTLING');
     expect(beaconDeadline('bidding', round)).toEqual({
       label: 'BIDDING CLOSES',
-      at: round.biddingDeadline,
+      at: round.endsAt,
     });
-    expect(beaconDeadline('recovery', round)).toBeNull();
+    expect(beaconDeadline('settling', round)).toBeNull();
   });
 
   it('formats round timing and token amounts', () => {
     expect(
-      beaconCountdown(
-        round.biddingDeadline!,
-        Date.parse('2026-08-24T10:58:57Z')
-      )
+      beaconCountdown(round.endsAt!, Date.parse('2026-08-24T10:58:57Z'))
     ).toBe('01:01:03');
-    expect(formatBeaconAmount(round.reservePrice)).toBe('1.5 [STRK]');
+    expect(formatBeaconAmount(round.reservePrice)).toBe('1.5 STRK');
   });
 });

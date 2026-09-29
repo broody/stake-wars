@@ -5,6 +5,7 @@ import { ShootingStars } from './ShootingStars';
 import { OrbitalBeacon } from './OrbitalBeacon';
 import { CoreSupplyDropMarker } from './CoreSupplyDropMarker';
 import type { SupplyDrop } from '../../types';
+import { useCoreIntro } from '../../hooks/useCoreIntro';
 import {
   EMPTY_SWARM_COUNTS,
   type EnemySwarmCounts,
@@ -29,11 +30,13 @@ export function Scene({
   swarmCounts?: EnemySwarmCounts;
   active?: boolean;
 }) {
+  const coreIntro = useCoreIntro();
+
   return (
     <>
       <Stars />
       <ShootingStars />
-      <Planet />
+      <Planet intro={coreIntro} />
       {swarmCounts.mites > 0 || swarmCounts.lancers > 0 ? (
         <Suspense fallback={null}>
           <EnemySwarms active={active} counts={swarmCounts} />
@@ -42,6 +45,7 @@ export function Scene({
       <OrbitalBeacon
         isTracking={isBeaconTracking}
         onInspect={onInspectBeacon}
+        isCoreProjectionSettled={coreIntro.isProjectionSettled}
       />
       {supplyDropDraw ? (
         <CoreSupplyDropMarker
@@ -49,6 +53,7 @@ export function Scene({
           supplyDrop={supplyDropDraw}
           isOpen={isSupplyDropTracking}
           onInspect={onInspectSupplyDrop}
+          canArrive={coreIntro.isProjectionSettled}
         />
       ) : null}
       <ambientLight intensity={0.5} />

@@ -3,6 +3,7 @@ import {
   NEW_POOL_MEMBER_SELECTOR,
   POOL_MEMBER_REWARD_CLAIMED_SELECTOR,
   filterSectorsByOperatorGeneration,
+  parseChallengeWindowSeconds,
   parseIndexedSectors,
   parseOperatorActivity,
   parsePoolMemberStartPage,
@@ -439,5 +440,27 @@ describe('Torii pool membership parsing', () => {
       hasNextPage: false,
       endCursor: null,
     });
+  });
+});
+
+describe('Torii game rules parsing', () => {
+  it('reads the Challenge response window', () => {
+    expect(
+      parseChallengeWindowSeconds({
+        data: {
+          stakewarsGameConfigModels: {
+            edges: [{ node: { challenge_period_seconds: '0x2a30' } }],
+          },
+        },
+      })
+    ).toBe(10_800);
+  });
+
+  it('rejects a missing game configuration', () => {
+    expect(() =>
+      parseChallengeWindowSeconds({
+        data: { stakewarsGameConfigModels: { edges: [] } },
+      })
+    ).toThrow('Torii omitted the game rules');
   });
 });

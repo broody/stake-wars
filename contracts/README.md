@@ -31,17 +31,8 @@ Scarb dependency because its Cairo toolchain is older than this Dojo package.
 
 Run `pnpm dev:torii` from the repository root to index the shared Sepolia
 World. [`torii_sepolia.toml`](torii_sepolia.toml) also registers the staking
-pool and active Whisper deployment as explicit `OTHER` contracts with raw
-event indexing enabled. The Whisper address and deployment block mirror
-`vendor/whisper/deployments/sepolia.json`.
-
-Torii indexes keyed `AuctionSettled` events from the configured Whisper
-contract for inspection and rebuildable queries. Beacon control and API
-history do not wait for this index: the API reads the canonical auction and
-result directly through Starknet RPC, then verifies the operator's winning
-address disclosure against the onchain winning group and commitment.
-Settlements emitted by previous Whisper deployments use legacy layouts and are
-intentionally outside the active contract's indexed event set.
+pool as an explicit `OTHER` contract with raw event indexing enabled. Beacon
+System models and events are World resources and need no extra configuration.
 
 ## Control System
 
@@ -103,6 +94,36 @@ duplicated or automatically spent.
 Spent force is permanent accounting for that Operator address. The contracts do
 not slash, escrow, or transfer the underlying STRK, which remains in the official
 delegation pool under its normal staking and reward rules.
+
+## Beacon System
+
+The Beacon System runs one open ascending auction at a time for control of the
+Beacon billboard, paid in the admin-configured token (STRK). The game admin
+calls `initialize_beacon` once with the payment token, proceeds recipient,
+reserve, minimum raise in basis points, bidding window, late-bid extension, and
+first round ID, which opens that round as pending. `set_beacon_rules` changes
+every rule except the payment token; a pending round without bids adopts the
+new rules, while a round with bids keeps the rules its bidders accepted.
+
+- `place_beacon_bid(round_id, amount)` requires an `approve` in the same
+  multicall. The first bid must meet the reserve and starts the bidding window.
+  Each later bid must raise the lead by `min_raise_bps`, rounded up to the next
+  base unit, and the current leader cannot outbid itself. A bid in the final
+  `extension_seconds` moves the deadline to `extension_seconds` after that bid.
+  Bids are rejected while the game is paused.
+- Only the leading bid is escrowed. The displaced leader is refunded in the
+  same transaction, and both transfers are balance-checked, so fee-on-transfer
+  tokens are rejected.
+- After the deadline, any account may call `settle_beacon_auction(round_id)`,
+  including while the game is paused. It pays the winning bid to the round's
+  proceeds recipient and opens the next round atomically, so every settled
+  round has a winner and every round below the current one is settled.
+- `get_beacon_status` returns the current round and the exact minimum next
+  bid, and reports `initialized: false` instead of panicking before setup.
+  `get_beacon_auction(round_id)` reads any round.
+
+Winning a round grants only off-chain control of the Beacon's transmission;
+the API reads the winner from the settled round.
 
 ## SupplyDrop System
 

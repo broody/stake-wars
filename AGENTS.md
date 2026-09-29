@@ -105,37 +105,24 @@ After startup, require all of the following:
 
 ## Local Beacon bidding
 
-The Beacon's sealed-bid flow requires both the local Sepolia API and the local
-Whisper capsule operator. When starting or restarting this flow, do not leave
-the frontend pointed at its default remote API: the remote API may serve a
-different network and may reject the `http://localhost:3000` browser origin,
-which appears in the UI as `Verified data unavailable` even when the capsule
-operator itself is healthy.
+The Beacon is an open ascending auction run by the Beacon System in the shared
+Sepolia World. It needs only the local Sepolia API; there is no separate
+auction operator. Do not leave the frontend pointed at its default remote API:
+the remote API may serve a different network and may reject the
+`http://localhost:3000` browser origin, which appears in the UI as
+`Verified data unavailable`.
 
-First start the local API as described above, then start the operator from the
-repository root with:
+`apps/web/.env.sepolia` sets `VITE_BEACON_SYSTEM_ADDRESS`, and `pnpm dev:api`
+passes the same value to the API as `BEACON_SYSTEM_ADDRESS`. While it is empty,
+the Beacon reports no open round and bidding shows `AUCTION NOT CONFIGURED`.
+Only set it from verified migration output.
 
-```bash
-pnpm dev:whisper
-```
-
-Always use this launcher rather than starting the operator package directly.
-It validates the required owner-only secret files, configures the shared
-Sepolia Whisper deployment, and permits the `http://localhost:3000` origin.
-Never print, copy into the repository, or persist the populated secret values
-from those files.
-
-Then start or restart the frontend with both local endpoints explicitly set:
+Start the local API as described above, then start or restart the frontend
+with the local API override:
 
 ```bash
-VITE_API_DOMAIN=http://127.0.0.1:8080 \
-VITE_WHISPER_OPERATOR_URL=http://127.0.0.1:8082 \
-pnpm dev:web:sepolia
+VITE_API_DOMAIN=http://127.0.0.1:8080 pnpm dev:web:sepolia
 ```
-
-Vite captures both values at process startup. An already-running frontend must
-be stopped and restarted with the complete command above; starting only the
-operator does not update the browser configuration.
 
 Before testing a bid, require all of the following:
 
@@ -143,14 +130,57 @@ Before testing a bid, require all of the following:
   pass and report `SN_SEPOLIA`.
 - `GET http://127.0.0.1:8080/v1/beacon` succeeds with an
   `Origin: http://localhost:3000` request, allows that origin, and reports a
-  Sepolia auction round with a configured Whisper address.
-- `GET http://127.0.0.1:8082/healthz` returns `{"status":"ok"}` and
-  `GET http://127.0.0.1:8082/readyz` returns `{"status":"ready"}`.
-- The frontend's effective Vite environment reports both
-  `VITE_API_DOMAIN: "http://127.0.0.1:8080"` and
-  `VITE_WHISPER_OPERATOR_URL: "http://127.0.0.1:8082"`.
-- The Beacon page shows the current verified round and no longer displays
-  either `Verified data unavailable` or `Capsule operator not configured`.
+  round whose `auctionAddress` matches `VITE_BEACON_SYSTEM_ADDRESS`.
+- The frontend's effective Vite environment reports
+  `VITE_API_DOMAIN: "http://127.0.0.1:8080"` and a non-empty
+  `VITE_BEACON_SYSTEM_ADDRESS`.
+- The Beacon page shows the current verified round and displays neither
+  `Verified data unavailable` nor `AUCTION NOT CONFIGURED`.
+
+Bids are ordinary public STRK `approve` + `place_beacon_bid` multicalls from any
+supported wallet. The local API does not run the Beacon keeper unless
+`BEACON_KEEPER_ENABLED` and the keeper signer are configured, so settle an
+expired local round with the page's `SETTLE ROUND` action.
+
+## Beacon open-auction cutover
+
+Replacing the Whisper sealed-bid Beacon with the Beacon System is an external
+deployment. Perform each step below only when the user explicitly requests it,
+in this order:
+
+1. Confirm the live Whisper round has no bids: `GET /v1/beacon` on the old API
+   reports `phase: "pending"` and `submissionCount: 0`. A round with bids must
+   settle and have its winner resolved first.
+2. Deploy the API. Migration `012_open_beacon_auction.sql` moves every resolved
+   Whisper-era winner into `beacon_controllers` with `source = 'whisper'`,
+   keeps their artwork and uploads, and drops the Whisper round, outcome, and
+   cycle-job tables. With `BEACON_SYSTEM_ADDRESS` unset, `/v1/beacon` reports
+   `phase: "none"` with the preserved controller and billboard, which the
+   previous frontend also renders safely. Confirm history still lists every
+   Whisper-era winner.
+3. Deploy the frontend. Bidding shows `AUCTION NOT CONFIGURED` until the Beacon
+   System is configured.
+4. Migrate the World to add the Beacon System. This is an in-place upgrade,
+   not a new World. Follow the Sepolia or Mainnet migration rules in this
+   file, including `--use-blake2s-casm-class-hash` on Mainnet.
+5. As the game admin, call `initialize_beacon(payment_token, proceeds_recipient,
+   reserve_price, min_raise_bps, bidding_duration_seconds, extension_seconds,
+   first_round_id)`. Mainnet uses STRK, an explicitly approved proceeds
+   recipient, `10000000000000000000` (10 STRK), `1000` (10%), `259200` (72
+   hours), `300` (5 minutes), and a `first_round_id` greater than every
+   Whisper-era round in `beacon_controllers` (7 for the current Mainnet
+   history). The API refuses to project rounds that overlap Whisper history.
+6. Set `BEACON_SYSTEM_ADDRESS` and `BEACON_KEEPER_ENABLED = "true"` in
+   `apps/api/fly.toml`, set `VITE_BEACON_SYSTEM_ADDRESS` in `.env.mainnet` and
+   the Vercel project, then redeploy both. `BEACON_KEEPER_ENABLED` requires the
+   existing SupplyDrop keeper signer.
+7. Verify `/v1/beacon` reports the first round as `pending` with the configured
+   `auctionAddress`, `reservePrice`, and `minimumBid`, and that Torii indexes
+   `stakewarsBeaconAuctionModels`.
+
+The previous Whisper contract remains deployed. Decommissioning its operator,
+removing `BEACON_COORDINATOR_TOKEN` or other obsolete Fly secrets, and removing
+obsolete Vercel variables each require a separate explicit request.
 
 ## Sepolia Dojo migration
 

@@ -26,6 +26,18 @@ const SECTORS_QUERY = `
   }
 `;
 
+const GAME_RULES_QUERY = `
+  query StakeWarsGameRules {
+    stakewarsGameConfigModels(first: 1) {
+      edges {
+        node {
+          challenge_period_seconds
+        }
+      }
+    }
+  }
+`;
+
 const OPERATOR_GENERATIONS_QUERY = `
   query StakeWarsOperatorGenerations($operators: [ContractAddress]) {
     stakewarsOperatorStateModels(
@@ -1226,6 +1238,51 @@ export async function getOperatorActivity(
   );
 
   return parseOperatorActivity(payload);
+}
+
+interface ToriiGameRulesResponse {
+  data?: {
+    stakewarsGameConfigModels?: {
+      edges?: Array<{
+        node?: { challenge_period_seconds?: string | null } | null;
+      }>;
+    };
+  };
+  errors?: Array<{ message?: string }>;
+}
+
+export function parseChallengeWindowSeconds(
+  payload: ToriiGameRulesResponse
+): number {
+  if (payload.errors?.length) {
+    throw new Error(
+      payload.errors[0]?.message || 'Torii rejected the game rules query'
+    );
+  }
+  const value =
+    payload.data?.stakewarsGameConfigModels?.edges?.[0]?.node
+      ?.challenge_period_seconds;
+  if (value === null || value === undefined) {
+    throw new Error('Torii omitted the game rules');
+  }
+  const seconds = parseUnixTimestamp(value, 'challenge window');
+  if (seconds === null) {
+    throw new Error('Torii returned an invalid challenge window');
+  }
+  return seconds;
+}
+
+// Discovery only: the Control System remains authoritative when a Challenge
+// deadline is written. The UI uses this to describe the window in plain text.
+export async function getChallengeWindowSeconds(
+  signal?: AbortSignal
+): Promise<number> {
+  const payload = await queryTorii<ToriiGameRulesResponse>(
+    GAME_RULES_QUERY,
+    {},
+    signal
+  );
+  return parseChallengeWindowSeconds(payload);
 }
 
 export function parseIndexedSectors(

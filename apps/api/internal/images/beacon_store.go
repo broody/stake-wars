@@ -102,9 +102,9 @@ func (s *Store) PublishBeacon(
 	var currentRoundID uint64
 	var currentController string
 	err = tx.QueryRowContext(ctx, `
-		SELECT round_id, claimed_controller
-		FROM beacon_rounds
-		WHERE network = ? AND claimed_controller IS NOT NULL
+		SELECT round_id, controller
+		FROM beacon_controllers
+		WHERE network = ?
 		ORDER BY round_id DESC LIMIT 1
 	`, upload.Network).Scan(&currentRoundID, &currentController)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -130,7 +130,7 @@ func (s *Store) PublishBeacon(
 
 	var previousArtwork sql.NullString
 	if err := tx.QueryRowContext(ctx, `
-		SELECT active_artwork_id FROM beacon_rounds
+		SELECT active_artwork_id FROM beacon_controllers
 		WHERE network = ? AND round_id = ?
 	`, upload.Network, upload.ControllerRoundID).Scan(&previousArtwork); err != nil {
 		return fmt.Errorf("read active Beacon artwork: %w", err)
@@ -155,9 +155,9 @@ func (s *Store) PublishBeacon(
 		return fmt.Errorf("publish Beacon artwork: %w", err)
 	}
 	result, err = tx.ExecContext(ctx, `
-		UPDATE beacon_rounds
+		UPDATE beacon_controllers
 		SET active_artwork_id = ?, updated_at = unixepoch()
-		WHERE network = ? AND round_id = ? AND claimed_controller = ?
+		WHERE network = ? AND round_id = ? AND controller = ?
 			AND active_artwork_id IS NULL
 	`, artwork.ID, upload.Network, upload.ControllerRoundID, upload.OwnerAddress)
 	if err != nil {

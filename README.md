@@ -8,53 +8,23 @@ game token or moving custody away from Starknet's staking system.
 
 This repository contains the web application, game API, and Dojo contracts.
 
-## Whisper: private Beacon auctions
+## The Beacon: open auctions for the signal
 
-The Beacon billboard is allocated through
-[Whisper](https://github.com/broody/whisper), a standalone library for private
-Vickrey auctions and the sole focus of Stake Wars' STRK20 integration. Bids
-remain hidden from the public until settlement. The current controller remains
-until a later qualifying winner is confirmed, and the next three-day auction
-starts with its first sealed bid. Delegation and territory gameplay remain
-public.
+The Beacon billboard is allocated through an open ascending auction run by the
+Dojo Beacon System. The first bid at or above the reserve starts a three-day
+clock. Every bid is public and must beat the lead by at least 10%; the Beacon
+System escrows only the leading bid and refunds the displaced leader in the
+same transaction. A bid in the final five minutes extends the deadline to five
+minutes after that bid. After the deadline, anyone can settle the round: the
+winning bid goes to the configured proceeds recipient, the winner takes control
+of the Beacon, and the next round opens in the same transaction. The current
+controller keeps control until a later round settles.
 
-For the STRK20 Private Sprint, the two projects are one submission with a clear
-boundary: Whisper owns the reusable Cairo contract, headless TypeScript SDK,
-encrypted bid capsule, and vault operator; Stake Wars is the dapp, product UX,
-canonical-round registry, winner claim, and billboard fulfillment layer. The
-Whisper repository is pinned here as [`vendor/whisper`](vendor/whisper), while
-remaining usable by other applications. Shared delivery gates and hackathon
-evidence are tracked in
-[`STRK20_INTEGRATION_PLAN.md`](STRK20_INTEGRATION_PLAN.md).
-
-Whisper currently relies on a trusted auctioneer: a single operator controls
-the auction vault and can decrypt bids before bidding closes. The privacy pool
-enforces note ownership and value conservation, and Whisper verifies the
-Vickrey result, but bidders still trust the operator to preserve bid secrecy
-and correctly settle or refund their escrow.
-
-To address this limitation, we explored two complementary primitives for
-contract-enforced escrow and delayed bid disclosure:
-
-- **[Controlled notes for the privacy pool](https://github.com/broody/starknet-privacy/pull/2):**
-  A proposed extension that lets a smart contract govern funded private
-  deposits. Creating a controlled note immediately debits private funds;
-  spending it requires authorization from its bound controller, enforced by
-  the pool. For Whisper, this could let an auction contract enforce escrow,
-  settlement, and refund rules over private value instead of entrusting those
-  funds to the auctioneer.
-- **[Verifiable delay functions (VDFs)](https://github.com/broody/vdf):**
-  An exploration of Wesolowski VDF verification and RSW timelock decryption in
-  Cairo, intended to make bids decryptable after a computational delay without
-  a trusted auctioneer holding the reveal key. The intended flow proves the
-  computation offchain and verifies its proof onchain;
-  the delay is computational, not an exact wall-clock deadline.
-
-These are research directions toward removing the trusted auctioneer from
-Whisper's sealed-bid design. They do not yet change its deployed trust model:
-controlled notes remain a draft proposal, and the VDF prototype still needs
-proof generation and verification for its optimized implementation, plus
-onchain integration.
+The Beacon previously ran on Whisper, a private sealed-bid auction built for
+the STRK20 Private Sprint. Its hackathon record remains in
+[`STRK20_INTEGRATION_PLAN.md`](STRK20_INTEGRATION_PLAN.md) and
+[`strk20.json`](strk20.json); rounds 1 through 6 from that era remain in Beacon
+history.
 
 ## Repository layout
 
@@ -64,7 +34,7 @@ apps/
 └── web/   # React, TypeScript, and Vite frontend
 contracts/ # Cairo contracts and Dojo World configuration
 docs/      # Product and architecture documentation
-vendor/    # Pinned third-party and companion repositories, including Whisper
+vendor/    # Pinned third-party reference repositories
 ```
 
 Clone the pinned vendor repositories with:
@@ -134,7 +104,7 @@ pnpm dev:web:prod
 
 Open [http://localhost:3000/play](http://localhost:3000/play). This uses
 `apps/web/.env.mainnet` and a localhost proxy for the production API, Torii,
-RPC, Whisper operator, and artwork. Wallet actions use Mainnet. Build output is
+RPC, and artwork. Wallet actions use Mainnet. Build output is
 temporary and removed on exit; press Ctrl+C to stop, then rerun the command to
 include code changes. Update the public Mainnet settings after production
 deployments change the configured addresses.

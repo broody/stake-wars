@@ -18,6 +18,12 @@ pub const SUPPLY_DROP_STATUS_ACTIVE: u8 = 2;
 pub const SUPPLY_DROP_STATUS_DRAWING: u8 = 3;
 pub const SUPPLY_DROP_STATUS_SETTLED: u8 = 4;
 
+pub const BEACON_CONFIG_ID: u8 = 0;
+pub const BEACON_COUNTER_ID: u8 = 0;
+pub const BEACON_STATUS_PENDING: u8 = 1;
+pub const BEACON_STATUS_BIDDING: u8 = 2;
+pub const BEACON_STATUS_SETTLED: u8 = 3;
+
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct GameConfig {
@@ -186,4 +192,51 @@ pub struct SupplyDropOperatorSnapshot {
     pub initialized: bool,
     pub generation: u64,
     pub retired: bool,
+}
+
+/// Admin-controlled Beacon parameters. Each round snapshots them when it opens;
+/// a rule change also refreshes the current round while it has no bids.
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct BeaconConfig {
+    #[key]
+    pub id: u8,
+    pub initialized: bool,
+    pub payment_token: ContractAddress,
+    pub proceeds_recipient: ContractAddress,
+    pub reserve_price: u128,
+    pub min_raise_bps: u16,
+    pub bidding_duration_seconds: u64,
+    pub extension_seconds: u64,
+    pub first_round_id: u64,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct BeaconCounter {
+    #[key]
+    pub id: u8,
+    pub current_round_id: u64,
+}
+
+/// One open ascending auction for Beacon control. Only the leading bid is
+/// escrowed; each outbid leader is refunded in the transaction that displaces it.
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct BeaconAuction {
+    #[key]
+    pub round_id: u64,
+    pub status: u8,
+    pub payment_token: ContractAddress,
+    pub proceeds_recipient: ContractAddress,
+    pub reserve_price: u128,
+    pub min_raise_bps: u16,
+    pub bidding_duration_seconds: u64,
+    pub extension_seconds: u64,
+    pub started_at: u64,
+    pub ends_at: u64,
+    pub leader: ContractAddress,
+    pub leading_bid: u128,
+    pub bid_count: u32,
+    pub settled_at: u64,
 }

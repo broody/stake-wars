@@ -16,8 +16,6 @@
     "dev:web:prod": "pnpm --filter @stakewars/web exec node ../../scripts/run-web-prod-local.mjs",
     "dev:web:e2e": "./scripts/run-web-e2e-local.sh",
     "dev:api": "./scripts/run-api-local.sh",
-    "dev:whisper": "./scripts/run-whisper-operator-local.sh",
-    "beacon:bootstrap": "./scripts/run-api-local.sh bootstrap",
     "dev:torii": "./scripts/run-torii-sepolia.sh",
     "dev:katana": "cd contracts && katana --dev --dev.no-fee --cartridge.paymaster --http.cors_origins '*'",
     "contracts:build": "cd contracts && sozo build",

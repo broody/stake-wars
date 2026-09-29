@@ -15,23 +15,19 @@ From the repository root:
 pnpm dev:api
 ```
 
-For the complete local Sepolia Beacon rehearsal, keep Torii and the Whisper
-operator running, bootstrap the first round explicitly, and launch the web app
-with its local API/operator overrides:
+For the complete local Sepolia Beacon rehearsal, run Torii and the API, then
+launch the web app with its local API override:
 
 ```bash
 pnpm dev:torii
-pnpm dev:whisper
 pnpm dev:api
-pnpm beacon:bootstrap
 pnpm dev:web:e2e
 ```
 
-The API and operator launchers read the same coordinator token from
-`~/.starknet_accounts/whisper/coordinator_token`. It must be a regular
-owner-only (`0600`) file containing at least 32 characters. Signing and viewing
-keys remain in the Whisper operator's existing owner-only manifests and are
-never loaded by the Go API.
+The launcher reads `VITE_BEACON_SYSTEM_ADDRESS` from `apps/web/.env.sepolia`
+as `BEACON_SYSTEM_ADDRESS`. When it is empty, the API still serves the
+preserved controller, transmission, and history and reports that no round is
+open.
 
 The service defaults to `http://localhost:8080` and stores local data in
 `./stakewars.db` relative to `apps/api`. The repository launcher reads the
@@ -51,19 +47,28 @@ Torii listens on `127.0.0.1:8081`, persists its rebuildable index under
 `contracts/.torii/sepolia`, and starts at the World deployment block. The
 launcher enables debug output and mirrors timestamped logs under
 `contracts/.torii/logs/`. In addition to the Stake Wars World, the Sepolia
-configuration indexes raw events from the staking pool and the active Whisper
-deployment. Those events remain available for indexed inspection, but Torii is
-not authoritative for Beacon control or history. The API reconciles each
-canonical round from Whisper's onchain auction and result views through direct
-Starknet RPC.
+configuration indexes raw events from the staking pool.
 
-After a direct-RPC result reports a winner, the API makes a server-to-server
-authenticated request to the Whisper operator's
-`GET /v1/auctions/{auctionId}/winner` endpoint. The operator decrypts and
-revalidates only the winning capsule and returns its committed wallet address.
-The API verifies the disclosed group and winner commitment against the onchain
-result before atomically activating the controller. Torii lag therefore cannot
-leave the previous winner in control.
+## Beacon auction
+
+The Beacon is an open ascending auction run by the Dojo Beacon System. Bids,
+the leader, the deadline, and the winner are public onchain state, so the API
+never learns a winner from an off-chain party. `GET /v1/beacon` reads the
+current round and its exact minimum next bid through direct Starknet RPC and
+reports the chain timestamp as `observedAt`.
+
+Settlement opens the next round in the same transaction, so every round below
+the current one is settled and has a winner. Before answering, the API copies
+any newly settled round into `beacon_controllers`; the periodic worker does the
+same. Artwork authorization and completion both re-run that projection and
+fail closed when the chain cannot be read, so a replaced controller cannot
+publish. Rounds imported from the Whisper era keep `source = 'whisper'`; the
+projector refuses to run when the Beacon System's first round would overlap
+them.
+
+With `BEACON_KEEPER_ENABLED=true`, the keeper submits the permissionless
+`settle_beacon_auction` call once the chain clock passes the deadline. Anyone
+else, including the winner, can submit the same call.
 
 ## Configuration
 
@@ -76,24 +81,15 @@ leave the previous winner in control.
 | `STARKNET_CHAIN_ID` | `SN_MAIN` | SNIP-12 authentication domain and public network identifier. |
 | `TORII_URL` | unset | Internal Torii HTTP origin. Production uses `http://127.0.0.1:8081`. |
 | `TORII_STAKING_POOL_ADDRESS` | unset | Indexed staking pool used to derive cached public staking statistics. |
-| `TORII_WHISPER_ADDRESS` | unset | Whisper contract whose raw auction lifecycle events Torii indexes. |
-| `TORII_WHISPER_BLOCK` | unset | Whisper deployment block used as the event-indexing start. |
-| `BEACON_BIDDING_DURATION` | `72h` | Expected duration for canonical start-on-bid Beacon rounds. Sepolia rehearsal environments currently set this to `5m`. |
-| `BEACON_ACCEPTANCE_DURATION` | `15m` | Grace period after bidding for the operator to accept submitted private notes. Local rehearsal uses `3m`. |
-| `BEACON_SETTLEMENT_DURATION` | `6h` | Settlement/recovery window after acceptance. Local rehearsal uses `22m`. |
-| `BEACON_COORDINATOR_URL` | unset | Whisper operator origin used by recurring auction creation and post-settlement winner resolution. |
-| `BEACON_COORDINATOR_TOKEN` | unset | Server-only bearer token for the operator's auction-creation and winner-disclosure endpoints. |
-| `BEACON_PAYMENT_TOKEN` | unset | Canonical payment token for newly created Beacon rounds. |
-| `BEACON_RESERVE_PRICE` | `100000000000000000` | Reserve in payment-token base units. |
-| `BEACON_MAX_BIDS` | `32` | Maximum accepted bid tranches for each round. |
-| `BEACON_WINNER_PAYLOAD_DOMAIN` | `STAKEWARS_BEACON_V1` felt | Fixed application domain for opaque winner commitments. |
+| `BEACON_SYSTEM_ADDRESS` | unset | Deployed Dojo Beacon System. Requires `STARKNET_RPC_URL`. Unset reports no open round while still serving the preserved controller and history. |
+| `BEACON_KEEPER_ENABLED` | `false` | Automatically settle expired Beacon rounds using the existing SupplyDrop keeper signer. Requires all three SupplyDrop keeper variables and `BEACON_SYSTEM_ADDRESS`. |
 | `MAX_IMAGE_BYTES` | `2097152` | Maximum encoded image size. |
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
 | `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification and optional contest settlement. |
 | `SUPPLY_DROP_SYSTEM_ADDRESS` | unset | Deployed Dojo SupplyDrop System. Configuring this enables the periodic keeper. |
-| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop and Challenge duties. |
+| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop, Challenge, and Beacon duties. |
 | `SUPPLY_DROP_KEEPER_PRIVATE_KEY` | unset | Private key for the dedicated keeper account. Configure only as a server secret. |
 | `CHALLENGE_KEEPER_ENABLED` | `false` | Automatically settle expired contests using the existing SupplyDrop keeper signer. Requires all three SupplyDrop keeper variables, `CONTROL_SYSTEM_ADDRESS`, `STARKNET_RPC_URL`, and `TORII_URL`. |
 | `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Sector image objects. |
@@ -144,13 +140,12 @@ contest settlement without disabling SupplyDrop maintenance.
 
 Migration `011_transaction_journal.sql` adds `transaction_attempts` and
 `transaction_attempt_events` to the existing application database. Keeper
-challenge/Supply Drop calls and Beacon coordinator requests record an attempt
-before submitting work. Each attempt retains its network, source, signer (for
+Challenge, Supply Drop, and Beacon settlement calls record an attempt before
+submitting work. Each attempt retains its network, source, signer (for
 local submissions), contract, entrypoint, target, timestamps, transaction hash
 when known, and status. Events append the lifecycle stage, receipt block, RPC
 code, message, and bounded diagnostic data. A successful retry never overwrites
-an earlier attempt's failure. Beacon requests retain their stable request ID to
-correlate with the Whisper operator journal.
+an earlier attempt's failure.
 
 The database uses WAL and `synchronous=FULL`; failure to persist broadcast intent
 prevents the keeper from sending. Diagnostic writes have a separate bounded
@@ -179,12 +174,6 @@ The JSON report reads only the two journal tables, never mutates the database,
 and includes up to 100 recent events per attempt alongside its full event count.
 Times are Unix seconds. Local development can use
 `go run ./cmd/transaction-history --db <path>` from `apps/api`.
-
-Whisper is a separate submitting process with its own database. Its journal
-covers auction creation, vault registration, acceptance, settlement, aborts,
-and rejected-bid refunds. See [operator diagnostics](../../vendor/whisper/operator/README.md#durable-transaction-diagnostics)
-for its coverage and recovery limits; the API cannot see RPC errors hidden behind
-an operator HTTP response.
 
 ## Current endpoints
 

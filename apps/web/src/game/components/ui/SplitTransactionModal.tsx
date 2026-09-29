@@ -103,7 +103,7 @@ export function SplitTransactionModal({
   if (!isOpen) return null;
 
   const isReview = batches.every((batch) => batch.status === 'queued');
-  const action = intent === 'fortify' ? 'fortification' : 'capture';
+  const action = intent === 'fortify' ? 'reinforcement' : 'capture';
   const progressPercent =
     batches.length === 0 ? 0 : (confirmedCount / batches.length) * 100;
 

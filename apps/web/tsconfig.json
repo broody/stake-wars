@@ -12,7 +12,6 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@whisper-sdk/*": ["../../vendor/whisper/sdk/src/*"],
       "starknet": ["./node_modules/starknet"]
     },
     "isolatedModules": true,
