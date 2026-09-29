@@ -22,6 +22,13 @@ const SECTORS_QUERY = `
         }
       }
     }
+    stakewarsGameConfigModels(first: 1) {
+      edges {
+        node {
+          minimum_stake
+        }
+      }
+    }
   }
 `;
 
@@ -184,6 +191,9 @@ interface ToriiSectorResponse {
   data?: {
     stakewarsSectorModels?: {
       edges?: Array<{ node?: ToriiSectorNode }>;
+    };
+    stakewarsGameConfigModels?: {
+      edges?: Array<{ node?: { minimum_stake?: string | null } | null }>;
     };
   };
   errors?: Array<{ message?: string }>;
@@ -1039,7 +1049,12 @@ export function parseIndexedSectors(
   return [...sectors.values()].sort((left, right) => left.id - right.id);
 }
 
-export function filterSectorsByOperatorGeneration(
+/**
+ * Mirrors the Control System: a Sector whose controller has moved to a new
+ * generation (after retirement or disqualification) is neutral, but keeps its
+ * ownership generation.
+ */
+export function neutralizeStaleSectors(
   sectors: IndexedSector[],
   operatorGenerations: ReadonlyArray<{
     operator: string;
@@ -1053,17 +1068,26 @@ export function filterSectorsByOperatorGeneration(
     ])
   );
 
-  return sectors.filter(({ controller, controllerGeneration }) => {
-    if (isZeroAddress(controller)) return true;
-    return (
+  return sectors.map((sector) => {
+    if (isZeroAddress(sector.controller)) return sector;
+    const current =
       generationByOperator.get(
-        parseBigInt(controller, 'controller address').toString()
-      ) === controllerGeneration
-    );
+        parseBigInt(sector.controller, 'controller address').toString()
+      ) === sector.controllerGeneration;
+    return current
+      ? sector
+      : {
+          ...sector,
+          controller: '0x0',
+          controllerGeneration: 0n,
+          captureForce: 0n,
+          controlledSince: null,
+          stale: true,
+        };
   });
 }
 
-async function filterCurrentSectors(
+async function withCurrentControllers(
   sectors: IndexedSector[],
   signal?: AbortSignal
 ): Promise<IndexedSector[]> {
@@ -1095,7 +1119,7 @@ async function filterCurrentSectors(
     throw new Error('Torii omitted the Operator generation collection');
   }
 
-  return filterSectorsByOperatorGeneration(
+  return neutralizeStaleSectors(
     sectors,
     operatorEdges.flatMap(({ node }) =>
       node
@@ -1110,13 +1134,35 @@ async function filterCurrentSectors(
   );
 }
 
-export async function getIndexedSectors(
+export function parseMinimumStake(payload: ToriiSectorResponse): bigint {
+  const value =
+    payload.data?.stakewarsGameConfigModels?.edges?.[0]?.node?.minimum_stake;
+  if (value === null || value === undefined) {
+    throw new Error('Torii omitted the game configuration');
+  }
+  return parseBigInt(value, 'minimum stake');
+}
+
+export interface SectorIndex {
+  sectors: IndexedSector[];
+  /** GameConfig.minimum_stake: the price of a neutral Sector. */
+  minimumStake: bigint;
+}
+
+// Discovery only: Torii may trail the chain by a few seconds, so every Sector
+// action re-reads the Control System before it is submitted.
+export async function getSectorIndex(
   signal?: AbortSignal
-): Promise<IndexedSector[]> {
+): Promise<SectorIndex> {
   const payload = await queryTorii<ToriiSectorResponse>(
     SECTORS_QUERY,
     {},
     signal
   );
-  return filterCurrentSectors(parseIndexedSectors(payload), signal);
+  const sectors = parseIndexedSectors(payload);
+  const minimumStake = parseMinimumStake(payload);
+  return {
+    sectors: await withCurrentControllers(sectors, signal),
+    minimumStake,
+  };
 }

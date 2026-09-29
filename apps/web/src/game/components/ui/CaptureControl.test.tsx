@@ -31,6 +31,7 @@ vi.mock('../../contexts/SectorContext', () => ({
     refreshSector: vi.fn(),
     refreshOperator: vi.fn(),
     refreshSectorIndex: vi.fn(),
+    rememberSectorStatus: vi.fn(),
     setSectorInteractionLocked: vi.fn(),
   }),
 }));
@@ -202,6 +203,25 @@ describe('CaptureControl', () => {
     expect(state.sendAsync).not.toHaveBeenCalled();
     expect(container.textContent).toContain(
       'This Sector now needs at least 121 FORCE.'
+    );
+  });
+
+  it('stops before overpaying when the chain price is lower', async () => {
+    connect();
+    await render(sector());
+    state.freshSector = sector({
+      controller: '0x0',
+      captureForce: 0n,
+      requiredStake: force(10),
+      stale: true,
+      needsSync: true,
+    });
+
+    await click('TAKE OVER · 110 FORCE');
+
+    expect(state.sendAsync).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(
+      'This Sector now needs only 10 FORCE.'
     );
   });
 });

@@ -93,6 +93,7 @@ export function BatchCaptureControl({
     refreshSector,
     refreshOperator,
     refreshSectorIndex,
+    rememberSectorStatus,
     setSectorInteractionLocked,
     removeSelectedSectors,
     confirmCapturedSectors,
@@ -246,6 +247,8 @@ export function BatchCaptureControl({
           getSectorStatuses(requestedSectors.map(({ id }) => id)),
           getOperatorStatus(address),
         ]);
+        // The selection reads Torii, which may trail the chain.
+        freshSectors.forEach(rememberSectorStatus);
         if (freshOperator.retired || freshOperator.needsSync) {
           throw new Error('Operator is no longer eligible for batch actions.');
         }

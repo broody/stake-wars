@@ -27,6 +27,8 @@ export interface IndexedSector {
   captureForce: bigint;
   ownershipGeneration: bigint;
   controlledSince: number | null;
+  /** Its controller moved to a new generation, so the Sector is neutral. */
+  stale?: boolean;
 }
 
 export interface SectorOwnership {

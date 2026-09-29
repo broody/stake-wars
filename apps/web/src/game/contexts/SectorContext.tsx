@@ -20,7 +20,7 @@ import { getSectorStatuses, getOperatorStatus } from '../services/starknet';
 import { useWallet } from './WalletContext';
 import { isSectorId } from '../utils/sectorGeometry';
 import { addressesMatch, isZeroAddress } from '../utils/format';
-import { getIndexedSectors } from '../services/torii';
+import { getSectorIndex } from '../services/torii';
 import { updateSectorSelection } from '../utils/sectorSelection';
 import { MAX_SECTOR_SELECTION } from '../services/sectorLimits';
 import {
@@ -28,6 +28,8 @@ import {
   setProjectionMode,
 } from '../utils/gameViewSearch';
 import {
+  pruneKnownSectors,
+  sectorStatusFromIndex,
   sectorStatusMatchesIndexedState,
   sectorStatusesHaveSameEffectiveState,
 } from '../utils/sectorState';
@@ -73,6 +75,8 @@ interface SectorContextValue {
   refreshSector: () => void;
   refreshOperator: () => void;
   refreshSectorIndex: () => void;
+  /** Records a Sector status read from the chain until Torii catches up. */
+  rememberSectorStatus: (status: SectorStatus) => void;
   setSectorInteractionLocked: (locked: boolean) => void;
   confirmCapturedSectors: (
     sectors: SectorStatus[],
@@ -88,6 +92,10 @@ interface SectorContextValue {
 
 const SectorContext = createContext<SectorContextValue | undefined>(undefined);
 
+// Torii is read for discovery; every Sector action re-reads the chain before it
+// is submitted. Polling keeps other Operators' moves visible without a reload.
+const SECTOR_INDEX_REFRESH_MS = 30_000;
+
 export function SectorProvider({ children }: PropsWithChildren) {
   const { address } = useWallet();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -102,7 +110,10 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [isSectorInteractionLocked, setSectorInteractionLocked] =
     useState(false);
   const [selectedSectorIds, setSelectedSectorIds] = useState<number[]>([]);
-  const [selectedSectors, setSelectedSectors] = useState<SectorStatus[]>([]);
+  // Used only while the Torii index is unavailable.
+  const [chainSelectedSectors, setChainSelectedSectors] = useState<
+    SectorStatus[]
+  >([]);
   const [knownSectors, setKnownSectors] = useState<Map<number, SectorStatus>>(
     () => new Map()
   );
@@ -114,6 +125,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         (readOccupiedSectorCache() ?? []).map((sector) => [sector.id, sector])
       )
   );
+  const [minimumStake, setMinimumStake] = useState<bigint | null>(null);
   const indexedSectorsRef = useRef(indexedSectors);
   useEffect(() => {
     indexedSectorsRef.current = indexedSectors;
@@ -133,6 +145,11 @@ export function SectorProvider({ children }: PropsWithChildren) {
   const [sectorRevision, setSectorRevision] = useState(0);
   const [operatorRevision, setOperatorRevision] = useState(0);
   const [sectorIndexRevision, setSectorIndexRevision] = useState(0);
+  const isBackgroundIndexRefreshRef = useRef(false);
+  const selectedSectorIdsRef = useRef(selectedSectorIds);
+  useEffect(() => {
+    selectedSectorIdsRef.current = selectedSectorIds;
+  }, [selectedSectorIds]);
 
   useEffect(() => {
     writeOccupiedSectorCache(indexedSectors.values());
@@ -221,7 +238,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
     setSelectedSectorIds((current) =>
       current.filter((sectorId) => !removed.has(sectorId))
     );
-    setSelectedSectors((current) =>
+    setChainSelectedSectors((current) =>
       current.filter((sector) => !removed.has(sector.id))
     );
   }, []);
@@ -279,7 +296,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       });
       if (clearSelection) {
         setSelectedSectorIds([]);
-        setSelectedSectors([]);
+        setChainSelectedSectors([]);
       }
       setSectorError(null);
     },
@@ -321,7 +338,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
         });
         return next;
       });
-      setSelectedSectors((current) =>
+      setChainSelectedSectors((current) =>
         current.map((sector) => reinforcedById.get(sector.id) ?? sector)
       );
       setSectorError(null);
@@ -331,14 +348,21 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setSectorIndexLoading(true);
+    const isBackgroundRefresh = isBackgroundIndexRefreshRef.current;
+    isBackgroundIndexRefreshRef.current = false;
+    if (!isBackgroundRefresh) setSectorIndexLoading(true);
     setSectorIndexError(null);
 
-    getIndexedSectors(controller.signal)
-      .then((sectors) => {
-        setIndexedSectors(
-          new Map(sectors.map((sector) => [sector.id, sector]))
+    getSectorIndex(controller.signal)
+      .then(({ sectors, minimumStake: indexedMinimumStake }) => {
+        const nextIndexedSectors = new Map(
+          sectors.map((sector) => [sector.id, sector])
         );
+        setIndexedSectors(nextIndexedSectors);
+        setKnownSectors((current) =>
+          pruneKnownSectors(current, nextIndexedSectors)
+        );
+        setMinimumStake(indexedMinimumStake);
         setHasLoadedSectorIndex(true);
       })
       .catch((error: unknown) => {
@@ -360,22 +384,49 @@ export function SectorProvider({ children }: PropsWithChildren) {
   }, [sectorIndexRevision]);
 
   useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      isBackgroundIndexRefreshRef.current = true;
+      setSectorIndexRevision((revision) => revision + 1);
+    }, SECTOR_INDEX_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  // After a Sector action, read the selection from the chain so the result
+  // shows immediately; Torii may take a few seconds to index it.
+  useEffect(() => {
+    if (sectorRevision === 0) return;
+    const sectorIds = selectedSectorIdsRef.current;
+    if (sectorIds.length === 0) return;
+    const controller = new AbortController();
+    getSectorStatuses(sectorIds, controller.signal)
+      .then((statuses) => statuses.forEach(rememberSector))
+      .catch(() => {
+        // The index refresh that follows every action still catches up.
+      });
+    return () => controller.abort();
+  }, [rememberSector, sectorRevision]);
+
+  const readsSelectionFromChain =
+    minimumStake === null && sectorIndexError !== null;
+
+  useEffect(() => {
     const controller = new AbortController();
 
-    if (selectedSectorIds.length === 0) {
-      setSelectedSectors([]);
+    if (!readsSelectionFromChain || selectedSectorIds.length === 0) {
+      setChainSelectedSectors([]);
       setSectorError(null);
       setSectorLoading(false);
       return () => controller.abort();
     }
 
-    setSelectedSectors([]);
+    setChainSelectedSectors([]);
     setSectorError(null);
     setSectorLoading(true);
 
     getSectorStatuses(selectedSectorIds, controller.signal)
       .then((statuses) => {
-        setSelectedSectors(statuses);
+        setChainSelectedSectors(statuses);
         statuses.forEach(rememberSector);
       })
       .catch((error: unknown) => {
@@ -394,12 +445,10 @@ export function SectorProvider({ children }: PropsWithChildren) {
       });
 
     return () => controller.abort();
-  }, [sectorRevision, rememberSector, selectedSectorIds]);
+  }, [readsSelectionFromChain, rememberSector, selectedSectorIds]);
 
   const selectedSectorId =
     selectedSectorIds[selectedSectorIds.length - 1] ?? null;
-  const selectedSector =
-    selectedSectors.find((sector) => sector.id === selectedSectorId) ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -487,6 +536,35 @@ export function SectorProvider({ children }: PropsWithChildren) {
 
     return sectors;
   }, [indexedSectors, knownSectors]);
+
+  const indexedSelectedSectors = useMemo(
+    () =>
+      minimumStake === null
+        ? null
+        : selectedSectorIds.map((id) =>
+            sectorStatusFromIndex(
+              id,
+              activeSectors.get(id),
+              indexedSectors.get(id),
+              knownSectors.get(id),
+              minimumStake
+            )
+          ),
+    [
+      activeSectors,
+      indexedSectors,
+      knownSectors,
+      minimumStake,
+      selectedSectorIds,
+    ]
+  );
+  const selectedSectors = indexedSelectedSectors ?? chainSelectedSectors;
+  const selectedSector =
+    selectedSectors.find((sector) => sector.id === selectedSectorId) ?? null;
+  const isSelectionLoading =
+    indexedSelectedSectors === null &&
+    selectedSectorIds.length > 0 &&
+    (!readsSelectionFromChain || isSectorLoading);
 
   const {
     occupiedSectorIds,
@@ -599,7 +677,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorControlledSince,
       sectorCaptureForce,
       sectorOwnershipById,
-      isSectorLoading,
+      isSectorLoading: isSelectionLoading,
       isOperatorLoading,
       sectorError,
       operatorError,
@@ -617,6 +695,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       refreshSector,
       refreshOperator,
       refreshSectorIndex,
+      rememberSectorStatus: rememberSector,
       setSectorInteractionLocked,
       confirmCapturedSectors,
       confirmReinforcedSectors,
@@ -640,7 +719,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       sectorControlledSince,
       sectorCaptureForce,
       sectorOwnershipById,
-      isSectorLoading,
+      isSelectionLoading,
       isOperatorLoading,
       sectorError,
       operatorError,
@@ -658,6 +737,7 @@ export function SectorProvider({ children }: PropsWithChildren) {
       refreshSector,
       refreshOperator,
       refreshSectorIndex,
+      rememberSector,
       confirmCapturedSectors,
       confirmReinforcedSectors,
     ]

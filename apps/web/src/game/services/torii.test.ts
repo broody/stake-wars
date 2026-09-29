@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   NEW_POOL_MEMBER_SELECTOR,
   POOL_MEMBER_REWARD_CLAIMED_SELECTOR,
-  filterSectorsByOperatorGeneration,
+  neutralizeStaleSectors,
+  parseMinimumStake,
   parseIndexedSectors,
   parseOperatorActivity,
   parsePoolMemberStartPage,
@@ -96,9 +97,9 @@ describe('Torii Sector parsing', () => {
     ).toThrow('invalid Sector ID');
   });
 
-  it('drops stale ownership generations after a global relinquishment', () => {
+  it('neutralizes stale ownership generations but keeps the Sector generation', () => {
     expect(
-      filterSectorsByOperatorGeneration(
+      neutralizeStaleSectors(
         [
           {
             id: 1,
@@ -126,8 +127,51 @@ describe('Torii Sector parsing', () => {
           },
         ],
         [{ operator: '0xabc', generation: 4n }]
-      ).map(({ id }) => id)
-    ).toEqual([2, 3]);
+      ).map(({ id, controller, captureForce, ownershipGeneration, stale }) => ({
+        id,
+        controller,
+        captureForce,
+        ownershipGeneration,
+        stale: stale ?? false,
+      }))
+    ).toEqual([
+      {
+        id: 1,
+        controller: '0x0',
+        captureForce: 0n,
+        ownershipGeneration: 1n,
+        stale: true,
+      },
+      {
+        id: 2,
+        controller: '0x0abc',
+        captureForce: 20n,
+        ownershipGeneration: 1n,
+        stale: false,
+      },
+      {
+        id: 3,
+        controller: '0x0',
+        captureForce: 0n,
+        ownershipGeneration: 1n,
+        stale: false,
+      },
+    ]);
+  });
+
+  it('reads the minimum stake alongside the Sector index', () => {
+    expect(
+      parseMinimumStake({
+        data: {
+          stakewarsGameConfigModels: {
+            edges: [{ node: { minimum_stake: '0x8ac7230489e80000' } }],
+          },
+        },
+      })
+    ).toBe(10n * 10n ** 18n);
+    expect(() =>
+      parseMinimumStake({ data: { stakewarsGameConfigModels: { edges: [] } } })
+    ).toThrow('Torii omitted the game configuration');
   });
 });
 

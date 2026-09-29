@@ -77,6 +77,7 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
     refreshSector,
     refreshOperator,
     refreshSectorIndex,
+    rememberSectorStatus,
     setSectorInteractionLocked,
   } = useSectors();
   const { provider } = useProvider();
@@ -100,6 +101,9 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
 
   useEffect(() => {
     setError(null);
+  }, [action, sector?.id]);
+
+  useEffect(() => {
     setAllocation(
       suggestedAllocation > 0n ? formatStrk(suggestedAllocation, 18) : ''
     );
@@ -168,6 +172,9 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
         getSectorStatus(sector.id),
         getOperatorStatus(address),
       ]);
+      // The panel reads Torii, which may trail the chain; show what the chain
+      // says before deciding anything.
+      rememberSectorStatus(freshSector);
       const freshlyOwned =
         !isZeroAddress(freshSector.controller) &&
         addressesMatch(freshSector.controller, address);
@@ -186,6 +193,18 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
             freshSector.requiredStake,
             18
           )} FORCE.`
+        );
+      }
+      if (
+        action !== 'reinforce' &&
+        freshSector.requiredStake < sector.requiredStake &&
+        selectedAllocation > freshSector.requiredStake
+      ) {
+        throw new Error(
+          `This Sector now needs only ${formatStrk(
+            freshSector.requiredStake,
+            18
+          )} FORCE. Check the amount and try again.`
         );
       }
       const freshDeficit = stakeDeficit(
