@@ -3,11 +3,9 @@ import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useClipboardImagePaste } from '../../hooks/useClipboardImagePaste';
 import { api, type PreparedSectorImage } from '../../services/api';
-import {
-  clipboardImageFile,
-  prepareSectorImage,
-} from '../../utils/sectorImage';
+import { prepareSectorImage } from '../../utils/sectorImage';
 
 function formatMebibytes(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -133,44 +131,13 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
     ]
   );
 
-  useEffect(() => {
-    if (!active || !isImageUploadMode) return;
-
-    const handlePaste = (event: ClipboardEvent) => {
-      if (
-        event.defaultPrevented ||
-        isUploading ||
-        imageUploadSectorIds.length === 0
-      ) {
-        return;
-      }
-
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(
-          'input, textarea, [contenteditable]:not([contenteditable="false"])'
-        )
-      ) {
-        return;
-      }
-
-      const file = clipboardImageFile(event.clipboardData);
-      if (!file) return;
-
-      event.preventDefault();
-      void chooseFile(file);
-    };
-
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
-  }, [
-    active,
-    chooseFile,
-    imageUploadSectorIds.length,
-    isImageUploadMode,
-    isUploading,
-  ]);
+  useClipboardImagePaste(
+    active &&
+      isImageUploadMode &&
+      !isUploading &&
+      imageUploadSectorIds.length > 0,
+    chooseFile
+  );
 
   useEffect(() => {
     if (!active || !isImageUploadMode || isUploading) return;

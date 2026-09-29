@@ -265,6 +265,7 @@ describe('BeaconSummaryCard', () => {
     expect(markup).toContain('YOU');
     expect(markup).toContain('CONTROLLER ACTIONS');
     expect(markup).toContain('BUILD TRANSMISSION');
+    expect(markup).toContain('OR PASTE AN IMAGE');
     expect(markup).toContain('01 AVAILABLE');
     expect(markup).not.toContain('16:9');
     expect(markup).not.toContain('SET SIGNAL // SOON');

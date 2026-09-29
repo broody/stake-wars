@@ -17,8 +17,8 @@ import type {
 import { api, type PreparedBeaconImage } from '../../services/api';
 import { useBeacon } from '../../contexts/useBeacon';
 import { useWallet } from '../../contexts/WalletContext';
+import { useClipboardImagePaste } from '../../hooks/useClipboardImagePaste';
 import { prepareBeaconImage } from '../../utils/beaconImage';
-import { clipboardImageFile } from '../../utils/sectorImage';
 import {
   beaconDeadline,
   beaconPhaseLabel,
@@ -106,6 +106,15 @@ export function BeaconSummaryCard({
       setProjectionFile(null);
     }
   }, [currentControllerHasPublished, isCurrentController, isOpen]);
+
+  useClipboardImagePaste(
+    isOpen &&
+      isCurrentController &&
+      Boolean(viewerAddress) &&
+      !currentControllerHasPublished &&
+      !projectionFile,
+    setProjectionFile
+  );
 
   if (!isOpen) return null;
 
@@ -934,6 +943,9 @@ function BeaconControllerActions({ onSelect }: { onSelect: () => void }) {
           →
         </span>
       </button>
+      <p className="mt-2 text-[8px] tracking-[0.16em] text-neutral-500">
+        OR PASTE AN IMAGE · CTRL/⌘V
+      </p>
     </section>
   );
 }
@@ -1064,26 +1076,7 @@ function BeaconProjectionUpload({
     void chooseFile(initialFile);
   }, [chooseFile, initialFile]);
 
-  useEffect(() => {
-    const handlePaste = (event: ClipboardEvent) => {
-      if (event.defaultPrevented || isUploading) return;
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(
-          'input, textarea, [contenteditable]:not([contenteditable="false"])'
-        )
-      ) {
-        return;
-      }
-      const file = clipboardImageFile(event.clipboardData);
-      if (!file) return;
-      event.preventDefault();
-      void chooseFile(file);
-    };
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
-  }, [chooseFile, isUploading]);
+  useClipboardImagePaste(!isUploading, chooseFile);
 
   const upload = async () => {
     const normalizedDestinationUrl = normalizeBeaconDestination(destinationUrl);
