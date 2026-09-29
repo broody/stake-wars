@@ -14,19 +14,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
 FROM alpine:3.22 AS torii-download
 
 ARG TARGETARCH
-ARG TORII_VERSION=1.8.16
-ARG TORII_AMD64_SHA256=ab25b4667c6a91ca73efdbd3fec62440acdf7212b5b91b0e1333c6a92c573219
-ARG TORII_ARM64_SHA256=aa0b3a66fc393c2269a264d0eb965704f9be1ee6114b8a5d8ff4b029c59d9005
+# Torii v1.8.16 with the graphql/integration fixes (query limits, schema
+# hot-swap, batched lookups), published from broody/torii. Only amd64 is built.
+ARG TORII_REPOSITORY=broody/torii
+ARG TORII_VERSION=1.8.16-stakewars.1
+ARG TORII_AMD64_SHA256=824520efacc9bfb0aac49087ae70917ad813f0a28c58c9ec3e483307620dd7f0
 
 RUN apk add --no-cache ca-certificates curl \
     && case "$TARGETARCH" in \
         amd64) torii_arch="amd64"; torii_sha="$TORII_AMD64_SHA256" ;; \
-        arm64) torii_arch="arm64"; torii_sha="$TORII_ARM64_SHA256" ;; \
-        *) echo "Unsupported Torii architecture: $TARGETARCH" >&2; exit 1 ;; \
+        *) echo "No Torii ${TORII_VERSION} build for architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac \
     && curl --fail --location --silent --show-error \
         --output /tmp/torii.tar.gz \
-        "https://github.com/dojoengine/torii/releases/download/v${TORII_VERSION}/torii_v${TORII_VERSION}_linux_${torii_arch}.tar.gz" \
+        "https://github.com/${TORII_REPOSITORY}/releases/download/v${TORII_VERSION}/torii_v${TORII_VERSION}_linux_${torii_arch}.tar.gz" \
     && echo "$torii_sha  /tmp/torii.tar.gz" | sha256sum -c - \
     && mkdir -p /out \
     && tar -xzf /tmp/torii.tar.gz -C /out \

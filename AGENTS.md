@@ -439,8 +439,10 @@ requests work on it.
   requested. Never print secret values or store them in tracked files.
 - Uploaded image bytes belong in Tigris, not on the Machine or Fly Volume. The
   volume is reserved for SQLite and its related files.
-- Torii 1.8.0 currently runs beside the Go API in the same supervised container
-  and uses `/data/torii` for its separate, rebuildable SQLite index. Keep its
+- Torii `1.8.16-stakewars.1`, an amd64 build published from the `broody/torii`
+  fork and pinned by checksum in `apps/api/Dockerfile`, runs beside the Go API
+  in the same supervised container and uses `/data/torii` for its separate,
+  rebuildable SQLite index. Keep its
   HTTP, gRPC, SQL, and relay listeners private; only `/torii/graphql` and
   `/torii/health` are exposed through the API gateway.
 - Keep Torii debug logging enabled. Local logs are persisted under
