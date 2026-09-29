@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
 import { isSupportedWallet } from '../../utils/wallets';
-import { BusyLabel } from './Spinner';
+import { Button, Eyebrow, ExternalLink, Panel } from '../../../ui';
 import { AddressLink } from './AddressLink';
 
 function shortAddress(address: string) {
@@ -109,10 +109,11 @@ export function WalletButton({
 
   return (
     <div ref={menuRef} className={isBlock ? 'w-full' : 'relative'}>
-      <button
-        type="button"
+      <Button
+        variant={isBlock ? 'solid' : 'outline'}
+        fullWidth={isBlock}
         onClick={handleButtonClick}
-        disabled={isConnecting}
+        busy={isConnecting}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         title={
@@ -123,30 +124,29 @@ export function WalletButton({
         }
         className={
           isBlock
-            ? 'w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50'
-            : 'border border-fg px-2 py-2 text-[10px] tracking-wider text-fg transition-colors hover:bg-fg hover:text-bg disabled:cursor-wait disabled:opacity-50 sm:px-4 sm:text-sm'
+            ? undefined
+            : 'whitespace-nowrap border-fg px-2 text-tag text-fg sm:px-4 sm:text-body'
         }
       >
-        <BusyLabel busy={isConnecting}>{label}</BusyLabel>
-      </button>
+        {label}
+      </Button>
 
       {isOpen ? (
-        <div
+        <Panel
+          as="div"
           role="menu"
+          tone={isBlock ? 'default' : 'floating'}
           className={
             isBlock
-              ? 'mt-2 w-full border border-grid bg-bg p-2'
-              : 'absolute right-0 top-full z-50 mt-2 w-64 border border-grid bg-bg p-2 shadow-2xl'
+              ? 'mt-2 w-full p-2'
+              : 'absolute right-0 top-full z-50 mt-2 w-64 p-2'
           }
         >
           {isConnected && address ? (
             <>
-              <div className="border-b border-grid px-3 pb-3 pt-1">
-                <div className="flex items-center gap-2 text-[9px] tracking-[0.18em] text-neutral-400">
-                  <span className="h-1.5 w-1.5 bg-white" />
-                  {walletName || 'WALLET'} CONNECTED
-                </div>
-                <div className="mt-2 text-[9px] tabular-nums text-neutral-600">
+              <div className="border-b border-line px-3 pb-3 pt-1">
+                <Eyebrow dot>{walletName || 'WALLET'} CONNECTED</Eyebrow>
+                <div className="mt-2 text-label tabular-nums text-fg-subtle">
                   <AddressLink address={address}>
                     {shortAddress(address)}
                   </AddressLink>
@@ -162,7 +162,7 @@ export function WalletButton({
                   }}
                   data-preserve-core-tracking
                   onClick={() => setIsOpen(false)}
-                  className="flex w-full items-center justify-between border border-transparent px-3 py-2.5 text-left text-[10px] tracking-[0.16em] text-fg transition-colors hover:border-fg hover:bg-fg hover:text-bg focus-visible:border-fg focus-visible:outline-none"
+                  className="flex w-full items-center justify-between border border-transparent px-3 py-2.5 text-left text-label text-fg transition-colors hover:border-fg hover:bg-fg hover:text-surface"
                 >
                   <span>OPERATOR</span>
                   <span aria-hidden="true">↗</span>
@@ -171,7 +171,7 @@ export function WalletButton({
                   type="button"
                   role="menuitem"
                   onClick={() => void handleDisconnect()}
-                  className="flex w-full items-center justify-between border border-transparent px-3 py-2.5 text-left text-[10px] tracking-[0.16em] text-neutral-500 transition-colors hover:border-amber-500/60 hover:text-amber-400 focus-visible:border-amber-500 focus-visible:outline-none"
+                  className="flex w-full items-center justify-between border border-transparent px-3 py-2.5 text-left text-label text-fg-subtle transition-colors hover:border-warning-strong/60 hover:text-warning"
                 >
                   <span>DISCONNECT</span>
                   <span aria-hidden="true">×</span>
@@ -180,9 +180,7 @@ export function WalletButton({
             </>
           ) : (
             <>
-              <div className="px-2 pb-2 text-[10px] tracking-[0.2em] text-dim">
-                SELECT WALLET
-              </div>
+              <Eyebrow className="px-2 pb-2">SELECT WALLET</Eyebrow>
               <WalletList className="flex flex-col gap-1">
                 {(option) => {
                   const id = option.info?.id;
@@ -202,11 +200,11 @@ export function WalletButton({
                         type="button"
                         role="menuitem"
                         onClick={() => void handleConnect(option.wallet.name)}
-                        className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-sm text-fg transition-colors hover:border-fg hover:bg-fg hover:text-bg"
+                        className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-body text-fg transition-colors hover:border-fg hover:bg-fg hover:text-surface"
                       >
                         <img src={icon} alt="" className="h-6 w-6" />
                         <span>{option.name}</span>
-                        <span className="ml-auto text-[10px] tracking-wider opacity-60">
+                        <span className="ml-auto text-label opacity-60">
                           CONNECT
                         </span>
                       </button>
@@ -215,26 +213,23 @@ export function WalletButton({
 
                   const downloadUrl = preferredDownload(option.info.downloads);
                   return (
-                    <a
+                    <ExternalLink
                       key={option.name}
                       role="menuitem"
                       href={downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-sm text-dim transition-colors hover:border-fg hover:text-fg"
+                      quiet
+                      className="flex w-full items-center gap-3 border border-transparent px-3 py-2 text-left text-body text-fg-subtle hover:border-fg"
                     >
                       <img src={icon} alt="" className="h-6 w-6" />
                       <span>{option.name}</span>
-                      <span className="ml-auto text-[10px] tracking-wider">
-                        INSTALL
-                      </span>
-                    </a>
+                      <span className="ml-auto text-label">INSTALL</span>
+                    </ExternalLink>
                   );
                 }}
               </WalletList>
             </>
           )}
-        </div>
+        </Panel>
       ) : null}
     </div>
   );

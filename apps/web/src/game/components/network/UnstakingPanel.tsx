@@ -11,15 +11,32 @@ import {
   parseAmount,
 } from '../../utils/stakingFormat';
 import { voyagerContractUrl, voyagerValidatorUrl } from '../../utils/voyager';
-import { ColumnChart, TimeSeriesChart, type ColumnDatum } from './charts';
-import { ExternalLink, SectionHeading, SegmentedControl } from './primitives';
 import {
-  chartColors,
+  ColumnChart,
+  TimeSeriesChart,
+  type ColumnDatum,
+} from '../../../ui/charts/charts';
+import {
   plottablePoints,
   pointsInRange,
   rangeOptions,
   type HistoryRange,
 } from '../../utils/stakingChart';
+import {
+  chartColors,
+  cn,
+  Eyebrow,
+  ExternalLink,
+  Panel,
+  PanelSection,
+  SectionHeading,
+  SegmentedControl,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '../../../ui';
 
 type Asset = 'strk' | 'btc';
 
@@ -67,8 +84,8 @@ export function UnstakingPanel({
   );
 
   return (
-    <section aria-labelledby="pending-unstake" className="border border-grid">
-      <div className="border-b border-grid p-5 sm:p-6">
+    <Panel aria-labelledby="pending-unstake">
+      <PanelSection>
         <SectionHeading
           id="pending-unstake"
           eyebrow={`EXIT QUEUE · ${formatDuration(parameters.exitWaitWindowSeconds)} WAIT WINDOW`}
@@ -84,10 +101,10 @@ export function UnstakingPanel({
             ]}
           />
         </SectionHeading>
-      </div>
+      </PanelSection>
 
       <div className="grid lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <dl className="border-b border-grid lg:border-b-0 lg:border-r">
+        <dl className="border-b border-line lg:border-b-0 lg:border-r">
           <Row
             label="DELEGATOR EXITS"
             value={
@@ -124,9 +141,9 @@ export function UnstakingPanel({
           />
         </dl>
         <div className="min-w-0 p-4 sm:p-5">
-          <div className="mb-3 text-[9px] tracking-[0.2em] text-neutral-500">
+          <Eyebrow className="mb-3">
             UNLOCK SCHEDULE · {unit} · UTC DAYS
-          </div>
+          </Eyebrow>
           <ColumnChart
             data={schedule}
             color={chartColors.pending}
@@ -148,11 +165,9 @@ export function UnstakingPanel({
         </div>
       </div>
 
-      <div className="border-t border-grid p-4 sm:p-5">
+      <div className="border-t border-line p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[9px] tracking-[0.2em] text-neutral-500">
-            DELEGATOR EXITS PENDING OVER TIME · {unit}
-          </div>
+          <Eyebrow>DELEGATOR EXITS PENDING OVER TIME · {unit}</Eyebrow>
           <SegmentedControl
             label="Pending history range"
             value={range}
@@ -174,85 +189,74 @@ export function UnstakingPanel({
         />
       </div>
 
-      <div className="grid border-t border-grid lg:grid-cols-2 [&>*]:min-w-0">
-        <div className="border-b border-grid lg:border-b-0 lg:border-r">
-          <div className="px-5 pt-4 text-[9px] tracking-[0.2em] text-neutral-500">
-            LARGEST PENDING EXITS
-          </div>
+      <div className="grid border-t border-line lg:grid-cols-2 [&>*]:min-w-0">
+        <div className="border-b border-line lg:border-b-0 lg:border-r">
+          <Eyebrow className="px-5 pt-4">LARGEST PENDING EXITS</Eyebrow>
           <div className="activity-scrollbar overflow-x-auto">
-            <table className="mt-2 w-full min-w-[440px] text-left text-[10px] tracking-[0.06em]">
-              <thead className="text-[9px] tracking-[0.16em] text-neutral-600">
+            <Table className="mt-2 min-w-[440px]">
+              <TableHead>
                 <tr>
-                  <th scope="col" className="px-5 py-2 font-normal">
-                    DELEGATOR
-                  </th>
-                  <th scope="col" className="px-2 py-2 font-normal">
-                    VALIDATOR
-                  </th>
-                  <th scope="col" className="px-2 py-2 text-right font-normal">
-                    AMOUNT
-                  </th>
-                  <th scope="col" className="px-5 py-2 text-right font-normal">
+                  <TableHeaderCell className="pl-5">DELEGATOR</TableHeaderCell>
+                  <TableHeaderCell>VALIDATOR</TableHeaderCell>
+                  <TableHeaderCell numeric>AMOUNT</TableHeaderCell>
+                  <TableHeaderCell numeric className="pr-5">
                     UNLOCKS
-                  </th>
+                  </TableHeaderCell>
                 </tr>
-              </thead>
+              </TableHead>
               <tbody>
                 {unstaking.largest.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-4 text-neutral-600">
+                  <TableRow>
+                    <TableCell colSpan={4} className="px-5 text-fg-subtle">
                       NO PENDING EXITS
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   unstaking.largest.map((exit) => (
-                    <tr
+                    <TableRow
                       key={`${exit.validator}-${exit.member}-${exit.token}`}
-                      className="border-t border-grid"
                     >
-                      <td className="px-5 py-2 text-neutral-300">
+                      <TableCell className="pl-5">
                         <ExternalLink href={voyagerContractUrl(exit.member)}>
                           {shortAddress(exit.member)}
                         </ExternalLink>
-                      </td>
-                      <td
+                      </TableCell>
+                      <TableCell
                         className={
                           exit.validator === featuredAddress
-                            ? 'px-2 py-2 text-[#ff6a2f]'
-                            : 'px-2 py-2 text-neutral-400'
+                            ? 'text-accent'
+                            : 'text-fg-muted'
                         }
                       >
                         {exit.validator === featuredAddress
                           ? 'STAKE WARS'
                           : shortAddress(exit.validator)}
-                      </td>
-                      <td className="px-2 py-2 text-right tabular-nums text-white">
+                      </TableCell>
+                      <TableCell numeric className="text-fg">
                         {formatAmount(
                           normalizeTokenAmount(
                             parseAmount(exit.amount),
                             exit.decimals
                           )
                         )}{' '}
-                        <span className="text-neutral-500">{exit.symbol}</span>
-                      </td>
-                      <td className="px-5 py-2 text-right tabular-nums text-neutral-400">
+                        <span className="text-fg-subtle">{exit.symbol}</span>
+                      </TableCell>
+                      <TableCell numeric className="pr-5 text-fg-muted">
                         {exit.unlockAt <= now
                           ? 'READY'
                           : `${exit.estimated ? '≈' : ''}${formatDuration(exit.unlockAt - now)}`}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
               </tbody>
-            </table>
+            </Table>
           </div>
         </div>
         <div>
-          <div className="px-5 pt-4 text-[9px] tracking-[0.2em] text-neutral-500">
-            VALIDATORS EXITING
-          </div>
+          <Eyebrow className="px-5 pt-4">VALIDATORS EXITING</Eyebrow>
           {unstaking.exitingValidators.length === 0 ? (
-            <div className="px-5 py-4 text-[10px] tracking-[0.1em] text-neutral-600">
+            <div className="px-5 py-4 text-caption text-fg-subtle">
               NO VALIDATORS ARE EXITING
             </div>
           ) : (
@@ -260,16 +264,16 @@ export function UnstakingPanel({
               {unstaking.exitingValidators.map((validator) => (
                 <li
                   key={validator.address}
-                  className="flex items-center justify-between gap-4 border-t border-grid px-5 py-2 text-[10px]"
+                  className="flex items-center justify-between gap-4 border-t border-line px-5 py-2 text-caption"
                 >
                   <ExternalLink
                     href={voyagerValidatorUrl(validator.address)}
-                    className="text-neutral-300"
+                    className="text-fg-secondary"
                   >
                     {shortAddress(validator.address)}
                   </ExternalLink>
-                  <span className="text-right tabular-nums text-neutral-400">
-                    <span className="text-white">
+                  <span className="text-right tabular-nums text-fg-muted">
+                    <span className="text-fg">
                       {formatAmount(parseAmount(validator.selfStake))}
                     </span>{' '}
                     SELF · {formatAmount(parseAmount(validator.delegatedStrk))}{' '}
@@ -284,7 +288,7 @@ export function UnstakingPanel({
           )}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -300,15 +304,15 @@ function Row({
   accent?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-grid px-5 py-3 last:border-b-0">
-      <dt
-        className="text-[9px] tracking-[0.18em] text-neutral-500"
-        title={hint}
-      >
+    <div className="flex items-baseline justify-between gap-4 border-b border-line px-5 py-3 last:border-b-0">
+      <dt className="text-label text-fg-subtle" title={hint}>
         {label}
       </dt>
       <dd
-        className={`whitespace-nowrap text-right text-sm ${accent ? 'text-amber-300' : 'text-white'}`}
+        className={cn(
+          'whitespace-nowrap text-right text-body tabular-nums',
+          accent ? 'text-warning' : 'text-fg'
+        )}
       >
         {value}
       </dd>

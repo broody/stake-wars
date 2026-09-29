@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WalletButton } from '../components/ui/WalletButton';
 import { ForceBreakdown } from '../components/ui/ForceBreakdown';
-import { BusyLabel } from '../components/ui/Spinner';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useYield } from '../contexts/useYield';
@@ -13,6 +12,17 @@ import {
   stakeReturnsToCore,
 } from '../utils/stakingRequest';
 import { calculateYieldMetrics } from '../utils/yield';
+import {
+  Button,
+  Callout,
+  Eyebrow,
+  PageTitle,
+  Panel,
+  PanelSection,
+  Stat,
+  StatGrid,
+  panelStyles,
+} from '../../ui';
 
 const MAX_U128 = (1n << 128n) - 1n;
 const VOYAGER_VALIDATOR_URL =
@@ -25,10 +35,13 @@ function ValidatorLink() {
       href={VOYAGER_VALIDATOR_URL}
       target="_blank"
       rel="noreferrer"
-      className="group flex w-full items-stretch border border-[#ff4a04]/60 bg-[#ff4a04]/[0.05] text-left transition-colors hover:border-[#ff4a04] hover:bg-[#ff4a04]/[0.1] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto"
+      className={panelStyles(
+        'accent',
+        'group flex w-full items-stretch text-left transition-colors hover:border-accent hover:bg-accent/[0.1] sm:w-auto'
+      )}
       aria-label="View the Stake Wars validator on Voyager (opens in a new tab)"
     >
-      <div className="flex shrink-0 items-center justify-center border-r border-[#ff4a04]/40 px-4">
+      <div className="flex shrink-0 items-center justify-center border-r border-accent/40 px-4">
         <img
           src={VOYAGER_LOGO_URL}
           alt=""
@@ -37,10 +50,8 @@ function ValidatorLink() {
         />
       </div>
       <div className="px-5 py-4">
-        <div className="text-[8px] tracking-[0.2em] text-[#ff6a2f]">
-          OFFICIAL STARKNET VALIDATOR
-        </div>
-        <div className="mt-1 text-[10px] tracking-[0.16em] text-white">
+        <Eyebrow tone="accent">OFFICIAL STARKNET VALIDATOR</Eyebrow>
+        <div className="mt-1 text-label text-fg">
           VIEW &amp; STAKE ON VOYAGER{' '}
           <span
             aria-hidden="true"
@@ -54,29 +65,8 @@ function ValidatorLink() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  unit,
-  emphasis = false,
-}: {
-  label: string;
-  value: bigint | null;
-  unit: 'STRK' | 'FORCE';
-  emphasis?: boolean;
-}) {
-  return (
-    <div className="border-b border-r border-grid px-4 py-4">
-      <div className="text-[9px] tracking-[0.2em] text-neutral-500">
-        {label}
-      </div>
-      <div
-        className={`mt-2 text-lg tabular-nums ${emphasis ? 'text-white' : 'text-neutral-300'}`}
-      >
-        {value === null ? '—' : formatStrk(value, 6)} {unit}
-      </div>
-    </div>
-  );
+function strkValue(value: bigint | null): string {
+  return value === null ? '—' : formatStrk(value, 6);
 }
 
 function durationValue(totalSeconds: number): string {
@@ -241,48 +231,42 @@ export function Staking() {
 
   if (!isConnected) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-bg px-4">
-        <div className="w-full max-w-md border border-grid p-8 text-center font-mono">
-          <div className="text-xs tracking-[0.24em] text-dim">
-            OFFICIAL STARKNET STAKING
-          </div>
-          <h1 className="game-page-title mb-4 mt-3">CONNECT TO STAKE</h1>
-          <p className="mb-6 text-sm leading-relaxed text-neutral-500">
+      <div className="flex h-full w-full items-center justify-center bg-surface px-4">
+        <Panel as="div" className="w-full max-w-md p-8 text-center font-mono">
+          <Eyebrow>OFFICIAL STARKNET STAKING</Eyebrow>
+          <PageTitle className="mb-4 mt-3">CONNECT TO STAKE</PageTitle>
+          <p className="mb-6 text-body leading-relaxed text-fg-subtle">
             Stake STRK with the Stake Wars validator and turn it into deployable
             FORCE.
           </p>
           <div className="inline-block">
             <WalletButton />
           </div>
-        </div>
+        </Panel>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
       <div className="mx-auto max-w-6xl px-4 pb-20 pt-24">
-        <header className="flex flex-col gap-6 border-b border-grid pb-8 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[10px] tracking-[0.28em] text-neutral-500">
-              OFFICIAL STARKNET STAKING · GENERATE FORCE
-            </div>
-            <h1 className="game-page-title mt-3">STAKE STRK</h1>
+            <Eyebrow>OFFICIAL STARKNET STAKING · GENERATE FORCE</Eyebrow>
+            <PageTitle className="mt-3">STAKE STRK</PageTitle>
           </div>
           <ValidatorLink />
         </header>
 
-        <section className="mt-8 grid border-l border-t border-grid lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="border-b border-r border-grid p-5 sm:p-8">
+        <Panel className="mt-8 grid lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="border-b border-line p-5 sm:p-8 lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg tracking-[0.12em] text-white">
-                  STAKE STRK NOW
-                </h2>
+                <h2 className="text-heading text-fg">STAKE STRK NOW</h2>
               </div>
-              <div className="text-right text-[9px] tracking-[0.14em] text-neutral-500">
+              <div className="text-right text-label text-fg-subtle">
                 WALLET BALANCE
-                <div className="mt-1 text-xs text-neutral-300">
+                <div className="mt-1 text-caption text-fg-secondary">
                   {walletBalance === null
                     ? 'READING…'
                     : `${formatStrk(walletBalance, 6)} STRK`}
@@ -292,11 +276,11 @@ export function Staking() {
 
             <label
               htmlFor="stake-amount"
-              className="mt-8 block text-[9px] tracking-[0.2em] text-neutral-500"
+              className="mt-8 block text-label text-fg-subtle"
             >
               AMOUNT TO STAKE
             </label>
-            <div className="mt-2 flex border border-neutral-600 focus-within:border-white">
+            <div className="mt-2 flex border border-line-strong focus-within:border-fg">
               <input
                 id="stake-amount"
                 inputMode="decimal"
@@ -306,81 +290,78 @@ export function Staking() {
                 placeholder="0.0"
                 aria-describedby="stake-conversion"
                 disabled={isBusy || operatorStatus?.retired}
-                className="min-w-0 flex-1 bg-black px-4 py-4 text-xl text-white outline-none placeholder:text-neutral-700 disabled:cursor-not-allowed"
+                className="min-w-0 flex-1 bg-surface px-4 py-4 text-figure-sm text-fg outline-none placeholder:text-fg-disabled disabled:cursor-not-allowed"
               />
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() =>
                   setAmount(
                     walletBalance === null ? '' : formatStrk(walletBalance, 18)
                   )
                 }
                 disabled={walletBalance === null || isBusy}
-                className="border-l border-neutral-700 px-4 text-[9px] tracking-[0.18em] text-neutral-400 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-white disabled:text-neutral-700"
+                className="border-0 border-l border-line-strong"
               >
                 MAX
-              </button>
+              </Button>
             </div>
 
             <div
               id="stake-conversion"
-              className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center border-y border-grid py-3 text-center"
+              className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center border-y border-line py-3 text-center"
             >
               <div>
-                <div className="text-[8px] tracking-[0.18em] text-neutral-600">
-                  STAKE
-                </div>
-                <div className="mt-1 text-xs text-white">1 STRK</div>
+                <div className="text-tag text-fg-subtle">STAKE</div>
+                <div className="mt-1 text-caption text-fg">1 STRK</div>
               </div>
-              <div className="px-4 text-neutral-600" aria-hidden="true">
+              <div className="px-4 text-fg-subtle" aria-hidden="true">
                 ───▶
               </div>
               <div>
-                <div className="text-[8px] tracking-[0.18em] text-neutral-600">
-                  GENERATE
-                </div>
-                <div className="mt-1 text-xs text-white">1 FORCE</div>
+                <div className="text-tag text-fg-subtle">GENERATE</div>
+                <div className="mt-1 text-caption text-fg">1 FORCE</div>
               </div>
             </div>
 
-            <button
-              type="button"
+            {/* Disabled, this button explains why, so it stays legible. */}
+            <Button
+              variant="solid"
+              size="lg"
+              fullWidth
               onClick={() => void submitStake()}
               disabled={Boolean(stakeDisabledReason) || isBusy}
-              className="mt-5 w-full border border-white bg-white px-4 py-4 text-[10px] font-semibold tracking-[0.22em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+              busy={stakePhase !== 'idle'}
+              className="mt-5"
             >
-              <BusyLabel busy={stakePhase !== 'idle'}>
-                {stakePhase === 'submitting'
-                  ? 'AUTHORIZE STAKE…'
-                  : stakePhase === 'confirming'
-                    ? 'CONFIRMING…'
-                    : stakeDisabledReason ||
-                      `STAKE ${formatStrk(parsedAmount.value ?? 0n, 18)} STRK`}
-              </BusyLabel>
-            </button>
+              {stakePhase === 'submitting'
+                ? 'AUTHORIZE STAKE…'
+                : stakePhase === 'confirming'
+                  ? 'CONFIRMING…'
+                  : stakeDisabledReason ||
+                    `STAKE ${formatStrk(parsedAmount.value ?? 0n, 18)} STRK`}
+            </Button>
 
             {parsedAmount.error || walletError || stakeError ? (
-              <p className="mt-3 text-[10px] leading-relaxed text-amber-400">
+              <p className="mt-3 text-caption leading-relaxed text-warning">
                 {parsedAmount.error || walletError || stakeError}
               </p>
             ) : null}
           </div>
 
-          <div className="border-b border-r border-grid">
-            <div className="border-l border-t border-grid">
-              <Metric
-                label="AVAILABLE FORCE"
-                value={operatorStatus?.availableForce ?? null}
-                unit="FORCE"
-                emphasis
-              />
-            </div>
+          <div>
+            <Stat
+              label="AVAILABLE FORCE"
+              value={strkValue(operatorStatus?.availableForce ?? null)}
+              unit="FORCE"
+              emphasis
+              className="border-b border-line"
+            />
             {operatorStatus ? (
-              <div className="border-b border-grid px-4 py-3 text-[9px] tracking-[0.2em] text-neutral-500">
+              <div className="border-b border-line px-4 py-3 text-label text-fg-subtle">
                 <ForceBreakdown status={operatorStatus} />
               </div>
             ) : null}
-            <div className="space-y-3 p-5 text-xs leading-5 text-neutral-500">
+            <div className="space-y-3 p-5 text-caption text-fg-subtle">
               <p>
                 Your STRK is delegated directly to the Stake Wars validator
                 through Starknet&rsquo;s official staking contract. Stake Wars
@@ -394,42 +375,41 @@ export function Staking() {
               </p>
             </div>
           </div>
-        </section>
+        </Panel>
 
-        <section className="mt-8 border border-grid p-5 sm:p-7">
-          <div>
+        <Panel className="mt-8">
+          <PanelSection>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <div className="text-[9px] tracking-[0.22em] text-neutral-500">
-                  ACTIVE STAKE
-                </div>
-                <div className="mt-2 text-2xl text-white">
+                <Eyebrow>ACTIVE STAKE</Eyebrow>
+                <div className="mt-2 text-figure tabular-nums text-fg">
                   {isLoading && !summary
                     ? 'READING…'
                     : `${formatStrk(summary?.stakedAmount ?? 0n, 6)} STRK`}
                 </div>
               </div>
-              <div className="text-right text-[9px] leading-5 text-neutral-500">
+              <div className="text-right text-label leading-5 text-fg-subtle">
                 <div>
                   EFFECTIVE YIELD {percentValue(metrics.effectivePercent)}
                 </div>
               </div>
             </div>
-            <div className="mt-5 grid grid-cols-2 border-l border-t border-grid">
-              <Metric
+            <StatGrid className="mt-5 border border-line sm:grid-cols-2">
+              <Stat
                 label="CLAIMED"
-                value={summary?.claimedRewards ?? null}
+                value={strkValue(summary?.claimedRewards ?? null)}
                 unit="STRK"
               />
-              <Metric
+              <Stat
                 label="UNCLAIMED"
-                value={summary?.unclaimedRewards ?? null}
+                value={strkValue(summary?.unclaimedRewards ?? null)}
                 unit="STRK"
                 emphasis
               />
-            </div>
-            <button
-              type="button"
+            </StatGrid>
+            <Button
+              variant="outline"
+              fullWidth
               onClick={() => void claimYield()}
               disabled={
                 isLoading ||
@@ -437,67 +417,67 @@ export function Staking() {
                 !summary ||
                 summary.unclaimedRewards === 0n
               }
-              className="mt-4 w-full border border-neutral-500 px-4 py-3 text-[9px] tracking-[0.2em] text-white transition-colors hover:border-white hover:bg-white hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
+              busy={claimPhase !== 'idle'}
+              className="mt-4"
             >
-              <BusyLabel busy={claimPhase !== 'idle'}>
-                {claimPhase === 'submitting'
-                  ? 'AUTHORIZE CLAIM…'
-                  : claimPhase === 'confirming'
-                    ? 'CONFIRMING CLAIM…'
-                    : summary?.unclaimedRewards
-                      ? `CLAIM ${formatStrk(summary.unclaimedRewards, 6)} STRK`
-                      : 'NO YIELD TO CLAIM'}
-              </BusyLabel>
-            </button>
-          </div>
-        </section>
+              {claimPhase === 'submitting'
+                ? 'AUTHORIZE CLAIM…'
+                : claimPhase === 'confirming'
+                  ? 'CONFIRMING CLAIM…'
+                  : summary?.unclaimedRewards
+                    ? `CLAIM ${formatStrk(summary.unclaimedRewards, 6)} STRK`
+                    : 'NO YIELD TO CLAIM'}
+            </Button>
+          </PanelSection>
+        </Panel>
 
-        <section className="mt-8 border border-grid p-5 sm:p-7">
-          <div className="text-[9px] tracking-[0.22em] text-neutral-500">
-            WITHDRAWAL CONTROL
-          </div>
+        <Panel className="mt-8">
+          <PanelSection>
+            <Eyebrow>WITHDRAWAL CONTROL</Eyebrow>
 
-          {hasPendingExit ? (
-            <div className="mt-4 border border-amber-500/60 bg-amber-500/[0.04] p-5">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <div className="text-[9px] tracking-[0.18em] text-amber-400">
-                    {withdrawalUnlocked
-                      ? 'WITHDRAWAL UNLOCKED'
-                      : 'OFFICIAL EXIT WINDOW'}
+            {hasPendingExit ? (
+              <Panel as="div" tone="warning" className="mt-4 p-5">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <div>
+                    <Eyebrow tone="warning">
+                      {withdrawalUnlocked
+                        ? 'WITHDRAWAL UNLOCKED'
+                        : 'OFFICIAL EXIT WINDOW'}
+                    </Eyebrow>
+                    <div className="mt-2 text-figure-sm tabular-nums text-fg">
+                      {formatStrk(summary?.unpoolAmount ?? 0n, 6)} STRK
+                    </div>
                   </div>
-                  <div className="mt-2 text-xl text-white">
-                    {formatStrk(summary?.unpoolAmount ?? 0n, 6)} STRK
+                  <div className="text-right text-figure-sm tabular-nums text-fg">
+                    {withdrawalRemaining === null
+                      ? 'SYNCING…'
+                      : withdrawalUnlocked
+                        ? 'READY'
+                        : durationValue(withdrawalRemaining)}
                   </div>
                 </div>
-                <div className="text-right text-sm tabular-nums text-white">
-                  {withdrawalRemaining === null
-                    ? 'SYNCING…'
-                    : withdrawalUnlocked
-                      ? 'READY'
-                      : durationValue(withdrawalRemaining)}
-                </div>
-              </div>
-              <div
-                className="mt-4 h-2 overflow-hidden border border-amber-500/40"
-                role="progressbar"
-                aria-label="Official staking withdrawal progress"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(withdrawalProgress)}
-              >
                 <div
-                  className="h-full bg-amber-400 transition-[width] duration-1000 motion-reduce:transition-none"
-                  style={{ width: `${withdrawalProgress}%` }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => void withdrawUnstaked()}
-                disabled={!withdrawalUnlocked || isBusy}
-                className="mt-4 w-full border border-amber-400 px-4 py-3 text-[9px] tracking-[0.18em] text-amber-300 transition-colors hover:bg-amber-400 hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:text-neutral-600"
-              >
-                <BusyLabel busy={withdrawPhase !== 'idle'}>
+                  className="mt-4 h-2 overflow-hidden border border-warning-strong/40"
+                  role="progressbar"
+                  aria-label="Official staking withdrawal progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(withdrawalProgress)}
+                >
+                  <div
+                    className="h-full bg-warning transition-[width] duration-1000 motion-reduce:transition-none"
+                    style={{ width: `${withdrawalProgress}%` }}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  tone="warning"
+                  fullWidth
+                  onClick={() => void withdrawUnstaked()}
+                  disabled={!withdrawalUnlocked || isBusy}
+                  busy={withdrawPhase !== 'idle'}
+                  className="mt-4"
+                >
                   {withdrawPhase === 'submitting'
                     ? 'AUTHORIZE WITHDRAWAL…'
                     : withdrawPhase === 'confirming'
@@ -505,79 +485,79 @@ export function Staking() {
                       : withdrawalUnlocked
                         ? `WITHDRAW ${formatStrk(summary?.unpoolAmount ?? 0n, 6)} STRK`
                         : 'WITHDRAWAL LOCKED'}
-                </BusyLabel>
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-5 border border-neutral-800 p-5 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div>
-                <div className="text-[10px] tracking-[0.16em] text-white">
-                  LEAVE STAKE WARS
+                </Button>
+              </Panel>
+            ) : (
+              <Panel
+                as="div"
+                className="mt-4 grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-end"
+              >
+                <div>
+                  <div className="text-label text-fg">LEAVE STAKE WARS</div>
+                  <p className="mt-2 max-w-3xl text-caption text-fg-subtle">
+                    Unstaking permanently retires this address from the game,
+                    relinquishes its Sectors, and starts the official Starknet
+                    exit window. Restaking later will not reactivate the
+                    address.
+                  </p>
                 </div>
-                <p className="mt-2 max-w-3xl text-[10px] leading-5 text-neutral-500">
-                  Unstaking permanently retires this address from the game,
-                  relinquishes its Sectors, and starts the official Starknet
-                  exit window. Restaking later will not reactivate the address.
-                </p>
-              </div>
-              {exitArmed ? (
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => void unstakeAll()}
-                    disabled={isBusy || !summary?.stakedAmount}
-                    className="border border-amber-400 bg-amber-400 px-4 py-3 text-[9px] font-semibold tracking-[0.16em] text-black transition-colors hover:bg-black hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
-                  >
-                    <BusyLabel busy={unstakePhase !== 'idle'}>
+                {exitArmed ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      variant="solid"
+                      tone="warning"
+                      onClick={() => void unstakeAll()}
+                      disabled={isBusy || !summary?.stakedAmount}
+                      busy={unstakePhase !== 'idle'}
+                    >
                       {unstakePhase === 'submitting'
                         ? 'AUTHORIZE EXIT…'
                         : unstakePhase === 'confirming'
                           ? 'CONFIRMING EXIT…'
                           : 'CONFIRM PERMANENT EXIT'}
-                    </BusyLabel>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExitArmed(false)}
-                    disabled={isBusy}
-                    className="border border-neutral-700 px-4 py-3 text-[9px] tracking-[0.16em] text-neutral-400 hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setExitArmed(false)}
+                      disabled={isBusy}
+                    >
+                      CANCEL
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    tone="danger"
+                    onClick={() => setExitArmed(true)}
+                    disabled={
+                      isLoading ||
+                      isBusy ||
+                      !summary?.stakedAmount ||
+                      operatorStatus?.retired
+                    }
                   >
-                    CANCEL
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setExitArmed(true)}
-                  disabled={
-                    isLoading ||
-                    isBusy ||
-                    !summary?.stakedAmount ||
-                    operatorStatus?.retired
-                  }
-                  className="border border-neutral-700 px-4 py-3 text-[9px] tracking-[0.16em] text-neutral-400 transition-colors hover:border-red-500 hover:text-red-400 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
-                >
-                  {operatorStatus?.retired
-                    ? 'ADDRESS RETIRED'
-                    : summary?.stakedAmount
-                      ? 'UNSTAKE & PERMANENTLY RETIRE'
-                      : 'NO ACTIVE STAKE'}
-                </button>
-              )}
-            </div>
-          )}
-        </section>
+                    {operatorStatus?.retired
+                      ? 'ADDRESS RETIRED'
+                      : summary?.stakedAmount
+                        ? 'UNSTAKE & PERMANENTLY RETIRE'
+                        : 'NO ACTIVE STAKE'}
+                  </Button>
+                )}
+              </Panel>
+            )}
+          </PanelSection>
+        </Panel>
 
         {operatorError ||
         error ||
         historyError ||
         claimError ||
         stakingError ? (
-          <div className="mt-6 border-l-2 border-amber-400 pl-4 text-[10px] leading-5 text-amber-400">
+          <Callout tone="warning" className="mt-6">
             {operatorError ? (
-              <button type="button" onClick={refreshOperator}>
+              <Button variant="link" tone="warning" onClick={refreshOperator}>
                 OPERATOR READ FAILED · RETRY
-              </button>
+              </Button>
             ) : null}
             {error ? <div>STAKING READ FAILED · {error}</div> : null}
             {historyError ? (
@@ -587,7 +567,7 @@ export function Staking() {
             {stakingError ? (
               <div>STAKING ACTION FAILED · {stakingError}</div>
             ) : null}
-          </div>
+          </Callout>
         ) : null}
       </div>
     </div>

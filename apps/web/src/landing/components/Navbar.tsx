@@ -1,12 +1,13 @@
 import { useState } from 'react';
+import { Panel } from '../../ui';
 
 export const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (
-    <nav className="flex justify-between items-center px-5 py-4 border-b border-dim bg-black/80 backdrop-blur-sm fixed w-full top-0 z-[100]">
-      <div className="brand flex items-center">
-        <span className="font-bold text-[1.2rem] tracking-tight">
+    <nav className="flex justify-between items-center px-5 py-4 border-b border-line-strong bg-surface/80 backdrop-blur-sm fixed w-full top-0 z-[100]">
+      <div className="flex items-center">
+        <span className="font-bold text-heading">
           STAKEWARS<span className="animate-blinker">_</span>
         </span>
       </div>
@@ -14,7 +15,7 @@ export const Navbar = () => {
       <div className="relative">
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="focus:outline-none hover:opacity-80 transition-opacity"
+          className="hover:opacity-80 transition-opacity"
         >
           <img
             src="/stakewars.svg"
@@ -24,11 +25,15 @@ export const Navbar = () => {
         </button>
 
         {isDropdownOpen && (
-          <div className="absolute right-0 top-full mt-2 w-max bg-black border border-dim p-4 shadow-xl z-50">
-            <div className="text-[0.8rem] text-[#aaa] whitespace-nowrap">
+          <Panel
+            as="div"
+            tone="strong"
+            className="absolute right-0 top-full mt-2 w-max p-4 shadow-xl z-50"
+          >
+            <div className="text-caption text-fg-muted whitespace-nowrap">
               SYSTEM STATUS: LIVE
             </div>
-          </div>
+          </Panel>
         )}
       </div>
     </nav>

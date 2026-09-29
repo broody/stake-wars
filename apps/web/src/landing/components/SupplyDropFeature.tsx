@@ -4,6 +4,7 @@ import {
   getCurrentLandingSupplyDrop,
   type LandingSupplyDrop,
 } from '../services/supplyDrop';
+import { buttonStyles, Eyebrow, Panel } from '../../ui';
 
 function formatCountdown(endsAt: number, now: number): string {
   let remaining = Math.max(0, endsAt - Math.floor(now / 1_000));
@@ -34,39 +35,37 @@ function CurrentPot({ supplyDrop }: { supplyDrop: LandingSupplyDrop }) {
     <div className="relative flex min-h-72 flex-col justify-between overflow-hidden p-[30px] md:p-10">
       <div
         aria-hidden="true"
-        className="absolute -right-16 -top-24 h-72 w-72 rotate-45 border border-[#d6a84b]/10"
+        className="absolute -right-16 -top-24 h-72 w-72 rotate-45 border border-gold/10"
       />
-      <div className="relative flex items-center justify-between gap-4 text-[0.72rem] tracking-[0.2em]">
-        <span className="flex items-center gap-2 text-[#d6a84b]">
-          <span className="h-2 w-2 bg-[#d6a84b] shadow-[0_0_12px_rgba(214,168,75,0.65)]" />
+      <div className="relative flex items-center justify-between gap-4">
+        <Eyebrow tone="gold" className="flex items-center gap-2">
+          <span className="h-2 w-2 bg-gold shadow-glow-gold" />
           {isDrawPending ? 'DRAW PENDING' : 'LIVE DROP'}
-        </span>
-        <span className="text-[#777]">DROP #{supplyDrop.id.toString()}</span>
+        </Eyebrow>
+        <Eyebrow>DROP #{supplyDrop.id.toString()}</Eyebrow>
       </div>
 
       <div className="relative my-10">
-        <div className="break-words text-[clamp(2.6rem,7vw,5rem)] font-bold leading-none tracking-[-0.06em] text-fg">
+        <div className="break-words text-hero font-bold leading-none text-fg">
           {prize.value}
         </div>
-        <div className="mt-3 text-[0.85rem] tracking-[0.22em] text-[#d6a84b]">
+        <Eyebrow tone="gold" className="mt-3">
           {prize.unit}
-        </div>
+        </Eyebrow>
       </div>
 
-      <div className="relative flex items-end justify-between gap-6 border-t border-[#d6a84b]/25 pt-5">
+      <div className="relative flex items-end justify-between gap-6 border-t border-gold/25 pt-5">
         <div>
-          <div className="text-[0.68rem] tracking-[0.2em] text-[#777]">
-            {isDrawPending ? 'STATUS' : 'TIME TO DROP'}
-          </div>
-          <div className="mt-2 text-[1.15rem] tabular-nums text-[#ddd]">
+          <Eyebrow>{isDrawPending ? 'STATUS' : 'TIME TO DROP'}</Eyebrow>
+          <div className="mt-2 text-lead tabular-nums text-fg-secondary">
             {isDrawPending
               ? 'AWAITING SETTLEMENT'
               : formatCountdown(supplyDrop.endsAt, now)}
           </div>
         </div>
-        <div className="hidden text-right text-[0.62rem] leading-5 tracking-[0.15em] text-[#666] sm:block">
+        <Eyebrow className="hidden text-right sm:block">
           DAYS · HRS · MIN · SEC
-        </div>
+        </Eyebrow>
       </div>
     </div>
   );
@@ -102,22 +101,23 @@ export function SupplyDropFeature() {
   }, []);
 
   return (
-    <section
+    <Panel
       aria-labelledby="supply-drop-feature-heading"
-      className="mb-16 grid border border-dim bg-black/70 lg:grid-cols-[0.85fr_1.15fr]"
+      tone="strong"
+      className="mb-16 grid bg-surface/70 lg:grid-cols-[0.85fr_1.15fr]"
     >
-      <div className="flex flex-col justify-between border-b border-dim p-[30px] md:p-10 lg:border-b-0 lg:border-r">
+      <div className="flex flex-col justify-between border-b border-line-strong p-[30px] md:p-10 lg:border-b-0 lg:border-r">
         <div>
           <h2
             id="supply-drop-feature-heading"
-            className="text-[2.4rem] font-bold leading-none tracking-[-0.05em]"
+            className="text-display font-bold"
           >
             SUPPLY DROP
           </h2>
-          <p className="mt-6 text-[1.15rem] leading-[1.55] text-fg">
+          <p className="mt-6 text-lead text-fg">
             Reinforcements for Sector operators.
           </p>
-          <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
+          <p className="mt-4 max-w-xl text-body text-fg-muted">
             A portion of Stake Wars pool commissions funds each Supply Drop.
             When the window closes, one Sector is selected at random. Its
             operator at the deadline receives the drop. Received drops are
@@ -127,27 +127,26 @@ export function SupplyDropFeature() {
 
         <a
           href="/play/drop"
-          className="mt-10 w-fit border border-[#d6a84b]/70 px-5 py-3 text-[0.72rem] tracking-[0.18em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[#d6a84b]"
+          className={buttonStyles({
+            variant: 'outline',
+            tone: 'gold',
+            className: 'mt-10 w-fit',
+          })}
         >
           VIEW SUPPLY DROP
         </a>
       </div>
 
-      <div
-        aria-live="polite"
-        className="bg-[linear-gradient(135deg,rgba(214,168,75,0.055),transparent_55%)]"
-      >
+      <div aria-live="polite" className="bg-gold-sheen">
         {state === 'loading' ? (
-          <div className="grid min-h-72 place-items-center p-10 text-[0.72rem] tracking-[0.2em] text-[#777]">
+          <div className="grid min-h-72 place-items-center p-10 text-label text-fg-subtle">
             READING ON-CHAIN DROP…
           </div>
         ) : state === 'unavailable' ? (
           <div className="grid min-h-72 place-items-center p-10 text-center">
             <div>
-              <div className="text-[1.35rem] font-bold">
-                DROP DATA UNAVAILABLE
-              </div>
-              <p className="mt-3 text-[0.85rem] leading-6 text-[#777]">
+              <div className="text-title font-bold">DROP DATA UNAVAILABLE</div>
+              <p className="mt-3 text-body text-fg-subtle">
                 Open the Supply Drop ledger to check the current drop.
               </p>
             </div>
@@ -157,16 +156,14 @@ export function SupplyDropFeature() {
         ) : (
           <div className="grid min-h-72 place-items-center p-10 text-center">
             <div>
-              <div className="text-[1.35rem] font-bold">
-                NO ACTIVE SUPPLY DROP
-              </div>
-              <p className="mt-3 text-[0.85rem] leading-6 text-[#777]">
+              <div className="text-title font-bold">NO ACTIVE SUPPLY DROP</div>
+              <p className="mt-3 text-body text-fg-subtle">
                 The next Supply Drop has not started yet.
               </p>
             </div>
           </div>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }

@@ -23,6 +23,52 @@ pnpm lint
 Do not commit, push, deploy, create infrastructure, or change external project
 settings unless the user explicitly requests that action.
 
+## UI components and tokens
+
+The frontend has one design system, in `apps/web/src/ui`. Build every screen
+from it, in both the game (`src/game`) and the landing page (`src/landing`):
+
+- `src/ui/tokens.ts` is the single source of truth for type, color, letter
+  spacing, shadows and chart colors. `tailwind.config.ts` builds its theme from
+  it and *replaces* Tailwind's defaults, so classes like `text-sm`,
+  `text-neutral-500` or `tracking-widest` do not exist here.
+- Type: use a role, which sets size, line height and letter spacing together:
+  `text-tag` (11px chips, axes), `text-label` (12px uppercase labels, buttons,
+  table headers), `text-caption` (13px supporting sentences), `text-body`
+  (14px), `text-lead` (17px intros), `text-heading` (18px section titles),
+  `text-figure-sm`/`text-figure` (20/30px numbers), `text-title` (24px),
+  `text-display` (page titles), `text-hero` (landing). Nothing renders below
+  11px. Add `tracking-caps` only for an uppercase phrase inside a
+  non-uppercase role.
+- Color: pick the role, not the shade. Text is `fg`, `fg-secondary`,
+  `fg-muted`, `fg-subtle` (`fg-disabled` is for disabled controls and
+  decoration, never readable copy); surfaces are `surface`,
+  `surface-raised`, `surface-hover`; rules are `line` and `line-strong`.
+  `accent` is Stake Wars orange, `gold` is Supply Drop, `owned` is the
+  player's Sectors, and `warning`, `danger` and `success` are status colors
+  that always ship with a word, never color alone.
+- Components (`import { … } from '<relative path>/ui'`): `Button` (variants
+  `solid`, `outline`, `ghost`, `link`; tones `neutral`, `accent`, `gold`,
+  `warning`, `danger`; sizes `sm`, `md`, `lg`, `xl`; `busy`), `CloseButton`,
+  `buttonStyles()` for a router `<Link>` that looks like a button,
+  `fieldStyles()` for inputs, selects and textareas, `Panel`/`PanelSection`
+  (use a `floating` tone over the 3D Core), `PageTitle`, `Eyebrow`,
+  `SectionHeading`, `Stat`/`StatGrid`, `SegmentedControl`, `Badge`,
+  `Callout`, `ExternalLink`, `Table` parts, `Dialog`/`DialogHeader`,
+  `Spinner`/`BusyLabel`, and SVG charts in `src/ui/charts`. Focus rings are
+  global; do not restyle them per element. Custom hover styles on a button
+  use the `hover-enabled:` variant so disabled buttons never react.
+- If the library lacks what a design needs, extend the library: add the
+  token to `tokens.ts` or the variant to the component, and show it on the
+  reference page. Never improvise a one-off value inside a feature.
+- The unlisted reference page at `/play/ui` renders every token and component
+  variant. Check it before building, and update it with every library change.
+- `pnpm lint` enforces this with `stakewars/no-adhoc-styles`
+  (`apps/web/eslint-plugin-stakewars`). It rejects arbitrary sizes, letter
+  spacing and colors (`text-[9px]`, `tracking-[0.18em]`, `bg-[#ff4a04]`),
+  Tailwind's default palette and size names, and raw colors in SVG attributes
+  or style objects. Fix the code; do not disable the rule.
+
 ## Local frontend runtime
 
 Always run the web application locally against the shared Sepolia deployment:

@@ -1,10 +1,8 @@
 import { FeaturedValidatorPanel } from '../components/network/FeaturedValidatorPanel';
 import { NetworkOverview } from '../components/network/NetworkOverview';
-import { ExternalLink } from '../components/network/primitives';
 import { StakedHistoryPanel } from '../components/network/StakedHistoryPanel';
 import { UnstakingPanel } from '../components/network/UnstakingPanel';
 import { ValidatorTable } from '../components/network/ValidatorTable';
-import { Spinner } from '../components/ui/Spinner';
 import { useStakingDashboard } from '../hooks/useStakingDashboard';
 import type { StakingSnapshot } from '../types/staking';
 import {
@@ -14,26 +12,32 @@ import {
   parseAmount,
 } from '../utils/stakingFormat';
 import { voyagerContractUrl } from '../utils/voyager';
+import {
+  Callout,
+  Eyebrow,
+  ExternalLink,
+  PageTitle,
+  Panel,
+  Spinner,
+} from '../../ui';
 
 export function Network() {
   const { snapshot, snapshotError, isLoading, history, historyError } =
     useStakingDashboard();
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:px-6 sm:pt-24">
-        <header className="flex flex-col gap-4 border-b border-grid pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[10px] tracking-[0.28em] text-neutral-500">
-              STARKNET STAKING · READ LIVE FROM CHAIN
-            </div>
-            <h1 className="game-page-title mt-3">NETWORK</h1>
+            <Eyebrow>STARKNET STAKING · READ LIVE FROM CHAIN</Eyebrow>
+            <PageTitle className="mt-3">NETWORK</PageTitle>
           </div>
           {snapshot ? (
-            <div className="text-[9px] leading-5 tracking-[0.18em] text-neutral-500 sm:text-right">
+            <div className="space-y-1 text-label text-fg-subtle sm:text-right">
               <div>
                 {snapshot.network.replace('SN_', '')} · BLOCK{' '}
-                <span className="text-neutral-300">
+                <span className="text-fg-secondary">
                   {snapshot.block.number.toLocaleString('en-US')}
                 </span>
               </div>
@@ -45,17 +49,14 @@ export function Network() {
         </header>
 
         {snapshotError ? (
-          <div
-            role="status"
-            className="mt-6 border-l-2 border-amber-400 pl-4 text-[10px] leading-5 tracking-[0.1em] text-amber-400"
-          >
+          <Callout role="status" tone="warning" className="mt-6">
             {snapshot ? 'LIVE UPDATE FAILED · SHOWING LAST GOOD DATA · ' : ''}
             {snapshotError.toUpperCase()}
-          </div>
+          </Callout>
         ) : null}
 
         {!snapshot ? (
-          <div className="flex min-h-[40vh] items-center justify-center text-[10px] tracking-[0.2em] text-neutral-500">
+          <div className="flex min-h-[40vh] items-center justify-center text-label text-fg-subtle">
             {isLoading ? (
               <span>
                 <Spinner className="mr-3" />
@@ -105,13 +106,14 @@ function IndexBanner({ snapshot }: { snapshot: StakingSnapshot }) {
   ].filter(Boolean);
 
   return (
-    <div
+    <Panel
+      as="div"
       role="status"
-      className="flex items-start gap-3 border border-neutral-800 px-4 py-3 text-[9px] leading-5 tracking-[0.16em] text-neutral-400"
+      className="flex items-start gap-3 px-4 py-3 text-label text-fg-muted"
     >
-      <Spinner className="mt-1" />
+      <Spinner className="mt-0.5" />
       <span>INDEXING THE STAKING CONTRACTS · {tasks.join(' · ')}</span>
-    </div>
+    </Panel>
   );
 }
 
@@ -134,13 +136,10 @@ function ProtocolParameters({ snapshot }: { snapshot: StakingSnapshot }) {
     ],
   ];
   return (
-    <section
-      aria-labelledby="protocol-parameters"
-      className="border border-grid"
-    >
+    <Panel aria-labelledby="protocol-parameters">
       <h2
         id="protocol-parameters"
-        className="border-b border-grid px-5 py-3 text-[9px] tracking-[0.22em] text-neutral-500"
+        className="border-b border-line px-5 py-3 text-label text-fg-subtle"
       >
         PROTOCOL PARAMETERS
       </h2>
@@ -148,30 +147,26 @@ function ProtocolParameters({ snapshot }: { snapshot: StakingSnapshot }) {
         {items.map(([label, value]) => (
           <div
             key={label}
-            className="border-b border-grid px-5 py-3 sm:odd:border-r lg:border-r"
+            className="border-b border-line px-5 py-3 sm:odd:border-r lg:border-r"
           >
-            <dt className="text-[9px] tracking-[0.18em] text-neutral-600">
-              {label}
-            </dt>
-            <dd className="mt-1 text-sm text-neutral-200">{value}</dd>
+            <dt className="text-label text-fg-subtle">{label}</dt>
+            <dd className="mt-1 text-body text-fg-secondary">{value}</dd>
           </div>
         ))}
-        <div className="border-b border-grid px-5 py-3">
-          <dt className="text-[9px] tracking-[0.18em] text-neutral-600">
-            STAKING CONTRACT
-          </dt>
-          <dd className="mt-1 text-sm text-neutral-200">
+        <div className="border-b border-line px-5 py-3">
+          <dt className="text-label text-fg-subtle">STAKING CONTRACT</dt>
+          <dd className="mt-1 text-body text-fg-secondary">
             <ExternalLink href={voyagerContractUrl(contracts.staking)}>
               {contracts.staking.slice(0, 10)}…{contracts.staking.slice(-6)}
             </ExternalLink>
           </dd>
         </div>
       </dl>
-      <p className="px-5 py-3 text-[9px] leading-5 tracking-[0.12em] text-neutral-600">
+      <p className="px-5 py-3 text-caption text-fg-subtle">
         Every figure is read from Starknet&rsquo;s official staking,
         delegation-pool, and minting contracts. USD values use the Pragma
         oracle.
       </p>
-    </section>
+    </Panel>
   );
 }

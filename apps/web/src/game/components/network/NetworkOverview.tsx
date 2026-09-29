@@ -9,7 +9,7 @@ import {
   normalizeTokenAmount,
   parseAmount,
 } from '../../utils/stakingFormat';
-import { StatCell } from './primitives';
+import { Badge, Eyebrow, Panel, Stat, StatGrid } from '../../../ui';
 
 export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
   const { totals, prices, apr } = snapshot;
@@ -21,32 +21,32 @@ export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
   const btcUsd = prices ? amountToNumber(btcStaked) * prices.btcUsd : null;
 
   return (
-    <section aria-label="Network totals">
-      <div className="grid grid-cols-2 border-l border-t border-grid lg:grid-cols-4">
-        <StatCell
+    <Panel aria-label="Network totals">
+      <StatGrid className="grid-cols-2 border-b border-line lg:grid-cols-4">
+        <Stat
           label="TOTAL STAKED"
           value={formatAmount(strkStaked)}
           unit="STRK"
           detail={strkUsd === null ? undefined : `≈ ${formatUsd(strkUsd)}`}
           emphasis
         />
-        <StatCell
+        <Stat
           label="BTC STAKED"
           value={formatAmount(btcStaked)}
           unit="BTC"
           detail={btcUsd === null ? undefined : `≈ ${formatUsd(btcUsd)}`}
           emphasis
         />
-        <StatCell
+        <Stat
           label="PENDING UNSTAKE"
           value={
-            <span className="text-amber-300">{formatAmount(strkPending)}</span>
+            <span className="text-warning">{formatAmount(strkPending)}</span>
           }
           unit="STRK"
           detail={`+ ${formatAmount(btcPending)} BTC · ${snapshot.unstaking.pendingExits.toLocaleString('en-US')} EXITS`}
           emphasis
         />
-        <StatCell
+        <Stat
           label="TOTAL VALUE LOCKED"
           value={
             strkUsd === null || btcUsd === null
@@ -60,7 +60,7 @@ export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
           }
           emphasis
         />
-        <StatCell
+        <Stat
           label="VALIDATORS"
           value={totals.activeValidators.toLocaleString('en-US')}
           detail={
@@ -69,7 +69,7 @@ export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
               : 'NONE EXITING'
           }
         />
-        <StatCell
+        <Stat
           label="DELEGATORS"
           value={
             totals.delegators === null
@@ -78,7 +78,7 @@ export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
           }
           detail="UNIQUE ADDRESSES, ACTIVE OR EXITING"
         />
-        <StatCell
+        <Stat
           label="MAX APR"
           value={formatPercent(apr.maxStrkPercent)}
           unit="STRK"
@@ -89,9 +89,9 @@ export function NetworkOverview({ snapshot }: { snapshot: StakingSnapshot }) {
           }
         />
         <EpochCell snapshot={snapshot} />
-      </div>
+      </StatGrid>
       <TokenBreakdown snapshot={snapshot} />
-    </section>
+    </Panel>
   );
 }
 
@@ -116,11 +116,9 @@ function TokenBreakdown({ snapshot }: { snapshot: StakingSnapshot }) {
     );
 
   return (
-    <div className="border-b border-l border-r border-grid">
-      <div className="px-4 pt-3 text-[9px] tracking-[0.2em] text-neutral-500">
-        STAKED BY TOKEN
-      </div>
-      <ul className="grid gap-x-6 px-4 pb-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div>
+      <Eyebrow className="px-4 pt-4">STAKED BY TOKEN</Eyebrow>
+      <ul className="grid gap-x-8 px-4 pb-3 pt-1 sm:grid-cols-2 lg:grid-cols-3">
         {tokens.map((token) => {
           const share =
             token.kind === 'btc' && btcTotal > 0n
@@ -129,32 +127,33 @@ function TokenBreakdown({ snapshot }: { snapshot: StakingSnapshot }) {
           return (
             <li
               key={token.address}
-              className="flex items-center gap-3 border-b border-grid py-2 text-[10px] last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+3)]:border-b-0"
+              className="flex items-center gap-3 border-b border-line py-2 text-caption last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+3)]:border-b-0"
             >
-              <span className="w-16 shrink-0 tracking-[0.14em] text-neutral-300">
+              <span className="w-16 shrink-0 tracking-caps text-fg-secondary">
                 {token.symbol}
               </span>
               <span className="min-w-0 flex-1">
                 {share !== null ? (
-                  <span aria-hidden="true" className="block h-1 bg-neutral-900">
+                  <span
+                    aria-hidden="true"
+                    className="block h-1 bg-surface-hover"
+                  >
                     <span
-                      className="block h-full bg-neutral-400"
+                      className="block h-full bg-fg-muted"
                       style={{ width: `${share}%` }}
                     />
                   </span>
                 ) : null}
               </span>
-              <span className="text-right tabular-nums text-white">
+              <span className="text-right tabular-nums text-fg">
                 {formatAmount(token.staked)}
                 {share !== null ? (
-                  <span className="ml-2 text-neutral-500">
+                  <span className="ml-2 text-fg-subtle">
                     {share.toFixed(1)}%
                   </span>
                 ) : null}
                 {!token.active ? (
-                  <span className="ml-2 border border-neutral-700 px-1 text-[8px] tracking-[0.14em] text-neutral-500">
-                    DISABLED
-                  </span>
+                  <Badge className="ml-2">DISABLED</Badge>
                 ) : null}
               </span>
             </li>
@@ -184,22 +183,22 @@ function EpochCell({ snapshot }: { snapshot: StakingSnapshot }) {
   );
 
   return (
-    <div className="border-b border-r border-grid px-4 py-4">
-      <div className="text-[9px] tracking-[0.2em] text-neutral-500">EPOCH</div>
-      <div className="mt-2 text-lg text-neutral-200">
+    <div className="px-4 py-4">
+      <div className="text-label text-fg-subtle">EPOCH</div>
+      <div className="mt-2 text-figure-sm tabular-nums text-fg-secondary">
         #{epoch.id.toLocaleString('en-US')}
       </div>
       <div
-        className="mt-2 h-1.5 border border-neutral-700"
+        className="mt-2 h-1.5 border border-line-strong"
         role="progressbar"
         aria-label="Epoch progress"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progress)}
       >
-        <div className="h-full bg-white" style={{ width: `${progress}%` }} />
+        <div className="h-full bg-fg" style={{ width: `${progress}%` }} />
       </div>
-      <div className="mt-1.5 text-[10px] tracking-[0.06em] text-neutral-500">
+      <div className="mt-1.5 text-caption text-fg-subtle">
         {remaining > 0
           ? `NEXT IN ≈${formatDuration(remaining)}`
           : 'NEXT EPOCH STARTING'}

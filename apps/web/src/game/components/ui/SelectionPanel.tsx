@@ -7,6 +7,7 @@ import { CaptureControl } from './CaptureControl';
 import { BatchCaptureControl } from './BatchCaptureControl';
 import { AddressLink } from './AddressLink';
 import { groupBatchSectors } from '../../services/sectorBatch';
+import { Button, Callout, Eyebrow, Panel, panelStyles } from '../../../ui';
 
 function ImageUploadAction({
   sectorCount,
@@ -18,30 +19,32 @@ function ImageUploadAction({
   return (
     <div className="mt-4">
       <div
-        className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-[8px] tracking-[0.2em] text-neutral-600"
+        className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-tag text-fg-subtle"
         aria-hidden="true"
       >
-        <span className="border-t border-neutral-800" />
+        <span className="border-t border-line" />
         <span>OR</span>
-        <span className="border-t border-neutral-800" />
+        <span className="border-t border-line" />
       </div>
-      <section className="mt-3 border border-amber-300/50 bg-amber-300/[0.04] px-3 py-3">
-        <header className="flex items-center justify-between gap-3 text-[10px] tracking-[0.18em] text-amber-200">
-          <span>DISPLAY ARTWORK</span>
-          <span className="text-[8px] text-amber-300/60">IMAGE ACTION</span>
+      <Panel tone="warning" className="mt-3 px-3 py-3">
+        <header className="flex items-center justify-between gap-3">
+          <Eyebrow tone="warning">DISPLAY ARTWORK</Eyebrow>
+          <span className="text-tag text-warning-soft/60">IMAGE ACTION</span>
         </header>
-        <p className="mt-2 text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+        <p className="mt-2 text-caption text-fg-subtle">
           Publish one image across {sectorCount} selected Sector
           {sectorCount === 1 ? '' : 's'}.
         </p>
-        <button
-          type="button"
+        <Button
+          variant="solid"
+          tone="warning"
+          fullWidth
           onClick={onSelect}
-          className="mt-3 w-full border border-amber-300 bg-amber-300 px-4 py-3 text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:border-amber-200 hover:bg-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="mt-3"
         >
           UPLOAD IMAGE{sectorCount === 1 ? '' : ` TO ${sectorCount} SECTORS`}
-        </button>
-      </section>
+        </Button>
+      </Panel>
     </div>
   );
 }
@@ -104,56 +107,59 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
     selectedSectors.length === selectedSectorIds.length;
 
   return (
-    <aside className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[22rem]">
-      <header className="flex items-center justify-between border-b border-neutral-600 px-4 py-3">
-        <div>
-          <div className="text-[9px] tracking-[0.24em] text-dim">
+    <aside
+      className={panelStyles(
+        'floating',
+        'activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto font-mono text-caption text-fg sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[22rem]'
+      )}
+    >
+      <header className="flex items-center justify-between gap-3 border-b border-line-strong px-4 py-3">
+        <div className="min-w-0">
+          <Eyebrow>
             {isMultiSelection
               ? `${selectedSectorIds.length} SECTORS SELECTED`
               : 'SELECTED SECTOR'}
-          </div>
-          <div className="mt-1 text-base tracking-[0.12em]">
+          </Eyebrow>
+          <div className="mt-1 text-heading">
             {isMultiSelection
               ? 'MULTIPLE'
               : `SECTOR-${selectedSectorId.toString().padStart(4, '0')}`}
           </div>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => selectSector(null)}
           disabled={isSectorInteractionLocked}
-          className="border border-grid px-2 py-1 text-dim transition-colors hover:border-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-800 disabled:text-neutral-700"
+          className="shrink-0"
           aria-label="Close Sector details"
         >
           ESC
-        </button>
+        </Button>
       </header>
 
       <div className="px-4 py-3">
         {sectorError && (
-          <div className="py-3">
-            <div className="text-amber-400">READ FAILED</div>
-            <p className="mt-2 break-words leading-relaxed text-neutral-400">
-              {sectorError}
-            </p>
-            <button
-              type="button"
-              onClick={refreshSector}
-              className="mt-3 border border-neutral-600 px-3 py-1.5 tracking-widest transition-colors hover:border-white"
-            >
-              RETRY READ
-            </button>
-          </div>
+          <Callout
+            tone="warning"
+            title="READ FAILED"
+            className="my-3"
+            action={
+              <Button variant="outline" size="sm" onClick={refreshSector}>
+                RETRY READ
+              </Button>
+            }
+          >
+            <p className="break-words text-fg-muted">{sectorError}</p>
+          </Callout>
         )}
 
         {!isMultiSelection ? (
           <>
-            <div className="border-b border-grid pb-3">
-              <div className="text-[10px] tracking-[0.18em] text-dim">
-                OWNER
-              </div>
-              <div className="mt-1 flex items-baseline gap-2 tracking-wider text-neutral-300">
-                <span>
+            <div className="border-b border-line pb-3">
+              <Eyebrow>OWNER</Eyebrow>
+              <div className="mt-1 flex min-w-0 items-baseline gap-2 tracking-caps text-fg-secondary">
+                <span className="min-w-0 truncate">
                   {!selectedSector ? (
                     '---'
                   ) : neutral ? (
@@ -164,7 +170,7 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
                 </span>
                 {controlledByOperator && (
                   <span
-                    className="text-[9px] tracking-[0.16em]"
+                    className="text-label"
                     style={{ color: SECTOR_COLORS.owned }}
                   >
                     (YOU)
@@ -173,14 +179,12 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
               </div>
             </div>
             <div className="flex items-baseline justify-between gap-6 py-2">
-              <span className="text-[10px] tracking-[0.18em] text-dim">
-                DEFENSE
-              </span>
-              <span className="text-neutral-300">
+              <span className="text-label text-fg-subtle">DEFENSE</span>
+              <span className="min-w-0 break-words text-right tabular-nums text-fg-secondary">
                 {selectedSector ? (
                   <>
                     {formatStrk(selectedSector.captureForce, 18)}{' '}
-                    <span className="text-[10px] text-dim">FORCE</span>
+                    <span className="text-label text-fg-subtle">FORCE</span>
                   </>
                 ) : (
                   '---'
@@ -194,10 +198,10 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
           <>
             {!isMultiSelection &&
               (selectedSector.stale || selectedSector.needsSync) && (
-                <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
+                <Callout tone="warning" className="mt-3">
                   Its last owner no longer has the stake to hold it, so it can
                   be captured at the minimum.
-                </div>
+                </Callout>
               )}
 
             {!isMultiSelection ? (
@@ -242,12 +246,12 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
                   </>
                 )}
                 {batchGroups.individualOnly.length > 0 && (
-                  <div className="mt-3 border border-amber-500/50 px-3 py-2 leading-relaxed text-amber-400">
+                  <Callout tone="warning" className="mt-3">
                     {batchGroups.individualOnly.length} selected Sector
                     {batchGroups.individualOnly.length === 1 ? '' : 's'} require
                     an individual takeover or capture and are excluded from
                     batch actions.
-                  </div>
+                  </Callout>
                 )}
               </>
             ) : null}

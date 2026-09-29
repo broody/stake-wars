@@ -5,6 +5,7 @@ import { config } from '../../services/config';
 import { isSupplyDropDrawPending } from '../../services/supplyDrop';
 import { AddressLink } from './AddressLink';
 import { addressesMatch, formatStrk, isZeroAddress } from '../../utils/format';
+import { Button, Eyebrow, Panel } from '../../../ui';
 
 function prizeLabel(supplyDrop: SupplyDrop): string {
   if (supplyDrop.prizeKind === 1) {
@@ -70,75 +71,77 @@ export function SupplyDropDrawPanel({
 
   const hasWinner = !isZeroAddress(supplyDrop.winner);
   return (
-    <aside
+    <Panel
+      as="aside"
+      tone="floating"
       role="dialog"
       aria-labelledby="supply-drop-draw-title"
       data-supply-drop-console
       data-preserve-core-tracking
-      className="pointer-events-auto absolute bottom-20 left-3 right-3 z-[80] border border-[#d6a84b]/70 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(214,168,75,0.12)] backdrop-blur-md sm:left-4 sm:right-auto sm:w-[22rem]"
+      className="pointer-events-auto absolute bottom-20 left-3 right-3 z-[80] border-gold/70 font-mono text-caption text-fg shadow-hard-gold sm:left-4 sm:right-auto sm:w-[22rem]"
     >
-      <header className="flex items-center justify-between border-b border-[#d6a84b]/25 px-4 py-3">
-        <div>
-          <div
+      <header className="flex items-center justify-between gap-3 border-b border-gold/25 px-4 py-3">
+        <div className="min-w-0">
+          <Eyebrow
             id="supply-drop-draw-title"
-            className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-[#d6a84b]"
+            tone="gold"
+            className="flex items-center gap-2"
           >
-            <span className="h-1.5 w-1.5 rotate-45 bg-[#d6a84b]" />
-            SUPPLY DROP #{supplyDrop.id.toString()}
-          </div>
+            <span className="h-1.5 w-1.5 shrink-0 rotate-45 bg-gold" />
+            <span className="truncate">
+              SUPPLY DROP #{supplyDrop.id.toString()}
+            </span>
+          </Eyebrow>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onClose}
-          className="px-2 py-1 text-[9px] tracking-[0.14em] text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="shrink-0"
           aria-label="Close Supply Drop details"
         >
           CLOSE
-        </button>
+        </Button>
       </header>
 
       <div className="space-y-4 px-4 py-4">
         {hasWinner ? (
-          <section className="relative overflow-hidden border border-[#d6a84b] bg-[#d6a84b]/10 px-4 py-3 shadow-[inset_3px_0_0_#d6a84b]">
+          <section className="relative overflow-hidden border border-gold bg-gold/10 px-4 py-3 shadow-inset-gold">
             <div
               aria-hidden="true"
-              className="absolute -right-3 -top-5 h-14 w-14 rotate-45 border border-[#d6a84b]/20"
+              className="absolute -right-3 -top-5 h-14 w-14 rotate-45 border border-gold/20"
             />
             <div className="relative flex items-center gap-3">
               <span
                 aria-hidden="true"
-                className="h-2.5 w-2.5 rotate-45 bg-[#d6a84b] shadow-[0_0_14px_rgba(214,168,75,0.9)]"
+                className="h-2.5 w-2.5 rotate-45 bg-gold shadow-glow-gold"
               />
-              <span className="text-xl tracking-[0.18em] text-[#e8bd63]">
-                WINNER
-              </span>
+              <span className="text-heading text-gold-soft">WINNER</span>
             </div>
-            <div className="relative mt-3 border-t border-[#d6a84b]/30 pt-3 text-base text-neutral-100">
+            <div className="relative mt-3 min-w-0 break-words border-t border-gold/30 pt-3 text-lead text-fg">
               <AddressLink address={supplyDrop.winner} />
             </div>
           </section>
         ) : (
-          <section className="border-l-2 border-[#d6a84b] pl-3">
-            <div className="text-[8px] tracking-[0.18em] text-neutral-600">
-              RESULT
-            </div>
-            <div className="mt-1 text-sm text-neutral-100">NO WINNER</div>
+          <section className="border-l-2 border-gold pl-3">
+            <div className="text-label text-fg-subtle">RESULT</div>
+            <div className="mt-1 text-body text-fg">NO WINNER</div>
           </section>
         )}
 
-        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-3 border-t border-neutral-800 pt-3 text-[10px]">
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-3 border-t border-line pt-3 text-caption">
           {supplyDrop.status === 2 || supplyDrop.status === 3 ? (
             <>
-              <dt className="tracking-[0.16em] text-neutral-600">NEXT DRAW</dt>
-              <dd className="text-right text-sm tabular-nums text-[#d6a84b]">
+              <dt className="text-label text-fg-subtle">NEXT DRAW</dt>
+              <dd className="text-right text-body tabular-nums text-gold">
                 {isSupplyDropDrawPending(supplyDrop, now)
                   ? 'PENDING'
                   : formatCountdown(supplyDrop.endsAt, now)}
               </dd>
             </>
           ) : null}
-          <dt className="tracking-[0.16em] text-neutral-600">PRIZE</dt>
-          <dd className="text-right text-sm text-neutral-200">
+          <dt className="text-label text-fg-subtle">PRIZE</dt>
+          <dd className="min-w-0 break-words text-right text-body text-fg-secondary">
             {prizeLabel(supplyDrop)}
           </dd>
         </dl>
@@ -146,11 +149,11 @@ export function SupplyDropDrawPanel({
 
       <Link
         to="/drop"
-        className="flex items-center justify-between border-t border-[#d6a84b]/25 px-4 py-3 text-[9px] tracking-[0.17em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-[#d6a84b]"
+        className="flex items-center justify-between border-t border-gold/25 px-4 py-3 text-label text-gold transition-colors hover:bg-gold hover:text-surface focus-visible:outline-offset-[-3px] focus-visible:outline-gold"
       >
         <span>VIEW SUPPLY DROP</span>
         <span aria-hidden="true">↗</span>
       </Link>
-    </aside>
+    </Panel>
   );
 }

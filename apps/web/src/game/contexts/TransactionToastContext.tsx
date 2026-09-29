@@ -11,6 +11,15 @@ import {
 import type { PropsWithChildren } from 'react';
 import { shortAddress } from '../utils/format';
 import { voyagerTransactionUrl } from '../utils/voyager';
+import {
+  Badge,
+  Button,
+  CloseButton,
+  ExternalLink,
+  Panel,
+  Spinner,
+  cn,
+} from '../../ui';
 
 type TransactionState = 'submitting' | 'confirmed' | 'failed';
 
@@ -40,20 +49,16 @@ const TOAST_FALLBACK_HEIGHT_PX = 112;
 
 function TransactionStateIcon({ state }: { state: TransactionState }) {
   if (state === 'submitting') {
-    return (
-      <span
-        aria-hidden="true"
-        className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-600 border-t-white"
-      />
-    );
+    return <Spinner />;
   }
 
   return (
     <span
       aria-hidden="true"
-      className={`flex h-3 w-3 shrink-0 items-center justify-center text-[9px] ${
-        state === 'failed' ? 'text-amber-400' : 'text-white'
-      }`}
+      className={cn(
+        'flex h-3 w-3 shrink-0 items-center justify-center text-label',
+        state === 'failed' ? 'text-warning' : 'text-fg'
+      )}
     >
       {state === 'failed' ? '×' : '✓'}
     </span>
@@ -77,30 +82,29 @@ function WarningToastCard({
   }, [onDismiss, toast.id]);
 
   return (
-    <div
+    <Panel
+      as="div"
+      tone="floating"
       role="alert"
-      className="pointer-events-auto border border-amber-500 bg-black/95 font-mono text-xs text-fg shadow-[6px_6px_0_rgba(251,191,36,0.12)] backdrop-blur-sm"
+      className="pointer-events-auto border-warning-strong font-mono text-caption text-fg shadow-hard-warning"
     >
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] tracking-[0.18em] text-amber-400">
+          <div className="flex items-center gap-2 text-label text-warning">
             <span aria-hidden="true">!</span>
             {toast.label}
           </div>
-          <p className="mt-2 break-words leading-relaxed text-neutral-300">
+          <p className="mt-2 break-words leading-relaxed text-fg-secondary">
             {toast.message}
           </p>
         </div>
-        <button
-          type="button"
+        <CloseButton
+          size="sm"
           onClick={() => onDismiss(toast.id)}
-          className="px-1 text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label={`Dismiss ${toast.label.toLowerCase()} warning`}
-        >
-          ×
-        </button>
+          label={`Dismiss ${toast.label.toLowerCase()} warning`}
+        />
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -112,13 +116,15 @@ function TransactionToastCard({
   onDismiss: (hash: string) => void;
 }) {
   return (
-    <div
+    <Panel
+      as="div"
+      tone="floating"
       role="status"
-      className="border border-neutral-500 bg-black/95 font-mono text-xs text-fg shadow-[6px_6px_0_rgba(255,255,255,0.08)] backdrop-blur-sm"
+      className="border-fg-subtle font-mono text-caption text-fg shadow-hard-sm"
     >
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] tracking-[0.18em]">
+          <div className="flex items-center gap-2 text-label">
             <TransactionStateIcon state={toast.state} />
             {toast.label}{' '}
             {toast.state === 'submitting'
@@ -127,33 +133,28 @@ function TransactionToastCard({
                 ? 'CONFIRMED'
                 : 'FAILED'}
           </div>
-          <div className="mt-2 text-[10px] tracking-wider text-neutral-500">
+          <div className="mt-2 text-label tabular-nums text-fg-subtle">
             TX {shortAddress(toast.hash)}
           </div>
           {toast.error ? (
-            <p className="mt-2 break-words leading-relaxed text-amber-400">
+            <p className="mt-2 break-words leading-relaxed text-warning">
               {toast.error}
             </p>
           ) : null}
-          <a
+          <ExternalLink
             href={voyagerTransactionUrl(toast.hash)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-block border-b border-neutral-500 pb-0.5 text-[10px] tracking-[0.16em] text-neutral-300 transition-colors hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="mt-3 inline-block text-label text-fg-secondary"
           >
-            VIEW ON VOYAGER ↗
-          </a>
+            VIEW ON VOYAGER
+          </ExternalLink>
         </div>
-        <button
-          type="button"
+        <CloseButton
+          size="sm"
           onClick={() => onDismiss(toast.hash)}
-          className="px-1 text-neutral-500 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label={`Dismiss ${toast.label.toLowerCase()} transaction notification`}
-        >
-          ×
-        </button>
+          label={`Dismiss ${toast.label.toLowerCase()} transaction notification`}
+        />
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -255,20 +256,21 @@ function TransactionToastStack({
     <div className="pointer-events-none">
       {!expanded && toasts.length > 1 ? (
         <div className="mb-2 flex items-center justify-end gap-1.5 font-mono">
-          <span
-            className="min-w-7 border border-neutral-600 bg-black/95 px-2 py-1 text-center text-[9px] tabular-nums tracking-[0.12em] text-neutral-300 backdrop-blur-sm"
+          <Badge
+            className="min-w-8 justify-center self-stretch bg-surface/95 tabular-nums backdrop-blur-sm"
             aria-label={`${toasts.length} transaction notifications`}
           >
             {toasts.length}
-          </span>
-          <button
-            type="button"
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onClearAll}
-            className="pointer-events-auto border border-neutral-600 bg-black/95 px-2.5 py-1 text-[9px] tracking-[0.14em] text-neutral-400 backdrop-blur-sm transition-colors hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="pointer-events-auto bg-surface/95 backdrop-blur-sm"
             aria-label={`Clear all ${toasts.length} transaction notifications`}
           >
             CLEAR ALL
-          </button>
+          </Button>
         </div>
       ) : null}
       <div

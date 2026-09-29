@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Loading } from '../components/ui/Loading';
 import type { ArtData } from '../types';
+import { PageTitle, Panel, PanelSection } from '../../ui';
 
 export const Gallery: React.FC = () => {
   const [artworks, setArtworks] = useState<ArtData[]>([]);
@@ -27,42 +28,43 @@ export const Gallery: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-gray-900 overflow-y-auto">
-      <div className="max-w-7xl mx-auto px-4 py-20">
-        <h1 className="text-4xl font-bold text-white mb-8">Art Gallery</h1>
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
+      <div className="mx-auto max-w-7xl px-4 py-20">
+        <PageTitle className="mb-8">Art Gallery</PageTitle>
 
         {artworks.length === 0 ? (
-          <div className="text-gray-400 text-center py-20">
+          <p className="py-20 text-center text-body text-fg-muted">
             No artworks have been uploaded yet.
-          </div>
+          </p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
             {artworks.map((art) => (
-              <div
+              <Panel
+                as="article"
                 key={art._id}
-                className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all"
+                className="overflow-hidden transition-colors hover:border-fg"
               >
-                <div className="aspect-square relative">
+                <div className="relative aspect-square border-b border-line">
                   <img
                     src={art.image}
                     alt={art.name || `Art #${art._id}`}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <div className="p-4">
-                  <h3 className="text-white font-semibold mb-2">
+                <PanelSection>
+                  <h3 className="mb-2 text-body text-fg">
                     {art.name || `Artwork #${art._id}`}
                   </h3>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-caption text-fg-muted">
                     {art.sectorIds.length} Sector
                     {art.sectorIds.length !== 1 ? 's' : ''}
                   </p>
-                  <p className="text-gray-500 text-xs mt-1">
+                  <p className="mt-1 text-caption tabular-nums text-fg-subtle">
                     Operator: {art.ownerId.slice(0, 6)}...
                     {art.ownerId.slice(-4)}
                   </p>
-                </div>
-              </div>
+                </PanelSection>
+              </Panel>
             ))}
           </div>
         )}

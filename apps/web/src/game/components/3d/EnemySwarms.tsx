@@ -9,6 +9,7 @@ import {
   EnemySwarmSimulation,
 } from '../../utils/enemySwarm';
 import { bakeEnemyRun } from '../../utils/enemyRunAtlas';
+import { Button, panelStyles } from '../../../ui';
 import {
   ENEMY_PREVIEW_TYPES,
   type EnemyPreviewType,
@@ -195,34 +196,41 @@ export default function EnemySwarms({
           style={{ pointerEvents: 'none' }}
           zIndexRange={[20, 10]}
         >
-          <div className="pointer-events-auto absolute right-4 top-20 border border-neutral-700 bg-black/85 px-3 py-2 font-mono text-[10px] text-neutral-300">
-            <div className="mb-2 flex items-center gap-4 tracking-widest">
+          <div
+            className={panelStyles(
+              'floating',
+              'pointer-events-auto absolute right-4 top-20 px-3 py-2 font-mono text-caption text-fg-secondary'
+            )}
+          >
+            <div className="mb-2 flex items-center gap-4 tracking-caps">
               <span>
                 {label} / {paused ? 'PAUSED' : 'RUNNING'}
               </span>
               <output
                 ref={fpsLabel}
-                className="text-neutral-500"
+                className="text-fg-subtle"
                 aria-label="Preview frame rate"
               >
                 — FPS
               </output>
             </div>
             <div className="flex gap-4">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setPaused((value) => !value)}
-                className="hover:text-white focus-visible:outline focus-visible:outline-white"
+                className="px-0"
               >
                 {paused ? 'Resume swarm' : 'Pause swarm'}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setSeed((value) => value + 1)}
-                className="hover:text-white focus-visible:outline focus-visible:outline-white"
+                className="px-0"
               >
                 Reshuffle swarm
-              </button>
+              </Button>
             </div>
           </div>
         </Html>

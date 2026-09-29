@@ -23,7 +23,7 @@ import {
 } from '../../utils/format';
 import { stakeRequestSearch } from '../../utils/stakingRequest';
 import { WalletButton } from './WalletButton';
-import { BusyLabel } from './Spinner';
+import { Button, Callout, Panel, buttonStyles } from '../../../ui';
 
 interface CaptureControlProps {
   sectors: SectorStatus[];
@@ -62,7 +62,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span>{label}</span>
-      <span className="text-right tabular-nums text-neutral-300">
+      <span className="min-w-0 break-words text-right tabular-nums text-fg-secondary">
         {children}
       </span>
     </div>
@@ -257,21 +257,21 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
           : `${copy.verb} · ${formatStrk(requestedForce, 18)} FORCE`;
 
   return (
-    <section className="mt-4 border border-neutral-600 bg-neutral-950">
-      <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
+    <Panel tone="strong" className="mt-4 bg-surface-raised">
+      <header className="flex items-center justify-between gap-3 border-b border-line px-3 py-2 text-label text-fg-secondary">
         <span>{copy.title}</span>
-        <span className="text-[8px] text-dim">FORCE ACTION</span>
+        <span className="text-tag text-fg-subtle">FORCE ACTION</span>
       </header>
-      <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
+      <div className="space-y-2 px-3 py-3 text-label text-fg-subtle">
         {action === 'reinforce' ? (
           <label
-            className="block pt-1 text-dim"
+            className="block pt-1 text-fg-subtle"
             htmlFor={`allocation-${sector?.id ?? 'none'}`}
           >
             ADD FORCE
           </label>
         ) : null}
-        <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
+        <div className="flex items-center border border-line-strong bg-surface focus-within:border-fg">
           <input
             id={`allocation-${sector?.id ?? 'none'}`}
             aria-label={action === 'reinforce' ? undefined : 'FORCE to commit'}
@@ -281,10 +281,10 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
             placeholder="0"
             className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none"
           />
-          <span className="px-2 text-dim">FORCE</span>
+          <span className="px-2 text-fg-subtle">FORCE</span>
         </div>
         {parsedAllocation.error && (
-          <div className="leading-relaxed text-amber-400">
+          <div className="text-caption text-warning">
             {parsedAllocation.error}
           </div>
         )}
@@ -297,11 +297,7 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
           <Row label="MINIMUM">{formatStrk(requiredForce, 18)} FORCE</Row>
         )}
         <Row label="AVAILABLE">{formatStrk(availableForce, 18)} FORCE</Row>
-        {error && (
-          <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">
-            ACTION FAILED · {error}
-          </div>
-        )}
+        {error && <Callout tone="warning">ACTION FAILED · {error}</Callout>}
         {!isConnected || !address ? (
           <div className="mt-2">
             <WalletButton
@@ -315,21 +311,28 @@ export function CaptureControl({ sectors }: CaptureControlProps) {
               pathname: '/staking',
               search: stakeRequestSearch(deficit),
             }}
-            className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
+            className={buttonStyles({
+              variant: 'solid',
+              tone: 'danger',
+              fullWidth: true,
+              className: 'mt-2 font-semibold',
+            })}
           >
             STAKE {formatStrk(deficit, 18)} STRK TO {copy.verb}
           </Link>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="solid"
+            fullWidth
             onClick={() => void submit()}
-            disabled={Boolean(disabledReason) || phase !== 'idle'}
-            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+            disabled={Boolean(disabledReason)}
+            busy={phase !== 'idle'}
+            className="mt-2 font-semibold"
           >
-            <BusyLabel busy={phase !== 'idle'}>{label}</BusyLabel>
-          </button>
+            {label}
+          </Button>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }

@@ -3,6 +3,7 @@ import { checkStarknetConnection } from '../../services/starknet';
 import { config } from '../../services/config';
 import { stakeWarsChain } from '../../providers/chain';
 import { useWallet } from '../../contexts/WalletContext';
+import { cn } from '../../../ui';
 
 type ConnectionState =
   | { status: 'checking' }
@@ -62,24 +63,26 @@ export function StarknetConnectionStatus() {
 
   return (
     <span
-      className={`flex items-center gap-2 whitespace-nowrap font-mono text-[10px] tracking-[0.16em] ${
-        walletMismatch ? 'text-amber-400' : 'text-dim'
-      }`}
+      className={cn(
+        'flex items-center gap-2 whitespace-nowrap font-mono text-label',
+        walletMismatch ? 'text-warning' : 'text-fg-subtle'
+      )}
       title={title}
       aria-live="polite"
       aria-label={`Network: ${networkLabel}${walletMismatch ? ', wallet network mismatch' : ''}`}
     >
       <span
-        className={`h-1.5 w-1.5 ${
+        className={cn(
+          'h-1.5 w-1.5',
           walletMismatch || connection.status === 'unavailable'
-            ? 'bg-amber-400'
+            ? 'bg-warning'
             : connected
-              ? 'bg-white'
-              : 'animate-pulse bg-neutral-500'
-        }`}
+              ? 'bg-fg'
+              : 'animate-pulse bg-fg-subtle'
+        )}
       />
       <span className="hidden lg:inline">NETWORK //</span>
-      <span className={walletMismatch ? 'text-amber-400' : 'text-fg'}>
+      <span className={walletMismatch ? 'text-warning' : 'text-fg'}>
         {networkLabel}
       </span>
     </span>

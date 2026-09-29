@@ -9,8 +9,8 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
-import { chartColors, nearestIndex, niceTicks } from '../../utils/stakingChart';
-import { formatDay, formatMonth } from '../../utils/stakingFormat';
+import { chartColors, chartFontSize } from '../tokens';
+import { formatDay, formatMonth, nearestIndex, niceTicks } from './scale';
 
 export interface SeriesPoint {
   t: number;
@@ -18,7 +18,7 @@ export interface SeriesPoint {
 }
 
 const MARGIN = { top: 12, right: 14, bottom: 24, left: 52 };
-const AXIS_FONT = 9;
+const AXIS_FONT = chartFontSize.axis;
 
 function useMeasuredWidth<T extends HTMLElement>(fallback: number) {
   const ref = useRef<T>(null);
@@ -130,7 +130,7 @@ export function TimeSeriesChart({
     return (
       <div
         ref={ref}
-        className="flex w-full min-w-0 items-center justify-center text-[9px] tracking-[0.2em] text-neutral-600"
+        className="flex w-full min-w-0 items-center justify-center text-label text-fg-subtle"
         style={{ height: totalHeight }}
       >
         {emptyLabel}
@@ -151,7 +151,7 @@ export function TimeSeriesChart({
         role="img"
         aria-label={`${seriesLabel}: ${formatValue(last.v)} on ${formatDay(last.t)}. Use arrow keys to read earlier values.`}
         tabIndex={0}
-        className="block touch-pan-y focus-visible:outline focus-visible:outline-1 focus-visible:outline-neutral-500"
+        className="block touch-pan-y focus-visible:outline-fg-subtle"
         onPointerMove={onPointerMove}
         onPointerDown={onPointerMove}
         onPointerLeave={() => setActive(null)}
@@ -237,13 +237,13 @@ export function TimeSeriesChart({
       </svg>
       {hovered ? (
         <div
-          className="pointer-events-none absolute top-2 z-10 min-w-36 border border-neutral-800 bg-black/95 px-3 py-2"
+          className="pointer-events-none absolute top-2 z-10 min-w-36 border border-line bg-surface/95 px-3 py-2"
           style={
             tooltipLeft ? { right: width - hoverX + 12 } : { left: hoverX + 12 }
           }
         >
-          <div className="text-sm text-white">{formatValue(hovered.v)}</div>
-          <div className="mt-1 flex items-center gap-2 text-[9px] tracking-[0.14em] text-neutral-500">
+          <div className="text-body text-fg">{formatValue(hovered.v)}</div>
+          <div className="mt-1 flex items-center gap-2 text-label text-fg-subtle">
             <span
               aria-hidden="true"
               className="inline-block h-0.5 w-3"
@@ -397,8 +397,8 @@ export function ColumnChart({
                   x={center}
                   y={y - 6}
                   textAnchor="middle"
-                  fill="#d4d4d4"
-                  fontSize={9}
+                  fill={chartColors.label}
+                  fontSize={chartFontSize.label}
                 >
                   {formatValue(datum.value)}
                 </text>
@@ -422,7 +422,7 @@ export function ColumnChart({
           <button
             key={datum.key}
             type="button"
-            className="h-full flex-1 cursor-crosshair focus-visible:outline focus-visible:outline-1 focus-visible:outline-neutral-500"
+            className="h-full flex-1 cursor-crosshair focus-visible:outline-fg-subtle"
             aria-label={`${datum.label}: ${formatValue(datum.value)}, ${datum.detail}`}
             onPointerEnter={() => setActive(index)}
             onPointerLeave={() => setActive(null)}
@@ -433,17 +433,17 @@ export function ColumnChart({
       </div>
       {active !== null ? (
         <div
-          className="pointer-events-none absolute top-0 z-10 min-w-32 border border-neutral-800 bg-black/95 px-3 py-2"
+          className="pointer-events-none absolute top-0 z-10 min-w-32 border border-line bg-surface/95 px-3 py-2"
           style={
             band * active + band / 2 > width - 150
               ? { right: width - band * active - band / 2 + 18 }
               : { left: band * active + band / 2 + 18 }
           }
         >
-          <div className="text-sm text-white">
+          <div className="text-body text-fg">
             {formatValue(data[active].value)}
           </div>
-          <div className="mt-1 text-[9px] tracking-[0.14em] text-neutral-500">
+          <div className="mt-1 text-label text-fg-subtle">
             {data[active].label} · {data[active].detail}
           </div>
         </div>

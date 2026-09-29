@@ -20,7 +20,7 @@ import type { SupplyDrop } from '../../types';
 import { addressesMatch, formatStrk } from '../../utils/format';
 import { voyagerTransactionUrl } from '../../utils/voyager';
 import { WalletButton } from './WalletButton';
-import { BusyLabel } from './Spinner';
+import { Button, Callout, ExternalLink, textLinkStyles } from '../../../ui';
 
 export function SupplyDropTopUp({
   supplyDrop,
@@ -161,16 +161,14 @@ export function SupplyDropTopUp({
 
   if (supplyDrop.prizeKind === 2) return null;
   return (
-    <div className="mt-8 border-t border-grid pt-6">
-      <h3 className="text-[10px] tracking-[0.18em] text-[#d6a84b]">
-        INCREASE SUPPLY_DROP
-      </h3>
-      <p className="mt-2 text-[10px] leading-5 text-neutral-500">
+    <div className="mt-8 border-t border-line pt-6">
+      <h3 className="text-label text-gold">INCREASE SUPPLY_DROP</h3>
+      <p className="mt-2 text-caption text-fg-subtle">
         Add the same prize token from your wallet. The deadline and draw stay
         unchanged.
       </p>
       {!open ? (
-        <p className="mt-3 text-[10px] text-neutral-500">
+        <p className="mt-3 text-caption text-fg-subtle">
           Top-ups are closed for this draw.
         </p>
       ) : !isConnected || !address ? (
@@ -178,23 +176,23 @@ export function SupplyDropTopUp({
           <WalletButton />
         </div>
       ) : !correctNetwork ? (
-        <p className="mt-3 text-[10px] text-amber-400">
+        <p className="mt-3 text-caption text-warning">
           Switch your wallet to {config.starknetChainId} to add funds.
         </p>
       ) : authorization === 'checking' ? (
-        <p className="mt-3 text-[10px] text-neutral-500" role="status">
+        <p className="mt-3 text-caption text-fg-subtle" role="status">
           Checking creator access…
         </p>
       ) : authorization === 'error' ? (
         <button
           type="button"
           onClick={() => setAccessRevision((value) => value + 1)}
-          className="mt-3 text-[10px] text-amber-400 underline"
+          className={textLinkStyles('warning', 'mt-3 text-caption')}
         >
           Creator access check failed. Retry
         </button>
       ) : authorization === 'denied' ? (
-        <p className="mt-3 text-[10px] text-neutral-500">
+        <p className="mt-3 text-caption text-fg-subtle">
           Top-ups require the admin or supplyDrop creator role.
         </p>
       ) : (
@@ -207,7 +205,7 @@ export function SupplyDropTopUp({
         >
           <label
             htmlFor="supply-drop-top-up-amount"
-            className="block text-[9px] tracking-[0.16em] text-neutral-400"
+            className="block text-label text-fg-muted"
           >
             AMOUNT TO ADD ({unit})
           </label>
@@ -225,25 +223,26 @@ export function SupplyDropTopUp({
               disabled={busy}
               aria-invalid={Boolean(validationError)}
               aria-describedby="supply-drop-top-up-feedback"
-              className="min-w-0 flex-1 border border-neutral-700 bg-black px-3 py-3 text-sm text-white outline-none focus:border-[#d6a84b] disabled:opacity-50"
+              className="min-w-0 flex-1 border border-line-strong bg-surface px-3 py-3 text-body text-fg outline-none focus:border-gold disabled:opacity-50"
             />
-            <button
+            <Button
               type="submit"
-              disabled={busy || added === null || Boolean(validationError)}
-              className="border border-[#d6a84b] px-5 py-3 text-[9px] tracking-[0.16em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+              variant="outline"
+              tone="gold"
+              disabled={added === null || Boolean(validationError)}
+              busy={busy}
+              className="px-5"
             >
-              <BusyLabel busy={busy}>
-                {busy ? 'CONFIRMING…' : 'ADD TO SUPPLY_DROP'}
-              </BusyLabel>
-            </button>
+              {busy ? 'CONFIRMING…' : 'ADD TO SUPPLY_DROP'}
+            </Button>
           </div>
           {!isStrk && supplyDrop.prizeKind === 1 ? (
-            <p className="mt-2 text-[9px] leading-5 text-neutral-500">
+            <p className="mt-2 text-caption text-fg-subtle">
               Enter whole base units, the token’s smallest denomination.
             </p>
           ) : null}
           {added !== null && !validationError ? (
-            <p className="mt-3 break-words text-[10px] text-neutral-300">
+            <p className="mt-3 break-words text-caption text-fg-secondary">
               NEW PRIZE:{' '}
               {isStrk
                 ? formatStrk(supplyDrop.amount + added, 18)
@@ -255,19 +254,18 @@ export function SupplyDropTopUp({
       )}
       <div id="supply-drop-top-up-feedback" aria-live="polite">
         {validationError || error ? (
-          <p className="mt-3 break-words text-[10px] leading-5 text-amber-400">
+          <Callout tone="warning" className="mt-3 break-words">
             {error ?? validationError}
-          </p>
+          </Callout>
         ) : null}
         {confirmedHash ? (
-          <a
+          <ExternalLink
             href={voyagerTransactionUrl(confirmedHash)}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 inline-block text-[10px] text-[#d6a84b] underline"
+            tone="gold"
+            className="mt-3 inline-block text-caption"
           >
             Top-up confirmed · View transaction
-          </a>
+          </ExternalLink>
         ) : null}
       </div>
     </div>

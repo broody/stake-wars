@@ -18,6 +18,7 @@ import {
   selectExampleImageSectorIds,
 } from '../utils/exampleImageAtlas';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
+import { Badge, Button, Eyebrow, fieldStyles, Panel } from '../../ui';
 
 const IMAGE_COUNT_OPTIONS = [0, 64, 256, 1_000, SECTOR_COUNT] as const;
 const WAVE_SCENARIOS = OWNERSHIP_SCENARIOS.filter(
@@ -87,52 +88,50 @@ function OwnershipScenarioCard({
   );
 
   return (
-    <article className="overflow-hidden border border-neutral-700 bg-[#050505]">
-      <header className="grid gap-4 border-b border-grid px-4 py-3 sm:grid-cols-[1fr_auto]">
+    <Panel
+      as="article"
+      tone="strong"
+      className="overflow-hidden bg-surface-raised"
+    >
+      <header className="grid gap-4 border-b border-line px-4 py-3 sm:grid-cols-[1fr_auto]">
         <div>
-          <div className="flex items-baseline gap-3">
-            <h2 className="text-sm font-semibold tracking-[0.2em] text-fg">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-heading font-semibold text-fg">
               {scenario.title}
             </h2>
-            <span className="text-[9px] tracking-[0.14em] text-neutral-500">
+            <span className="text-label text-fg-subtle">
               {scenario.distribution.toUpperCase()}
             </span>
           </div>
-          <p className="mt-1 max-w-md text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+          <p className="mt-1 max-w-md text-caption text-fg-subtle">
             {scenario.description}
           </p>
         </div>
         <div className="sm:text-right">
           <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:flex sm:gap-5">
             <div>
-              <div className="text-xl tabular-nums text-fg">
+              <div className="text-figure-sm tabular-nums text-fg">
                 {scenario.occupiedSectorCount.toLocaleString()}
               </div>
-              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
-                OCCUPIED
-              </div>
+              <div className="text-tag text-fg-subtle">OCCUPIED</div>
             </div>
             <div>
-              <div className="text-xl tabular-nums text-fg">
+              <div className="text-figure-sm tabular-nums text-fg">
                 {scenario.ownerCount}
               </div>
-              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
-                OPERATORS
-              </div>
+              <div className="text-tag text-fg-subtle">OPERATORS</div>
             </div>
             <div>
-              <div className="text-xl tabular-nums text-fg">
+              <div className="text-figure-sm tabular-nums text-fg">
                 {imageSectorIds.length.toLocaleString()}
               </div>
-              <div className="text-[8px] tracking-[0.16em] text-neutral-500">
-                IMAGES
-              </div>
+              <div className="text-tag text-fg-subtle">IMAGES</div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="h-[360px] border-b border-grid sm:h-[420px]">
+      <div className="h-[360px] border-b border-line sm:h-[420px]">
         <OwnershipGlobe
           scenario={scenario}
           markedOwner={validMarkedOwner}
@@ -146,7 +145,7 @@ function OwnershipScenarioCard({
         />
       </div>
 
-      <dl className="grid grid-cols-2 gap-px border-t border-grid bg-grid sm:grid-cols-4 lg:grid-cols-7">
+      <dl className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-4 lg:grid-cols-7">
         {[
           ['FPS', performance?.fps ?? '—'],
           ['DRAW CALLS', performance?.drawCalls ?? '—'],
@@ -161,17 +160,15 @@ function OwnershipScenarioCard({
               : 'OFF',
           ],
         ].map(([label, value]) => (
-          <div key={label} className="bg-[#050505] px-4 py-3 text-center">
-            <dt className="text-[8px] tracking-[0.14em] text-neutral-600">
-              {label}
-            </dt>
-            <dd className="mt-1 text-[10px] tabular-nums text-neutral-300">
+          <div key={label} className="bg-surface-raised px-4 py-3 text-center">
+            <dt className="text-tag text-fg-subtle">{label}</dt>
+            <dd className="mt-1 text-caption tabular-nums text-fg-secondary">
               {value}
             </dd>
           </div>
         ))}
       </dl>
-    </article>
+    </Panel>
   );
 }
 
@@ -226,17 +223,15 @@ export function CoreLab() {
   if (!selectedScenario) return null;
 
   return (
-    <div className="activity-scrollbar h-full overflow-y-auto bg-black px-3 pb-12 pt-20 sm:px-6 lg:px-8">
+    <div className="activity-scrollbar h-full overflow-y-auto bg-surface px-3 pb-12 pt-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px]">
-        <header className="grid gap-6 border-l-2 border-amber-300 pl-4 md:grid-cols-[1fr_auto] md:items-end">
+        <header className="grid gap-6 border-l-2 border-warning-soft pl-4 md:grid-cols-[1fr_auto] md:items-end">
           <div>
-            <p className="text-[9px] tracking-[0.24em] text-amber-300">
-              RENDER + STATE EXPERIMENTS
-            </p>
-            <h1 className="mt-2 text-2xl tracking-[0.16em] text-fg sm:text-3xl">
+            <Eyebrow tone="warning">RENDER + STATE EXPERIMENTS</Eyebrow>
+            <h1 className="mt-2 text-title text-fg sm:text-figure">
               CORE SYSTEMS LAB
             </h1>
-            <p className="mt-3 max-w-3xl text-[10px] leading-6 tracking-[0.08em] text-neutral-500">
+            <p className="mt-3 max-w-3xl text-caption text-fg-subtle">
               Every globe contains all 2,000 Sectors. Drag to rotate, scroll to
               zoom, hover to inspect a tile, and select a tile to mark its owner
               across the complete Core. Red stripes mark active contests; black
@@ -250,46 +245,46 @@ export function CoreLab() {
               counts.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[9px] tracking-[0.12em]">
-            <span className="text-neutral-600">OCCUPANCY</span>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-label">
+            <span className="text-fg-subtle">OCCUPANCY</span>
             <span className="text-right text-fg">
               {formatOccupancy(selectedScenario)}
             </span>
-            <span className="text-neutral-600">SECTORS</span>
+            <span className="text-fg-subtle">SECTORS</span>
             <span className="text-right text-fg">
               {SECTOR_COUNT.toLocaleString()}
             </span>
-            <span className="text-neutral-600">UNOCCUPIED</span>
-            <span className="text-right text-neutral-500">
+            <span className="text-fg-subtle">UNOCCUPIED</span>
+            <span className="text-right text-fg-subtle">
               {selectedScenario.unoccupiedSectorIds.length}
             </span>
-            <span className="text-neutral-600">MARKED OWNER</span>
-            <span className="text-right text-amber-300">LIGHT GOLD</span>
-            <span className="text-neutral-600">IMAGES</span>
+            <span className="text-fg-subtle">MARKED OWNER</span>
+            <span className="text-right text-warning-soft">LIGHT GOLD</span>
+            <span className="text-fg-subtle">IMAGES</span>
             <span className="text-right text-fg">
               {imageSectorIds.length.toLocaleString()}
             </span>
-            <span className="text-neutral-600">ATLAS</span>
+            <span className="text-fg-subtle">ATLAS</span>
             <span className="text-right text-fg">
               {EXAMPLE_IMAGE_ATLAS_WIDTH} × {EXAMPLE_IMAGE_ATLAS_HEIGHT}
             </span>
-            <span className="text-neutral-600">ATLAS RGBA</span>
+            <span className="text-fg-subtle">ATLAS RGBA</span>
             <span className="text-right text-fg">
               {formatMebibytes(EXAMPLE_IMAGE_ATLAS_GPU_BYTES)}
             </span>
-            <span className="text-neutral-600">DETAIL TIER</span>
+            <span className="text-fg-subtle">DETAIL TIER</span>
             <span className="text-right text-fg">
               {EXAMPLE_IMAGE_DETAIL_SIZE} PX · 1 MAX
             </span>
-            <span className="text-neutral-600">RELIEF</span>
+            <span className="text-fg-subtle">RELIEF</span>
             <span className="text-right text-fg">
               {reliefMode === 'stake' ? 'STAKED STRK' : 'FLAT'}
             </span>
             {reliefMode === 'stake' ? (
               <>
-                <span className="text-neutral-600">SCALE</span>
+                <span className="text-fg-subtle">SCALE</span>
                 <span className="text-right text-fg">LOGARITHMIC</span>
-                <span className="text-neutral-600">HEIGHT CAP</span>
+                <span className="text-fg-subtle">HEIGHT CAP</span>
                 <span className="text-right text-fg">
                   {STAKE_RELIEF_CAP_STRK.toLocaleString()} STRK
                 </span>
@@ -299,66 +294,63 @@ export function CoreLab() {
         </header>
 
         <div className="mt-8 max-w-[1100px]">
-          <section className="mb-4 grid border border-neutral-700 bg-[#050505] lg:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="border-b border-grid px-4 py-4 lg:border-b-0 lg:border-r">
+          <Panel
+            tone="strong"
+            className="mb-4 grid bg-surface-raised lg:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <div className="border-b border-line px-4 py-4 lg:border-b-0 lg:border-r">
               <div className="flex items-center gap-3">
-                <h2 className="text-[10px] tracking-[0.2em] text-fg">
-                  TRANSACTION TOASTS
-                </h2>
-                <span className="border border-amber-300/50 px-1.5 py-0.5 text-[8px] tracking-[0.14em] text-amber-300">
-                  INTERACTION LAB
-                </span>
+                <h2 className="text-label text-fg">TRANSACTION TOASTS</h2>
+                <Badge tone="warning">INTERACTION LAB</Badge>
               </div>
-              <p className="mt-2 max-w-xl text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+              <p className="mt-2 max-w-xl text-caption text-fg-subtle">
                 Trigger individual states or load a full stack. The newest
                 transaction stays in front; hover the bottom-right stack or move
                 keyboard focus into it, then scroll to inspect its history.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-px bg-grid sm:grid-cols-4 lg:min-w-[520px]">
+            <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4 lg:min-w-[520px]">
               <button
                 type="button"
                 onClick={() => showToastExample('submitting', 'CAPTURE')}
-                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+                className="bg-surface px-4 py-3 text-left text-label text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg focus-visible:z-10"
               >
                 SUBMITTING
               </button>
               <button
                 type="button"
                 onClick={() => showToastExample('confirmed', 'STAKE')}
-                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+                className="bg-surface px-4 py-3 text-left text-label text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg focus-visible:z-10"
               >
                 CONFIRMED
               </button>
               <button
                 type="button"
                 onClick={() => showToastExample('failed', 'YIELD CLAIM')}
-                className="bg-black px-4 py-3 text-left text-[9px] tracking-[0.14em] text-amber-400 transition-colors hover:bg-neutral-900 hover:text-amber-300 focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+                className="bg-surface px-4 py-3 text-left text-label text-warning transition-colors hover:bg-surface-hover hover:text-warning-soft focus-visible:z-10"
               >
                 FAILED
               </button>
               <button
                 type="button"
                 onClick={showToastStackExample}
-                className="bg-amber-300 px-4 py-3 text-left text-[9px] tracking-[0.14em] text-black transition-colors hover:bg-amber-200 focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-inset focus-visible:outline-white"
+                className="bg-warning-soft px-4 py-3 text-left text-label text-surface transition-colors hover:bg-warning-faint focus-visible:z-10"
               >
                 LOAD STACK ×8
               </button>
             </div>
-          </section>
+          </Panel>
 
-          <div className="mb-4 grid gap-px border border-neutral-700 bg-grid lg:grid-cols-4">
-            <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
-              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                SCENARIO
-              </span>
+          <div className="mb-4 grid gap-px border border-line-strong bg-line lg:grid-cols-4">
+            <label className="grid gap-2 bg-surface-raised px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
+              <span className="text-label text-fg-subtle">SCENARIO</span>
               <select
                 value={selectedScenario.id}
                 onChange={(event) => {
                   setSelectedScenarioId(event.target.value);
                   setFlipped(false);
                 }}
-                className="min-w-0 border border-neutral-600 bg-black px-3 py-2 text-[10px] tracking-[0.12em] text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className={fieldStyles({ size: 'sm', className: 'w-auto' })}
               >
                 <optgroup label="FLIP WAVE LOAD">
                   {WAVE_SCENARIOS.map((scenario) => (
@@ -379,34 +371,31 @@ export function CoreLab() {
               </select>
             </label>
 
-            <div className="grid gap-2 bg-[#050505] px-4 py-3">
-              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                FLIP PREVIEW
-              </span>
-              <button
-                type="button"
+            <div className="grid gap-2 bg-surface-raised px-4 py-3">
+              <span className="text-label text-fg-subtle">FLIP PREVIEW</span>
+              <Button
+                variant="solid"
+                tone="warning"
                 onClick={() => setFlipped((current) => !current)}
                 aria-pressed={flipped}
-                className="border border-amber-300 bg-amber-300 px-3 py-2 text-left text-[10px] tracking-[0.12em] text-black hover:bg-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="justify-start text-left"
               >
                 {flipped ? 'RETURN TO CONTROL' : 'FLIP TO PROJECTION'}
-              </button>
-              <span className="text-[8px] leading-relaxed tracking-[0.1em] text-neutral-600">
+              </Button>
+              <span className="text-tag text-fg-subtle">
                 EACH TRIGGER PICKS A NEW EXTERNAL ORIGIN
               </span>
             </div>
 
-            <div className="grid gap-3 bg-[#050505] px-4 py-3">
+            <div className="grid gap-3 bg-surface-raised px-4 py-3">
               <label className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5">
-                <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                  RELIEF
-                </span>
+                <span className="text-label text-fg-subtle">RELIEF</span>
                 <select
                   value={reliefMode}
                   onChange={(event) =>
                     setReliefMode(event.target.value as OwnershipReliefMode)
                   }
-                  className="min-w-0 border border-neutral-600 bg-black px-3 py-2 text-[10px] tracking-[0.12em] text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  className={fieldStyles({ size: 'sm', className: 'w-auto' })}
                 >
                   <option value="flat">FLAT OWNERSHIP</option>
                   <option value="stake">STAKED STRK · CAPPED</option>
@@ -414,16 +403,14 @@ export function CoreLab() {
               </label>
             </div>
 
-            <label className="grid gap-2 bg-[#050505] px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5 lg:grid-cols-1 lg:items-stretch">
-              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
-                EXAMPLE IMAGES
-              </span>
+            <label className="grid gap-2 bg-surface-raised px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-5 lg:grid-cols-1 lg:items-stretch">
+              <span className="text-label text-fg-subtle">EXAMPLE IMAGES</span>
               <select
                 value={requestedImageCount}
                 onChange={(event) =>
                   setRequestedImageCount(Number(event.target.value))
                 }
-                className="min-w-0 border border-neutral-600 bg-black px-3 py-2 text-[10px] tracking-[0.12em] text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className={fieldStyles({ size: 'sm', className: 'w-auto' })}
               >
                 {IMAGE_COUNT_OPTIONS.map((count) => (
                   <option key={count} value={count}>

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import type { StakingSnapshot, StakingValidator } from '../../types/staking';
-import { cn } from '../../utils/cn';
 import { shortAddress } from '../../utils/format';
 import {
   formatAmount,
@@ -10,7 +9,20 @@ import {
   parseAmount,
 } from '../../utils/stakingFormat';
 import { voyagerValidatorUrl } from '../../utils/voyager';
-import { ExternalLink, SectionHeading } from './primitives';
+import {
+  Badge,
+  Button,
+  cn,
+  ExternalLink,
+  Panel,
+  PanelSection,
+  SectionHeading,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '../../../ui';
 
 type SortKey =
   | 'power'
@@ -100,16 +112,16 @@ export function ValidatorTable({ snapshot }: { snapshot: StakingSnapshot }) {
   };
 
   return (
-    <section aria-labelledby="validators" className="border border-grid">
-      <div className="border-b border-grid p-5 sm:p-6">
+    <Panel aria-labelledby="validators">
+      <PanelSection>
         <SectionHeading
           id="validators"
           eyebrow={`${snapshot.totals.activeValidators} ACTIVE · ${snapshot.totals.exitingValidators} EXITING`}
           title="VALIDATORS"
         >
-          <label className="flex w-full items-center border border-neutral-700 focus-within:border-white sm:w-72">
+          <label className="flex w-full items-center border border-line-strong focus-within:border-fg sm:w-72">
             <span className="sr-only">Search validators by address</span>
-            <span aria-hidden="true" className="px-3 text-neutral-600">
+            <span aria-hidden="true" className="px-3 text-fg-subtle">
               ⌕
             </span>
             <input
@@ -120,22 +132,18 @@ export function ValidatorTable({ snapshot }: { snapshot: StakingSnapshot }) {
                 setPage(0);
               }}
               placeholder="SEARCH ADDRESS OR POOL"
-              className="min-w-0 flex-1 bg-black py-2 pr-3 text-[10px] tracking-[0.12em] text-white outline-none placeholder:text-neutral-600"
+              className="min-w-0 flex-1 bg-surface py-2 pr-3 text-label text-fg outline-none placeholder:text-fg-subtle"
             />
           </label>
         </SectionHeading>
-      </div>
+      </PanelSection>
 
       <div className="activity-scrollbar overflow-x-auto">
-        <table className="w-full min-w-[960px] text-left text-[11px]">
-          <thead className="text-[9px] tracking-[0.16em] text-neutral-500">
-            <tr className="border-b border-grid">
-              <th scope="col" className="w-12 px-4 py-3 font-normal">
-                #
-              </th>
-              <th scope="col" className="px-2 py-3 font-normal">
-                VALIDATOR
-              </th>
+        <Table className="min-w-[980px]">
+          <TableHead>
+            <tr>
+              <TableHeaderCell className="w-12 py-3 pl-5">#</TableHeaderCell>
+              <TableHeaderCell className="py-3">VALIDATOR</TableHeaderCell>
               <SortHeader
                 label="STAKE (STRK)"
                 sortKey="stake"
@@ -179,7 +187,7 @@ export function ValidatorTable({ snapshot }: { snapshot: StakingSnapshot }) {
                 onSort={toggleSort}
               />
             </tr>
-          </thead>
+          </TableHead>
           <tbody>
             {showFeatured && featured ? (
               <ValidatorRow
@@ -196,46 +204,44 @@ export function ValidatorTable({ snapshot }: { snapshot: StakingSnapshot }) {
               />
             ))}
             {visible.length === 0 && !showFeatured ? (
-              <tr>
-                <td
+              <TableRow>
+                <TableCell
                   colSpan={9}
-                  className="px-4 py-8 text-center text-[10px] tracking-[0.16em] text-neutral-600"
+                  className="py-8 text-center text-label text-fg-subtle"
                 >
                   NO VALIDATORS MATCH
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : null}
           </tbody>
-        </table>
+        </Table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-grid px-5 py-3 text-[9px] tracking-[0.16em] text-neutral-500">
-        <span>
-          APR IS FOR DELEGATORS AFTER COMMISSION, ASSUMING FULL ATTESTATION.
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
+        <span className="text-caption text-fg-subtle">
+          APR is for delegators after commission, assuming full attestation.
         </span>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
+        <div className="flex items-center gap-3 text-label text-fg-subtle">
+          <Button
+            size="sm"
             onClick={() => setPage(Math.max(0, currentPage - 1))}
             disabled={currentPage === 0}
-            className="border border-grid px-3 py-1.5 text-neutral-300 hover:border-white disabled:text-neutral-700 disabled:hover:border-grid"
           >
             ← PREV
-          </button>
+          </Button>
           <span className="tabular-nums">
             {currentPage + 1} / {pageCount}
           </span>
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))}
             disabled={currentPage >= pageCount - 1}
-            className="border border-grid px-3 py-1.5 text-neutral-300 hover:border-white disabled:text-neutral-700 disabled:hover:border-grid"
           >
             NEXT →
-          </button>
+          </Button>
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -252,27 +258,24 @@ function SortHeader({
 }) {
   const active = sort.key === sortKey;
   return (
-    <th
-      scope="col"
+    <TableHeaderCell
+      numeric
       aria-sort={
         active ? (sort.descending ? 'descending' : 'ascending') : 'none'
       }
-      className="px-2 py-3 text-right font-normal"
+      className="py-3"
     >
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={cn(
-          'tracking-[0.16em] transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-white',
-          active && 'text-white'
-        )}
+        className={cn('transition-colors hover:text-fg', active && 'text-fg')}
       >
         {label}
         <span aria-hidden="true" className="ml-1 inline-block w-2">
           {active ? (sort.descending ? '↓' : '↑') : ''}
         </span>
       </button>
-    </th>
+    </TableHeaderCell>
   );
 }
 
@@ -288,64 +291,61 @@ function ValidatorRow({
   const btc = parseAmount(validator.delegatedBtc);
   const pending = parseAmount(validator.pendingStrk);
   return (
-    <tr
+    <TableRow
       className={cn(
-        'border-b border-grid tabular-nums transition-colors hover:bg-white/[0.03]',
-        pinned && 'bg-[#ff4a04]/[0.07] hover:bg-[#ff4a04]/[0.1]'
+        'tabular-nums transition-colors hover:bg-fg/[0.03]',
+        pinned && 'bg-accent/[0.07] hover:bg-accent/[0.1]'
       )}
     >
-      <td
-        className={cn(
-          'px-4 py-3',
-          pinned ? 'text-[#ff6a2f]' : 'text-neutral-500'
-        )}
+      <TableCell
+        className={cn('py-3 pl-5', pinned ? 'text-accent' : 'text-fg-subtle')}
       >
         {validator.rank ?? '—'}
-      </td>
-      <td className="px-2 py-3">
+      </TableCell>
+      <TableCell className="py-3">
         <div className="flex items-center gap-2">
           {pinned ? (
-            <span className="font-bold tracking-[-0.02em] text-white">
-              STAKE<span className="text-dim">//</span>WARS
+            <span className="font-bold tracking-tight text-fg">
+              STAKE<span className="text-fg-disabled">//</span>WARS
             </span>
           ) : null}
           <ExternalLink
             href={voyagerValidatorUrl(validator.address)}
-            className={pinned ? 'text-[#ff6a2f]' : 'text-neutral-200'}
+            className={pinned ? 'text-accent' : undefined}
           >
             {shortAddress(validator.address)}
           </ExternalLink>
           {validator.status === 'exiting' ? (
-            <span className="border border-amber-500/60 px-1.5 py-0.5 text-[8px] tracking-[0.16em] text-amber-400">
+            <Badge tone="warning">
               EXITING
               {validator.unstakeAt && validator.unstakeAt > now
                 ? ` ${formatDuration(validator.unstakeAt - now)}`
                 : ''}
-            </span>
+            </Badge>
           ) : null}
         </div>
-      </td>
-      <td className="px-2 py-3 text-right text-white">
+      </TableCell>
+      <TableCell numeric className="py-3 text-fg">
         {formatAmount(parseAmount(validator.totalStrk))}
-      </td>
-      <td className="px-2 py-3 text-right text-neutral-300">
+      </TableCell>
+      <TableCell numeric className="py-3">
         {btc > 0n ? formatAmount(btc) : '—'}
-      </td>
-      <td className="px-2 py-3 text-right">
+      </TableCell>
+      <TableCell numeric className="py-3">
         <div className="flex items-center justify-end gap-2">
-          <span className="text-neutral-200">
+          <span className="text-fg-secondary">
             {validator.status === 'active'
               ? formatPercent(validator.stakingPowerPercent)
               : '—'}
           </span>
           <span
             aria-hidden="true"
-            className="hidden h-1 w-12 bg-neutral-900 sm:block"
+            className="hidden h-1 w-12 bg-surface-hover sm:block"
           >
             <span
               className={cn(
                 'block h-full',
-                pinned ? 'bg-[#ff4a04]' : 'bg-neutral-400'
+                pinned ? 'bg-accent' : 'bg-fg-muted'
               )}
               style={{
                 width: `${Math.min(100, validator.stakingPowerPercent * 4)}%`,
@@ -353,25 +353,25 @@ function ValidatorRow({
             />
           </span>
         </div>
-      </td>
-      <td className="px-2 py-3 text-right text-neutral-300">
+      </TableCell>
+      <TableCell numeric className="py-3">
         {formatCommission(validator.commissionBps)}
-      </td>
-      <td className="px-2 py-3 text-right text-neutral-200">
+      </TableCell>
+      <TableCell numeric className="py-3">
         {formatPercent(validator.aprStrkPercent)}
-      </td>
-      <td className="px-2 py-3 text-right text-neutral-300">
+      </TableCell>
+      <TableCell numeric className="py-3">
         {validator.delegators === null
           ? '…'
           : validator.delegators.toLocaleString('en-US')}
-      </td>
-      <td className="px-2 py-3 pr-4 text-right text-amber-300/90">
+      </TableCell>
+      <TableCell numeric className="py-3 pr-5 text-warning">
         {pending > 0n ? (
           formatAmount(pending)
         ) : (
-          <span className="text-neutral-700">—</span>
+          <span className="text-fg-disabled">—</span>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }

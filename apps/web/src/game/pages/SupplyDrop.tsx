@@ -6,7 +6,6 @@ import {
 import { TransactionExecutionStatus } from 'starknet';
 import { SupplyDropLogo } from '../components/3d/SupplyDropLogo';
 import { WalletButton } from '../components/ui/WalletButton';
-import { BusyLabel } from '../components/ui/Spinner';
 import { AddressLink } from '../components/ui/AddressLink';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -21,6 +20,18 @@ import { useSectors } from '../contexts/SectorContext';
 import { useYield } from '../contexts/useYield';
 import type { SupplyDrop as SupplyDropRecord } from '../types';
 import { addressesMatch, formatStrk, isZeroAddress } from '../utils/format';
+import {
+  Badge,
+  Button,
+  Callout,
+  Eyebrow,
+  PageTitle,
+  Panel,
+  PanelSection,
+  SectionHeading,
+  Stat,
+  StatGrid,
+} from '../../ui';
 
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -69,10 +80,8 @@ function liveStatus(supplyDrop: SupplyDropRecord, now: number) {
 
 function PrizeToken({ supplyDrop }: { supplyDrop: SupplyDropRecord }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-neutral-500">
-      <span className="border border-[#d6a84b]/40 px-2 py-1 text-[#d6a84b]">
-        {prizeStandard(supplyDrop.prizeKind)}
-      </span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-fg-subtle">
+      <Badge tone="gold">{prizeStandard(supplyDrop.prizeKind)}</Badge>
       <span className="tabular-nums">
         TOKEN <AddressLink address={supplyDrop.token} />
       </span>
@@ -82,17 +91,15 @@ function PrizeToken({ supplyDrop }: { supplyDrop: SupplyDropRecord }) {
 
 function EmptySupplyDrop() {
   return (
-    <section className="border border-grid px-6 py-16 sm:px-10">
-      <div className="h-px w-16 bg-[#d6a84b]" />
-      <h2 className="mt-6 text-3xl tracking-[-0.05em] text-white sm:text-5xl">
-        NO ACTIVE SUPPLY DROP
-      </h2>
-      <p className="mt-4 max-w-xl text-xs leading-6 text-neutral-500">
+    <Panel className="px-6 py-16 sm:px-10">
+      <div className="h-px w-16 bg-gold" />
+      <h2 className="mt-6 text-title text-fg">NO ACTIVE SUPPLY DROP</h2>
+      <p className="mt-4 max-w-xl text-caption leading-6 text-fg-subtle">
         The next Supply Drop has not started yet. Keep control of your
         Sectors—the operator recorded when the drop window closes is eligible to
         receive the drop if their Sector is selected.
       </p>
-    </section>
+    </Panel>
   );
 }
 
@@ -248,22 +255,20 @@ export function SupplyDrop() {
   );
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(214,168,75,0.06),transparent_26%)]" />
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
+      <div className="pointer-events-none fixed inset-0 bg-glow-gold-corner" />
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-grid pb-7">
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-line pb-7">
           <div className="min-w-0">
-            <div className="text-[9px] tracking-[0.26em] text-dim">
-              SECTOR REWARDS
-            </div>
-            <h1 className="game-page-title mt-1">SUPPLY DROP</h1>
-            <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
+            <Eyebrow>SECTOR REWARDS</Eyebrow>
+            <PageTitle className="mt-1">SUPPLY DROP</PageTitle>
+            <p className="mt-2 max-w-xl text-caption text-fg-muted">
               A portion of pool commissions funds each drop. One Sector is
               selected at random; its operator at the deadline receives it.
               Received drops are staked automatically.
             </p>
             {current && policies[current.id.toString()]?.stakingRequired ? (
-              <p className="mt-3 max-w-2xl text-[11px] leading-5 text-[#d6a84b]">
+              <p className="mt-3 max-w-2xl text-caption text-gold">
                 Claiming automatically stakes the full drop in the same
                 transaction. Until it is staked, Sector actions and image
                 changes pause. Your Sectors remain open to takeover.
@@ -271,39 +276,42 @@ export function SupplyDrop() {
             ) : null}
           </div>
           <div className="flex items-center gap-3 self-start">
-            <div className="hidden text-right text-[7px] tracking-[0.18em] text-neutral-600 md:block">
+            <div className="hidden text-right text-tag text-fg-subtle md:block">
               <div>LIVE OBJECT</div>
-              <div className="mt-1 text-[#d6a84b]">SUPPLY DROP</div>
+              <div className="mt-1 text-gold">SUPPLY DROP</div>
             </div>
-            <div className="h-16 w-16 border border-grid bg-black sm:h-24 sm:w-24">
+            <div className="h-16 w-16 border border-line bg-surface sm:h-24 sm:w-24">
               <SupplyDropLogo className="pointer-events-none h-full w-full" />
             </div>
           </div>
         </header>
 
         {policyError ? (
-          <p role="alert" className="mt-4 text-xs text-amber-400">
+          <Callout tone="warning" role="alert" className="mt-4">
             Staking terms unavailable: {policyError} Claims are disabled until
             verification succeeds.
-          </p>
+          </Callout>
         ) : null}
 
         {error ? (
-          <div className="mt-8 border border-amber-500/40 p-5 text-xs text-amber-400">
-            <p>{error}</p>
-            <button
-              type="button"
-              onClick={refresh}
-              className="mt-4 border border-amber-500/50 px-4 py-2 text-[9px] tracking-[0.18em] transition-colors hover:bg-amber-400 hover:text-black"
-            >
-              RETRY
-            </button>
-          </div>
+          <Panel as="div" tone="warning" className="mt-8">
+            <PanelSection className="text-caption text-warning">
+              <p>{error}</p>
+              <Button
+                variant="outline"
+                tone="warning"
+                onClick={refresh}
+                className="mt-4"
+              >
+                RETRY
+              </Button>
+            </PanelSection>
+          </Panel>
         ) : null}
 
         {!error && isLoading && supplyDrops.length === 0 ? (
-          <div className="mt-8 flex items-center gap-3 border-y border-grid py-14 text-[10px] tracking-[0.18em] text-neutral-500">
-            <span className="h-1.5 w-1.5 animate-pulse bg-[#d6a84b]" />
+          <div className="mt-8 flex items-center gap-3 border-y border-line py-14 text-label text-fg-subtle">
+            <span className="h-1.5 w-1.5 animate-pulse bg-gold" />
             READING SUPPLY DROP LEDGER…
           </div>
         ) : null}
@@ -311,79 +319,64 @@ export function SupplyDrop() {
         {!error && (!isLoading || supplyDrops.length > 0) ? (
           <div className="mt-8">
             {current ? (
-              <section className="grid border border-grid lg:grid-cols-[1.4fr_0.6fr]">
+              <Panel className="grid lg:grid-cols-[1.4fr_0.6fr]">
                 <div className="relative overflow-hidden p-6 sm:p-10">
-                  <div className="absolute bottom-0 right-0 text-[10rem] font-bold leading-none text-white/[0.018] sm:text-[16rem]">
+                  <div className="absolute bottom-0 right-0 text-ghost font-bold leading-none text-fg/[0.018]">
                     {current.id.toString().padStart(2, '0')}
                   </div>
                   <div className="relative">
-                    <div className="flex items-center gap-3 text-[9px] tracking-[0.2em] text-[#d6a84b]">
-                      <span className="h-1.5 w-1.5 bg-[#d6a84b]" />
+                    <Eyebrow tone="gold" dot>
                       {liveStatus(current, now)} · ROUND {current.id.toString()}
-                    </div>
-                    <h2 className="mt-8 break-words text-4xl font-bold tracking-[-0.065em] text-white sm:text-7xl">
+                    </Eyebrow>
+                    <h2 className="mt-8 break-words text-display font-bold text-fg">
                       {prizeLabel(current)}
                     </h2>
                     <div className="mt-7">
                       <PrizeToken supplyDrop={current} />
                     </div>
-                    <div className="mt-10 grid max-w-xl grid-cols-2 gap-px bg-grid sm:grid-cols-3">
-                      <div className="bg-black py-3 pr-3">
-                        <div className="text-[8px] tracking-[0.16em] text-neutral-600">
-                          SECTORS IN DRAW
-                        </div>
-                        <div className="mt-1 text-sm tabular-nums text-neutral-200">
-                          {current.sectorLimitSnapshot.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="bg-black px-3 py-3">
-                        <div className="text-[8px] tracking-[0.16em] text-neutral-600">
-                          PREVIOUS DRAWS
-                        </div>
-                        <div className="mt-1 text-sm tabular-nums text-neutral-200">
-                          {current.drawCount}
-                        </div>
-                      </div>
-                      <div className="col-span-2 bg-black pt-3 sm:col-span-1 sm:pl-3">
-                        <div className="text-[8px] tracking-[0.16em] text-neutral-600">
-                          SPONSOR
-                        </div>
-                        <div className="mt-1 text-sm text-neutral-200">
-                          <AddressLink address={current.sponsor} />
-                        </div>
-                      </div>
-                    </div>
+                    <StatGrid className="mt-10 max-w-xl grid-cols-2 sm:grid-cols-3">
+                      <Stat
+                        label="SECTORS IN DRAW"
+                        value={current.sectorLimitSnapshot.toLocaleString()}
+                      />
+                      <Stat label="PREVIOUS DRAWS" value={current.drawCount} />
+                      <Stat
+                        className="col-span-2 sm:col-span-1"
+                        label="SPONSOR"
+                        value={<AddressLink address={current.sponsor} />}
+                      />
+                    </StatGrid>
                   </div>
                 </div>
 
-                <div className="flex flex-col justify-between border-t border-grid p-6 lg:border-l lg:border-t-0 lg:p-8">
+                <div className="flex flex-col justify-between border-t border-line p-6 lg:border-l lg:border-t-0 lg:p-8">
                   <div>
-                    <div className="text-[9px] tracking-[0.2em] text-neutral-500">
+                    <Eyebrow>
                       {current.status === 3 || current.endsAt * 1_000 <= now
                         ? 'ROUND EXPIRED'
                         : 'TIME TO DROP'}
-                    </div>
-                    <div className="mt-4 whitespace-nowrap text-3xl tabular-nums tracking-[-0.06em] text-white sm:text-4xl">
+                    </Eyebrow>
+                    <div className="mt-4 whitespace-nowrap text-figure tabular-nums text-fg">
                       {current.status === 3 || current.endsAt * 1_000 <= now
                         ? '00:00:00:00'
                         : formatCountdown(current.endsAt, now)}
                     </div>
-                    <div className="mt-2 grid grid-cols-4 text-[7px] tracking-[0.14em] text-neutral-600">
+                    <div className="mt-2 grid grid-cols-4 text-tag text-fg-subtle">
                       <span>DAYS</span>
                       <span>HRS</span>
                       <span>MIN</span>
                       <span>SEC</span>
                     </div>
                   </div>
-                  <p className="mt-12 border-l border-[#d6a84b]/60 pl-4 text-[10px] leading-5 text-neutral-500">
+                  <Callout tone="gold" className="mt-12 text-fg-subtle">
                     {current.status === 3
                       ? `The draw is locked to block ${current.randomnessBlock.toString()}. Settlement can complete once randomness is ready.`
                       : current.endsAt * 1_000 <= now
                         ? 'The control snapshot is fixed. The winning Sector is waiting to be drawn and settled.'
                         : `Operator is recorded at ${formatDate(current.endsAt)}.`}
-                  </p>
+                  </Callout>
                 </div>
-              </section>
+              </Panel>
             ) : (
               <EmptySupplyDrop />
             )}
@@ -391,28 +384,24 @@ export function SupplyDrop() {
         ) : null}
 
         <section className="mt-14">
-          <div className="flex items-end justify-between border-b border-grid pb-4">
-            <div>
-              <h2 className="text-xl tracking-[-0.04em] text-white sm:text-2xl">
-                PAST SUPPLY DROPS
-              </h2>
-              <p className="mt-1 text-[9px] tracking-[0.12em] text-neutral-600">
-                PRIZES · WINNERS · CLAIM STATUS
-              </p>
-            </div>
-            <span className="text-[10px] tabular-nums text-neutral-600">
+          <SectionHeading
+            eyebrow="PRIZES · WINNERS · CLAIM STATUS"
+            title="PAST SUPPLY DROPS"
+            className="border-b border-line pb-4"
+          >
+            <span className="text-caption tabular-nums text-fg-subtle">
               {past.length.toString().padStart(2, '0')}
             </span>
-          </div>
+          </SectionHeading>
 
           {claimError ? (
-            <div className="mt-4 border-l-2 border-amber-400 pl-4 text-[10px] leading-5 text-amber-400">
+            <Callout tone="warning" className="mt-4">
               {claimError}
-            </div>
+            </Callout>
           ) : null}
 
           {past.length === 0 ? (
-            <div className="border-b border-grid py-12 text-[10px] tracking-[0.16em] text-neutral-600">
+            <div className="border-b border-line py-12 text-label text-fg-subtle">
               NO COMPLETED SUPPLY DROPS YET
             </div>
           ) : (
@@ -426,29 +415,27 @@ export function SupplyDrop() {
                 return (
                   <article
                     key={supplyDrop.id.toString()}
-                    className="grid gap-6 border-b border-grid py-6 md:grid-cols-[0.45fr_1.2fr_1fr_0.8fr] md:items-center"
+                    className="grid gap-6 border-b border-line py-6 md:grid-cols-[0.45fr_1.2fr_1fr_0.8fr] md:items-center"
                   >
                     <div>
-                      <div className="text-[8px] tracking-[0.16em] text-neutral-600">
-                        ROUND
-                      </div>
-                      <div className="mt-1 text-xl tabular-nums text-white">
+                      <div className="text-label text-fg-subtle">ROUND</div>
+                      <div className="mt-1 text-figure-sm tabular-nums text-fg">
                         #{supplyDrop.id.toString().padStart(2, '0')}
                       </div>
-                      <div className="mt-1 text-[9px] text-neutral-600">
+                      <div className="mt-1 text-caption tabular-nums text-fg-subtle">
                         {formatDate(supplyDrop.settledAt)}
                       </div>
                     </div>
 
                     <div>
-                      <div className="text-xl tracking-[-0.035em] text-white">
+                      <div className="text-figure-sm text-fg">
                         {prizeLabel(supplyDrop)}
                       </div>
                       <div className="mt-2">
                         <PrizeToken supplyDrop={supplyDrop} />
                       </div>
                       {policy?.stakingRequired ? (
-                        <p className="mt-2 text-[10px] leading-5 text-[#d6a84b]">
+                        <p className="mt-2 text-caption text-gold">
                           Received drops are staked automatically. Claiming
                           alone pauses gameplay until it is staked.
                         </p>
@@ -456,10 +443,10 @@ export function SupplyDrop() {
                     </div>
 
                     <div>
-                      <div className="text-[8px] tracking-[0.16em] text-neutral-600">
+                      <div className="text-label text-fg-subtle">
                         WINNER · SECTOR {supplyDrop.lastDrawnSectorId}
                       </div>
-                      <div className="mt-2 text-xs text-neutral-200">
+                      <div className="mt-2 text-caption text-fg-secondary">
                         {isZeroAddress(supplyDrop.winner) ? (
                           'NOT RECORDED'
                         ) : (
@@ -467,8 +454,8 @@ export function SupplyDrop() {
                         )}
                       </div>
                       {winnerConnected ? (
-                        <div className="mt-1 text-[8px] tracking-[0.14em] text-[#d6a84b]">
-                          YOUR WIN
+                        <div className="mt-1">
+                          <Badge tone="gold">YOUR WIN</Badge>
                         </div>
                       ) : null}
                     </div>
@@ -476,44 +463,41 @@ export function SupplyDrop() {
                     <div className="md:text-right">
                       {supplyDrop.claimed ? (
                         <div>
-                          <div className="text-[9px] tracking-[0.16em] text-neutral-300">
+                          <div className="text-label text-fg-secondary">
                             CLAIMED ✓
                           </div>
-                          <div className="mt-1 text-[8px] text-neutral-600">
+                          <div className="mt-1 text-tag text-fg-subtle">
                             {formatDate(supplyDrop.claimedAt)}
                           </div>
-                          <div className="mt-1 text-[8px] text-neutral-600">
+                          <div className="mt-1 text-tag text-fg-subtle">
                             TO <AddressLink address={supplyDrop.claimedBy} />
                           </div>
                         </div>
                       ) : canClaim ? (
-                        <button
-                          type="button"
+                        <Button
+                          variant="solid"
+                          tone="gold"
                           onClick={() => void claimPrize(supplyDrop)}
                           disabled={
                             claimingId !== null ||
                             !policy ||
                             Boolean(policyError)
                           }
-                          className="border border-[#d6a84b] bg-[#d6a84b] px-4 py-2 text-[9px] tracking-[0.16em] text-black transition-colors hover:bg-black hover:text-[#d6a84b] disabled:cursor-wait disabled:opacity-50"
+                          busy={
+                            claimingId === supplyDrop.id ||
+                            (!policy && !policyError)
+                          }
                         >
-                          <BusyLabel
-                            busy={
-                              claimingId === supplyDrop.id ||
-                              (!policy && !policyError)
-                            }
-                          >
-                            {claimingId === supplyDrop.id
-                              ? 'CLAIMING…'
-                              : !policy
-                                ? 'VERIFYING…'
-                                : policy.stakingRequired
-                                  ? 'CLAIM & STAKE'
-                                  : 'CLAIM PRIZE'}
-                          </BusyLabel>
-                        </button>
+                          {claimingId === supplyDrop.id
+                            ? 'CLAIMING…'
+                            : !policy
+                              ? 'VERIFYING…'
+                              : policy.stakingRequired
+                                ? 'CLAIM & STAKE'
+                                : 'CLAIM PRIZE'}
+                        </Button>
                       ) : (
-                        <div className="text-[9px] tracking-[0.14em] text-neutral-600">
+                        <div className="text-label text-fg-subtle">
                           UNCLAIMED
                         </div>
                       )}
@@ -525,12 +509,14 @@ export function SupplyDrop() {
           )}
 
           {!isConnected && past.some((supplyDrop) => !supplyDrop.claimed) ? (
-            <div className="mt-6 flex flex-col items-start justify-between gap-4 border border-grid p-5 sm:flex-row sm:items-center">
-              <p className="text-[10px] leading-5 text-neutral-500">
-                Connect the winning wallet to reveal and claim its prize.
-              </p>
-              <WalletButton />
-            </div>
+            <Panel as="div" className="mt-6">
+              <PanelSection className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <p className="text-caption text-fg-subtle">
+                  Connect the winning wallet to reveal and claim its prize.
+                </p>
+                <WalletButton />
+              </PanelSection>
+            </Panel>
           ) : null}
         </section>
       </div>

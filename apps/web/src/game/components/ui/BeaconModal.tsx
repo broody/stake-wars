@@ -26,7 +26,24 @@ import {
 } from '../../utils/beacon';
 import { addressesMatch, formatStrk, parseStrk } from '../../utils/format';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
-import { BusyLabel } from './Spinner';
+import {
+  Badge,
+  Button,
+  buttonStyles,
+  Callout,
+  colors,
+  Eyebrow,
+  fieldStyles,
+  panelStyles,
+  SectionHeading,
+  Stat,
+  StatGrid,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '../../../ui';
 import { AddressLink } from './AddressLink';
 import { normalizeBeaconDestination } from '../../utils/beaconDestination';
 
@@ -123,29 +140,28 @@ export function BeaconSummaryCard({
       role="dialog"
       aria-labelledby="beacon-summary-title"
       data-beacon-console
-      className="activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100vh-6.5rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:left-auto sm:right-4 sm:w-[24rem]"
+      className={panelStyles(
+        'floating',
+        'activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100vh-6.5rem)] overflow-y-auto font-mono text-caption text-fg sm:left-auto sm:right-4 sm:w-[24rem]'
+      )}
     >
-      <header className="flex items-center justify-between border-b border-grid px-4 py-3">
-        <div>
-          <div className="flex items-center gap-2 text-[8px] tracking-[0.24em] text-fg">
-            <span className="h-1.5 w-1.5 rounded-full bg-fg" />
-            BEACON
-          </div>
-          <h2
-            id="beacon-summary-title"
-            className="mt-1 text-base font-bold tracking-[-0.03em]"
-          >
-            {snapshot?.billboard ? 'TRANSMISSION' : 'THE BEACON'}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-2 py-1 text-[9px] tracking-[0.16em] text-dim transition-colors hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
-          aria-label="Close Beacon status"
+      <header className="border-b border-line px-4 py-3">
+        <SectionHeading
+          id="beacon-summary-title"
+          eyebrow={<Eyebrow dot>BEACON</Eyebrow>}
+          title={snapshot?.billboard ? 'TRANSMISSION' : 'THE BEACON'}
+          className="flex-nowrap items-center gap-3"
         >
-          CLOSE
-        </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="shrink-0"
+            aria-label="Close Beacon status"
+          >
+            CLOSE
+          </Button>
+        </SectionHeading>
       </header>
 
       <div className="space-y-4 px-4 py-4">
@@ -154,7 +170,7 @@ export function BeaconSummaryCard({
         ) : null}
 
         {isLoading && !snapshot ? (
-          <p className="py-5 text-center text-[9px] tracking-[0.2em] text-neutral-500">
+          <p className="py-5 text-center text-label text-fg-subtle">
             VERIFYING STATE…
           </p>
         ) : null}
@@ -170,23 +186,17 @@ export function BeaconSummaryCard({
                 label="CURRENT CONTROLLER"
                 value={<AddressLink address={snapshot.controller.address} />}
               />
-              {isCurrentController ? (
-                <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
-                  YOU
-                </span>
-              ) : null}
+              {isCurrentController ? <Badge variant="solid">YOU</Badge> : null}
             </div>
           </section>
         ) : null}
 
         {snapshot && !snapshot.controller ? (
-          <p className="border-l border-neutral-700 pl-3 leading-5 text-neutral-400">
-            No controller has been assigned.
-          </p>
+          <Callout>No controller has been assigned.</Callout>
         ) : null}
 
         {!isLoading && !snapshot && !error ? (
-          <p className="py-3 text-neutral-400">No Beacon state is available.</p>
+          <p className="py-3 text-fg-muted">No Beacon state is available.</p>
         ) : null}
 
         {isCurrentController &&
@@ -222,7 +232,7 @@ export function BeaconSummaryCard({
 
       <Link
         to={{ pathname: '/beacon', search: `?${search.toString()}` }}
-        className="flex items-center justify-between border-t border-grid px-4 py-3 text-[9px] tracking-[0.18em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-fg"
+        className="flex items-center justify-between border-t border-line px-4 py-3 text-label transition-colors hover:bg-fg hover:text-surface focus-visible:outline-offset-[-3px]"
       >
         <span>BID FOR BEACON CONTROL</span>
         <span aria-hidden="true">↗</span>
@@ -263,43 +273,39 @@ export function BeaconConsole({
       data-beacon-console
       className={
         isPage
-          ? 'relative w-full overflow-hidden border border-grid bg-black/85 font-mono text-fg'
-          : 'activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100%-6rem)] overflow-y-auto border border-neutral-600 bg-black/95 font-mono text-fg shadow-[8px_8px_0_rgba(255,255,255,0.08)] backdrop-blur-md sm:left-auto sm:right-4 sm:w-[28rem]'
+          ? panelStyles(
+              'default',
+              'relative w-full overflow-hidden bg-surface/85 font-mono text-fg'
+            )
+          : panelStyles(
+              'floating',
+              'activity-scrollbar pointer-events-auto absolute left-3 right-3 top-20 z-[80] max-h-[calc(100%-6rem)] overflow-y-auto font-mono text-fg sm:left-auto sm:right-4 sm:w-[28rem]'
+            )
       }
     >
-      <header className="flex items-center justify-between border-b border-grid px-4 py-3 sm:px-6">
-        <div>
-          <div className="text-[8px] tracking-[0.24em] text-fg">
-            CONTROL SIGNAL // {beaconPhaseLabel(phase)}
-          </div>
-          <h2
-            id="beacon-title"
-            className="mt-1 text-base font-bold tracking-[-0.03em]"
-          >
-            {title}
-          </h2>
-        </div>
-        {isPage && view === 'auction' && round ? (
-          <div
-            className="flex items-center gap-3 border-l border-grid pl-4 sm:gap-4 sm:pl-6"
-            aria-label={`Round ${round.id}`}
-          >
-            <span className="text-[7px] tracking-[0.22em] text-neutral-500">
-              CURRENT ROUND
-            </span>
-            <span className="text-xl font-bold tabular-nums tracking-[-0.05em] text-fg sm:text-2xl">
-              {String(round.id).padStart(4, '0')}
-            </span>
-          </div>
-        ) : !isPage ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-2 py-1 text-[9px] tracking-[0.16em] text-dim hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
-          >
-            CLOSE
-          </button>
-        ) : null}
+      <header className="border-b border-line px-4 py-3 sm:px-6">
+        <SectionHeading
+          id="beacon-title"
+          eyebrow={`CONTROL SIGNAL // ${beaconPhaseLabel(phase)}`}
+          title={title}
+          className="items-center gap-3"
+        >
+          {isPage && view === 'auction' && round ? (
+            <div
+              className="flex items-center gap-3 border-l border-line pl-4 sm:gap-4 sm:pl-6"
+              aria-label={`Round ${round.id}`}
+            >
+              <span className="text-label text-fg-subtle">CURRENT ROUND</span>
+              <span className="text-figure-sm font-bold tabular-nums text-fg sm:text-figure">
+                {String(round.id).padStart(4, '0')}
+              </span>
+            </div>
+          ) : !isPage ? (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              CLOSE
+            </Button>
+          ) : null}
+        </SectionHeading>
       </header>
 
       {error ? (
@@ -317,9 +323,7 @@ export function BeaconConsole({
         <div className="grid min-h-[28rem] place-items-center">
           <div className="text-center">
             <div className="mx-auto h-px w-20 animate-pulse bg-fg motion-reduce:animate-none" />
-            <p className="mt-4 text-[9px] tracking-[0.22em] text-neutral-500">
-              VERIFYING BEACON
-            </p>
+            <p className="mt-4 text-label text-fg-subtle">VERIFYING BEACON</p>
           </div>
         </div>
       ) : null}
@@ -343,10 +347,8 @@ export function BeaconConsole({
       {view === 'auction' && snapshot && !round ? (
         <div className="grid min-h-[28rem] place-items-center px-6 text-center">
           <div className="max-w-sm">
-            <h3 className="text-2xl font-bold tracking-[-0.05em]">
-              No auction registered
-            </h3>
-            <p className="mt-3 text-xs leading-5 text-neutral-400">
+            <h3 className="text-title font-bold">No auction registered</h3>
+            <p className="mt-3 text-caption text-fg-muted">
               The current signal remains unchanged until the next round is
               available.
             </p>
@@ -355,12 +357,12 @@ export function BeaconConsole({
       ) : null}
 
       {view === 'auction' && !isLoading && !snapshot && !error ? (
-        <div className="grid min-h-[24rem] place-items-center text-xs text-neutral-500">
+        <div className="grid min-h-[24rem] place-items-center text-caption text-fg-subtle">
           No Beacon state is available.
         </div>
       ) : null}
 
-      <footer className="flex items-center justify-between border-t border-grid px-4 py-3 text-[8px] tracking-[0.18em] text-dim sm:px-6">
+      <footer className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line px-4 py-3 text-tag text-fg-subtle sm:px-6">
         <span>VERIFIED ONCHAIN</span>
         <span>OPEN ASCENDING AUCTION</span>
       </footer>
@@ -473,59 +475,53 @@ function AuctionPanel({
           ];
 
   return (
-    <section className="bg-black px-5 py-6 sm:px-7 sm:py-8">
-      <div className="text-[8px] tracking-[0.2em] text-fg">BIDDING DETAILS</div>
+    <section className="bg-surface px-5 py-6 sm:px-7 sm:py-8">
+      <Eyebrow>BIDDING DETAILS</Eyebrow>
 
       <div className="mt-4 grid items-center gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
         <AuctionOrbit phase={phase} round={round} chainNow={chainNow} />
 
         <div className="min-w-0">
-          <h3 className="text-3xl font-bold tracking-[-0.06em] sm:text-4xl">
-            {state.title}
-          </h3>
-          <p className="mt-2 max-w-xl text-xs leading-5 text-neutral-400">
+          <h3 className="text-title font-bold">{state.title}</h3>
+          <p className="mt-2 max-w-xl text-caption text-fg-muted">
             {state.body}
           </p>
 
-          <div className="mt-6 grid gap-px bg-grid sm:grid-cols-3">
+          <StatGrid className="mt-6 sm:grid-cols-3">
             {details.map((detail) => (
-              <CompactDetail
+              <Stat
                 key={detail.label}
                 label={detail.label}
                 value={detail.value}
               />
             ))}
-          </div>
+          </StatGrid>
 
           {round.leader ? (
             <section
               aria-label="Leading bidder"
-              className="mt-5 flex items-center justify-between gap-3 border-l border-fg bg-white/[0.035] px-4 py-3"
+              className="mt-5 flex items-center justify-between gap-3 border-l border-fg bg-fg/[0.035] px-4 py-3"
             >
               <MetricText
                 label={phase === 'settling' ? 'WINNER' : 'LEADER'}
                 value={<AddressLink address={round.leader} />}
               />
-              {isLeader ? (
-                <span className="bg-fg px-2 py-1 text-[8px] tracking-[0.16em] text-bg">
-                  YOU
-                </span>
-              ) : null}
+              {isLeader ? <Badge variant="solid">YOU</Badge> : null}
             </section>
           ) : null}
 
           {canBid ? (
             <form className="mt-6" onSubmit={submitBid}>
-              <div className="flex items-center justify-between gap-3 text-[8px] tracking-[0.18em]">
-                <label htmlFor="beacon-bid-amount" className="text-neutral-500">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-label">
+                <label htmlFor="beacon-bid-amount" className="text-fg-subtle">
                   YOUR BID
                 </label>
-                <span className={onPlaceBid ? 'text-fg' : 'text-neutral-600'}>
+                <span className={onPlaceBid ? 'text-fg' : 'text-fg-subtle'}>
                   {bidStatusLabel ||
                     (onPlaceBid ? 'PUBLIC BID // STRK' : 'WALLET REQUIRED')}
                 </span>
               </div>
-              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] border border-neutral-600 focus-within:border-fg">
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] border border-line-strong focus-within:border-fg">
                 <input
                   id="beacon-bid-amount"
                   type="number"
@@ -540,13 +536,13 @@ function AuctionPanel({
                     setNotice(null);
                     setBidError(null);
                   }}
-                  className="min-w-0 bg-black px-4 py-4 text-2xl font-bold tabular-nums tracking-[-0.04em] text-fg outline-none disabled:text-neutral-600"
+                  className="min-w-0 bg-surface px-4 py-4 text-figure font-bold tabular-nums text-fg outline-none disabled:text-fg-subtle"
                 />
-                <span className="grid place-items-center border-l border-grid px-4 text-[10px] tracking-[0.16em] text-neutral-400">
+                <span className="grid place-items-center border-l border-line px-4 text-label text-fg-muted">
                   STRK
                 </span>
               </div>
-              <p className="mt-2 text-[9px] leading-4 text-neutral-500">
+              <p className="mt-2 text-caption text-fg-subtle">
                 {phase === 'pending'
                   ? `Minimum ${formatBeaconAmount(round.minimumBid)}.`
                   : `Minimum ${formatBeaconAmount(round.minimumBid)} (+${formatRaise(round.minRaiseBps)}).`}{' '}
@@ -555,34 +551,37 @@ function AuctionPanel({
                   ? ` A bid in the final ${formatWindow(round.extensionSeconds)} extends the deadline to ${formatWindow(round.extensionSeconds)} after that bid.`
                   : ''}
               </p>
-              <button
+              <Button
                 type="submit"
-                disabled={
-                  !onPlaceBid || !bidIsValid || isSubmitting || isLeader
-                }
+                variant="solid"
+                size="lg"
+                fullWidth
+                busy={isSubmitting}
+                disabled={!onPlaceBid || !bidIsValid || isLeader}
                 title={
                   onPlaceBid
                     ? 'Place a public bid'
                     : bidStatusLabel || 'Wallet bidding is unavailable'
                 }
-                className="mt-3 w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+                className="mt-3"
               >
-                <BusyLabel busy={isSubmitting}>
-                  {isSubmitting
-                    ? 'CONFIRM IN WALLET…'
-                    : isLeader
-                      ? 'YOU HOLD THE LEAD'
-                      : 'PLACE BID'}
-                </BusyLabel>
-              </button>
+                {isSubmitting
+                  ? 'CONFIRM IN WALLET…'
+                  : isLeader
+                    ? 'YOU HOLD THE LEAD'
+                    : 'PLACE BID'}
+              </Button>
             </form>
           ) : null}
 
           {phase === 'settling' ? (
             <div className="mt-6">
-              <button
-                type="button"
-                disabled={!onSettle || isSubmitting}
+              <Button
+                variant="solid"
+                size="lg"
+                fullWidth
+                busy={isSubmitting}
+                disabled={!onSettle}
                 onClick={() => {
                   if (onSettle) {
                     void runAction(onSettle, 'ROUND SETTLED');
@@ -593,13 +592,10 @@ function AuctionPanel({
                     ? 'Finalize this round'
                     : 'Connect a wallet to finalize this round'
                 }
-                className="w-full border border-fg bg-fg px-4 py-4 text-[10px] font-bold tracking-[0.2em] text-bg transition-colors enabled:hover:bg-transparent enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-dim focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
-                <BusyLabel busy={isSubmitting}>
-                  {isSubmitting ? 'CONFIRM IN WALLET…' : 'SETTLE ROUND'}
-                </BusyLabel>
-              </button>
-              <p className="mt-2 text-[9px] leading-4 text-neutral-500">
+                {isSubmitting ? 'CONFIRM IN WALLET…' : 'SETTLE ROUND'}
+              </Button>
+              <p className="mt-2 text-caption text-fg-subtle">
                 Anyone can finalize the round; the keeper usually does it within
                 a minute.
               </p>
@@ -607,17 +603,14 @@ function AuctionPanel({
           ) : null}
 
           {notice ? (
-            <p
-              className="mt-2 text-[9px] tracking-[0.14em] text-fg"
-              role="status"
-            >
+            <p className="mt-2 text-label text-fg" role="status">
               {notice}
             </p>
           ) : null}
           {bidError ? (
-            <p className="mt-2 text-[9px] leading-4 text-red-400" role="alert">
+            <Callout tone="danger" role="alert" className="mt-2">
               {bidError}
-            </p>
+            </Callout>
           ) : null}
         </div>
       </div>
@@ -627,126 +620,80 @@ function AuctionPanel({
 
 function HistoryPanel({ entries }: { entries: BeaconHistoryEntry[] }) {
   return (
-    <section className="min-h-[30rem] bg-black">
-      <div className="flex items-center justify-between border-b border-grid px-5 py-5 sm:px-7">
-        <div>
-          <div className="text-[8px] tracking-[0.22em] text-neutral-500">
-            COMPLETED CONTROL CYCLES
-          </div>
-          <h3 className="mt-2 text-2xl font-bold tracking-[-0.05em]">
-            Winner history
-          </h3>
-        </div>
-        <span className="text-[8px] tracking-[0.18em] text-neutral-500">
-          VERIFIED
-        </span>
+    <section className="min-h-[30rem] bg-surface">
+      <div className="border-b border-line px-5 py-5 sm:px-7">
+        <SectionHeading
+          as="h3"
+          eyebrow="COMPLETED CONTROL CYCLES"
+          title="Winner history"
+          className="items-center"
+        >
+          <span className="text-tag text-fg-subtle">VERIFIED</span>
+        </SectionHeading>
       </div>
 
       {entries.length === 0 ? (
         <div className="grid min-h-[22rem] place-items-center px-6 text-center">
           <div>
-            <div className="text-[9px] tracking-[0.2em] text-neutral-500">
-              NO WINNERS YET
-            </div>
-            <p className="mt-3 text-xs text-neutral-600">
+            <div className="text-label text-fg-subtle">NO WINNERS YET</div>
+            <p className="mt-3 text-caption text-fg-subtle">
               Completed auctions will appear here.
             </p>
           </div>
         </div>
       ) : (
-        <div role="table" aria-label="Beacon winner history">
-          <div
-            role="row"
-            className="hidden grid-cols-[6rem_minmax(0,1fr)_7rem_10rem] border-b border-grid text-[8px] tracking-[0.18em] text-neutral-600 sm:grid"
-          >
-            <div role="columnheader" className="px-7 py-4">
-              ROUND
-            </div>
-            <div role="columnheader" className="px-5 py-4">
-              WINNER
-            </div>
-            <div role="columnheader" className="px-5 py-4 text-right">
-              BIDS
-            </div>
-            <div role="columnheader" className="px-7 py-4 text-right">
-              WINNING BID
-            </div>
-          </div>
-          {entries.map((entry) => (
-            <div
-              key={entry.roundId}
-              role="row"
-              className="grid grid-cols-2 border-b border-grid last:border-b-0 sm:grid-cols-[6rem_minmax(0,1fr)_7rem_10rem]"
-            >
-              <HistoryCell label="ROUND" className="px-5 py-4 sm:px-7 sm:py-5">
-                <span className="text-lg font-bold tabular-nums tracking-[-0.04em] text-neutral-300">
-                  {String(entry.roundId).padStart(4, '0')}
-                </span>
-              </HistoryCell>
-              <HistoryCell
-                label="WINNER"
-                className="px-5 py-4 sm:py-5"
-                title={entry.winnerAddress}
-              >
-                <span className="text-sm font-bold tracking-[-0.03em] text-fg">
-                  <AddressLink address={entry.winnerAddress} />
-                </span>
-              </HistoryCell>
-              <HistoryCell
-                label="BIDS"
-                className="border-t border-grid px-5 py-4 sm:border-t-0 sm:py-5 sm:text-right"
-              >
-                <span className="text-sm tabular-nums text-neutral-300">
-                  {entry.bidCount}
-                </span>
-              </HistoryCell>
-              <HistoryCell
-                label="WINNING BID"
-                className="border-t border-grid px-5 py-4 text-right sm:border-t-0 sm:px-7 sm:py-5"
-              >
-                <span className="text-sm font-bold tabular-nums text-fg">
-                  {formatBeaconAmount(entry.winningBid)}
-                </span>
-              </HistoryCell>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <Table aria-label="Beacon winner history">
+            <TableHead>
+              <tr>
+                <TableHeaderCell className="py-4 pl-4 sm:pl-7">
+                  ROUND
+                </TableHeaderCell>
+                <TableHeaderCell className="px-2 py-4 sm:px-3">
+                  WINNER
+                </TableHeaderCell>
+                <TableHeaderCell numeric className="hidden py-4 sm:table-cell">
+                  BIDS
+                </TableHeaderCell>
+                <TableHeaderCell
+                  numeric
+                  className="whitespace-normal py-4 pr-4 sm:whitespace-nowrap sm:pr-7"
+                >
+                  WINNING BID
+                </TableHeaderCell>
+              </tr>
+            </TableHead>
+            <tbody>
+              {entries.map((entry) => (
+                <TableRow key={entry.roundId}>
+                  <TableCell className="py-4 pl-4 text-body font-bold tabular-nums sm:pl-7 sm:text-figure-sm">
+                    {String(entry.roundId).padStart(4, '0')}
+                  </TableCell>
+                  <TableCell
+                    className="whitespace-nowrap px-2 py-4 text-caption font-bold text-fg sm:px-3 sm:text-body"
+                    title={entry.winnerAddress}
+                  >
+                    <AddressLink address={entry.winnerAddress} />
+                  </TableCell>
+                  <TableCell
+                    numeric
+                    className="hidden py-4 text-body sm:table-cell"
+                  >
+                    {entry.bidCount}
+                  </TableCell>
+                  <TableCell
+                    numeric
+                    className="whitespace-nowrap py-4 pr-4 text-caption font-bold text-fg sm:pr-7 sm:text-body"
+                  >
+                    {formatBeaconAmount(entry.winningBid)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </tbody>
+          </Table>
         </div>
       )}
     </section>
-  );
-}
-
-function HistoryCell({
-  label,
-  className,
-  title,
-  children,
-}: {
-  label: string;
-  className: string;
-  title?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div role="cell" className={className} title={title}>
-      <div className="mb-2 text-[7px] tracking-[0.16em] text-neutral-600 sm:hidden">
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function CompactDetail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-black px-4 py-4 sm:px-5 sm:py-5">
-      <div className="text-[8px] tracking-[0.18em] text-neutral-500">
-        {label}
-      </div>
-      <div className="mt-2 text-xl font-bold leading-none tabular-nums tracking-[-0.04em] text-fg sm:text-2xl">
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -782,7 +729,7 @@ function AuctionOrbit({
           cy="100"
           r={radius}
           fill="none"
-          stroke="#1a1a1a"
+          stroke={colors.line.DEFAULT}
           strokeWidth="1"
         />
         <circle
@@ -809,16 +756,10 @@ function AuctionOrbit({
         />
       </svg>
       <div className="relative text-center">
-        <div className="text-[8px] tracking-[0.22em] text-neutral-500">
-          {orbitLabel(phase)}
-        </div>
-        <div className="mt-2 text-3xl font-bold tabular-nums tracking-[-0.07em] sm:text-4xl">
-          {value}
-        </div>
+        <Eyebrow>{orbitLabel(phase)}</Eyebrow>
+        <div className="mt-2 text-figure font-bold tabular-nums">{value}</div>
         {phase === 'pending' ? (
-          <div className="mt-2 text-[8px] tracking-[0.18em] text-fg">
-            STARTS ON BID
-          </div>
+          <div className="mt-2 text-label text-fg">STARTS ON BID</div>
         ) : null}
       </div>
     </div>
@@ -833,20 +774,16 @@ function ErrorNotice({
   onRefresh: () => void;
 }) {
   return (
-    <section className="flex items-center justify-between gap-3 border-l border-fg bg-white/[0.04] px-3 py-3">
-      <span className="text-[9px] leading-4 text-neutral-400">
+    <Callout className="flex items-center justify-between gap-3">
+      <span className="min-w-0">
         {hasSnapshot
           ? 'Showing the last verified data.'
           : 'Verified data unavailable.'}
       </span>
-      <button
-        type="button"
-        onClick={onRefresh}
-        className="text-[8px] tracking-[0.16em] text-fg hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
-      >
+      <Button variant="link" size="sm" onClick={onRefresh} className="shrink-0">
         RETRY
-      </button>
-    </section>
+      </Button>
+    </Callout>
   );
 }
 
@@ -859,7 +796,7 @@ function BeaconBillboard({
 
   return (
     <section aria-label="Beacon transmission">
-      <div className="border border-neutral-700 bg-neutral-950 p-2">
+      <div className="border border-line-strong bg-surface-raised p-2">
         <BeaconBillboardImage
           key={`${billboard.imageUrl}:${billboard.thumbnailUrl}`}
           imageUrl={billboard.imageUrl}
@@ -867,7 +804,7 @@ function BeaconBillboard({
         />
       </div>
       {billboard.description ? (
-        <p className="mt-3 whitespace-pre-line text-[11px] leading-5 text-neutral-200">
+        <p className="mt-3 whitespace-pre-line text-caption text-fg-secondary">
           {billboard.description}
         </p>
       ) : null}
@@ -876,10 +813,14 @@ function BeaconBillboard({
           href={destinationUrl}
           target="_blank"
           rel="noopener noreferrer sponsored"
-          className="mt-3 flex items-center justify-between gap-3 border border-fg px-3 py-3 text-[9px] tracking-[0.14em] transition-colors hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+          className={buttonStyles({
+            variant: 'outline',
+            fullWidth: true,
+            className: 'mt-3 justify-between gap-3',
+          })}
           title={destinationUrl}
         >
-          <span className="min-w-0 truncate underline decoration-neutral-500 underline-offset-4">
+          <span className="min-w-0 truncate normal-case underline decoration-fg-subtle underline-offset-4">
             {destinationUrl}
           </span>
           <span className="shrink-0" aria-hidden="true">
@@ -902,9 +843,9 @@ function BeaconBillboardImage({
   const [isUnavailable, setUnavailable] = useState(false);
 
   return (
-    <div className="grid min-h-36 max-h-64 place-items-center overflow-hidden bg-black">
+    <div className="grid min-h-36 max-h-64 place-items-center overflow-hidden bg-surface">
       {isUnavailable ? (
-        <span className="text-[8px] tracking-[0.18em] text-neutral-600">
+        <span className="text-tag text-fg-subtle">
           IMAGE SIGNAL UNAVAILABLE
         </span>
       ) : (
@@ -927,24 +868,21 @@ function BeaconBillboardImage({
 
 function BeaconControllerActions({ onSelect }: { onSelect: () => void }) {
   return (
-    <section className="border-t border-grid pt-4">
-      <div className="flex items-center justify-between text-[8px] tracking-[0.18em] text-neutral-500">
+    <section className="border-t border-line pt-4">
+      <Eyebrow className="flex items-center justify-between gap-3">
         <span>CONTROLLER ACTIONS</span>
         <span>01 AVAILABLE</span>
-      </div>
-      <button
-        type="button"
+      </Eyebrow>
+      <Button
+        variant="solid"
+        fullWidth
         onClick={onSelect}
-        className="mt-3 flex w-full items-center justify-between border border-fg bg-fg px-3 py-3 text-left text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg"
+        className="mt-3 justify-between text-left"
       >
-        <span className="text-[10px] font-semibold tracking-[0.18em]">
-          BUILD TRANSMISSION
-        </span>
-        <span aria-hidden="true" className="text-base">
-          →
-        </span>
-      </button>
-      <p className="mt-2 text-[8px] tracking-[0.16em] text-neutral-500">
+        <span>BUILD TRANSMISSION</span>
+        <span aria-hidden="true">→</span>
+      </Button>
+      <p className="mt-2 text-tag text-fg-subtle">
         OR PASTE AN IMAGE · CTRL/⌘V
       </p>
     </section>
@@ -1122,26 +1060,23 @@ function BeaconProjectionUpload({
 
   return (
     <section
-      className="border-t border-grid pt-4"
+      className="border-t border-line pt-4"
       aria-label="Publish Beacon transmission"
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-            TRANSMISSION
-          </div>
-          <div className="mt-1 text-sm font-bold tracking-[-0.03em]">
-            ONE-SHOT BROADCAST
-          </div>
+        <div className="min-w-0">
+          <Eyebrow>TRANSMISSION</Eyebrow>
+          <div className="mt-1 text-body font-bold">ONE-SHOT BROADCAST</div>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onCancel}
           disabled={isUploading}
-          className="text-[8px] tracking-[0.16em] text-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:opacity-50"
+          className="shrink-0"
         >
           RETURN
-        </button>
+        </Button>
       </div>
 
       <input
@@ -1164,9 +1099,9 @@ function BeaconProjectionUpload({
           event.preventDefault();
           void chooseFile(event.dataTransfer.files[0]);
         }}
-        className="mt-3 w-full border border-dashed border-neutral-600 bg-neutral-950 p-3 text-left transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-wait disabled:opacity-60"
+        className="mt-3 w-full border border-dashed border-line-strong bg-surface-raised p-3 text-left transition-colors hover:border-fg disabled:cursor-wait disabled:opacity-60"
       >
-        <span className="grid min-h-32 max-h-64 place-items-center overflow-hidden border border-neutral-800 bg-black">
+        <span className="grid min-h-32 max-h-64 place-items-center overflow-hidden border border-line bg-surface">
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -1174,18 +1109,18 @@ function BeaconProjectionUpload({
               className="h-auto max-h-64 max-w-full object-contain"
             />
           ) : (
-            <span className="grid min-h-32 place-items-center text-[9px] tracking-[0.18em] text-neutral-600">
+            <span className="grid min-h-32 place-items-center text-label text-fg-subtle">
               CHOOSE · DROP · PASTE
             </span>
           )}
         </span>
-        <span className="mt-2 block truncate text-[8px] tracking-[0.12em] text-neutral-500">
+        <span className="mt-2 block truncate text-tag text-fg-subtle">
           {fileName || 'WEBP · JPEG · PNG'}
         </span>
       </button>
 
       <label className="mt-3 block" htmlFor="beacon-ad-description">
-        <span className="flex items-center justify-between text-[8px] tracking-[0.16em] text-neutral-500">
+        <span className="flex items-center justify-between gap-3 text-label text-fg-subtle">
           <span>DESCRIPTION (OPTIONAL)</span>
           <span>
             {description.length}/{BEACON_DESCRIPTION_MAX_LENGTH}
@@ -1199,12 +1134,12 @@ function BeaconProjectionUpload({
           disabled={isUploading}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="Tell players what this transmission is promoting."
-          className="mt-2 w-full resize-none border border-neutral-700 bg-black px-3 py-2 text-[11px] leading-5 text-fg outline-none placeholder:text-neutral-700 focus:border-fg disabled:cursor-not-allowed disabled:opacity-60"
+          className={fieldStyles({ className: 'mt-2 resize-none' })}
         />
       </label>
 
       <label className="mt-3 block" htmlFor="beacon-ad-destination">
-        <span className="text-[8px] tracking-[0.16em] text-neutral-500">
+        <span className="text-label text-fg-subtle">
           DESTINATION LINK (OPTIONAL)
         </span>
         <input
@@ -1222,57 +1157,51 @@ function BeaconProjectionUpload({
             setDestinationUrl(normalizeBeaconDestination(destinationUrl))
           }
           placeholder="https://example.com"
-          className="mt-2 w-full border border-neutral-700 bg-black px-3 py-2 text-[11px] text-fg outline-none placeholder:text-neutral-700 focus:border-fg disabled:cursor-not-allowed disabled:opacity-60"
+          className={fieldStyles({ className: 'mt-2' })}
         />
       </label>
 
-      <p className="mt-3 border-l border-fg pl-3 text-[9px] leading-4 text-neutral-500">
+      <Callout className="mt-3">
         Publishing locks the image, description, and link until the next winner.
-      </p>
+      </Callout>
 
       {!isCheckingService && !uploadsEnabled && !uploadError ? (
-        <div className="mt-3 border border-neutral-700 px-3 py-2 text-[9px] leading-4 text-neutral-500">
+        <Callout className="mt-3 tracking-caps">
           UPLOADS UNAVAILABLE · IMAGE STORAGE IS NOT CONFIGURED
-        </div>
+        </Callout>
       ) : null}
       {uploadError ? (
-        <div
-          role="alert"
-          className="mt-3 border border-red-700/70 px-3 py-2 text-[9px] leading-4 text-red-400"
-        >
+        <Callout tone="danger" role="alert" className="mt-3">
           UPLOAD FAILED · {uploadError}
-        </div>
+        </Callout>
       ) : null}
       {uploadNotice ? (
-        <div
-          role="status"
-          className="mt-3 border border-fg px-3 py-2 text-[9px] tracking-[0.14em] text-fg"
-        >
+        <Callout role="status" className="mt-3 border-fg text-label text-fg">
           {uploadNotice}
-        </div>
+        </Callout>
       ) : null}
 
-      <button
-        type="button"
+      <Button
+        variant="solid"
+        fullWidth
+        busy={isCheckingService || isPreparing || isUploading}
         disabled={disabled}
         onClick={() => void upload()}
-        className="mt-3 w-full border border-fg bg-fg px-3 py-3 text-[10px] font-semibold tracking-[0.18em] text-bg transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
+        className="mt-3"
       >
-        <BusyLabel busy={isCheckingService || isPreparing || isUploading}>
-          {isCheckingService
-            ? 'CHECKING IMAGE SERVICE…'
-            : isPreparing
-              ? 'PREPARING IMAGE…'
-              : isUploading
-                ? 'PUBLISHING TRANSMISSION…'
-                : !prepared
-                  ? 'CHOOSE IMAGE'
-                  : destinationUrl.trim() !== '' &&
-                      !isValidBeaconDestination(destinationUrl)
-                    ? 'ADD VALID LINK'
-                    : 'PUBLISH TRANSMISSION'}
-        </BusyLabel>
-      </button>
+        {isCheckingService
+          ? 'CHECKING IMAGE SERVICE…'
+          : isPreparing
+            ? 'PREPARING IMAGE…'
+            : isUploading
+              ? 'PUBLISHING TRANSMISSION…'
+              : !prepared
+                ? 'CHOOSE IMAGE'
+                : destinationUrl.trim() !== '' &&
+                    !isValidBeaconDestination(destinationUrl)
+                  ? 'ADD VALID LINK'
+                  : 'PUBLISH TRANSMISSION'}
+      </Button>
     </section>
   );
 }
@@ -1280,11 +1209,9 @@ function BeaconProjectionUpload({
 function MetricText({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <div className="text-[8px] tracking-[0.16em] text-neutral-500">
-        {label}
-      </div>
+      <Eyebrow>{label}</Eyebrow>
       <div
-        className="mt-1 truncate text-[11px] text-white"
+        className="mt-1 truncate text-caption text-fg"
         title={typeof value === 'string' ? value : undefined}
       >
         {value}

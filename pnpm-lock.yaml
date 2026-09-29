@@ -121,6 +121,9 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.4.5
         version: 0.4.24(eslint@8.57.1)
+      eslint-plugin-stakewars:
+        specifier: link:./eslint-plugin-stakewars
+        version: link:eslint-plugin-stakewars
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@2.3.0)

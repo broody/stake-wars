@@ -9,6 +9,7 @@ import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
 import { SupplyDropFeature } from './components/SupplyDropFeature';
 import { Footer } from './components/Footer';
+import { buttonStyles, Eyebrow, ExternalLink, Panel } from '../ui';
 
 function FaqItem({
   question,
@@ -23,19 +24,16 @@ function FaqItem({
   const answerId = useId();
 
   return (
-    <div className={bordered ? 'border-t border-dim' : undefined}>
+    <div className={bordered ? 'border-t border-line-strong' : undefined}>
       <button
         type="button"
         aria-expanded={isOpen}
         aria-controls={answerId}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex w-full cursor-pointer items-start justify-between gap-6 p-[30px] text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white md:p-10"
+        className="flex w-full cursor-pointer items-start justify-between gap-6 p-[30px] text-left transition-colors hover:bg-fg/[0.03] focus-visible:outline-offset-[-1px] md:p-10"
       >
-        <span className="text-[1.15rem] font-bold text-fg">{question}</span>
-        <span
-          aria-hidden="true"
-          className="shrink-0 text-[0.9rem] tracking-widest text-[#888]"
-        >
+        <span className="text-lead font-bold text-fg">{question}</span>
+        <span aria-hidden="true" className="shrink-0 text-label text-fg-subtle">
           {isOpen ? '[−]' : '[+]'}
         </span>
       </button>
@@ -48,7 +46,7 @@ function FaqItem({
         }`}
       >
         <div className="overflow-hidden">
-          <div className="max-w-3xl px-[30px] pb-[30px] text-[1rem] leading-[1.7] text-[#ccc] md:px-10 md:pb-10">
+          <div className="max-w-3xl px-[30px] pb-[30px] text-lead text-fg-secondary md:px-10 md:pb-10">
             {children}
           </div>
         </div>
@@ -64,7 +62,7 @@ function LandingApp() {
       description: (
         <>
           Stake $STRK to generate{' '}
-          <span className="text-fg font-bold border-b border-dotted border-dim">
+          <span className="text-fg font-bold border-b border-dotted border-line-strong">
             FORCE
           </span>
           . Use FORCE to capture Sectors.
@@ -77,7 +75,7 @@ function LandingApp() {
         <>
           Beam a custom image onto your Sector for as long as you hold it. Your
           staked $STRK keeps earning{' '}
-          <span className="text-fg font-bold border-b border-dotted border-dim">
+          <span className="text-fg font-bold border-b border-dotted border-line-strong">
             real protocol yield
           </span>
           .
@@ -89,7 +87,7 @@ function LandingApp() {
       description: (
         <>
           Commit{' '}
-          <span className="text-fg font-bold border-b border-dotted border-dim">
+          <span className="text-fg font-bold border-b border-dotted border-line-strong">
             10% more FORCE
           </span>{' '}
           than a Sector&apos;s defense to take it. The previous owner gets their
@@ -121,7 +119,7 @@ function LandingApp() {
         <StatsBoard />
 
         {/* Mechanics Grid */}
-        <div className="mechanics mb-16 grid grid-cols-1 gap-10 md:grid-cols-3">
+        <div className="mb-16 grid grid-cols-1 gap-10 md:grid-cols-3">
           {mechanics.map((mechanic, index) => (
             <MechanicsCard
               key={index}
@@ -132,14 +130,15 @@ function LandingApp() {
         </div>
 
         {/* Beacon auction */}
-        <section
+        <Panel
           aria-labelledby="beacon-heading"
-          className="mb-16 overflow-hidden border border-dim bg-black/70 lg:grid lg:grid-cols-[1.35fr_0.65fr]"
+          tone="strong"
+          className="mb-16 overflow-hidden bg-surface/70 lg:grid lg:grid-cols-[1.35fr_0.65fr]"
         >
           <a
             href="/play/beacon"
             aria-label="View the Beacon"
-            className="relative block min-h-72 overflow-hidden border-b border-dim bg-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-1px] focus-visible:outline-white lg:border-b-0 lg:border-r"
+            className="relative block min-h-72 overflow-hidden border-b border-line-strong bg-surface focus-visible:outline-offset-[-1px] lg:border-b-0 lg:border-r"
           >
             <img
               src="https://assets.stakewars.gg/site/beacon/v1/beacon-orbit-poster.jpg"
@@ -165,28 +164,29 @@ function LandingApp() {
           </a>
 
           <div className="flex flex-col justify-center px-[30px] py-10 md:px-10 lg:py-12">
-            <h2
-              id="beacon-heading"
-              className="text-[2.4rem] font-bold leading-none tracking-[-0.05em]"
-            >
+            <h2 id="beacon-heading" className="text-display font-bold">
               THE BEACON
             </h2>
-            <p className="mt-6 text-[1.15rem] leading-[1.55] text-fg">
+            <p className="mt-6 text-lead text-fg">
               Win the signal above the Core.
             </p>
-            <p className="mt-4 max-w-xl text-[0.95rem] leading-[1.75] text-[#aaa]">
+            <p className="mt-4 max-w-xl text-body text-fg-muted">
               Operators outbid each other in an open on-chain auction for the
               Beacon—the lone broadcast orbiting the battlefield. The winner
               publishes an image, message, and link for every commander to see.
             </p>
             <a
               href="/play/beacon"
-              className="mt-8 w-fit border border-[#d6a84b]/70 px-5 py-3 text-[0.72rem] tracking-[0.18em] text-[#d6a84b] transition-colors hover:bg-[#d6a84b] hover:text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[#d6a84b]"
+              className={buttonStyles({
+                variant: 'outline',
+                tone: 'gold',
+                className: 'mt-8 w-fit',
+              })}
             >
               OPEN THE BEACON
             </a>
           </div>
-        </section>
+        </Panel>
 
         {/* Supply Drop */}
         <SupplyDropFeature />
@@ -194,17 +194,12 @@ function LandingApp() {
         {/* FAQ */}
         <section
           aria-labelledby="faq-heading"
-          className="mb-[100px] border-y border-dim bg-black/60"
+          className="mb-[100px] border-y border-line-strong bg-surface/60"
         >
           <div className="grid md:grid-cols-[0.32fr_1fr]">
-            <header className="border-b border-dim p-[30px] md:border-b-0 md:border-r">
-              <div className="mb-2 text-[0.75rem] tracking-[0.24em] text-[#888]">
-                FIELD MANUAL
-              </div>
-              <h2
-                id="faq-heading"
-                className="text-[2rem] font-bold tracking-tight"
-              >
+            <header className="border-b border-line-strong p-[30px] md:border-b-0 md:border-r">
+              <Eyebrow className="mb-2">FIELD MANUAL</Eyebrow>
+              <h2 id="faq-heading" className="text-display font-bold">
                 FAQ
               </h2>
             </header>
@@ -254,14 +249,12 @@ function LandingApp() {
               <FaqItem question="Is Stake Wars running an official Starknet validator?">
                 <p>
                   Yes. All game staking goes directly to our{' '}
-                  <a
+                  <ExternalLink
                     href="https://voyager.online/staking?validator=0x026232d459668b7183dd54e7cddccd27e168882b597743e233645cefa61eb1eb"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="border-b border-dotted border-dim font-bold text-fg transition-colors hover:border-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    className="font-bold text-fg"
                   >
                     live Starknet validator
-                  </a>
+                  </ExternalLink>
                   . Staking is fully non-custodial: even if Stake Wars shuts
                   down, users can always unstake through the official Starknet
                   Staking contract and retrieve their $STRK.

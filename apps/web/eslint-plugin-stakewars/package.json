@@ -1,0 +1,7 @@
+{
+  "name": "eslint-plugin-stakewars",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stake Wars lint rules that keep UI code on the design tokens.",
+  "main": "index.js"
+}

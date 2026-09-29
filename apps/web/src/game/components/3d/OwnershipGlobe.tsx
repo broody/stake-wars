@@ -5,6 +5,7 @@ import { ArcballControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { createSectorGeometry, isSectorId } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import { colors } from '../../../ui/tokens';
 import type { OwnershipScenario } from '../../utils/ownershipScenarios';
 import { stakeReliefHeight } from '../../utils/sectorStakeRelief';
 import { SectorOwnershipLayers } from './Planet';
@@ -244,7 +245,7 @@ export const OwnershipGlobe = memo(function OwnershipGlobe({
         camera={{ position: [0, 0, 13], fov: 48 }}
         dpr={[1, 1.5]}
         gl={{ antialias: true }}
-        style={{ background: '#020202' }}
+        style={{ background: colors.surface.DEFAULT }}
       >
         <OwnershipSphere
           scenario={scenario}

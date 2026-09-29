@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StakingHistoryPoint } from '../types/staking';
-import {
-  nearestIndex,
-  niceTicks,
-  plottablePoints,
-  pointsInRange,
-} from './stakingChart';
+import { plottablePoints, pointsInRange } from './stakingChart';
 
 function point(timestamp: number): StakingHistoryPoint {
   return {
@@ -22,12 +17,6 @@ function point(timestamp: number): StakingHistoryPoint {
 }
 
 describe('staking chart helpers', () => {
-  it('rounds axis maxima to clean steps from zero', () => {
-    expect(niceTicks(1_609_000_000)).toEqual([0, 5e8, 1e9, 1.5e9, 2e9]);
-    expect(niceTicks(590.66)).toEqual([0, 200, 400, 600]);
-    expect(niceTicks(0)).toEqual([0, 1]);
-  });
-
   it('keeps the points within a range of the newest point', () => {
     const day = 86_400;
     const points = [
@@ -49,13 +38,5 @@ describe('staking chart helpers', () => {
     expect(plottablePoints([point(0), point(9 * day), live])).toHaveLength(3);
     expect(plottablePoints([point(0), point(5 * day), live])).toHaveLength(2);
     expect(plottablePoints([live])).toHaveLength(1);
-  });
-
-  it('finds the nearest point in time', () => {
-    const points = [{ t: 0 }, { t: 10 }, { t: 20 }];
-    expect(nearestIndex(points, -5)).toBe(0);
-    expect(nearestIndex(points, 4)).toBe(0);
-    expect(nearestIndex(points, 6)).toBe(1);
-    expect(nearestIndex(points, 99)).toBe(2);
   });
 });

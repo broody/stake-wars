@@ -32,7 +32,7 @@ import {
   type SplitTransactionBatch,
 } from './SplitTransactionModal';
 import { WalletButton } from './WalletButton';
-import { BusyLabel } from './Spinner';
+import { Button, Callout, Panel, buttonStyles } from '../../../ui';
 
 interface BatchCaptureControlProps {
   sectors: SectorStatus[];
@@ -418,27 +418,27 @@ export function BatchCaptureControl({
           : `${verb} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
 
   return (
-    <section className="mt-4 border border-neutral-600 bg-neutral-950">
-      <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
+    <Panel tone="strong" className="mt-4 bg-surface-raised">
+      <header className="flex items-center justify-between gap-3 border-b border-line px-3 py-2 text-label text-fg-secondary">
         <span>
           {verb} {sectors.length} SECTOR{sectors.length === 1 ? '' : 'S'}
         </span>
-        <span className="text-[8px] text-dim">FORCE ACTION</span>
+        <span className="text-tag text-fg-subtle">FORCE ACTION</span>
       </header>
-      <div className="space-y-2 px-3 py-3 text-[9px] tracking-[0.12em] text-neutral-500">
+      <div className="space-y-2 px-3 py-3 text-label text-fg-subtle">
         <div className="flex justify-between gap-4">
           <span>AVAILABLE FORCE</span>
-          <span className="text-fg">
+          <span className="min-w-0 break-words text-right tabular-nums text-fg">
             {formatStrk(availableForce, 18)} FORCE
           </span>
         </div>
         <label
-          className="block pt-1 text-dim"
+          className="block pt-1 text-fg-subtle"
           htmlFor={`${intent}-batch-allocation-${sectorKey}`}
         >
           {isFortifying ? 'ADD FORCE' : 'DEFENSE'} · PER SECTOR
         </label>
-        <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
+        <div className="flex items-center border border-line-strong bg-surface focus-within:border-fg">
           <input
             id={`${intent}-batch-allocation-${sectorKey}`}
             value={allocation}
@@ -449,12 +449,12 @@ export function BatchCaptureControl({
             inputMode="decimal"
             placeholder="0"
             disabled={isBusy}
-            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none disabled:text-neutral-600"
+            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-fg outline-none disabled:text-fg-subtle"
           />
-          <span className="px-2 text-dim">FORCE</span>
+          <span className="px-2 text-fg-subtle">FORCE</span>
         </div>
         {parsedAllocation.error && (
-          <div className="leading-relaxed text-amber-400">
+          <div className="text-caption text-warning">
             {parsedAllocation.error}
           </div>
         )}
@@ -462,20 +462,20 @@ export function BatchCaptureControl({
           <>
             <div className="flex justify-between gap-4">
               <span>MINIMUM EACH</span>
-              <span>{formatStrk(requiredForce, 18)} FORCE</span>
+              <span className="min-w-0 break-words text-right tabular-nums">
+                {formatStrk(requiredForce, 18)} FORCE
+              </span>
             </div>
           </>
         )}
-        <div className="flex justify-between gap-4 border-t border-grid pt-2">
+        <div className="flex justify-between gap-4 border-t border-line pt-2">
           <span>TOTAL COMMITMENT</span>
-          <span className="text-fg">
+          <span className="min-w-0 break-words text-right tabular-nums text-fg">
             {formatStrk(totalAllocation, 18)} FORCE
           </span>
         </div>
         {error && (
-          <div className="border-l-2 border-amber-400 pl-2 leading-relaxed text-amber-400">
-            BATCH ACTION FAILED · {error}
-          </div>
+          <Callout tone="warning">BATCH ACTION FAILED · {error}</Callout>
         )}
         {!isConnected || !address ? (
           <div className="mt-2">
@@ -487,19 +487,26 @@ export function BatchCaptureControl({
               pathname: '/staking',
               search: stakeRequestSearch(deficit),
             }}
-            className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
+            className={buttonStyles({
+              variant: 'solid',
+              tone: 'danger',
+              fullWidth: true,
+              className: 'mt-2 font-semibold',
+            })}
           >
             STAKE {formatStrk(deficit, 18)} STRK TO {verb}
           </Link>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="solid"
+            fullWidth
             onClick={requestSubmit}
-            disabled={Boolean(disabledReason) || isBusy}
-            className="mt-2 w-full border border-white bg-white px-3 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-500"
+            disabled={Boolean(disabledReason)}
+            busy={isBusy}
+            className="mt-2 font-semibold"
           >
-            <BusyLabel busy={isBusy}>{actionLabel}</BusyLabel>
-          </button>
+            {actionLabel}
+          </Button>
         )}
       </div>
       <SplitTransactionModal
@@ -513,6 +520,6 @@ export function BatchCaptureControl({
           void executeTransactions(chunkSectorActions(sectors), true)
         }
       />
-    </section>
+    </Panel>
   );
 }

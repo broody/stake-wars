@@ -2,6 +2,7 @@ import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { SECTOR_COUNT } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import { Button, panelStyles } from '../../../ui';
 
 interface LegendRowProps {
   color: string;
@@ -22,8 +23,8 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
           boxShadow: outline ? `0 0 0 1px ${color}33` : undefined,
         }}
       />
-      <span>{label}</span>
-      <span className="text-neutral-300">{value}</span>
+      <span className="min-w-0">{label}</span>
+      <span className="tabular-nums text-fg-secondary">{value}</span>
     </div>
   );
 }
@@ -47,10 +48,13 @@ export function SectorLegend() {
   return (
     <section
       aria-label="Sector map legend"
-      className="pointer-events-auto absolute left-4 top-20 w-48 border border-neutral-800 bg-black/80 px-3 py-2.5 font-mono text-[9px] tracking-[0.14em] text-neutral-500 backdrop-blur-sm"
+      className={panelStyles(
+        'floating',
+        'pointer-events-auto absolute left-4 top-20 w-48 px-3 py-2.5 font-mono text-label text-fg-subtle'
+      )}
     >
-      <header className="mb-2 flex items-center justify-between border-b border-neutral-800 pb-2">
-        <span className="text-neutral-300">SECTORS</span>
+      <header className="mb-2 flex items-center justify-between border-b border-line pb-2">
+        <span className="text-fg-secondary">SECTORS</span>
         <span
           role="status"
           aria-label={
@@ -62,10 +66,10 @@ export function SectorLegend() {
           }
           className={`h-1.5 w-1.5 ${
             sectorIndexError
-              ? 'bg-amber-400'
+              ? 'bg-warning'
               : isSectorIndexLoading
-                ? 'animate-pulse bg-neutral-500'
-                : 'bg-white'
+                ? 'animate-pulse bg-fg-subtle'
+                : 'bg-fg'
           }`}
           title={
             sectorIndexError
@@ -101,13 +105,18 @@ export function SectorLegend() {
       </div>
 
       {sectorIndexError && (
-        <button
-          type="button"
-          onClick={refreshSectorIndex}
-          className="mt-2 w-full border-t border-neutral-800 pt-2 text-left text-amber-400 hover:text-amber-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          INDEX UNAVAILABLE · RETRY
-        </button>
+        <div className="mt-2 border-t border-line pt-2">
+          <Button
+            variant="ghost"
+            tone="warning"
+            size="sm"
+            fullWidth
+            onClick={refreshSectorIndex}
+            className="min-h-0 justify-start px-0 py-0 text-left"
+          >
+            INDEX UNAVAILABLE · RETRY
+          </Button>
+        </div>
       )}
     </section>
   );

@@ -9,7 +9,7 @@ module.exports = {
   ],
   ignorePatterns: ['dist', '.eslintrc.cjs'],
   parser: '@typescript-eslint/parser',
-  plugins: ['react-refresh'],
+  plugins: ['react-refresh', 'stakewars'],
   rules: {
     'react-refresh/only-export-components': [
       'warn',
@@ -24,5 +24,7 @@ module.exports = {
       },
     ],
     'prettier/prettier': 'warn',
+    // Keeps UI code on src/ui tokens and components; see AGENTS.md.
+    'stakewars/no-adhoc-styles': 'error',
   },
 };

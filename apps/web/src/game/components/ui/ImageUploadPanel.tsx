@@ -6,7 +6,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useClipboardImagePaste } from '../../hooks/useClipboardImagePaste';
 import { api, type PreparedSectorImage } from '../../services/api';
 import { prepareSectorImage } from '../../utils/sectorImage';
-import { BusyLabel } from './Spinner';
+import { BusyLabel, Button, Callout, Eyebrow, panelStyles } from '../../../ui';
 
 function formatMebibytes(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -234,52 +234,54 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
   };
 
   return (
-    <aside className="activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto border border-neutral-600 bg-black/90 font-mono text-xs text-fg shadow-[8px_8px_0_rgba(255,255,255,0.06)] backdrop-blur-sm sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[24rem]">
-      <header className="flex items-center justify-between gap-4 border-b border-neutral-600 px-4 py-3">
-        <div>
-          <div className="text-[9px] tracking-[0.24em] text-amber-300">
-            IMAGE UPLOAD
-          </div>
-          <div className="mt-1 text-base tracking-[0.12em]">
-            ASSIGN SECTOR ART
-          </div>
+    <aside
+      className={panelStyles(
+        'floating',
+        'activity-scrollbar pointer-events-auto absolute bottom-20 left-3 right-3 top-20 overflow-y-auto font-mono text-caption text-fg sm:bottom-auto sm:left-auto sm:right-4 sm:max-h-[calc(100vh-7rem)] sm:w-[24rem]'
+      )}
+    >
+      <header className="flex items-center justify-between gap-4 border-b border-line-strong px-4 py-3">
+        <div className="min-w-0">
+          <Eyebrow tone="warning">IMAGE UPLOAD</Eyebrow>
+          <div className="mt-1 text-heading">ASSIGN SECTOR ART</div>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={exitImageUpload}
           disabled={isUploading}
-          className="border border-grid px-2 py-1 text-[9px] tracking-[0.16em] text-dim transition-colors hover:border-neutral-500 hover:text-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
+          className="shrink-0"
         >
           RETURN TO CORE
-        </button>
+        </Button>
       </header>
 
       <div className="px-4 py-3">
-        <p className="leading-relaxed text-neutral-400">
+        <p className="text-fg-muted">
           Your selected Sectors are highlighted on the Core. Choose one image,
           then position it from your current view.
         </p>
 
         <div className="mt-4">
-          <div className="mb-2 flex justify-between text-[9px] tracking-[0.2em] text-dim">
+          <div className="mb-2 flex justify-between gap-3 text-label text-fg-subtle">
             <span>UPLOAD TARGETS</span>
             {replacementCount > 0 ? (
-              <span className="text-neutral-500">
+              <span className="text-fg-muted">
                 {replacementCount} REPLACEMENT
                 {replacementCount === 1 ? '' : 'S'}
               </span>
             ) : null}
           </div>
-          <div className="flex h-[54px] items-center justify-between border border-neutral-800 px-3">
+          <div className="flex h-[54px] items-center justify-between border border-line px-3">
             <div className="flex items-center gap-2" aria-live="polite">
-              <span className="font-display text-2xl tabular-nums text-white">
+              <span className="font-display text-figure tabular-nums text-fg">
                 {imageUploadSectorIds.length}
               </span>
-              <span className="text-[9px] tracking-[0.18em] text-neutral-500">
+              <span className="text-label text-fg-subtle">
                 SECTOR{imageUploadSectorIds.length === 1 ? '' : 'S'} TARGETED
               </span>
             </div>
-            <span className="h-2 w-2 bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.65)]" />
+            <span className="h-2 w-2 bg-warning-soft shadow-glow-warning" />
           </div>
         </div>
 
@@ -303,9 +305,9 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
             event.preventDefault();
             void chooseFile(event.dataTransfer.files[0]);
           }}
-          className="mt-4 grid w-full grid-cols-[74px_1fr] items-center gap-4 border border-dashed border-neutral-600 bg-neutral-950 px-3 py-3 text-left transition-colors hover:border-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-60"
+          className="mt-4 grid w-full grid-cols-[74px_1fr] items-center gap-4 border border-dashed border-line-strong bg-surface-raised px-3 py-3 text-left transition-colors hover:border-fg disabled:cursor-wait disabled:opacity-60"
         >
-          <span className="grid h-[64px] w-[64px] place-items-center bg-black">
+          <span className="grid h-[64px] w-[64px] place-items-center bg-surface">
             {previewUrl ? (
               <img
                 src={previewUrl}
@@ -315,12 +317,12 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
             ) : (
               <span
                 aria-hidden="true"
-                className="block h-[48px] w-[48px] border border-neutral-700"
+                className="block h-[48px] w-[48px] border border-line-strong"
               />
             )}
           </span>
           <span>
-            <span className="block text-[10px] tracking-[0.16em] text-neutral-300">
+            <span className="block text-label text-fg-secondary">
               <BusyLabel busy={isPreparing}>
                 {isPreparing
                   ? 'PREPARING IMAGE…'
@@ -329,11 +331,11 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
                     : 'CHOOSE, DROP, OR PASTE'}
               </BusyLabel>
             </span>
-            <span className="mt-1 block break-all text-[9px] leading-relaxed tracking-[0.08em] text-neutral-600">
+            <span className="mt-1 block break-all text-label text-fg-subtle">
               {fileName || 'WEBP · JPEG · PNG · CTRL/⌘V'}
             </span>
             {prepared ? (
-              <span className="mt-1 block text-[8px] tracking-[0.1em] text-neutral-500">
+              <span className="mt-1 block text-tag text-fg-subtle">
                 MAX 512 PX · {formatMebibytes(prepared.detail.size)}
               </span>
             ) : null}
@@ -341,65 +343,60 @@ export function ImageUploadPanel({ active = true }: { active?: boolean }) {
         </button>
 
         {placementDraft ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             disabled={isUploading}
             onClick={discardPreparedImage}
-            className="mt-3 text-[9px] tracking-[0.18em] text-neutral-500 hover:text-white disabled:opacity-50"
+            className="mt-3 px-0"
           >
             CANCEL PLACEMENT
-          </button>
+          </Button>
         ) : null}
 
         {imageServiceError ? (
-          <div className="mt-3 border border-red-700/70 px-3 py-2 text-[9px] leading-relaxed tracking-[0.08em] text-red-400">
+          <Callout tone="danger" className="mt-3">
             IMAGE SERVICE · {imageServiceError}
-          </div>
+          </Callout>
         ) : null}
         {!isImageServiceLoading && !uploadsEnabled && !imageServiceError ? (
-          <div className="mt-3 border border-neutral-700 px-3 py-2 text-[9px] leading-relaxed tracking-[0.08em] text-neutral-500">
+          <Callout className="mt-3">
             UPLOADS UNAVAILABLE · IMAGE STORAGE IS NOT CONFIGURED
-          </div>
+          </Callout>
         ) : null}
         {uploadError ? (
-          <div
-            role="alert"
-            className="mt-3 border border-red-700/70 px-3 py-2 text-[9px] leading-relaxed tracking-[0.08em] text-red-400"
-          >
+          <Callout role="alert" tone="danger" className="mt-3">
             UPLOAD FAILED · {uploadError}
-          </div>
+          </Callout>
         ) : null}
         {uploadNotice ? (
-          <div
-            role="status"
-            className="mt-3 border border-amber-400/50 px-3 py-2 text-[9px] leading-relaxed tracking-[0.08em] text-amber-300"
-          >
+          <Callout role="status" tone="warning" className="mt-3">
             {uploadNotice.toUpperCase()}
-          </div>
+          </Callout>
         ) : null}
 
-        <button
-          type="button"
+        <Button
+          variant="solid"
+          fullWidth
           disabled={isUploadDisabled}
+          busy={isUploadBusy}
           onClick={() => void upload()}
-          className="mt-4 w-full border border-white bg-white px-4 py-3 text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:bg-neutral-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600"
+          className="mt-4"
         >
-          <BusyLabel busy={isUploadBusy}>
-            {isImageServiceLoading
-              ? 'CHECKING IMAGE SERVICE…'
-              : isUploading
-                ? 'PUBLISHING IMAGE…'
-                : imageUploadSectorIds.length === 0
-                  ? 'SELECT SECTORS'
-                  : !prepared
-                    ? 'CHOOSE IMAGE'
-                    : placementDraft?.placement
-                      ? `PUBLISH ACROSS ${imageUploadSectorIds.length} SECTOR${imageUploadSectorIds.length === 1 ? '' : 'S'}`
-                      : 'LOCKING CAMERA…'}
-          </BusyLabel>
-        </button>
+          {isImageServiceLoading
+            ? 'CHECKING IMAGE SERVICE…'
+            : isUploading
+              ? 'PUBLISHING IMAGE…'
+              : imageUploadSectorIds.length === 0
+                ? 'SELECT SECTORS'
+                : !prepared
+                  ? 'CHOOSE IMAGE'
+                  : placementDraft?.placement
+                    ? `PUBLISH ACROSS ${imageUploadSectorIds.length} SECTOR${imageUploadSectorIds.length === 1 ? '' : 'S'}`
+                    : 'LOCKING CAMERA…'}
+        </Button>
 
-        <div className="mt-4 border-t border-grid pt-3 text-[8px] leading-relaxed tracking-[0.11em] text-neutral-600">
+        <div className="mt-4 border-t border-line pt-3 text-tag text-fg-subtle">
           ONE IMAGE RUNS CONTINUOUSLY ACROSS THE SELECTED SURFACE. LOSING A
           SECTOR HIDES THAT PORTION OF THE ARTWORK.
         </div>

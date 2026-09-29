@@ -1,20 +1,31 @@
 import { useMemo, useState } from 'react';
 import type { StakingHistory, StakingHistoryPoint } from '../../types/staking';
 import {
-  chartColors,
   plottablePoints,
   pointsInRange,
   rangeOptions,
   type HistoryRange,
 } from '../../utils/stakingChart';
+import { chartColors } from '../../../ui/tokens';
 import {
   amountToNumber,
   formatDate,
   formatQuantity,
   parseAmount,
 } from '../../utils/stakingFormat';
-import { TimeSeriesChart, type SeriesPoint } from './charts';
-import { SectionHeading, SegmentedControl } from './primitives';
+import { TimeSeriesChart, type SeriesPoint } from '../../../ui/charts/charts';
+import {
+  Button,
+  Panel,
+  PanelSection,
+  SectionHeading,
+  SegmentedControl,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '../../../ui';
 
 type Asset = 'strk' | 'btc';
 
@@ -52,8 +63,8 @@ export function StakedHistoryPanel({
   const formatValue = (value: number) => `${formatQuantity(value)} ${unit}`;
 
   return (
-    <section aria-labelledby="staked-history" className="border border-grid">
-      <div className="border-b border-grid p-5 sm:p-6">
+    <Panel aria-labelledby="staked-history">
+      <PanelSection>
         <SectionHeading
           id="staked-history"
           eyebrow="NETWORK HISTORY · DAILY AT 00:00 UTC"
@@ -78,23 +89,21 @@ export function StakedHistoryPanel({
           </div>
         </SectionHeading>
         <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <div className="text-3xl text-white">
+          <div className="text-figure tabular-nums text-fg">
             {latest ? formatQuantity(latest.v) : '—'}
-            <span className="ml-2 text-[10px] tracking-[0.16em] text-neutral-500">
-              {unit}
-            </span>
+            <span className="ml-2 text-label text-fg-subtle">{unit}</span>
           </div>
           {change !== null ? (
-            <div className="text-[10px] tracking-[0.12em] text-neutral-400">
+            <div className="text-label text-fg-muted">
               {change >= 0 ? '+' : ''}
               {change.toFixed(1)}% OVER{' '}
               {rangeOptions.find((option) => option.value === range)?.label}
             </div>
           ) : null}
         </div>
-      </div>
+      </PanelSection>
 
-      <div className="px-2 pb-3 pt-4 sm:px-4">
+      <div className="border-b border-line px-2 pb-3 pt-4 sm:px-4">
         {showTable ? (
           <HistoryTable points={series} formatValue={formatValue} />
         ) : (
@@ -112,7 +121,7 @@ export function StakedHistoryPanel({
           />
         )}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-grid px-5 py-3 text-[9px] tracking-[0.16em] text-neutral-600">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-label text-fg-subtle">
         <span>
           {error
             ? `HISTORY UNAVAILABLE · ${error}`
@@ -120,15 +129,14 @@ export function StakedHistoryPanel({
               ? 'BACKFILLING DAILY HISTORY FROM THE STAKING CONTRACT…'
               : 'SOURCE · STARKNET STAKING CONTRACT, READ AT EACH DAY’S LAST BLOCK'}
         </span>
-        <button
-          type="button"
+        <Button
+          variant="link"
           onClick={() => setShowTable((current) => !current)}
-          className="text-neutral-400 transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-white"
         >
           {showTable ? 'VIEW CHART' : 'VIEW TABLE'}
-        </button>
+        </Button>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -141,30 +149,26 @@ export function HistoryTable({
 }) {
   return (
     <div className="activity-scrollbar max-h-72 overflow-y-auto">
-      <table className="w-full text-left text-[10px] tracking-[0.08em]">
-        <thead className="sticky top-0 bg-black text-[9px] tracking-[0.18em] text-neutral-500">
+      <Table>
+        <TableHead sticky>
           <tr>
-            <th scope="col" className="px-3 py-2 font-normal">
-              DATE (UTC)
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-normal">
-              VALUE
-            </th>
+            <TableHeaderCell>DATE (UTC)</TableHeaderCell>
+            <TableHeaderCell numeric>VALUE</TableHeaderCell>
           </tr>
-        </thead>
+        </TableHead>
         <tbody>
           {[...points].reverse().map((point) => (
-            <tr key={point.t} className="border-t border-grid">
-              <td className="px-3 py-1.5 text-neutral-400">
+            <TableRow key={point.t}>
+              <TableCell className="py-1.5 text-fg-muted">
                 {formatDate(point.t)}
-              </td>
-              <td className="px-3 py-1.5 text-right tabular-nums text-neutral-200">
+              </TableCell>
+              <TableCell numeric className="py-1.5">
                 {formatValue(point.v)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }

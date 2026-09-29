@@ -7,7 +7,6 @@ import { shortString, TransactionExecutionStatus } from 'starknet';
 import { Link } from 'react-router-dom';
 import { SupplyDropTopUp } from '../components/ui/SupplyDropTopUp';
 import { WalletButton } from '../components/ui/WalletButton';
-import { BusyLabel } from '../components/ui/Spinner';
 import { AddressLink } from '../components/ui/AddressLink';
 import { useTransactionToast } from '../contexts/TransactionToastContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -30,6 +29,20 @@ import {
   shortAddress,
 } from '../utils/format';
 import { voyagerTransactionUrl } from '../utils/voyager';
+import {
+  Badge,
+  Button,
+  buttonStyles,
+  Callout,
+  ExternalLink,
+  Eyebrow,
+  fieldStyles,
+  PageTitle,
+  Panel,
+  PanelSection,
+  Stat,
+  StatGrid,
+} from '../../ui';
 
 type SubmissionPhase = 'idle' | 'submitting' | 'confirming' | 'confirmed';
 type AuthorizationState = 'idle' | 'checking' | 'allowed' | 'denied' | 'error';
@@ -71,10 +84,7 @@ function InputLabel({
   children: string;
 }) {
   return (
-    <label
-      htmlFor={htmlFor}
-      className="block text-[9px] tracking-[0.2em] text-neutral-500"
-    >
+    <label htmlFor={htmlFor} className="block text-label text-fg-subtle">
       {children}
     </label>
   );
@@ -94,21 +104,21 @@ function CircuitStep({
   return (
     <div className="relative grid grid-cols-[42px_1fr] gap-4 pb-8 last:pb-0">
       <div
-        className={`relative z-[1] flex h-10 w-10 items-center justify-center border text-[10px] transition-colors motion-reduce:transition-none ${
+        className={`relative z-[1] flex h-10 w-10 items-center justify-center border text-caption transition-colors motion-reduce:transition-none ${
           active
-            ? 'border-[#d6a84b] bg-[#d6a84b] text-black'
-            : 'border-neutral-700 bg-black text-neutral-500'
+            ? 'border-gold bg-gold text-surface'
+            : 'border-line-strong bg-surface text-fg-subtle'
         }`}
       >
         {index}
       </div>
       <div className="pt-0.5">
         <div
-          className={`text-[10px] tracking-[0.18em] ${active ? 'text-[#e4bd6b]' : 'text-neutral-300'}`}
+          className={`text-label ${active ? 'text-gold-soft' : 'text-fg-secondary'}`}
         >
           {title}
         </div>
-        <p className="mt-1 text-[10px] leading-5 text-neutral-600">{detail}</p>
+        <p className="mt-1 text-caption text-fg-subtle">{detail}</p>
       </div>
     </div>
   );
@@ -163,79 +173,74 @@ export function SupplyDropCreator() {
     current?.prizeKind === 1 &&
     addressesMatch(current.token, config.strkTokenAddress);
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
       <main className="mx-auto max-w-3xl px-4 pb-20 pt-24 sm:px-6">
-        <header className="border-b border-grid pb-7">
-          <div className="flex flex-wrap items-center gap-3 text-[9px] tracking-[0.22em] text-neutral-500">
+        <header className="border-b border-line pb-7">
+          <div className="flex flex-wrap items-center gap-3 text-label text-fg-subtle">
             <span>
               INTERNAL TOOL //{' '}
               {config.starknetChainId === 'SN_MAIN'
                 ? 'MAINNET'
                 : config.starknetChainId.replace('SN_', '')}
             </span>
-            <span className="border border-[#d6a84b]/50 px-2 py-1 text-[#d6a84b]">
-              UNLISTED ROUTE
-            </span>
+            <Badge tone="gold">UNLISTED ROUTE</Badge>
           </div>
-          <h1 className="mt-3 text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
-            SUPPLY_DROP FOUNDRY
-          </h1>
-          <p className="mt-3 text-[11px] leading-5 text-neutral-500">
+          <PageTitle className="mt-3">SUPPLY_DROP FOUNDRY</PageTitle>
+          <p className="mt-3 text-caption text-fg-subtle">
             Manage the current prize or create a round when no supplyDrop is
             active.
           </p>
         </header>
         {error ? (
-          <div className="mt-7 border border-amber-500/40 p-5">
-            <p role="alert" className="text-[11px] leading-5 text-amber-400">
-              Current supplyDrop could not be verified. {error}
-            </p>
-            <button
-              type="button"
-              onClick={refresh}
-              className="mt-4 text-[10px] text-[#d6a84b] underline"
-            >
-              RETRY SUPPLY_DROP CHECK
-            </button>
-          </div>
+          <Panel as="div" tone="warning" className="mt-7">
+            <PanelSection>
+              <p role="alert" className="text-caption text-warning">
+                Current supplyDrop could not be verified. {error}
+              </p>
+              <Button
+                variant="link"
+                tone="gold"
+                onClick={refresh}
+                className="mt-4"
+              >
+                RETRY SUPPLY_DROP CHECK
+              </Button>
+            </PanelSection>
+          </Panel>
         ) : current == null ? (
-          <p role="status" className="mt-7 text-[11px] text-neutral-500">
+          <p role="status" className="mt-7 text-caption text-fg-subtle">
             Checking current supplyDrop…
           </p>
         ) : (
-          <section className="mt-7 border border-grid p-5 sm:p-8">
+          <Panel className="mt-7 p-5 sm:p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-[11px] tracking-[0.18em] text-[#d6a84b]">
+              <h2 className="text-label text-gold">
                 CURRENT SUPPLY_DROP #{current.id.toString()}
               </h2>
-              <button
-                type="button"
-                onClick={refresh}
-                className="text-[9px] text-neutral-400 underline"
-              >
+              <Button variant="link" onClick={refresh}>
                 REFRESH
-              </button>
+              </Button>
             </div>
-            <p className="mt-5 break-words text-3xl font-bold text-white">
+            <p className="mt-5 break-words text-figure font-bold text-fg">
               {isStrk
                 ? `${formatStrk(current.amount, 18)} STRK`
                 : current.prizeKind === 2
                   ? `NFT #${current.tokenId}`
                   : `${current.amount.toLocaleString()} ${current.prizeKind === 3 ? `UNITS OF #${current.tokenId}` : 'BASE UNITS'}`}
             </p>
-            <p className="mt-2 break-all text-[10px] leading-5 text-neutral-500">
+            <p className="mt-2 break-all text-caption text-fg-subtle">
               TOKEN {current.token}
             </p>
-            <div className="mt-6 grid gap-4 border-t border-grid pt-5 text-[10px] sm:grid-cols-2">
-              <div className="text-neutral-500">
+            <div className="mt-6 grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
+              <div className="text-label text-fg-subtle">
                 DRAW CLOSES{' '}
-                <span className="mt-2 block tabular-nums text-neutral-200">
+                <span className="mt-2 block text-caption tabular-nums text-fg-secondary">
                   {new Date(current.endsAt * 1_000).toLocaleString()}
                 </span>
               </div>
-              <div className="text-neutral-500">
+              <div className="text-label text-fg-subtle">
                 REMAINING{' '}
-                <span className="mt-2 block tabular-nums text-neutral-200">
+                <span className="mt-2 block text-caption tabular-nums text-fg-secondary">
                   {current.status === 2 && now < current.endsAt * 1_000
                     ? formatCountdown(current.endsAt - now / 1_000)
                     : 'AWAITING DRAW / SETTLEMENT'}
@@ -243,7 +248,7 @@ export function SupplyDropCreator() {
               </div>
             </div>
             {current.prizeKind === 2 ? (
-              <p className="mt-6 text-[11px] leading-5 text-neutral-500">
+              <p className="mt-6 text-caption text-fg-subtle">
                 This supplyDrop holds a single NFT. ERC-721 prizes cannot be
                 topped up.
               </p>
@@ -261,16 +266,20 @@ export function SupplyDropCreator() {
                 }
               />
             )}
-            <p className="mt-6 border-t border-grid pt-5 text-[10px] leading-5 text-neutral-500">
+            <p className="mt-6 border-t border-line pt-5 text-caption text-fg-subtle">
               A new supplyDrop can be created after the current round settles.
             </p>
             <Link
               to="/drop"
-              className="mt-3 inline-block text-[10px] text-[#d6a84b] underline"
+              className={buttonStyles({
+                variant: 'link',
+                tone: 'gold',
+                className: 'mt-3',
+              })}
             >
               VIEW SUPPLY_DROP
             </Link>
-          </section>
+          </Panel>
         )}
       </main>
     </div>
@@ -471,42 +480,38 @@ function SupplyDropCreationForm({
   const sequenceStep = phase === 'confirmed' ? 3 : busy ? 2 : 1;
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(115deg,transparent_0%,transparent_58%,rgba(214,168,75,0.035)_58%,rgba(214,168,75,0.035)_100%)]" />
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
+      <div className="pointer-events-none fixed inset-0 bg-gold-slash" />
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
-        <header className="grid gap-6 border-b border-grid pb-7 lg:grid-cols-[1fr_auto] lg:items-end">
+        <header className="grid gap-6 border-b border-line pb-7 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="flex flex-wrap items-center gap-3 text-[9px] tracking-[0.22em] text-neutral-500">
+            <div className="flex flex-wrap items-center gap-3 text-label text-fg-subtle">
               <span>INTERNAL TOOL</span>
-              <span className="text-neutral-700">//</span>
+              <span className="text-fg-disabled">//</span>
               <span>
                 {config.starknetChainId === 'SN_MAIN'
                   ? 'MAINNET'
                   : config.starknetChainId.replace('SN_', '')}
               </span>
-              <span className="border border-[#d6a84b]/50 px-2 py-1 text-[#d6a84b]">
-                UNLISTED ROUTE
-              </span>
+              <Badge tone="gold">UNLISTED ROUTE</Badge>
             </div>
-            <h1 className="mt-3 text-4xl font-bold tracking-[-0.075em] text-white sm:text-6xl">
-              SUPPLY_DROP FOUNDRY
-            </h1>
-            <p className="mt-3 max-w-2xl text-[11px] leading-5 text-neutral-500">
+            <PageTitle className="mt-3">SUPPLY_DROP FOUNDRY</PageTitle>
+            <p className="mt-3 max-w-2xl text-caption text-fg-subtle">
               Arm one prize round. Approval and escrow execute atomically, so a
               failed creation leaves no partial SupplyDrop transaction behind.
             </p>
           </div>
-          <div className="grid grid-cols-2 border-l border-t border-grid text-[8px] tracking-[0.16em] sm:min-w-[320px]">
-            <div className="border-b border-r border-grid px-4 py-3 text-neutral-600">
+          <div className="grid grid-cols-2 border-l border-t border-line text-label sm:min-w-[320px]">
+            <div className="border-b border-r border-line px-4 py-3 text-fg-subtle">
               NETWORK
-              <div className="mt-1 text-[10px] text-neutral-300">
+              <div className="mt-1 text-caption text-fg-secondary">
                 {chainId ?? 'DISCONNECTED'}
               </div>
             </div>
-            <div className="border-b border-r border-grid px-4 py-3 text-neutral-600">
+            <div className="border-b border-r border-line px-4 py-3 text-fg-subtle">
               ACCESS
               <div
-                className={`mt-1 text-[10px] ${authorization === 'allowed' ? 'text-[#e4bd6b]' : 'text-neutral-300'}`}
+                className={`mt-1 text-caption ${authorization === 'allowed' ? 'text-gold-soft' : 'text-fg-secondary'}`}
               >
                 {accessLabel}
               </div>
@@ -514,21 +519,17 @@ function SupplyDropCreationForm({
           </div>
         </header>
 
-        <div className="mt-7 grid border-l border-t border-grid lg:grid-cols-[1.45fr_0.75fr]">
-          <main className="border-b border-r border-grid p-5 sm:p-8">
+        <div className="mt-7 grid border-l border-t border-line lg:grid-cols-[1.45fr_0.75fr]">
+          <main className="border-b border-r border-line p-5 sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[9px] tracking-[0.22em] text-[#d6a84b]">
-                  PRIZE LOADOUT
-                </div>
-                <h2 className="mt-2 text-xl tracking-[0.12em] text-white">
-                  CONFIGURE ROUND
-                </h2>
+                <Eyebrow tone="gold">PRIZE LOADOUT</Eyebrow>
+                <h2 className="mt-2 text-heading text-fg">CONFIGURE ROUND</h2>
               </div>
               {address ? (
-                <div className="text-right text-[8px] tracking-[0.15em] text-neutral-600">
+                <div className="text-right text-label text-fg-subtle">
                   SPONSOR
-                  <div className="mt-1 text-[10px] text-neutral-400">
+                  <div className="mt-1 text-caption text-fg-muted">
                     <AddressLink address={address} />
                   </div>
                 </div>
@@ -538,10 +539,10 @@ function SupplyDropCreationForm({
             </div>
 
             <fieldset className="mt-8">
-              <legend className="text-[9px] tracking-[0.2em] text-neutral-500">
+              <legend className="text-label text-fg-subtle">
                 TOKEN STANDARD
               </legend>
-              <div className="mt-2 grid grid-cols-3 border-l border-t border-neutral-700">
+              <div className="mt-2 grid grid-cols-3 border-l border-t border-line-strong">
                 {PRIZE_OPTIONS.map((option) => (
                   <button
                     key={option.kind}
@@ -552,16 +553,14 @@ function SupplyDropCreationForm({
                       setSubmissionError(null);
                     }}
                     disabled={busy}
-                    className={`border-b border-r px-2 py-4 text-left transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-white disabled:cursor-wait motion-reduce:transition-none sm:px-4 ${
+                    className={`border-b border-r px-2 py-4 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-wait motion-reduce:transition-none sm:px-4 ${
                       prizeKind === option.kind
-                        ? 'border-[#d6a84b] bg-[#d6a84b]/10 text-white'
-                        : 'border-neutral-700 text-neutral-500 hover:bg-neutral-950 hover:text-neutral-200'
+                        ? 'border-gold bg-gold/10 text-fg'
+                        : 'border-line-strong text-fg-subtle hover:bg-surface-raised hover:text-fg-secondary'
                     }`}
                   >
-                    <span className="block text-[10px] tracking-[0.16em] sm:text-xs">
-                      {option.label}
-                    </span>
-                    <span className="mt-1 block text-[7px] tracking-[0.18em] text-neutral-600">
+                    <span className="block text-label">{option.label}</span>
+                    <span className="mt-1 block text-tag text-fg-subtle">
                       {option.detail}
                     </span>
                   </button>
@@ -580,21 +579,25 @@ function SupplyDropCreationForm({
                 autoComplete="off"
                 spellCheck={false}
                 disabled={busy}
-                className="mt-2 w-full border border-neutral-700 bg-black px-4 py-3 text-xs text-white outline-none transition-colors placeholder:text-neutral-800 focus:border-[#d6a84b] disabled:cursor-wait motion-reduce:transition-none"
+                className={fieldStyles({
+                  tone: 'gold',
+                  className: 'mt-2 px-4 py-3',
+                })}
                 placeholder="0x…"
               />
               {prizeKind === 'erc20' && config.strkTokenAddress ? (
-                <button
-                  type="button"
+                <Button
+                  variant="link"
+                  size="sm"
                   onClick={() => {
                     setTokenAddress(config.strkTokenAddress);
                     setDecimals('18');
                   }}
                   disabled={busy}
-                  className="mt-2 border-b border-neutral-700 pb-0.5 text-[8px] tracking-[0.17em] text-neutral-500 transition-colors hover:border-[#d6a84b] hover:text-[#d6a84b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  className="mt-2"
                 >
                   USE STRK
-                </button>
+                </Button>
               ) : null}
             </div>
 
@@ -615,7 +618,11 @@ function SupplyDropCreationForm({
                     inputMode={prizeKind === 'erc20' ? 'decimal' : 'numeric'}
                     autoComplete="off"
                     disabled={busy}
-                    className="mt-2 w-full border border-neutral-700 bg-black px-4 py-4 text-xl tabular-nums text-white outline-none transition-colors placeholder:text-neutral-800 focus:border-[#d6a84b] disabled:cursor-wait motion-reduce:transition-none"
+                    className={fieldStyles({
+                      size: 'lg',
+                      tone: 'gold',
+                      className: 'mt-2 py-4',
+                    })}
                     placeholder="1"
                   />
                 </div>
@@ -633,7 +640,11 @@ function SupplyDropCreationForm({
                     inputMode="numeric"
                     autoComplete="off"
                     disabled={busy}
-                    className="mt-2 w-full border border-neutral-700 bg-black px-4 py-4 text-xl tabular-nums text-white outline-none transition-colors focus:border-[#d6a84b] disabled:cursor-wait motion-reduce:transition-none"
+                    className={fieldStyles({
+                      size: 'lg',
+                      tone: 'gold',
+                      className: 'mt-2 py-4',
+                    })}
                   />
                 </div>
               ) : null}
@@ -650,20 +661,24 @@ function SupplyDropCreationForm({
                     inputMode="numeric"
                     autoComplete="off"
                     disabled={busy}
-                    className="mt-2 w-full border border-neutral-700 bg-black px-4 py-4 text-xl tabular-nums text-white outline-none transition-colors focus:border-[#d6a84b] disabled:cursor-wait motion-reduce:transition-none"
+                    className={fieldStyles({
+                      size: 'lg',
+                      tone: 'gold',
+                      className: 'mt-2 py-4',
+                    })}
                     placeholder="0"
                   />
                 </div>
               ) : null}
             </div>
 
-            <div className="mt-8 border-t border-grid pt-7">
+            <div className="mt-8 border-t border-line pt-7">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <InputLabel htmlFor="supply-drop-duration">
                     ROUND LENGTH
                   </InputLabel>
-                  <div className="mt-2 flex border border-neutral-700 focus-within:border-[#d6a84b]">
+                  <div className="mt-2 flex border border-line-strong focus-within:border-gold">
                     <input
                       id="supply-drop-duration"
                       value={duration}
@@ -671,7 +686,7 @@ function SupplyDropCreationForm({
                       inputMode="numeric"
                       autoComplete="off"
                       disabled={busy}
-                      className="w-28 min-w-0 bg-black px-4 py-3 text-lg tabular-nums text-white outline-none disabled:cursor-wait"
+                      className="w-28 min-w-0 bg-surface px-4 py-3 text-figure-sm tabular-nums text-fg outline-none disabled:cursor-wait"
                     />
                     <select
                       aria-label="SupplyDrop duration unit"
@@ -682,7 +697,7 @@ function SupplyDropCreationForm({
                         )
                       }
                       disabled={busy}
-                      className="border-l border-neutral-700 bg-black px-3 text-[9px] tracking-[0.14em] text-neutral-300 outline-none disabled:cursor-wait"
+                      className="border-l border-line-strong bg-surface px-3 text-label text-fg-secondary outline-none disabled:cursor-wait"
                     >
                       <option value="minutes">MINUTES</option>
                       <option value="hours">HOURS</option>
@@ -692,104 +707,89 @@ function SupplyDropCreationForm({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {DURATION_PRESETS.map((preset) => (
-                    <button
+                    <Button
                       key={preset.label}
-                      type="button"
+                      size="sm"
                       onClick={() => {
                         setDuration(preset.value);
                         setDurationUnit(preset.unit);
                       }}
                       disabled={busy}
-                      className="border border-neutral-700 px-3 py-2 text-[8px] tracking-[0.14em] text-neutral-500 transition-colors hover:border-[#d6a84b] hover:text-[#d6a84b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait"
                     >
                       {preset.label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 grid border-l border-t border-grid sm:grid-cols-3">
-              <div className="border-b border-r border-grid px-4 py-3">
-                <div className="text-[8px] tracking-[0.17em] text-neutral-600">
-                  STANDARD
-                </div>
-                <div className="mt-1 text-[10px] text-neutral-300">
-                  {standardLabel}
-                </div>
-              </div>
-              <div className="border-b border-r border-grid px-4 py-3">
-                <div className="text-[8px] tracking-[0.17em] text-neutral-600">
-                  DURATION
-                </div>
-                <div className="mt-1 text-[10px] text-neutral-300">
-                  {parsedForm.durationSeconds === null
+            <StatGrid className="mt-8 border border-line sm:grid-cols-3">
+              <Stat label="STANDARD" value={standardLabel} />
+              <Stat
+                label="DURATION"
+                value={
+                  parsedForm.durationSeconds === null
                     ? '—'
-                    : displayDuration(parsedForm.durationSeconds)}
-                </div>
-              </div>
-              <div className="border-b border-r border-grid px-4 py-3">
-                <div className="text-[8px] tracking-[0.17em] text-neutral-600">
-                  ESCROW
-                </div>
-                <div className="mt-1 text-[10px] text-[#e4bd6b]">IMMEDIATE</div>
-              </div>
-            </div>
+                    : displayDuration(parsedForm.durationSeconds)
+                }
+              />
+              <Stat
+                label="ESCROW"
+                value={<span className="text-gold-soft">IMMEDIATE</span>}
+              />
+            </StatGrid>
 
-            <button
-              type="button"
+            <Button
+              variant="solid"
+              tone="gold"
+              size="lg"
+              fullWidth
               onClick={() => void submitSupplyDrop()}
               disabled={
                 Boolean(disabledReason) || busy || phase === 'confirmed'
               }
-              className="mt-5 w-full border border-[#d6a84b] bg-[#d6a84b] px-4 py-4 text-[10px] font-semibold tracking-[0.22em] text-black transition-colors hover:bg-black hover:text-[#e4bd6b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-neutral-950 disabled:text-neutral-600 motion-reduce:transition-none"
+              busy={busy}
+              className="mt-5 font-semibold"
             >
-              <BusyLabel
-                busy={phase === 'submitting' || phase === 'confirming'}
-              >
-                {phase === 'submitting'
-                  ? 'AUTHORIZE APPROVAL + CREATION…'
-                  : phase === 'confirming'
-                    ? 'CONFIRMING SUPPLY_DROP…'
-                    : phase === 'confirmed'
-                      ? 'SUPPLY_DROP ARMED'
-                      : disabledReason || 'APPROVE PRIZE + CREATE SUPPLY_DROP'}
-              </BusyLabel>
-            </button>
+              {phase === 'submitting'
+                ? 'AUTHORIZE APPROVAL + CREATION…'
+                : phase === 'confirming'
+                  ? 'CONFIRMING SUPPLY_DROP…'
+                  : phase === 'confirmed'
+                    ? 'SUPPLY_DROP ARMED'
+                    : disabledReason || 'APPROVE PRIZE + CREATE SUPPLY_DROP'}
+            </Button>
 
             {parsedForm.error || authorizationError || submissionError ? (
-              <p
-                role="alert"
-                className="mt-3 border-l border-amber-500 pl-3 text-[10px] leading-5 text-amber-400"
-              >
+              <Callout tone="warning" role="alert" className="mt-3">
                 {submissionError || authorizationError || parsedForm.error}
-              </p>
+              </Callout>
             ) : null}
 
             {lastTransactionHash ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-[#d6a84b]/40 bg-[#d6a84b]/[0.04] px-4 py-3 text-[9px] tracking-[0.14em]">
-                <span className="text-[#e4bd6b]">
+              <Panel
+                as="div"
+                tone="gold"
+                className="mt-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-label"
+              >
+                <span className="text-gold-soft">
                   {phase === 'confirmed'
                     ? 'SUPPLY_DROP ACTIVE'
                     : 'TRANSACTION SENT'}
                 </span>
-                <a
+                <ExternalLink
                   href={voyagerTransactionUrl(lastTransactionHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="border-b border-neutral-600 pb-0.5 text-neutral-400 transition-colors hover:border-white hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  className="text-fg-muted"
                 >
-                  VIEW {shortAddress(lastTransactionHash)} ↗
-                </a>
-              </div>
+                  VIEW {shortAddress(lastTransactionHash)}
+                </ExternalLink>
+              </Panel>
             ) : null}
           </main>
 
-          <aside className="border-b border-r border-grid bg-neutral-950/30 p-5 sm:p-8">
-            <div className="text-[9px] tracking-[0.22em] text-neutral-500">
-              ATOMIC ARMING SEQUENCE
-            </div>
-            <div className="relative mt-8 before:absolute before:bottom-5 before:left-5 before:top-5 before:w-px before:bg-neutral-800">
+          <aside className="border-b border-r border-line bg-surface-raised/30 p-5 sm:p-8">
+            <Eyebrow>ATOMIC ARMING SEQUENCE</Eyebrow>
+            <div className="relative mt-8 before:absolute before:bottom-5 before:left-5 before:top-5 before:w-px before:bg-surface-hover">
               <CircuitStep
                 index="01"
                 title="AUTHORIZE PRIZE"
@@ -814,28 +814,29 @@ function SupplyDropCreationForm({
               />
             </div>
 
-            <div className="mt-9 border border-neutral-800 p-4">
-              <div className="text-[8px] tracking-[0.18em] text-neutral-600">
+            <Panel as="div" className="mt-9 p-4">
+              <div className="text-label text-fg-subtle">
                 SUPPLY_DROP SYSTEM
               </div>
-              <div className="mt-2 break-all text-[9px] leading-5 text-neutral-400">
+              <div className="mt-2 break-all text-caption text-fg-muted">
                 {config.supplyDropSystemAddress || 'NOT CONFIGURED'}
               </div>
-            </div>
+            </Panel>
 
-            <div className="mt-4 border-l border-[#d6a84b] bg-[#d6a84b]/[0.04] px-4 py-3">
-              <div className="text-[8px] tracking-[0.18em] text-[#d6a84b]">
-                ESCROW IS FINAL FOR THE ROUND
-              </div>
-              <p className="mt-2 text-[10px] leading-5 text-neutral-500">
+            <Callout
+              tone="gold"
+              title="ESCROW IS FINAL FOR THE ROUND"
+              className="mt-4 bg-gold/[0.04] py-3 pr-4"
+            >
+              <p className="text-fg-subtle">
                 The prize leaves this wallet immediately. Only the selected
                 winner can claim it after settlement. One active SupplyDrop is
                 allowed globally.
               </p>
-            </div>
+            </Callout>
 
             {prizeKind === 'erc1155' ? (
-              <p className="mt-4 text-[9px] leading-5 text-neutral-600">
+              <p className="mt-4 text-caption text-fg-subtle">
                 ERC-1155 uses collection-wide operator approval. Revoke that
                 approval from your wallet after creation if you do not want it
                 to remain enabled.

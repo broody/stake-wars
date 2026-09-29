@@ -6,7 +6,7 @@ export function ForceBreakdown({ status }: { status: OperatorStatus }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span>IN SECTORS</span>
-      <span className="tabular-nums text-neutral-400">
+      <span className="tabular-nums text-fg-muted">
         {formatStrk(status.sectorForce)}
       </span>
     </div>

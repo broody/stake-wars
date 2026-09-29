@@ -1,10 +1,12 @@
+import { buttonStyles } from '../../ui';
+
 export const Hero = () => {
   return (
     <section className="h-screen flex flex-col justify-center items-center text-center relative px-5">
-      <h1 className="font-main text-[clamp(3rem,8vw,8rem)] leading-[0.9] uppercase mix-blend-exclusion font-black">
+      <h1 className="font-main text-hero uppercase mix-blend-exclusion font-black">
         That's No Moon.
       </h1>
-      <h2 className="font-mono text-[clamp(0.8rem,1.5vw,1.2rem)] mt-5 mb-10 text-[#aaa] tracking-wider text-left md:text-center">
+      <h2 className="font-mono text-lead tracking-wide mt-5 mb-10 text-fg-muted text-left md:text-center">
         <span className="block md:inline">/// TARGET: 2,000 SECTORS</span>
         <span className="hidden md:inline"> &nbsp; </span>
         <span className="block md:inline">/// OBJECTIVE: HIGH GROUND</span>
@@ -13,7 +15,12 @@ export const Hero = () => {
       </h2>
       <a
         href="/play"
-        className="group relative overflow-hidden border border-fg bg-black/70 px-10 py-4 font-mono text-[1.2rem] uppercase text-fg transition-colors duration-200 hover:bg-fg hover:text-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        className={buttonStyles({
+          variant: 'outline',
+          size: 'xl',
+          className:
+            'group relative overflow-hidden border-fg bg-surface/70 text-fg duration-200 focus-visible:outline-2 focus-visible:outline-offset-4',
+        })}
       >
         <span className="relative z-10">[ Enter ]</span>
         <span

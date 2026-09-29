@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react';
+import { cn } from './cn';
 
-export function Spinner({ className = '' }: { className?: string }) {
+export function Spinner({ className }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-block h-3 w-3 shrink-0 animate-spin rounded-full border border-current border-r-transparent align-[-2px] motion-reduce:animate-none ${className}`}
+      className={cn(
+        'inline-block h-3 w-3 shrink-0 animate-spin rounded-full border border-current border-r-transparent align-[-2px] motion-reduce:animate-none',
+        className
+      )}
     />
   );
 }

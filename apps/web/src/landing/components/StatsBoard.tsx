@@ -4,6 +4,7 @@ import {
   getLandingStats,
   type LandingStats,
 } from '../services/stats';
+import { Panel, Stat } from '../../ui';
 
 interface StatItemProps {
   label: string;
@@ -12,12 +13,11 @@ interface StatItemProps {
 
 const StatItem = ({ label, value }: StatItemProps) => {
   return (
-    <div className="stat-item border-b border-dim p-5 text-center last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="stat-label text-[0.8rem] text-[#888] mb-1">{label}</div>
-      <div className="stat-value text-[1.5rem] font-bold text-[#ccc]">
-        {value}
-      </div>
-    </div>
+    <Stat
+      label={label}
+      value={value}
+      className="border-b border-line-strong p-5 text-center last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
+    />
   );
 };
 
@@ -43,9 +43,11 @@ export const StatsBoard = () => {
   const fallback = isUnavailable ? 'UNAVAILABLE' : 'SYNCING';
 
   return (
-    <div
+    <Panel
+      as="div"
       aria-live="polite"
-      className="stats-board mb-20 grid grid-cols-1 border border-dim bg-black/60 opacity-80 md:grid-cols-3"
+      tone="strong"
+      className="mb-20 grid grid-cols-1 bg-surface/60 opacity-80 md:grid-cols-3"
     >
       <StatItem
         label="TOTAL STAKED"
@@ -59,6 +61,6 @@ export const StatsBoard = () => {
         label="SECTORS OCCUPIED"
         value={stats ? stats.occupiedSectors.toLocaleString('en-US') : fallback}
       />
-    </div>
+    </Panel>
   );
 };

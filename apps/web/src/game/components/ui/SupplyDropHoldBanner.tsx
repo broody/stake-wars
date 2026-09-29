@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BusyLabel } from './Spinner';
+import { Button, Callout, Panel, textLinkStyles } from '../../../ui';
 import {
   useProvider,
   useSendTransaction,
@@ -95,13 +95,15 @@ export function SupplyDropHoldBanner() {
   if (!address || (!hold?.held && !error)) return null;
   const retired = Boolean(operatorStatus?.retired);
   return (
-    <aside
+    <Panel
+      as="aside"
+      tone="gold"
       aria-label="Supply Drop staking requirement"
-      className="absolute left-4 right-4 top-20 z-30 border border-[#d6a84b]/60 bg-black/95 p-4 text-[10px] leading-5 text-neutral-300 sm:left-auto sm:w-96"
+      className="absolute left-4 right-4 top-20 z-30 border-gold/60 bg-surface/95 p-4 text-caption text-fg-secondary sm:left-auto sm:w-96"
     >
       {hold?.held ? (
         <>
-          <h2 className="font-bold tracking-widest text-[#d6a84b]">
+          <h2 className="text-label font-bold text-gold">
             SUPPLY DROP · STAKING REQUIRED
           </h2>
           <p className="mt-2">
@@ -109,49 +111,48 @@ export function SupplyDropHoldBanner() {
             Drop hold. Sector actions and image changes are paused; opponents
             can still take over your Sectors.
           </p>
-          <p className="mt-1 text-neutral-500">
+          <p className="mt-1 text-fg-subtle">
             {formatStrk(hold.liveStake, 6)} /{' '}
             {formatStrk(hold.requiredStake, 6)} STRK staked
           </p>
           {retired || hold.exiting ? (
-            <p className="mt-2 text-amber-400">
+            <Callout tone="warning" className="mt-2">
               This account is retired or exiting. Clearing a Drop hold cannot
               restore gameplay.
-            </p>
+            </Callout>
           ) : (
-            <button
-              type="button"
-              disabled={pending}
+            <Button
+              variant="outline"
+              tone="gold"
+              busy={pending}
               onClick={() => void recover()}
-              className="mt-3 border border-[#d6a84b] px-3 py-2 text-[#d6a84b] disabled:opacity-50"
+              className="mt-3"
             >
-              <BusyLabel busy={pending}>
-                {pending ? 'STAKING…' : 'STAKE REMAINING DROP'}
-              </BusyLabel>
-            </button>
+              {pending ? 'STAKING…' : 'STAKE REMAINING DROP'}
+            </Button>
           )}
-          <Link to="/staking" className="ml-3 underline">
+          <Link to="/staking" className={textLinkStyles('neutral', 'ml-3')}>
             View staking
           </Link>
         </>
       ) : (
-        <h2 className="font-bold text-amber-400">
+        <h2 className="font-bold text-warning">
           Supply Drop status unavailable
         </h2>
       )}
       {error ? (
-        <p role="alert" className="mt-2 text-amber-400">
+        <Callout tone="warning" role="alert" className="mt-2">
           {error}
-        </p>
+        </Callout>
       ) : null}
       <button
         type="button"
         onClick={refresh}
         disabled={pending}
-        className="mt-2 block text-neutral-400 underline"
+        className={textLinkStyles('neutral', 'mt-2 block text-fg-muted')}
       >
         Refresh status
       </button>
-    </aside>
+    </Panel>
   );
 }

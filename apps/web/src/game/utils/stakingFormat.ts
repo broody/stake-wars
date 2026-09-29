@@ -6,20 +6,10 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
 const groupedFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
-const dayFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-});
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
-  timeZone: 'UTC',
-});
-const monthFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  year: '2-digit',
   timeZone: 'UTC',
 });
 
@@ -91,14 +81,8 @@ export function formatDuration(totalSeconds: number): string {
   return `${seconds}S`;
 }
 
-export function formatDay(timestampSeconds: number): string {
-  return dayFormatter.format(timestampSeconds * 1_000).toUpperCase();
-}
-
 export function formatDate(timestampSeconds: number): string {
   return dateFormatter.format(timestampSeconds * 1_000).toUpperCase();
 }
 
-export function formatMonth(timestampSeconds: number): string {
-  return monthFormatter.format(timestampSeconds * 1_000).toUpperCase();
-}
+export { formatDay, formatMonth } from '../../ui/charts/scale';

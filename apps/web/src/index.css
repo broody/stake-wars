@@ -2,34 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --color-alert: #c94f5a;
-}
-
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-.force-alert-button {
-  border-color: var(--color-alert);
-  background-color: var(--color-alert);
-  color: #000000;
-}
-
-.force-alert-button:hover {
-  background-color: #000000;
-  color: var(--color-alert);
-}
-
-.force-alert-button:focus-visible {
-  outline-color: var(--color-alert);
-}
-
 @layer base {
   body {
-    @apply bg-bg text-fg font-mono overflow-x-hidden;
+    @apply bg-surface text-fg font-mono overflow-x-hidden;
     cursor: crosshair;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -39,15 +20,17 @@
     @apply text-fg no-underline;
   }
 
+  /* One focus ring everywhere. Override its color or offset with
+     focus-visible:outline-* utilities; never remove it without a
+     replacement. */
+  :focus-visible {
+    outline: 1px solid theme('colors.fg.DEFAULT');
+    outline-offset: 2px;
+  }
+
   #root {
     width: 100%;
     min-height: 100vh;
-  }
-}
-
-@layer components {
-  .game-page-title {
-    @apply font-mono text-4xl font-bold tracking-[-0.06em] text-fg sm:text-6xl;
   }
 }
 

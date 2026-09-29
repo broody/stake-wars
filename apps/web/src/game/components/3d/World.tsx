@@ -24,6 +24,7 @@ import {
 import { useTransactionToast } from '../../contexts/TransactionToastContext';
 import { MAX_SECTOR_SELECTION } from '../../services/sectorLimits';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
+import { colors } from '../../../ui/tokens';
 import { SECTOR_COUNT } from '../../utils/sectorGeometry';
 import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
@@ -138,19 +139,17 @@ function CoreLoadingOverlay({ visible }: { visible: boolean }) {
     <div
       role="status"
       aria-hidden={!visible}
-      className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black font-mono transition-opacity duration-700 motion-reduce:transition-none ${
+      className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface font-mono transition-opacity duration-700 motion-reduce:transition-none ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
     >
-      <div className="text-xs tracking-[0.32em] text-neutral-300">
+      <div className="text-label text-fg-secondary">
         INITIALIZING CORE
         <span className="animate-blinker" aria-hidden="true">
           _
         </span>
       </div>
-      <div className="text-[9px] tracking-[0.24em] text-neutral-600">
-        MAPPING 2,000 SECTORS
-      </div>
+      <div className="text-label text-fg-subtle">MAPPING 2,000 SECTORS</div>
     </div>
   );
 }
@@ -191,10 +190,10 @@ function PlacementGuide({
 
   return (
     <div
-      className={`absolute border shadow-[0_0_0_1px_rgba(0,0,0,0.75)] ${
+      className={`absolute border shadow-halo ${
         isPlacementLocked
-          ? 'cursor-not-allowed border-neutral-500 bg-black/20'
-          : 'cursor-move border-dashed border-white/75 bg-white/[0.025]'
+          ? 'cursor-not-allowed border-fg-subtle bg-surface/20'
+          : 'cursor-move border-dashed border-fg/75 bg-fg/[0.025]'
       }`}
       style={{
         left,
@@ -260,7 +259,7 @@ function PlacementGuide({
           aria-valuemax={200}
           aria-valuenow={Math.round(placement.scale * 100)}
           disabled={isPlacementLocked}
-          className={`absolute z-10 h-3 w-3 border border-white bg-black/70 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:border-neutral-600 ${corner.className}`}
+          className={`absolute z-10 h-3 w-3 border border-fg bg-surface/70 disabled:cursor-not-allowed disabled:border-line-strong ${corner.className}`}
           onPointerDown={(event) => {
             if (isPlacementLocked) return;
             event.preventDefault();
@@ -702,7 +701,11 @@ export function World({ active = true }: { active?: boolean }) {
         camera={{ position: [0, 0, 15], fov: 75 }}
         dpr={dpr}
         gl={{ powerPreference: 'high-performance' }}
-        style={{ width: '100%', height: '100%', background: '#000000' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          background: colors.surface.DEFAULT,
+        }}
       >
         {/* Drop to 1x resolution when the device cannot hold its frame rate. */}
         <PerformanceMonitor

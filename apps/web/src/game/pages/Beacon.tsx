@@ -17,6 +17,7 @@ import {
   buildBeaconSettleCall,
 } from '../services/beaconBid';
 import { parseStrk } from '../utils/format';
+import { cn, Eyebrow, PageTitle, Panel } from '../../ui';
 
 export function Beacon() {
   const location = useLocation();
@@ -105,33 +106,31 @@ export function Beacon() {
   }, [snapshot, submit]);
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_88%_10%,rgba(255,255,255,0.055),transparent_24%)]" />
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
+      <div className="pointer-events-none fixed inset-0 bg-glow-white-corner" />
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:px-6 sm:pt-24">
-        <header className="relative border-b border-grid pb-5 pr-24 sm:pb-6 sm:pr-36">
-          <div className="text-[9px] tracking-[0.26em] text-dim">
-            OPEN SIGNAL AUCTION
-          </div>
-          <h1 className="game-page-title mt-1">THE BEACON</h1>
-          <p className="mt-2 max-w-xl text-[11px] leading-5 text-neutral-400">
+        <header className="relative border-b border-line pb-5 pr-24 sm:pb-6 sm:pr-36">
+          <Eyebrow>OPEN SIGNAL AUCTION</Eyebrow>
+          <PageTitle className="mt-1">THE BEACON</PageTitle>
+          <p className="mt-2 max-w-xl text-caption text-fg-muted">
             Bid for control of the Beacon. The winning Operator controls the
             image, description, and link it transmits.
           </p>
 
           <div className="absolute right-0 top-0 flex items-center gap-3">
-            <div className="hidden text-right text-[7px] tracking-[0.18em] text-neutral-600 sm:block">
+            <div className="hidden text-right text-tag text-fg-subtle sm:block">
               <div>LIVE OBJECT</div>
-              <div className="mt-1 text-neutral-400">BEACON // 01</div>
+              <div className="mt-1 text-fg-muted">BEACON // 01</div>
             </div>
-            <div className="h-16 w-16 border border-grid bg-black sm:h-24 sm:w-24">
+            <Panel as="div" className="h-16 w-16 sm:h-24 sm:w-24">
               <BeaconLogo className="pointer-events-none h-full w-full" />
-            </div>
+            </Panel>
           </div>
         </header>
 
         <nav
           aria-label="Beacon pages"
-          className="mb-5 flex border-b border-grid sm:mb-6"
+          className="mb-5 flex border-b border-line sm:mb-6"
         >
           <BeaconPageLink
             to="/beacon"
@@ -185,9 +184,10 @@ function BeaconPageLink({
     <Link
       to={{ pathname: to, search }}
       aria-current={active ? 'page' : undefined}
-      className={`min-w-28 border-x border-grid px-5 py-3 text-center text-[9px] tracking-[0.2em] transition-colors first:border-r-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-[-3px] focus-visible:outline-fg ${
-        active ? 'bg-fg text-bg' : 'text-neutral-500 hover:text-fg'
-      }`}
+      className={cn(
+        'min-w-28 border-x border-line px-5 py-3 text-center text-label transition-colors first:border-r-0 focus-visible:outline-offset-[-3px]',
+        active ? 'bg-fg text-surface' : 'text-fg-subtle hover:text-fg'
+      )}
     >
       {children}
     </Link>

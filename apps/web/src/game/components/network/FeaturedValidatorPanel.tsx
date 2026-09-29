@@ -16,9 +16,18 @@ import {
   parseAmount,
 } from '../../utils/stakingFormat';
 import { voyagerValidatorUrl } from '../../utils/voyager';
-import { chartColors, plottablePoints } from '../../utils/stakingChart';
-import { Sparkline } from './charts';
-import { ExternalLink, StatCell } from './primitives';
+import { plottablePoints } from '../../utils/stakingChart';
+import { chartColors } from '../../../ui/tokens';
+import { Sparkline } from '../../../ui/charts/charts';
+import {
+  Badge,
+  buttonStyles,
+  Eyebrow,
+  ExternalLink,
+  Panel,
+  Stat,
+  StatGrid,
+} from '../../../ui';
 
 const TREND_DAYS = 90;
 
@@ -44,11 +53,11 @@ export function FeaturedValidatorPanel({
 
   if (!validator) {
     return (
-      <section className="border border-[#ff4a04]/60 bg-[#ff4a04]/[0.05] p-5 text-[10px] tracking-[0.16em] text-neutral-400">
+      <Panel tone="accent" className="p-5 text-label text-fg-muted">
         {snapshot.index.stakingSynced
           ? 'THE STAKE WARS VALIDATOR IS NOT IN THE VALIDATOR SET'
           : 'LOCATING THE STAKE WARS VALIDATOR WHILE THE STAKING INDEX CATCHES UP…'}
-      </section>
+      </Panel>
     );
   }
 
@@ -65,16 +74,16 @@ export function FeaturedValidatorPanel({
     : null;
 
   return (
-    <section
-      aria-labelledby="featured-validator"
-      className="border border-[#ff4a04]/60 bg-[#ff4a04]/[0.04]"
-    >
-      <div className="flex flex-col gap-5 border-b border-[#ff4a04]/20 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+    <Panel tone="accent" aria-labelledby="featured-validator">
+      <div className="flex flex-col gap-5 border-b border-accent/20 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] tracking-[0.22em] text-[#ff6a2f]">
+          <Eyebrow
+            tone="accent"
+            className="flex flex-wrap items-center gap-x-3 gap-y-2"
+          >
             <span>OUR VALIDATOR</span>
             {validator.rank !== null ? (
-              <span className="text-neutral-400">
+              <span className="text-fg-muted">
                 RANK #{validator.rank} OF {snapshot.totals.activeValidators}
               </span>
             ) : null}
@@ -82,14 +91,14 @@ export function FeaturedValidatorPanel({
               validator={validator}
               now={snapshot.block.timestamp}
             />
-          </div>
+          </Eyebrow>
           <h2
             id="featured-validator"
-            className="mt-2 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl"
+            className="mt-2 text-figure font-bold text-fg"
           >
-            STAKE<span className="text-dim">//</span>WARS
+            STAKE<span className="text-fg-disabled">//</span>WARS
           </h2>
-          <div className="mt-2 text-[10px] tracking-[0.1em] text-neutral-500">
+          <div className="mt-2 text-label text-fg-subtle">
             <span title={validator.address}>
               {shortAddress(validator.address)}
             </span>
@@ -98,21 +107,28 @@ export function FeaturedValidatorPanel({
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             to="/staking"
-            className="border border-white bg-white px-5 py-3 text-center text-[10px] font-semibold tracking-[0.2em] text-black transition-colors hover:bg-black hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className={buttonStyles({
+              variant: 'solid',
+              className: 'font-bold',
+            })}
           >
             STAKE WITH STAKE WARS →
           </Link>
           <ExternalLink
+            quiet
             href={voyagerValidatorUrl(validator.address)}
-            className="border border-[#ff4a04]/60 px-5 py-3 text-center text-[10px] tracking-[0.2em] text-[#ff6a2f] hover:border-[#ff4a04]"
+            className={buttonStyles({ tone: 'accent' })}
           >
             VOYAGER
           </ExternalLink>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px bg-[#ff4a04]/20 sm:grid-cols-3 xl:grid-cols-6 [&>*]:border-0 [&>*]:bg-[#0a0300]">
-        <StatCell
+      <StatGrid
+        tone="accent"
+        className="grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
+      >
+        <Stat
           label="TOTAL STAKE"
           value={formatAmount(totalStrk)}
           unit="STRK"
@@ -123,16 +139,16 @@ export function FeaturedValidatorPanel({
           }
           emphasis
         />
-        <StatCell
+        <Stat
           label="BTC DELEGATED"
           value={formatAmount(delegatedBtc)}
           unit="BTC"
         />
-        <StatCell
+        <Stat
           label="STAKING POWER"
           value={formatPercent(validator.stakingPowerPercent, 3)}
         />
-        <StatCell
+        <Stat
           label="DELEGATOR APR"
           value={formatPercent(validator.aprStrkPercent)}
           detail={
@@ -141,11 +157,11 @@ export function FeaturedValidatorPanel({
               : undefined
           }
         />
-        <StatCell
+        <Stat
           label="COMMISSION"
           value={formatCommission(validator.commissionBps)}
         />
-        <StatCell
+        <Stat
           label="DELEGATORS"
           value={
             validator.delegators === null
@@ -158,13 +174,13 @@ export function FeaturedValidatorPanel({
               : undefined
           }
         />
-      </div>
+      </StatGrid>
 
-      <div className="flex flex-col gap-3 border-t border-[#ff4a04]/20 p-5 sm:flex-row sm:items-center sm:gap-6 sm:px-6">
-        <div className="shrink-0 text-[9px] tracking-[0.2em] text-neutral-500">
+      <div className="flex flex-col gap-3 border-t border-accent/20 p-5 sm:flex-row sm:items-center sm:gap-6 sm:px-6">
+        <div className="shrink-0 text-label text-fg-subtle">
           STAKE · LAST {TREND_DAYS}D
           {trendChange !== null ? (
-            <div className="mt-1 text-sm tracking-normal text-white">
+            <div className="mt-1 text-figure-sm text-fg">
               {trendChange >= 0 ? '+' : ''}
               {trendChange.toFixed(1)}%
             </div>
@@ -178,13 +194,13 @@ export function FeaturedValidatorPanel({
               label={`Stake Wars validator stake over the last ${TREND_DAYS} days`}
             />
           ) : (
-            <div className="text-[9px] tracking-[0.18em] text-neutral-600">
+            <div className="text-label text-fg-subtle">
               TREND APPEARS ONCE DAILY HISTORY REACHES THIS VALIDATOR
             </div>
           )}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -197,21 +213,18 @@ function ValidatorStatus({
 }) {
   if (validator.status === 'exiting') {
     return (
-      <span className="flex items-center gap-1.5 text-amber-400">
-        <span aria-hidden="true">■</span>
+      <Badge tone="warning">
         EXITING
         {validator.unstakeAt
           ? ` · ${formatDuration(validator.unstakeAt - now)}`
           : ''}
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="flex items-center gap-1.5 text-neutral-300">
-      <span aria-hidden="true" className="text-emerald-400">
-        ●
-      </span>
+    <Badge tone="success">
+      <span aria-hidden="true">●</span>
       ACTIVE
-    </span>
+    </Badge>
   );
 }

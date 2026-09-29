@@ -33,6 +33,12 @@ const Network = lazy(() =>
   }))
 );
 
+const UiReference = lazy(() =>
+  import('../ui/reference/ReferencePage').then((module) => ({
+    default: module.ReferencePage,
+  }))
+);
+
 const SupplyDropCreator = lazy(() =>
   import('./pages/SupplyDropCreator').then((module) => ({
     default: module.SupplyDropCreator,
@@ -69,6 +75,14 @@ function GamePages() {
               element={
                 <Suspense fallback={null}>
                   <Network />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/ui"
+              element={
+                <Suspense fallback={null}>
+                  <UiReference />
                 </Suspense>
               }
             />

@@ -3,6 +3,7 @@ import { OperatorActivityTable } from '../components/ui/OperatorActivityTable';
 import { useSectors } from '../contexts/SectorContext';
 import { useWallet } from '../contexts/WalletContext';
 import { AddressLink } from '../components/ui/AddressLink';
+import { Button, Callout, Eyebrow, PageTitle, Panel } from '../../ui';
 
 export function Operator() {
   const { isConnected, address, walletName } = useWallet();
@@ -11,78 +12,68 @@ export function Operator() {
 
   if (!isConnected) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-bg px-4">
-        <div className="w-full max-w-md border border-grid p-8 text-center font-mono">
-          <div className="text-xs tracking-[0.24em] text-dim">
-            OPERATOR TERMINAL
-          </div>
-          <h1 className="mb-4 mt-3 text-2xl tracking-wider text-white">
-            CONNECT YOUR WALLET
-          </h1>
-          <p className="mb-6 text-sm leading-relaxed text-neutral-500">
+      <div className="flex h-full w-full items-center justify-center bg-surface px-4">
+        <Panel as="div" className="w-full max-w-md p-8 text-center font-mono">
+          <Eyebrow>OPERATOR TERMINAL</Eyebrow>
+          <h1 className="mb-4 mt-3 text-title text-fg">CONNECT YOUR WALLET</h1>
+          <p className="mb-6 text-body text-fg-subtle">
             Connect to read your Control Force, Sectors, and activity.
           </p>
           <div className="inline-block">
             <WalletButton />
           </div>
-        </div>
+        </Panel>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-bg font-mono">
+    <div className="h-full w-full overflow-y-auto bg-surface font-mono">
       <div className="mx-auto max-w-6xl px-4 pb-20 pt-24">
-        <header className="flex flex-col gap-6 border-b border-grid pb-8 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[10px] tracking-[0.28em] text-neutral-500">
-              OPERATOR TERMINAL
-            </div>
-            <h1 className="mt-3 text-4xl tracking-[-0.04em] text-white sm:text-6xl">
-              CONNECTED OPERATOR
-            </h1>
+            <Eyebrow>OPERATOR TERMINAL</Eyebrow>
+            <PageTitle className="mt-3">CONNECTED OPERATOR</PageTitle>
           </div>
 
-          <div className="border border-grid px-5 py-4 sm:min-w-64">
-            <div className="text-[8px] tracking-[0.2em] text-neutral-500">
-              CONNECTED WALLET
-            </div>
-            <div className="mt-1 text-[10px] tracking-[0.16em] text-white">
+          <Panel as="div" className="min-w-0 px-5 py-4 sm:min-w-64">
+            <Eyebrow>CONNECTED WALLET</Eyebrow>
+            <div className="mt-1 text-label text-fg">
               {walletName || 'WALLET'}
             </div>
-            <div className="mt-1 text-[9px] tabular-nums text-neutral-500">
+            <div className="mt-1 text-label tabular-nums text-fg-subtle">
               {address ? <AddressLink address={address} /> : 'NOT CONNECTED'}
             </div>
-          </div>
+          </Panel>
         </header>
 
         <section className="mt-8">
           {isOperatorLoading ? (
-            <div className="flex items-center gap-3 border-y border-grid py-12 text-[10px] tracking-[0.18em] text-neutral-500">
-              <span className="h-1.5 w-1.5 animate-pulse bg-white" />
+            <div className="flex items-center gap-3 border-y border-line py-12 text-label text-fg-subtle">
+              <span className="h-1.5 w-1.5 animate-pulse bg-fg" />
               READING ON-CHAIN OPERATOR STATE…
             </div>
           ) : null}
 
           {operatorError ? (
-            <div className="border border-amber-500/40 p-5 text-xs">
-              <p className="text-amber-400">{operatorError}</p>
-              <button
-                type="button"
-                onClick={refreshOperator}
-                className="mt-4 border border-neutral-600 px-4 py-2 text-[10px] tracking-[0.2em] text-white transition-colors hover:border-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white"
-              >
-                RETRY OPERATOR READ
-              </button>
-            </div>
+            <Callout
+              tone="warning"
+              action={
+                <Button variant="outline" onClick={refreshOperator}>
+                  RETRY OPERATOR READ
+                </Button>
+              }
+            >
+              {operatorError}
+            </Callout>
           ) : null}
 
           {operatorStatus?.needsSync ? (
-            <div className="border-l-2 border-amber-400 pl-4 text-[10px] leading-5 text-amber-400">
+            <Callout tone="warning">
               OPERATOR SYNC REQUIRED · Live stake is below the Force backing
               your Sectors. Syncing invalidates the current ownership
               generation.
-            </div>
+            </Callout>
           ) : null}
         </section>
 
