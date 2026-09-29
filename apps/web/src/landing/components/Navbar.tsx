@@ -7,7 +7,7 @@ export const Navbar = () => {
     <nav className="flex justify-between items-center px-5 py-4 border-b border-dim bg-black/80 backdrop-blur-sm fixed w-full top-0 z-[100]">
       <div className="brand flex items-center">
         <span className="font-bold text-[1.2rem] tracking-tight">
-          STAKEWARS_<span className="animate-blinker">|</span>
+          STAKEWARS<span className="animate-blinker">_</span>
         </span>
       </div>
 
