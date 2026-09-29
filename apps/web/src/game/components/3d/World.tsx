@@ -123,6 +123,37 @@ function PlacementCameraCapture() {
   return null;
 }
 
+// Commits only after every sibling in its Suspense boundary has resolved, so
+// the first call marks the moment the Core scene can actually draw.
+function SceneReadySignal({ onReady }: { onReady: () => void }) {
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+  return null;
+}
+
+function CoreLoadingOverlay({ visible }: { visible: boolean }) {
+  return (
+    <div
+      role="status"
+      aria-hidden={!visible}
+      className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black font-mono transition-opacity duration-700 motion-reduce:transition-none ${
+        visible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <div className="text-xs tracking-[0.32em] text-neutral-300">
+        INITIALIZING CORE
+        <span className="animate-blinker" aria-hidden="true">
+          _
+        </span>
+      </div>
+      <div className="text-[9px] tracking-[0.24em] text-neutral-600">
+        MAPPING 2,000 SECTORS
+      </div>
+    </div>
+  );
+}
+
 function PlacementGuide({
   containerRef,
 }: {
@@ -429,6 +460,8 @@ export function World({ active = true }: { active?: boolean }) {
     Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR)
   );
   const [dpr, setDpr] = useState(maxDpr);
+  const [isSceneReady, setSceneReady] = useState(false);
+  const markSceneReady = useCallback(() => setSceneReady(true), []);
   const [marqueeStart, setMarqueeStart] = useState<PointerPosition | null>(
     null
   );
@@ -678,6 +711,7 @@ export function World({ active = true }: { active?: boolean }) {
             swarmCounts={swarmCounts}
             active={active}
           />
+          <SceneReadySignal onReady={markSceneReady} />
         </Suspense>
 
         <MarqueeSelector
@@ -721,6 +755,7 @@ export function World({ active = true }: { active?: boolean }) {
         />
       </Canvas>
 
+      <CoreLoadingOverlay visible={!isSceneReady} />
       <PlacementGuide containerRef={worldRef} />
 
       <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />

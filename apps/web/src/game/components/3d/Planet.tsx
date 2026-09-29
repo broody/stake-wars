@@ -37,14 +37,13 @@ import {
   addSectorLineFlipAttributes,
   randomOutsideSectorWaveOrigin,
   randomVisibleOutsideSectorWaveOrigin,
-  sectorLoadRevealFlickerOpacity,
   sectorFlipWaveDelayForCount,
   sectorWaveDistanceRange as createSectorWaveDistanceRange,
   SECTOR_FLIP_DURATION_SECONDS,
-  SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
-  SECTOR_LOAD_REVEAL_DURATION_SECONDS,
-  SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
 } from '../../utils/sectorFlip';
+import type { CoreIntro } from '../../hooks/useCoreIntro';
+import { useFlipProgress } from '../../hooks/useFlipProgress';
+import { coreIntroBorderOpacity } from '../../utils/coreIntro';
 import {
   combineSectorSelections,
   contiguousSectorIds,
@@ -76,58 +75,10 @@ interface SectorLoadRevealAnimationState {
 type SectorLoadRevealAnimationRef =
   MutableRefObject<SectorLoadRevealAnimationState>;
 
-function useSectorLoadRevealAnimation(
-  isSectorIndexReady: boolean
-): SectorLoadRevealAnimationRef {
-  const prefersReducedMotion = useMemo(
-    () =>
-      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
-      false,
-    []
-  );
-  const animationRef = useRef<SectorLoadRevealAnimationState>({
-    progress:
-      isSectorIndexReady && !prefersReducedMotion
-        ? 0
-        : SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
-  });
-  const previousReadyRef = useRef(isSectorIndexReady);
-
-  if (isSectorIndexReady !== previousReadyRef.current) {
-    previousReadyRef.current = isSectorIndexReady;
-    animationRef.current.progress =
-      isSectorIndexReady && !prefersReducedMotion
-        ? 0
-        : SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS;
-  }
-
-  useFrame((_state, delta) => {
-    if (
-      !isSectorIndexReady ||
-      animationRef.current.progress >= SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS
-    ) {
-      return;
-    }
-    animationRef.current.progress = Math.min(
-      SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
-      animationRef.current.progress +
-        delta / SECTOR_LOAD_REVEAL_DURATION_SECONDS
-    );
-  });
-
-  return animationRef;
-}
-
 function sectorLoadRevealCompletionOpacity(
   animation: SectorLoadRevealAnimationRef
 ): number {
-  const progress = THREE.MathUtils.clamp(
-    (animation.current.progress - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY) /
-      (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY),
-    0,
-    1
-  );
-  return sectorLoadRevealFlickerOpacity(progress);
+  return coreIntroBorderOpacity(animation.current.progress);
 }
 
 function useReliefAnimation(
@@ -182,10 +133,7 @@ const SECTOR_FLIP_VERTEX_SHADER = `
   uniform vec3 uWaveOrigin;
   uniform vec2 uWaveDistanceRange;
   uniform float uWaveDelay;
-  uniform float uLoadRevealProgress;
-  uniform float uLoadRevealWaveDelay;
   varying float vFlipProgress;
-  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
 
   void main() {
@@ -201,21 +149,6 @@ const SECTOR_FLIP_VERTEX_SHADER = `
       1.0
     );
     float waveDelay = normalizedDistance * uWaveDelay;
-    float revealNoise = fract(
-      sin(dot(normalize(flipPivot), vec3(12.9898, 78.233, 37.719)))
-        * 43758.5453
-    );
-    float revealDelay = min(
-      normalizedDistance * max(uLoadRevealWaveDelay - 0.08, 0.0)
-        + revealNoise * 0.08,
-      uLoadRevealWaveDelay
-    );
-    vLoadRevealProgress = clamp(
-      (uLoadRevealProgress - revealDelay)
-        / max(1.0 - uLoadRevealWaveDelay, 0.000001),
-      0.0,
-      1.0
-    );
     float waveProgress = uFlipDirection > 0.0
       ? uFlipProgress
       : 1.0 - uFlipProgress;
@@ -268,39 +201,24 @@ const SECTOR_FLIP_VERTEX_SHADER = `
   }
 `;
 
-const SECTOR_LOAD_REVEAL_FRAGMENT_GLSL = `
-  float sectorLoadRevealOpacity(float progress) {
-    float clampedProgress = clamp(progress, 0.0, 1.0);
-    if (clampedProgress <= 0.08) return mix(0.0, 0.9, clampedProgress / 0.08);
-    if (clampedProgress <= 0.16) return mix(0.9, 0.12, (clampedProgress - 0.08) / 0.08);
-    if (clampedProgress <= 0.28) return mix(0.12, 0.82, (clampedProgress - 0.16) / 0.12);
-    if (clampedProgress <= 0.37) return mix(0.82, 0.24, (clampedProgress - 0.28) / 0.09);
-    if (clampedProgress <= 0.5) return mix(0.24, 1.0, (clampedProgress - 0.37) / 0.13);
-    if (clampedProgress <= 0.62) return mix(1.0, 0.48, (clampedProgress - 0.5) / 0.12);
-    if (clampedProgress <= 0.78) return mix(0.48, 1.0, (clampedProgress - 0.62) / 0.16);
-    return 1.0;
-  }
-`;
-
+// Until the load intro settles, control faces stay hidden so each Sector
+// first appears by flipping onto its projection face.
 const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform vec3 uBackColor;
   uniform float uBackVisible;
+  uniform float uLoadRevealProgress;
   varying float vFlipProgress;
-  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
 
-  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
-
   void main() {
+    if (vFlipProgress < 0.5 && uLoadRevealProgress < 1.0) discard;
     vec3 panelColor = uColor;
     if (vFlipProgress >= 0.5) {
       if (uBackVisible < 0.5) discard;
       panelColor = uBackColor;
     }
-    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
-    if (revealOpacity <= 0.001) discard;
-    gl_FragColor = vec4(panelColor, revealOpacity);
+    gl_FragColor = vec4(panelColor, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -308,22 +226,19 @@ const SECTOR_TOP_FLIP_FRAGMENT_SHADER = `
 
 const SECTOR_SIDE_FLIP_FRAGMENT_SHADER = `
   uniform vec3 uColor;
+  uniform float uLoadRevealProgress;
   varying float vFlipProgress;
-  varying float vLoadRevealProgress;
   varying vec3 vViewNormal;
-
-  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
 
   void main() {
     if (vFlipProgress >= 0.999) discard;
+    if (vFlipProgress < 0.5 && uLoadRevealProgress < 1.0) discard;
     vec3 viewNormal = normalize(vViewNormal);
     if (!gl_FrontFacing) viewNormal = -viewNormal;
     vec3 lightDirection = normalize(vec3(-0.45, 0.65, 0.60));
     float directionalLight = max(dot(viewNormal, lightDirection), 0.0);
     float shade = mix(0.36, 1.05, pow(directionalLight, 0.75));
-    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
-    if (revealOpacity <= 0.001) discard;
-    gl_FragColor = vec4(uColor * shade, revealOpacity);
+    gl_FragColor = vec4(uColor * shade, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -374,9 +289,7 @@ const RELIEF_LINE_VERTEX_SHADER = `
   uniform vec3 uWaveOrigin;
   uniform vec2 uWaveDistanceRange;
   uniform float uWaveDelay;
-  uniform float uLoadRevealProgress;
-  uniform float uLoadRevealWaveDelay;
-  varying float vLoadRevealProgress;
+  varying float vFlipProgress;
 
   void main() {
     float angularDistance = acos(clamp(
@@ -391,21 +304,6 @@ const RELIEF_LINE_VERTEX_SHADER = `
       1.0
     );
     float waveDelay = normalizedDistance * uWaveDelay;
-    float revealNoise = fract(
-      sin(dot(normalize(flipPivot), vec3(12.9898, 78.233, 37.719)))
-        * 43758.5453
-    );
-    float revealDelay = min(
-      normalizedDistance * max(uLoadRevealWaveDelay - 0.08, 0.0)
-        + revealNoise * 0.08,
-      uLoadRevealWaveDelay
-    );
-    vLoadRevealProgress = clamp(
-      (uLoadRevealProgress - revealDelay)
-        / max(1.0 - uLoadRevealWaveDelay, 0.000001),
-      0.0,
-      1.0
-    );
     float waveProgress = uFlipDirection > 0.0
       ? uFlipProgress
       : 1.0 - uFlipProgress;
@@ -452,6 +350,7 @@ const RELIEF_LINE_VERTEX_SHADER = `
       + hingePosition
       + panelWidth * collapse
       + flipNormal * lift;
+    vFlipProgress = localProgress;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(flippedPosition, 1.0);
   }
 `;
@@ -459,14 +358,17 @@ const RELIEF_LINE_VERTEX_SHADER = `
 const RELIEF_LINE_FRAGMENT_SHADER = `
   uniform vec3 uColor;
   uniform float uOpacity;
-  varying float vLoadRevealProgress;
-
-  ${SECTOR_LOAD_REVEAL_FRAGMENT_GLSL}
+  uniform float uLoadRevealProgress;
+  varying float vFlipProgress;
 
   void main() {
-    float revealOpacity = sectorLoadRevealOpacity(vLoadRevealProgress);
-    if (revealOpacity <= 0.001) discard;
-    gl_FragColor = vec4(uColor, uOpacity * revealOpacity);
+    float introFade = 1.0;
+    if (uLoadRevealProgress < 1.0) {
+      if (vFlipProgress < 0.5) discard;
+      // Fade in as each panel lands during the load intro.
+      introFade = smoothstep(0.5, 1.0, vFlipProgress);
+    }
+    gl_FragColor = vec4(uColor, uOpacity * introFade);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -666,7 +568,6 @@ function AnimatedReliefLineMaterial({
       uWaveDistanceRange: { value: waveDistanceRange },
       uWaveDelay: { value: waveDelay },
       uLoadRevealProgress: { value: loadRevealAnimation.current.progress },
-      uLoadRevealWaveDelay: { value: SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY },
     }),
     [
       color,
@@ -1071,7 +972,6 @@ function FlippingSectorMaterial({
       uReliefMix: { value: reliefAnimation.current.mix },
       uReliefVisibility: { value: reliefAnimation.current.visibility },
       uLoadRevealProgress: { value: loadRevealAnimation.current.progress },
-      uLoadRevealWaveDelay: { value: SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY },
     }),
     [
       backColor,
@@ -1540,14 +1440,9 @@ function PopulatedReliefContourLayer({
       stakedHasRelief ? 1 : 0,
       easedMix
     );
-    const contourRevealProgress = THREE.MathUtils.clamp(
-      (activeLoadRevealAnimation.current.progress -
-        SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY) /
-        (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY),
-      0,
-      1
+    const revealOpacity = sectorLoadRevealCompletionOpacity(
+      activeLoadRevealAnimation
     );
-    const revealOpacity = sectorLoadRevealFlickerOpacity(contourRevealProgress);
     shadowMaterial.opacity =
       0.86 * viewShadowOpacity * easedVisibility * revealOpacity;
     topEdgeMaterial.opacity = 0.94 * revealOpacity;
@@ -1810,10 +1705,12 @@ export function SectorOwnershipLayers({
 }
 
 interface PlanetProps {
+  intro: CoreIntro;
   tenureExtrusionEnabled?: boolean;
 }
 
 export function Planet({
+  intro,
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
   const { camera } = useThree();
@@ -1841,12 +1738,11 @@ export function Planet({
     sectorOwnerGroups,
     sectorControlledSince,
     sectorCaptureForce,
-    hasLoadedSectorIndex,
     selectSector,
     selectSectors,
   } = useSectors();
-  const sectorLoadRevealAnimation =
-    useSectorLoadRevealAnimation(hasLoadedSectorIndex);
+  const sectorLoadRevealAnimation = intro.loadRevealAnimation;
+  const isIntroFlipReleased = intro.isFlipReleased;
   const [hoveredSectorId, setHoveredSectorId] = useState<number | null>(null);
   const fullSphereGeometry = useMemo(() => createSectorGeometry(), []);
   const opponentSectorIdSet = useMemo(
@@ -1910,14 +1806,25 @@ export function Planet({
   const [reliefSurfaceVisible, setReliefSurfaceVisible] =
     useState(!isCoreWaveFlipped);
   const previousWaveFlipRef = useRef(isCoreWaveFlipped);
+  // The load intro's flip onto the artwork is what first reveals the Sectors.
+  const coreFlipped = waveFlipActive && isIntroFlipReleased;
+  // Images follow one clock so an image that loads mid-flip still waits for
+  // its panel to land.
+  const imageFlipProgress = useFlipProgress(coreFlipped);
   const flipWaveOrigin = useMemo(() => {
     void isCoreWaveFlipped;
+    void isIntroFlipReleased;
     return randomVisibleOutsideSectorWaveOrigin(
       visibleOccupiedSectorIds,
       camera,
       TENURE_SURFACE_RADIUS
     );
-  }, [camera, isCoreWaveFlipped, visibleOccupiedSectorIds]);
+  }, [
+    camera,
+    isCoreWaveFlipped,
+    isIntroFlipReleased,
+    visibleOccupiedSectorIds,
+  ]);
   const flipWaveDistanceRange = useMemo(
     () =>
       createSectorWaveDistanceRange(
@@ -2253,9 +2160,9 @@ export function Planet({
       <SectorImageLayer
         artworks={visibleArtworks}
         heights={imageHeights}
-        flipped={waveFlipActive}
+        flipped={coreFlipped}
+        flipProgress={imageFlipProgress}
         visible={projectionSurfaceVisible}
-        loadRevealAnimation={sectorLoadRevealAnimation}
         visibleOnBothFaces={isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
@@ -2268,8 +2175,8 @@ export function Planet({
           artworks={visibleArtworks}
           priorityArtworkIds={priorityDetailArtworkIds}
           heights={imageHeights}
-          flipped={waveFlipActive}
-          loadRevealAnimation={sectorLoadRevealAnimation}
+          flipped={coreFlipped}
+          flipProgress={imageFlipProgress}
           visibleOnBothFaces={isImageUploadMode}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
@@ -2281,7 +2188,8 @@ export function Planet({
         <PlacementPreviewLayer
           artwork={placementArtwork}
           heights={imageHeights}
-          flipped={waveFlipActive}
+          flipped={coreFlipped}
+          flipProgress={imageFlipProgress}
           visibleOnBothFaces
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
@@ -2299,7 +2207,7 @@ export function Planet({
         stakedHeights={stakedSectorHeights}
         reliefTarget={controlView === 'staked' ? 1 : 0}
         reliefVisible={reliefSurfaceVisible}
-        flipped={waveFlipActive}
+        flipped={coreFlipped}
         interactive={!isImageUploadMode}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}

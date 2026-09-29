@@ -31,6 +31,7 @@ import {
   SplitTransactionModal,
   type SplitTransactionBatch,
 } from './SplitTransactionModal';
+import { WalletButton } from './WalletButton';
 
 interface BatchCaptureControlProps {
   sectors: SectorStatus[];
@@ -154,7 +155,7 @@ export function BatchCaptureControl({
     if (sectors.length > MAX_SECTOR_SELECTION) {
       return `SELECT UP TO ${MAX_SECTOR_SELECTION} SECTORS`;
     }
-    if (!isConnected || !address) return 'CONNECT OPERATOR';
+    if (!isConnected || !address) return 'CONNECT WALLET';
     if (isSectorInteractionLocked && phase === 'idle' && !isSplitModalOpen) {
       return 'ANOTHER SECTOR ACTION IS IN PROGRESS';
     }
@@ -163,9 +164,9 @@ export function BatchCaptureControl({
     if (operatorStatus.needsSync) return 'OPERATOR SYNC REQUIRED';
     if (parsedAllocation.error) return 'ENTER A VALID ALLOCATION';
     if (selectedAllocation === null || selectedAllocation === 0n)
-      return 'ENTER ALLOCATION PER POINT';
+      return 'ENTER FORCE PER SECTOR';
     if (!isFortifying && selectedAllocation < requiredForce)
-      return `ALLOCATE AT LEAST ${formatStrk(requiredForce, 18)} FORCE EACH`;
+      return `COMMIT AT LEAST ${formatStrk(requiredForce, 18)} FORCE EACH`;
     return null;
   }, [
     address,
@@ -263,7 +264,7 @@ export function BatchCaptureControl({
         );
         if (chunkDeficit > 0n) {
           throw new Error(
-            `Generate ${formatStrk(chunkDeficit, 18)} more FORCE before continuing.`
+            `Stake ${formatStrk(chunkDeficit, 18)} more STRK before continuing.`
           );
         }
         const calls = buildBatchGameActionCalls({
@@ -294,7 +295,7 @@ export function BatchCaptureControl({
         } else {
           notifySubmitting(
             hash,
-            `${freshSectors.length} SECTOR ${isFortifying ? 'FORTIFICATIONS' : 'CAPTURES'}`
+            `${freshSectors.length} SECTOR ${isFortifying ? 'REINFORCEMENTS' : 'CAPTURES'}`
           );
         }
         setPhase('confirming');
@@ -402,21 +403,21 @@ export function BatchCaptureControl({
     refreshSector();
   };
 
+  const verb = isFortifying ? 'REINFORCE' : 'CAPTURE';
   const actionLabel =
     phase === 'submitting'
       ? 'AUTHORIZING…'
       : phase === 'confirming'
         ? 'CONFIRMING…'
         : disabledReason
-          ? `${isFortifying ? 'FORTIFY' : 'CAPTURE'} · ${disabledReason}`
-          : `${isFortifying ? 'FORTIFY' : 'CAPTURE'} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
+          ? `${verb} · ${disabledReason}`
+          : `${verb} ${sectors.length} WITH ${formatStrk(totalAllocation, 18)} FORCE`;
 
   return (
     <section className="mt-4 border border-neutral-600 bg-neutral-950">
       <header className="flex items-center justify-between gap-3 border-b border-grid px-3 py-2 text-[10px] tracking-[0.18em] text-neutral-300">
         <span>
-          {isFortifying ? 'FORTIFY' : 'CAPTURE'} {sectors.length} SELECTED POINT
-          {sectors.length === 1 ? '' : 'S'}
+          {verb} {sectors.length} SECTOR{sectors.length === 1 ? '' : 'S'}
         </span>
         <span className="text-[8px] text-dim">FORCE ACTION</span>
       </header>
@@ -431,7 +432,7 @@ export function BatchCaptureControl({
           className="block pt-1 text-dim"
           htmlFor={`${intent}-batch-allocation-${sectorKey}`}
         >
-          {isFortifying ? 'ADDITIONAL ALLOCATION' : 'POINT ALLOCATION'} · EACH
+          {isFortifying ? 'ADD FORCE' : 'DEFENSE'} · PER SECTOR
         </label>
         <div className="flex items-center border border-neutral-700 bg-black focus-within:border-white">
           <input
@@ -472,7 +473,11 @@ export function BatchCaptureControl({
             BATCH ACTION FAILED · {error}
           </div>
         )}
-        {deficit > 0n && !disabledReason ? (
+        {!isConnected || !address ? (
+          <div className="mt-2">
+            <WalletButton variant="block" label={`CONNECT WALLET TO ${verb}`} />
+          </div>
+        ) : deficit > 0n && !disabledReason ? (
           <Link
             to={{
               pathname: '/staking',
@@ -480,7 +485,7 @@ export function BatchCaptureControl({
             }}
             className="force-alert-button mt-2 block w-full border px-3 py-2.5 text-center text-[10px] font-semibold tracking-[0.18em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2"
           >
-            GENERATE {formatStrk(deficit, 18)} MORE FORCE
+            STAKE {formatStrk(deficit, 18)} STRK TO {verb}
           </Link>
         ) : (
           <button

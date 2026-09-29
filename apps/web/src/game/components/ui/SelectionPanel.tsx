@@ -161,7 +161,7 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
                   {!selectedSector
                     ? '---'
                     : neutral
-                      ? '—'
+                      ? 'NONE · UNCLAIMED'
                       : shortAddress(selectedSector.controller)}
                 </span>
                 {controlledByOperator && (
@@ -176,7 +176,7 @@ export function SelectionPanel({ active = true }: { active?: boolean }) {
             </div>
             <div className="flex items-baseline justify-between gap-6 py-2">
               <span className="text-[10px] tracking-[0.18em] text-dim">
-                CAPTURE FORCE
+                DEFENSE
               </span>
               <span className="text-neutral-300">
                 {selectedSector ? (

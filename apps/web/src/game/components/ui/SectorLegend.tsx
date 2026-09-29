@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { SECTOR_COUNT } from '../../utils/sectorGeometry';
@@ -28,6 +29,38 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
   );
 }
 
+const INSPECT_HINT_KEY = 'stakewars:hint:inspect-sector';
+const MULTI_SELECT_HINT_KEY = 'stakewars:hint:multi-select';
+
+function readHintDismissed(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function dismissHint(key: string) {
+  try {
+    window.localStorage.setItem(key, '1');
+  } catch {
+    // Hints are a convenience; failing to remember one only shows it again.
+  }
+}
+
+/** A first-run hint that stays dismissed once the player has done the thing. */
+function useFirstRunHint(key: string, completed: boolean): boolean {
+  const [isDismissed, setDismissed] = useState(() => readHintDismissed(key));
+
+  useEffect(() => {
+    if (!completed || isDismissed) return;
+    dismissHint(key);
+    setDismissed(true);
+  }, [completed, isDismissed, key]);
+
+  return !isDismissed;
+}
+
 export function SectorLegend() {
   const { isConnected } = useWallet();
   const {
@@ -39,7 +72,17 @@ export function SectorLegend() {
     isSectorIndexLoading,
     sectorIndexError,
     refreshSectorIndex,
+    selectedSectorId,
+    selectedSectorIds,
   } = useSectors();
+  const showInspectHint = useFirstRunHint(
+    INSPECT_HINT_KEY,
+    selectedSectorId !== null
+  );
+  const showMultiSelectHint = useFirstRunHint(
+    MULTI_SELECT_HINT_KEY,
+    selectedSectorIds.length > 1
+  );
   const contestedSectorIdSet = new Set(contestedSectorIds);
   const uncontestedOwnedCount = ownedSectorIds.filter(
     (sectorId) => !contestedSectorIdSet.has(sectorId)
@@ -48,7 +91,7 @@ export function SectorLegend() {
     (sectorId) => !contestedSectorIdSet.has(sectorId)
   ).length;
 
-  if (!isConnected || isImageUploadMode) return null;
+  if (isImageUploadMode) return null;
 
   const neutralCount = SECTOR_COUNT - occupiedSectorIds.length;
 
@@ -86,20 +129,22 @@ export function SectorLegend() {
       </header>
 
       <div className="space-y-1.5">
-        <LegendRow
-          color={SECTOR_COLORS.owned}
-          label="OWNED BY YOU"
-          value={uncontestedOwnedCount}
-        />
+        {isConnected ? (
+          <LegendRow
+            color={SECTOR_COLORS.owned}
+            label="YOURS"
+            value={uncontestedOwnedCount}
+          />
+        ) : null}
         <LegendRow
           color={SECTOR_COLORS.opponent}
-          label="OTHERS"
+          label={isConnected ? 'OTHER PLAYERS' : 'CLAIMED'}
           value={uncontestedOpponentCount}
         />
         {contestedSectorIds.length > 0 ? (
           <LegendRow
             color={SECTOR_COLORS.contested}
-            label="CONTESTED"
+            label="UNDER CHALLENGE"
             value={contestedSectorIds.length}
           />
         ) : null}
@@ -112,6 +157,22 @@ export function SectorLegend() {
           />
         ) : null}
       </div>
+
+      {showInspectHint || showMultiSelectHint ? (
+        <div
+          className={`mt-2 space-y-1 border-t border-neutral-800 pt-2 text-[9px] leading-relaxed tracking-[0.06em] text-neutral-400 ${
+            // The multi-select hint alone is mouse-only; hide its divider too.
+            showInspectHint ? '' : 'hidden [@media(pointer:fine)]:block'
+          }`}
+        >
+          {showInspectHint ? <p>› CLICK A SECTOR TO INSPECT IT</p> : null}
+          {showMultiSelectHint ? (
+            <p className="hidden [@media(pointer:fine)]:block">
+              › RIGHT-DRAG TO SELECT SEVERAL
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {sectorIndexError && (
         <button

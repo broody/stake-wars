@@ -13,39 +13,12 @@ import {
   randomVisibleOutsideSectorWaveOrigin,
   sectorFlipWaveDelayForCount,
   sectorFlipParameters,
-  sectorLoadRevealFlickerOpacity,
-  sectorArtworkRevealStartProgress,
   sectorWaveDelay,
   sectorWaveDistanceRange,
-  SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS,
   SECTOR_FLIP_MAX_WAVE_DELAY,
-  SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS,
-  SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY,
 } from './sectorFlip';
 
 describe('sector flip parameters', () => {
-  it('uses the Beacon-style flicker before settling a loaded Sector', () => {
-    expect(sectorLoadRevealFlickerOpacity(0)).toBe(0);
-    expect(sectorLoadRevealFlickerOpacity(0.08)).toBeCloseTo(0.9);
-    expect(sectorLoadRevealFlickerOpacity(0.16)).toBeCloseTo(0.12);
-    expect(sectorLoadRevealFlickerOpacity(0.5)).toBe(1);
-    expect(sectorLoadRevealFlickerOpacity(0.62)).toBeCloseTo(0.48);
-    expect(sectorLoadRevealFlickerOpacity(1)).toBe(1);
-  });
-
-  it('staggers artwork after each Sector finishes flickering', () => {
-    const firstSectorReveal = sectorArtworkRevealStartProgress(0);
-    const lastSectorReveal = sectorArtworkRevealStartProgress(
-      SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY
-    );
-
-    expect(
-      firstSectorReveal - (1 - SECTOR_LOAD_REVEAL_MAX_WAVE_DELAY)
-    ).toBeCloseTo(SECTOR_ARTWORK_REVEAL_DELAY_PROGRESS);
-    expect(lastSectorReveal).toBe(SECTOR_LOAD_REVEAL_COMPLETION_PROGRESS);
-    expect(lastSectorReveal).toBeGreaterThan(firstSectorReveal);
-  });
-
   it('creates a repeatable unit-length wave origin from an injected source', () => {
     const values = [0.75, 0.25];
     const origin = randomSectorWaveOrigin(() => values.shift() ?? 0);

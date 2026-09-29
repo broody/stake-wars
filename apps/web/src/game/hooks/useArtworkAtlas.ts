@@ -1,23 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { artworkAtlasSourcesFromKey } from '../utils/sectorArtworkProjection';
+import { loadArtworkThumbnail } from '../utils/artworkThumbnails';
 
 const ATLAS_CELL_SIZE = 256;
 const IMAGE_LOAD_CONCURRENCY = 16;
 // Each atlas update re-uploads the whole canvas (up to 4096x4096) to the GPU,
 // so progressive loads batch arriving thumbnails instead of uploading per image.
 const PROGRESSIVE_UPLOAD_INTERVAL_MS = 250;
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = 'anonymous';
-    image.decoding = 'async';
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Unable to load ${url}`));
-    image.src = url;
-  });
-}
 
 export function useArtworkAtlas(
   sourceKey: string,
@@ -85,7 +75,9 @@ export function useArtworkAtlas(
       while (active && next < sources.length) {
         const sourceDefinition = sources[next++];
         try {
-          const source = await loadImage(sourceDefinition.thumbnailUrl);
+          const source = await loadArtworkThumbnail(
+            sourceDefinition.thumbnailUrl
+          );
           if (!active) return;
           context.drawImage(
             source,

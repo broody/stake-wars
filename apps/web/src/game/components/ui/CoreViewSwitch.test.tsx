@@ -25,6 +25,6 @@ describe('CoreViewSwitch', () => {
     const markup = renderToStaticMarkup(<CoreViewSwitch />);
 
     expect(markup).toContain('data-preserve-core-tracking="true"');
-    expect(markup).toContain('SHOW PROJECTION');
+    expect(markup).toContain('SHOW ARTWORK');
   });
 });
