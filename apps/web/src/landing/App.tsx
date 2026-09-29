@@ -85,7 +85,7 @@ function LandingApp() {
       ),
     },
     {
-      title: '03. FIGHT',
+      title: '03. CONTEST',
       description: (
         <>
           Commit{' '}
