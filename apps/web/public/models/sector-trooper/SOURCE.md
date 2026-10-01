@@ -67,3 +67,45 @@ projecting the crosshair and rendering the shot.
 The preview spawns only the controllable player. Autonomous trooper patrols are
 not mounted. The bottom-left controls panel is removed; only the firing
 crosshair is displayed.
+
+## Single-saber survivor player
+
+`sector-trooper-saber.glb` is copied from the authored saber variant in the main
+checkout: `docs/concepts/sector-trooper/saber/sector-trooper-saber.glb`.
+Editable source: `docs/concepts/sector-trooper/saber/sector-trooper-saber.blend`.
+It includes Saber_Idle, Saber_Run, Saber_Swing, Saber_Backhand,
+Saber_Run_Swing, Saber_Run_Backhand and Saber_Death; one right-hand saber, no rifle.
+Saber_Death is a three-second non-looping knees-first collapse, a pause, then a forward fall onto the stomach with a sideways head turn authored by animate_death.py.
+
+`SurvivorTrooper` replaces the primitive Vanguard in Core Survivors. Scale is 0.26,
+sole offset is -1.265625 in source units, and +Z faces forward. `SaberAnimation`
+separates upper/lower tracks so attacks never restart the foot cycle. Locomotion
+uses actual distance travelled and the authored 1.76 m/s pace. Simulation time
+freezes animation during pause, upgrades and Supply Drops. Standing and running
+attacks blend when movement starts/stops, with a shared strike at frame 12.
+
+The simulation owns wind-up and damage timing. Attack speed scales the complete
+animation and strike delay. Level two uses consecutive opposite-side single-saber
+slashes until a dual-wield upgrade model is authored. Eclipse retains its full-circle
+hit, accompanied by a cyan full-circle effect.
+
+The cyan energy color comes from the GLB material. Slash geometry and collision
+share an elliptical sector envelope (90° → 120° → 150°); reach level four and Area upgrades scale the visible
+boundary and damage together. The brief effect remains at its impact position.
+
+Validation: asset-backed animation tests verify exactly one saber, correct attack
+side, uninterrupted feet during either slash and pause behavior. Simulation tests
+cover wind-up, movement, upgrades, footprint and impact anchoring.
+
+Fatal hits freeze combat and survival time. The trooper blends from its current pose
+into Saber_Death and holds the final pose. A 3.5-second spiral zoom ends directly above
+the prone trooper, followed by a one-second hold before results appear.
+
+The Bolt Caster upgrade equips `sector-trooper-bolt-caster.glb` in the left hand.
+Its editable source and generator are in the main checkout at
+`docs/concepts/sector-trooper/bolt-caster/`. This compact, stockless variant reuses
+the approved rifle's ivory/charcoal/amber design. A separate left-arm IK layer
+tracks the latest volley and adds recoil and muzzle flash without disturbing
+running or saber attacks. It remains attached during death and is hidden again
+on a fresh run. Projectile balance is unchanged. The local `saber-gun` preview
+grants the upgrade for inspection; normal games obtain it through weapon offers.

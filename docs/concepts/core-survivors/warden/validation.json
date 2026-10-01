@@ -1,0 +1,59 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "reports": [
+    {
+      "filename": "warden.glb",
+      "bytes": 294136,
+      "triangles": 1203,
+      "materials": 2,
+      "primitives": 4,
+      "bones": 25,
+      "dimensionsYUp": [
+        3.2066460327294646,
+        3.6020000958596157,
+        1.0269994253557249
+      ]
+    },
+    {
+      "filename": "warden-instanced.glb",
+      "bytes": 83040,
+      "triangles": 1039,
+      "materials": 2,
+      "primitives": 2,
+      "bones": 0,
+      "dimensionsYUp": [
+        3.2066457271575928,
+        3.6019998947158456,
+        1.0270000100135803
+      ]
+    },
+    {
+      "filename": "warden-staff.glb",
+      "bytes": 14348,
+      "triangles": 164,
+      "materials": 2,
+      "primitives": 2,
+      "bones": 0,
+      "dimensionsYUp": [
+        0.44999998807907104,
+        3.7519999900832772,
+        0.22499999403953552
+      ]
+    }
+  ],
+  "checks": [
+    "T-pose dimensions",
+    "rigid single-bone weights",
+    "independent cape and skirt controls",
+    "hand articulation",
+    "feet unchanged during posing",
+    "matching static/rigged bounds",
+    "emissive red sensors",
+    "two materials per asset",
+    "no texture dependencies",
+    "separate staff export",
+    "bent-arm Guard clip",
+    "rigid staff socket attachment",
+    "upright staff with ground contact"
+  ]
+}

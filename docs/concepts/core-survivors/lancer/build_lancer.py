@@ -427,5 +427,6 @@ result=dict(triangles=triangles,materials=2,bones=len(arm_data.bones),dimensions
 (HERE / "asset-stats.json").write_text(json.dumps(result,indent=2)+"\n")
 import runpy
 runpy.run_path(str(HERE / "animate_lancer.py"))
+runpy.run_path(str(HERE / "animate_defeated.py"))
 result = json.loads((HERE / "asset-stats.json").read_text())
 print(json.dumps(result,indent=2),flush=True)

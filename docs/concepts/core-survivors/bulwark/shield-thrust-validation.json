@@ -1,0 +1,18 @@
+{
+  "clip": "ShieldThrust",
+  "duration": 1.75,
+  "impactSeconds": 0.75,
+  "samples": 421,
+  "triangles": 892,
+  "bones": 18,
+  "minGround": 0.005391103243705137,
+  "contactFootDrift": 0.00008861215804572413,
+  "attachmentError": 1.5592607100143473e-15,
+  "jointLengthError": 0.000002358813794345327,
+  "rebasedGuardError": 3.899553964657231e-7,
+  "forwardStroke": 1.6773265431612199,
+  "rootTravel": 1.2000000476837158,
+  "retainsLandingPosition": true,
+  "locomotionBodyAndTimingUnchanged": true,
+  "geometryUnchanged": true
+}

@@ -1,0 +1,35 @@
+{
+  "clips": {
+    "Saber_Idle": {
+      "duration_seconds": 3.0,
+      "endpoint_error_m": 0.0
+    },
+    "Saber_Run": {
+      "duration_seconds": 0.75,
+      "endpoint_error_m": 0.0
+    },
+    "Saber_Swing": {
+      "duration_seconds": 0.9166666666666666,
+      "endpoint_error_m": 5.127385417844431e-07
+    },
+    "Saber_Backhand": {
+      "duration_seconds": 0.9166666666666666,
+      "endpoint_error_m": 0.0
+    },
+    "Saber_Run_Swing": {
+      "duration_seconds": 0.75,
+      "endpoint_error_m": 6.419616707723741e-07
+    },
+    "Saber_Run_Backhand": {
+      "duration_seconds": 0.75,
+      "endpoint_error_m": 0.0
+    }
+  },
+  "run_speed_mps": 1.76,
+  "running_attack_foot_transform_error": 0,
+  "swing_impact_seconds": 0.3333333333333333,
+  "swing_active_seconds": [
+    0.25,
+    0.4583333333333333
+  ]
+}

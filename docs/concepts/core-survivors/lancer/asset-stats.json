@@ -10,9 +10,10 @@
   "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Defeated"
   ],
-  "rigged_bytes": 137340,
+  "rigged_bytes": 154932,
   "instanced_bytes": 57428,
   "blend": "docs/concepts/core-survivors/lancer/lancer.blend",
   "glb": "apps/web/public/models/hollow-legion/lancer.glb",
@@ -39,5 +40,11 @@
       "stride_m": 0.72,
       "foot_lift_m": 0.245
     }
+  },
+  "defeated": {
+    "duration_seconds": 1.25,
+    "settled_seconds": 0.875,
+    "root_motion": false,
+    "hold_final_pose": true
   }
 }

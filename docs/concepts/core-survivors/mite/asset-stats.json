@@ -13,13 +13,14 @@
   "scene": "MITE | Studio",
   "previous_triangles": 4972,
   "triangle_reduction_percent": 92.08,
-  "rigged_bytes": 95112,
+  "rigged_bytes": 106308,
   "instanced_bytes": 31584,
   "animations": [
     "Idle",
     "Walk",
     "Run",
-    "LeapAttack"
+    "LeapAttack",
+    "Defeated"
   ],
   "walk_duration_seconds": 1.0,
   "walk_speed_mps": 0.29999999205271405,
@@ -81,5 +82,12 @@
     0,
     30
   ],
-  "leap_attack_pitch_degrees": 34.37746770784939
+  "leap_attack_pitch_degrees": 34.37746770784939,
+  "defeated": {
+    "duration_seconds": 1.25,
+    "impact_seconds": 0.4583333333333333,
+    "settled_seconds": 0.8333333333333334,
+    "root_motion": false,
+    "hold_final_pose": true
+  }
 }

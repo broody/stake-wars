@@ -1,0 +1,12 @@
+{
+  "validation": "PASS",
+  "samples_per_clip": {
+    "Saber_Idle": 289,
+    "Saber_Run": 73,
+    "Saber_Swing": 89,
+    "Saber_Backhand": 89,
+    "Saber_Run_Swing": 73,
+    "Saber_Run_Backhand": 73
+  },
+  "blade_centerline_body_intersections": []
+}

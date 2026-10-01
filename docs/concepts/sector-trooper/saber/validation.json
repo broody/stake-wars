@@ -1,0 +1,23 @@
+{
+  "validation": "PASS",
+  "samples_per_clip": 8,
+  "per_clip_maximum_error_m": {
+    "Saber_Idle": 1.4633706086897291e-06,
+    "Saber_Run": 4.125226951146033e-06,
+    "Saber_Swing": 1.6658004824421369e-06,
+    "Saber_Backhand": 1.6658004824421369e-06,
+    "Saber_Run_Swing": 4.125226951146033e-06,
+    "Saber_Run_Backhand": 4.125226951146033e-06
+  },
+  "rifle_removed": true,
+  "body_meshes": 71,
+  "saber_meshes": 12,
+  "clips": [
+    "Saber_Idle",
+    "Saber_Run",
+    "Saber_Swing",
+    "Saber_Backhand",
+    "Saber_Run_Swing",
+    "Saber_Run_Backhand"
+  ]
+}

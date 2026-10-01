@@ -8,7 +8,7 @@ import {
   enemyGroundRadius,
   EnemySwarmSimulation,
 } from './enemySwarm';
-import { bakeEnemyRun } from './enemyRunAtlas';
+import { bakeEnemyLocomotion } from './enemyRunAtlas';
 import { CORE_RADIUS, createSectorGeometry } from './sectorGeometry';
 import { ENEMY_PREVIEW_TYPES } from './enemyPreviewConfig';
 
@@ -121,6 +121,8 @@ describe('enemy swarms', () => {
     {
       type: 'mites' as const,
       file: 'mite',
+      clipName: 'Run' as const,
+      primitiveCount: 2,
       triangles: 394,
       duration: 0.5,
       maxHeight: 0.7,
@@ -128,13 +130,30 @@ describe('enemy swarms', () => {
     {
       type: 'lancers' as const,
       file: 'lancer',
+      clipName: 'Run' as const,
+      primitiveCount: 2,
       triangles: 722,
       duration: 2 / 3,
       maxHeight: 2,
     },
+    {
+      file: 'bulwark',
+      clipName: 'Walk' as const,
+      primitiveCount: 4,
+      triangles: 892,
+      duration: 5 / 3,
+      maxHeight: 2,
+    },
   ])(
-    'bakes $file Run into finite, moving, grounded GPU atlases',
-    async ({ file, triangles, duration, maxHeight }) => {
+    'bakes $file $clipName into finite, moving, grounded GPU atlases',
+    async ({
+      file,
+      clipName,
+      primitiveCount,
+      triangles,
+      duration,
+      maxHeight,
+    }) => {
       const bytes = readFileSync(
         new URL(
           `../../../public/models/hollow-legion/${file}.glb`,
@@ -156,14 +175,15 @@ describe('enemy swarms', () => {
           );
       });
       expect(
-        asset.animations.find((clip) => clip.name === 'Run')?.duration
+        asset.animations.find((clip) => clip.name === clipName)?.duration
       ).toBeCloseTo(duration, 6);
-      const parts = bakeEnemyRun(
+      const parts = bakeEnemyLocomotion(
         asset.scene,
-        asset.animations.filter((clip) => clip.name === 'Run'),
-        { value: 0 }
+        asset.animations.filter((clip) => clip.name === clipName),
+        { value: 0 },
+        clipName
       );
-      expect(parts).toHaveLength(2);
+      expect(parts).toHaveLength(primitiveCount);
       expect(
         parts.reduce(
           (triangles, part) => triangles + part.geometry.index!.count / 3,

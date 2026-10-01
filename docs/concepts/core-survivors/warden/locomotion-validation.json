@@ -1,0 +1,36 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "samples_per_clip": 257,
+  "reports": [
+    {
+      "name": "Walk",
+      "duration": 1.6666666269302368,
+      "speed_mps": 0.6,
+      "minimum_ground_m": 0.00788122452069323,
+      "max_contact_height_error_m": 0.0001187754793067694,
+      "max_contact_slide_m": 0.00008021451879520138,
+      "max_leg_length_error_m": 6.737747639817826e-7,
+      "max_lift_m": {
+        "R": 0.11459589142685259,
+        "L": 0.11459627326124647
+      },
+      "flight_samples": 0,
+      "seam_error": 0
+    },
+    {
+      "name": "Run",
+      "duration": 1,
+      "speed_mps": 2.1499999999999995,
+      "minimum_ground_m": 0.006504955239023195,
+      "max_contact_height_error_m": 0.001495044760976805,
+      "max_contact_slide_m": 0.0013873163783224465,
+      "max_leg_length_error_m": 8.804051047084371e-7,
+      "max_lift_m": {
+        "R": 0.2390169470914113,
+        "L": 0.2390169137373135
+      },
+      "flight_samples": 14,
+      "seam_error": 0
+    }
+  ]
+}

@@ -34,6 +34,7 @@ assert.equal(
 assert.equal(meshes.length, 2);
 assert.equal(bones.size, 10);
 assert.deepEqual(asset.animations.map((a) => a.name).sort(), [
+  'Defeated',
   'Idle',
   'LeapAttack',
   'Run',
@@ -71,7 +72,7 @@ const tips = Object.fromEntries(
 
 const mixer = new AnimationMixer(asset.scene),
   checks = [];
-for (const clip of asset.animations) {
+for (const clip of asset.animations.filter((clip) => clip.name !== 'Defeated')) {
   mixer.stopAllAction();
   const action = mixer.clipAction(clip);
   action.setLoop(LoopOnce, 1);

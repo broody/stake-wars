@@ -14,10 +14,11 @@ if ffmpeg is None:
 
 out = Path(bpy.data.filepath).parent
 parser = argparse.ArgumentParser()
-parser.add_argument("--clip", choices=["Walk", "Run", "LeapAttack"], default="Walk")
+parser.add_argument("--clip", choices=["Walk", "Run", "LeapAttack", "Defeated"], default="Walk")
 args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
 clip = args.clip
 is_leap = clip == "LeapAttack"
+is_one_shot = clip in {"LeapAttack", "Defeated"}
 slug = "leap-attack" if is_leap else clip.lower()
 frames = Path(tempfile.mkdtemp(prefix=f"mite-{slug}-frames-"))
 scene = bpy.data.scenes["MITE | Studio"]
@@ -31,14 +32,14 @@ period = round(active.strips[0].action.frame_range[1] - active.strips[0].action.
 scene.camera = bpy.data.objects["CAM · LeapAttack" if is_leap else "CAM · Hero"]
 scene.render.engine = "CYCLES"
 scene.cycles.device = "CPU"
-scene.cycles.samples = 24
+scene.cycles.samples = 16 if clip == "Defeated" else 24
 scene.cycles.use_denoising = True
 scene.render.resolution_x, scene.render.resolution_y = 960, 720
 scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = "PNG"
 scene.render.image_settings.color_mode = "RGB"
 print(clip + " frames:", frames, flush=True)
-frame_count = period + 1 if is_leap else period
+frame_count = period + 1 if is_one_shot else period
 for frame in range(frame_count):
     scene.frame_set(frame)
     scene.render.filepath = str(frames / f"{slug}-{frame:03d}.png")
@@ -46,12 +47,15 @@ for frame in range(frame_count):
     print(f"{clip} preview: {frame + 1}/{frame_count}", flush=True)
 encode = [ffmpeg, "-v", "error", "-y", "-framerate", "24",
           "-i", str(frames / (slug + "-%03d.png"))]
-if is_leap:
+if is_one_shot:
     # Brief holds frame the single attack; the preview does not teleport back.
     encode += ["-vf", "tpad=start_mode=clone:start=6:stop_mode=clone:stop=11"]
 encode += ["-c:v", "libx264", "-crf", "19", "-pix_fmt", "yuv420p", str(frames / "cycle.mp4")]
 subprocess.run(encode, check=True)
-subprocess.run([ffmpeg, "-v", "error", "-y", "-stream_loop", "0" if is_leap else str(96 // period - 1),
+subprocess.run([ffmpeg, "-v", "error", "-y", "-stream_loop", "0" if is_one_shot else str(96 // period - 1),
                 "-i", str(frames / "cycle.mp4"), "-c", "copy", "-movflags", "+faststart",
                 str(out / f"mite-{slug}.mp4")], check=True)
 print("Saved:", out / f"mite-{slug}.mp4", flush=True)
+
+if clip == "Defeated":
+    shutil.copy2(frames / f"{slug}-{period:03d}.png", out / "mite-defeated-pose.png")

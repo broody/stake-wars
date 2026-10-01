@@ -1,0 +1,12 @@
+{
+  "clip": "Defeated",
+  "duration": 1.25,
+  "samples": 151,
+  "pieces": 16,
+  "minGround": 0.005999801103681786,
+  "maxRigidError": 0.000005650767296194736,
+  "holdError": 0.000013959964981883884,
+  "finalHeight": 0.75687471339552,
+  "priorClipsPreservedWithinTolerance": 0.00001,
+  "geometryUnchanged": true
+}

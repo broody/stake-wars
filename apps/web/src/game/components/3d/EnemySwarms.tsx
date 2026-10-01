@@ -8,7 +8,7 @@ import {
   enemyGroundRadius,
   EnemySwarmSimulation,
 } from '../../utils/enemySwarm';
-import { bakeEnemyRun } from '../../utils/enemyRunAtlas';
+import { bakeEnemyLocomotion } from '../../utils/enemyRunAtlas';
 import { Button, panelStyles } from '../../../ui';
 import {
   ENEMY_PREVIEW_TYPES,
@@ -60,7 +60,7 @@ function EnemyBatch({
       config.runSpeed * config.scale
     );
     const time = { value: 0 };
-    const parts = bakeEnemyRun(scene, animations, time);
+    const parts = bakeEnemyLocomotion(scene, animations, time);
     const gait = new Float32Array(count * 2);
     simulation.walkers.forEach((walker, index) => {
       gait[index * 2] = walker.phase;

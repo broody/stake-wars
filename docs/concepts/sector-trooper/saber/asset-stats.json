@@ -1,0 +1,28 @@
+{
+  "body_meshes": 71,
+  "saber_meshes": 12,
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Backward_Carry",
+    "Backward_Shoot",
+    "Idle_Shoot",
+    "Rig_Check",
+    "Run",
+    "Run_Carry_Forward",
+    "Strafe_Carry_Left",
+    "Strafe_Carry_Right",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Strafe_Shoot_Left",
+    "Strafe_Shoot_Right",
+    "Walk",
+    "Walk_Carry_Forward",
+    "Walk_Shoot_Forward"
+  ],
+  "new_action": "Saber_Idle",
+  "duration_seconds": 3,
+  "loop_seam_m": 0.0,
+  "blade_length_m": 0.946,
+  "source": "../head/sector-trooper-head.blend"
+}

@@ -1,4 +1,5 @@
 import { parseEnemySwarmCounts } from '../../utils/enemyPreviewConfig';
+import { isSurviveMode } from '../../survivors/session';
 import {
   Suspense,
   forwardRef,
@@ -474,8 +475,10 @@ export function World({ active = true }: { active?: boolean }) {
     () => parseEnemySwarmCounts(searchParams),
     [searchParams]
   );
-  const showEnemySwarms = swarmCounts.mites > 0 || swarmCounts.lancers > 0;
-  const showTrooper = searchParams.get('trooper') === '1';
+  const isSurviving = isSurviveMode(searchParams);
+  const showEnemySwarms =
+    !isSurviving && (swarmCounts.mites > 0 || swarmCounts.lancers > 0);
+  const showTrooper = !isSurviving && searchParams.get('trooper') === '1';
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
   const isSupplyDropOpen = searchParams.get('tracking') === 'supplyDrop';
   const setBeaconTracking = useCallback(
@@ -597,6 +600,7 @@ export function World({ active = true }: { active?: boolean }) {
     isSupplyDropCameraControlled ||
     showEnemySwarms ||
     showTrooper ||
+    isSurviving ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -675,6 +679,7 @@ export function World({ active = true }: { active?: boolean }) {
         if (
           showTrooper ||
           event.button !== 2 ||
+          isSurviving ||
           isSupplyDropOpen ||
           isSupplyDropCameraControlled ||
           isImageUploadMode ||
@@ -733,6 +738,7 @@ export function World({ active = true }: { active?: boolean }) {
               !isSectorInteractionLocked &&
               !isPlacementLocked
             }
+            isSurviving={isSurviving}
             active={active}
           />
           <SceneReadySignal onReady={markSceneReady} />
@@ -745,7 +751,7 @@ export function World({ active = true }: { active?: boolean }) {
         <PlacementCameraCapture />
 
         {/* ArcballControls provides free rotation including roll by default */}
-        {!showTrooper ? (
+        {!showTrooper && !isSurviving ? (
           <ArcballControls
             minDistance={8}
             maxDistance={30}
@@ -766,6 +772,7 @@ export function World({ active = true }: { active?: boolean }) {
             active &&
             !showTrooper &&
             !showEnemySwarms &&
+            !isSurviving &&
             !isBeaconOpen &&
             !isSupplyDropOpen
           }

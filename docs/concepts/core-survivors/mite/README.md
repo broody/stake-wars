@@ -10,7 +10,7 @@ The swarm revision removes tiny bevels, layered hinge hardware, drive bars, and 
 
 - `mite.blend` — editable Blender 5.2 project, with the model, mechanical rig, studio cameras, lighting, and packed reference image.
 - `../../../../apps/web/public/models/hollow-legion/mite-instanced.glb` — static swarm export, 31,584 bytes; no skeleton or animation, scale baked into the mesh.
-- `../../../../apps/web/public/models/hollow-legion/mite.glb` — rigged export, 95,112 bytes; the same simplified mesh with its editable skeleton and `Idle`, `Walk`, `Run`, and `LeapAttack` clips.
+- `../../../../apps/web/public/models/hollow-legion/mite.glb` — rigged export, 106,308 bytes; the same simplified mesh with its editable skeleton and `Idle`, `Walk`, `Run`, `LeapAttack`, and `Defeated` clips.
 - `mite-walk.mp4`, `mite-run.mp4` — four-second previews of the looping movement animations.
 - `mite-leap-attack.mp4` — a two-second preview showing one complete forward attack, with short holds before and after.
 - `mite-reference.png` — isolated modeling reference generated from the supplied concept sheet with the built-in image generation tool. The extra views are an interpretation of the original small character.
@@ -35,7 +35,7 @@ The swarm revision removes tiny bevels, layered hinge hardware, drive bars, and 
 | Origin                   | Ground center; approximately 4 mm clearance below the toes                          |
 | Blender orientation      | Z up, front toward −Y                                                               |
 | glTF orientation         | Y up, front toward +Z                                                               |
-| Animations               | `Idle`, 2 seconds; `Walk`, 1 second; `Run`, 0.5 seconds; `LeapAttack`, 1.25 seconds |
+| Animations               | `Idle`, 2 seconds; `Walk`, 1 second; `Run`, 0.5 seconds; `LeapAttack`, 1.25 seconds; `Defeated`, 1.25 seconds |
 | Surface data             | Flat normals, PBR materials, baked vertex colors; no bevels or textures             |
 
 ## Using hundreds of Mites
@@ -44,7 +44,7 @@ Use `mite-instanced.glb` for a static instancing path. Three.js loads its two ma
 
 For 300 visible Mites this represents **118,200 triangles and two Mite draw calls per main render pass**, when rendered as those two batches. Shadows and other passes add rendering work. Creating 300 ordinary model clones will not automatically batch them.
 
-The static export has fixed legs. Use the rigged `mite.glb` to play its four animations. The [URL swarm preview](../../../local-previews/enemy-swarms.md) bakes Run poses into a GPU animation atlas, sharing two instanced material batches across the population. Collision shapes and attack hit detection/damage remain future work; target-device frame rate has not been benchmarked.
+The static export has fixed legs. Use the rigged `mite.glb` to play its five animations. The [URL swarm preview](../../../local-previews/enemy-swarms.md) bakes Run poses into a GPU animation atlas, sharing two instanced material batches across the population. Collision shapes and attack hit detection/damage remain future work; target-device frame rate has not been benchmarked.
 
 ## Walk animation
 
@@ -78,9 +78,9 @@ The active scene is `MITE | Studio`. Select `Mite` in `01 · MITE — model & ri
 
 The reference sheet is packed into the blend. Enable viewport visibility for `03 · References — packed image` to show it. Studio objects are hidden in the modeling viewport and remain available for renders. The prior default scene was preserved separately.
 
-The project opens with `LeapAttack` enabled and the viewport framed around its full travel. Press Spacebar over the viewport or click Play in the timeline to see it. Frames 0–30 show the full attack. Blender's timeline repeats for preview; the attack clip itself has no return-to-start movement.
+The project opens with `Defeated` enabled at its final collapsed pose. Press Spacebar over the viewport or click Play in the timeline to preview frames 0–30. Blender repeats the timeline for preview; use one-shot playback and hold the last frame in a game.
 
-To switch clips in the NLA Editor, unmute the desired track and mute the other three. Set the timeline end to 30 for LeapAttack, 11 for Run, 23 for Walk, or 47 for Idle. The movement loops include an additional closing key identical to frame 0. Static reference renders use the armature's Rest Position rather than an animation frame.
+To switch clips in the NLA Editor, unmute the desired track and mute the other four. Set the timeline end to 30 for LeapAttack or Defeated, 11 for Run, 23 for Walk, or 47 for Idle. The movement loops include an additional closing key identical to frame 0. Static reference renders use the armature's Rest Position rather than an animation frame.
 
 ## Rebuild and render
 
@@ -113,3 +113,14 @@ Loaded both final GLBs with this repository's Three.js `GLTFLoader`. Each contai
 The animation pass independently sampled all four exported clips at 97 times each in Three.js. All four feet lift during Walk and Run, remain above the floor, and return to identical start/end transforms. Idle keeps all four tips planted. Blender half-frame checks measured maximum stance-height deviations below 0.1 mm for Walk and 0.8 mm for Run, with minimum ground clearances of approximately 3.5 mm and 2.5 mm respectively.
 
 LeapAttack travels monotonically forward by 1.2 metres, raises the Root by only 0.18 metres, lifts all four feet together, and restores the standing pose at the destination. The complete mesh stays above the floor throughout the Blender half-frame checks. A direct comparison against the pre-attack GLB found zero changes to Idle, Walk, and Run keyframe values. The rig still has ten bones and the mesh still has 394 triangles and two material primitives. Detailed results are in `asset-stats.json` and `animation-validation.json`.
+
+## Defeated
+
+`Defeated` is a 1.25-second one-shot: a brief buckle, a drop onto the underside at frame 11 (0.458 s), then a small bounce and settle at frame 20 (0.833 s). All four legs spread outward with a slight asymmetry; frames 20–30 hold the fallen pose. The body drops about 15.2 cm and the stance widens from 91.2 cm to 112.5 cm. Root stays fixed so the clip can play at the defeat location.
+
+- `animate_defeated.py` adds or rebakes only this generated action, leaving existing animation tracks intact. The complete builder also calls it.
+- `mite-defeated.mp4` is the rendered one-shot preview; `mite-defeated-pose.png` shows its final pose.
+- `validate_defeated.mjs` checks the GLB at 151 times for ground clearance, rigid joints, wider stance, body drop, fixed root, and a stable final pose. It compares geometry and all four prior clips against `revisions/pre-defeated/mite.glb`.
+- The original Blender project and asset are preserved in `revisions/pre-defeated/`.
+
+Render with `render_walk.py -- --clip Defeated`. Run both `validate_animation.mjs` and `validate_defeated.mjs` after rebaking. Play `Defeated` once and clamp its final frame; blend from locomotion on entry. Integrated in the `core-survivors` gameplay worktree: Mites, Skitters, and Volt Mites play the collapse on death, immediately leave collision and combat, then hold briefly and fade away by 1.8 seconds. Living Mites remain opaque. The local `?survive=1&survivePreview=mite-defeat` drill repeats the animation.

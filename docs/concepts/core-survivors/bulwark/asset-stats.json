@@ -1,0 +1,76 @@
+{
+  "revision": 3,
+  "style": "Hollow Legion faceted armor",
+  "triangles": 892,
+  "body_triangles": 808,
+  "shield_triangles": 84,
+  "materials": 2,
+  "bones": 18,
+  "dimensions_m": [
+    3.6707589626312256,
+    0.8438716232776642,
+    2.2222319589927793
+  ],
+  "animations": [
+    "Walk",
+    "Run",
+    "ShieldThrust",
+    "Defeated"
+  ],
+  "pose": "T-pose",
+  "equipment": [
+    "Shield"
+  ],
+  "rigged_bytes": 199724,
+  "instanced_bytes": 69972,
+  "front_axis": "+Z in glTF",
+  "sockets": [
+    "L.EquipmentSocket",
+    "R.EquipmentSocket"
+  ],
+  "locomotion": {
+    "Walk": {
+      "duration_seconds": 1.6666666666666667,
+      "speed_mps": 0.375,
+      "stance_fraction": 0.64,
+      "stride_m": 0.4,
+      "foot_lift_m": 0.09
+    },
+    "Run": {
+      "duration_seconds": 1.0,
+      "speed_mps": 1.3157894736842104,
+      "stance_fraction": 0.38,
+      "stride_m": 0.5,
+      "foot_lift_m": 0.17
+    }
+  },
+  "shield_thrust": {
+    "duration_seconds": 1.75,
+    "impact_frame": 18,
+    "impact_seconds": 0.75,
+    "active_window_seconds": [
+      0.6666666666666666,
+      0.8333333333333334
+    ],
+    "recovery_seconds": [
+      0.9583333333333334,
+      1.75
+    ],
+    "root_motion": true,
+    "distance_m": 1.2,
+    "drive_window_seconds": [
+      0.5416666666666666,
+      0.9166666666666666
+    ],
+    "retained_end_displacement": true,
+    "planted_feet": false,
+    "gameplay_integrated": false
+  },
+  "defeated": {
+    "duration_seconds": 1.25,
+    "settled_seconds": 1.0416666666666667,
+    "pieces": 16,
+    "root_motion": false,
+    "hold_final_pose": true
+  }
+}

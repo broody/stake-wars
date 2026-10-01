@@ -432,6 +432,8 @@ result = {"blend": str(BLEND.relative_to(ROOT)), "glb": str(GLB.relative_to(ROOT
 (HERE / "asset-stats.json").write_text(json.dumps(result, indent=2) + "\n")
 print(json.dumps(result, indent=2))
 
-# Keep the complete asset reproducible, including movement and LeapAttack.
+# Keep the complete asset reproducible, including movement, LeapAttack, and Defeated.
 import runpy
 result.update(runpy.run_path(str(HERE / "animate_mite.py"))["result"])
+runpy.run_path(str(HERE / "animate_defeated.py"))
+result.update(json.loads((HERE / "asset-stats.json").read_text()))

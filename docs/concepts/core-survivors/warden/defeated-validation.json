@@ -1,0 +1,20 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "samples": 337,
+  "duration_seconds": 1.75,
+  "previous_clips_preserved": true,
+  "base_geometry_preserved": true,
+  "bones": 25,
+  "minimum_ground_m": 0.007427188339503843,
+  "max_limb_length_error_m": 7.45276822478047e-7,
+  "max_staff_tip_travel_m": 0.0016082672957528005,
+  "max_lateral_grip_slip_m": 2.853632024570885e-7,
+  "settled_pose_error": 0.0000015314763526230735,
+  "hip_drop_m": 0.7587562990188599,
+  "first_knee": {
+    "time": 0.75,
+    "right": 0.31270806245490124,
+    "left": 0.5027320262823489
+  },
+  "sensors_off_seconds": 1.25
+}

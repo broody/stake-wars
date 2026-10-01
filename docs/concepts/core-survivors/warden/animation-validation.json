@@ -1,0 +1,31 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "samples_per_clip": 193,
+  "geometry_preserved": true,
+  "guard_preserved": true,
+  "reports": [
+    {
+      "name": "Walk",
+      "min_ground_m": 0.00788122452069323,
+      "max_grip_error_m": 2.4718147794328518e-15,
+      "max_limb_length_error_m": 6.619020122000663e-7
+    },
+    {
+      "name": "Run",
+      "min_ground_m": 0.006499405927144252,
+      "max_grip_error_m": 2.483775110162189e-15,
+      "max_limb_length_error_m": 8.804051047084371e-7
+    },
+    {
+      "name": "StaffSlam",
+      "min_ground_m": 0.0036376372219802822,
+      "max_grip_error_m": 2.6084334968580714e-15,
+      "max_limb_length_error_m": 5.389160495639089e-7,
+      "max_feet_movement_m": 0.004368332460271658,
+      "guard_endpoint_error": 0.00000472461749647865,
+      "raised_staff_tip_m": 0.6479995472364526,
+      "impact_seconds": 1.0833333333333333,
+      "impact_tip_m": 0.007999479365182971
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "loader": "Three.js GLTFLoader",
+  "reports": [
+    {
+      "filename": "bulwark.glb",
+      "bytes": 199724,
+      "triangles": 892,
+      "materials": 2,
+      "primitives": 4,
+      "bones": 18,
+      "dimensionsYUp": [
+        3.6707592363306376,
+        2.2222321620494854,
+        0.8438716220694248
+      ],
+      "clips": [
+        "Walk",
+        "Run",
+        "ShieldThrust",
+        "Defeated"
+      ]
+    },
+    {
+      "filename": "bulwark-instanced.glb",
+      "bytes": 69972,
+      "triangles": 892,
+      "materials": 2,
+      "primitives": 2,
+      "bones": 0,
+      "dimensionsYUp": [
+        3.6707589626312256,
+        2.222231948748231,
+        0.8438716232776642
+      ],
+      "clips": []
+    }
+  ],
+  "checks": [
+    "matching export bounds",
+    "two materials",
+    "vertex colors",
+    "emissive sensors",
+    "no textures",
+    "rigid weights",
+    "articulated hand and equipment socket",
+    "separate shield rigidly follows left equipment socket",
+    "planted feet during arm articulation",
+    "static instancing compatibility"
+  ]
+}

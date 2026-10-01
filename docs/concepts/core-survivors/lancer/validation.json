@@ -3,7 +3,7 @@
   "reports": [
     {
       "filename": "lancer.glb",
-      "bytes": 137340,
+      "bytes": 154932,
       "triangles": 722,
       "materials": 2,
       "bones": 17,
@@ -15,7 +15,8 @@
       "clips": [
         "Idle",
         "Walk",
-        "Run"
+        "Run",
+        "Defeated"
       ]
     },
     {

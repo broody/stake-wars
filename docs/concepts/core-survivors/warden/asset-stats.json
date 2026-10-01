@@ -1,0 +1,51 @@
+{
+  "triangles": 1039,
+  "staff_triangles": 164,
+  "materials": 2,
+  "bones": 25,
+  "animations": [
+    "Guard",
+    "Walk",
+    "Run",
+    "StaffSlam",
+    "Defeated"
+  ],
+  "pose": "Bent-arm staff guard; T-pose rest skeleton",
+  "height_m": 3.6019998975098133,
+  "front_axis": "+Z in glTF",
+  "rigged_bytes": 294136,
+  "staff_bytes": 14348,
+  "static_bytes": 83040,
+  "equipped_triangles": 1203,
+  "staff_attachment": "R.EquipmentSocket",
+  "locomotion": {
+    "Walk": {
+      "duration_seconds": 1.6666666666666667,
+      "speed_mps": 0.6,
+      "stride_m": 0.64,
+      "stance_fraction": 0.64,
+      "foot_lift_m": 0.115
+    },
+    "Run": {
+      "duration_seconds": 1.0,
+      "speed_mps": 2.1499999999999995,
+      "stride_m": 0.86,
+      "stance_fraction": 0.4,
+      "foot_lift_m": 0.24
+    }
+  },
+  "staff_slam": {
+    "duration_seconds": 2,
+    "impact_seconds": 1.0833333333333333,
+    "raised_seconds": 0.75,
+    "root_motion": false
+  },
+  "defeated": {
+    "duration_seconds": 1.75,
+    "settled_seconds": 1.5,
+    "root_motion": false,
+    "hold_final_pose": true,
+    "sensors_off_seconds": 1.25,
+    "sensor_morph": "SensorsOff"
+  }
+}
