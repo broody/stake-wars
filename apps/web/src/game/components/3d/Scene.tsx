@@ -12,6 +12,7 @@ import {
 } from '../../utils/enemyPreviewConfig';
 
 const EnemySwarms = lazy(() => import('./EnemySwarms'));
+const SectorTrooper = lazy(() => import('./SectorTrooper'));
 
 export function Scene({
   isBeaconTracking,
@@ -20,6 +21,8 @@ export function Scene({
   isSupplyDropTracking,
   onInspectSupplyDrop,
   swarmCounts = EMPTY_SWARM_COUNTS,
+  trooper = false,
+  trooperActive = true,
   active = true,
 }: {
   isBeaconTracking: boolean;
@@ -28,6 +31,8 @@ export function Scene({
   isSupplyDropTracking: boolean;
   onInspectSupplyDrop: () => void;
   swarmCounts?: EnemySwarmCounts;
+  trooper?: boolean;
+  trooperActive?: boolean;
   active?: boolean;
 }) {
   const coreIntro = useCoreIntro();
@@ -36,10 +41,19 @@ export function Scene({
     <>
       <Stars />
       <ShootingStars />
-      <Planet intro={coreIntro} />
+      <Planet intro={coreIntro} interactive={!trooper} />
+      {trooper ? (
+        <Suspense fallback={null}>
+          <SectorTrooper active={active && trooperActive} />
+        </Suspense>
+      ) : null}
       {swarmCounts.mites > 0 || swarmCounts.lancers > 0 ? (
         <Suspense fallback={null}>
-          <EnemySwarms active={active} counts={swarmCounts} />
+          <EnemySwarms
+            active={active}
+            counts={swarmCounts}
+            controlCamera={!trooper}
+          />
         </Suspense>
       ) : null}
       <OrbitalBeacon

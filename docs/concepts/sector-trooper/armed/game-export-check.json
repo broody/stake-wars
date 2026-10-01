@@ -1,0 +1,16 @@
+{
+  "validation": "PASS",
+  "maximum_world_vertex_error_m": 4.121349775232375e-06,
+  "per_clip_error_m": {
+    "Armed_Idle": 1.4651714081992395e-06,
+    "Idle_Shoot": 2.5191336590069113e-06,
+    "Run_Carry_Forward": 4.121349775232375e-06,
+    "Walk_Shoot_Forward": 2.484341393937939e-06,
+    "Strafe_Carry_Left": 2.6314053229725687e-06,
+    "Strafe_Shoot_Left": 3.1484853479923913e-06,
+    "Strafe_Carry_Right": 2.7525231871550204e-06,
+    "Strafe_Shoot_Right": 3.381217538844794e-06,
+    "Backward_Carry": 1.848705096563208e-06,
+    "Backward_Shoot": 1.9531892121449346e-06
+  }
+}

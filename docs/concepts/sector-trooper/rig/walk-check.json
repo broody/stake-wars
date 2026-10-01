@@ -1,0 +1,10 @@
+{
+  "validation": "PASS",
+  "subframe_samples": 112,
+  "max_contact_drift_m": 0.0002149187618843862,
+  "minimum_sole_clearance_m": -0.00016188621520996094,
+  "max_ik_target_error_m": 3.224236665778198e-05,
+  "max_loop_seam_error_m": 0.0,
+  "double_support_fraction": 0.25,
+  "no_flight_phase": true
+}

@@ -1,0 +1,81 @@
+{
+  "validation": "PASS",
+  "rig": "SectorTrooper_Rig",
+  "bones": 30,
+  "deform_bones": 25,
+  "skinned_meshes": 71,
+  "triangles": 6680,
+  "rigid_parts": 58,
+  "max_weights_per_vertex": 2,
+  "geometry_and_cameras_unchanged": true,
+  "rest_pose_error_m": 4.2510200871330594e-05,
+  "max_ik_target_error_m": 4.0621912837508154e-05,
+  "max_rigid_shape_error_m": 1.0485187058040246e-06,
+  "minimum_sole_below_ground_m": -2.47955322265625e-05,
+  "checked_frames": 17,
+  "checked_action": "Backward",
+  "animations": [
+    {
+      "name": "Rig_Check",
+      "purpose": "Rig posing demonstration",
+      "frames": [
+        1,
+        121
+      ],
+      "fps": 24
+    },
+    {
+      "name": "Walk",
+      "purpose": "In-place locomotion",
+      "frames": [
+        1,
+        29
+      ],
+      "fps": 24,
+      "speed_mps": 0.72
+    },
+    {
+      "name": "Run",
+      "purpose": "In-place locomotion",
+      "frames": [
+        1,
+        19
+      ],
+      "fps": 24,
+      "speed_mps": 1.76
+    },
+    {
+      "name": "Strafe_Left",
+      "purpose": "In-place locomotion",
+      "frames": [
+        1,
+        15
+      ],
+      "fps": 24,
+      "speed_mps": 0.9257142857142857
+    },
+    {
+      "name": "Strafe_Right",
+      "purpose": "In-place locomotion",
+      "frames": [
+        1,
+        15
+      ],
+      "fps": 24,
+      "speed_mps": 0.9257142857142857
+    },
+    {
+      "name": "Backward",
+      "purpose": "In-place locomotion",
+      "frames": [
+        1,
+        17
+      ],
+      "fps": 24,
+      "speed_mps": 1.08
+    }
+  ],
+  "glb_file": "../legs/sector-trooper-model.glb",
+  "glb_bytes": 1162136,
+  "blend_file": "../head/sector-trooper-head.blend"
+}

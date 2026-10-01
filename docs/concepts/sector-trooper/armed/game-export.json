@@ -1,0 +1,81 @@
+{
+  "file": "sector-trooper-armed.glb",
+  "bytes": 2040096,
+  "sampling_fps": 96,
+  "clips": [
+    {
+      "name": "Armed_Idle",
+      "duration": 3.0,
+      "source_gait": null,
+      "speed_mps": 0,
+      "cycle_frames": 72
+    },
+    {
+      "name": "Idle_Shoot",
+      "duration": 1.0,
+      "source_gait": null,
+      "speed_mps": 0,
+      "cycle_frames": 24
+    },
+    {
+      "name": "Run_Carry_Forward",
+      "duration": 0.75,
+      "source_gait": "Run",
+      "speed_mps": 1.76,
+      "cycle_frames": 18
+    },
+    {
+      "name": "Walk_Shoot_Forward",
+      "duration": 3.5,
+      "source_gait": null,
+      "speed_mps": 0.72,
+      "cycle_frames": 84
+    },
+    {
+      "name": "Strafe_Carry_Left",
+      "duration": 0.5833333333333334,
+      "source_gait": "Strafe_Left",
+      "speed_mps": 0.9257142857142857,
+      "cycle_frames": 14
+    },
+    {
+      "name": "Strafe_Shoot_Left",
+      "duration": 3.5,
+      "source_gait": "Strafe_Left",
+      "speed_mps": 0.9257142857142857,
+      "cycle_frames": 84
+    },
+    {
+      "name": "Strafe_Carry_Right",
+      "duration": 0.5833333333333334,
+      "source_gait": "Strafe_Right",
+      "speed_mps": 0.9257142857142857,
+      "cycle_frames": 14
+    },
+    {
+      "name": "Strafe_Shoot_Right",
+      "duration": 3.5,
+      "source_gait": "Strafe_Right",
+      "speed_mps": 0.9257142857142857,
+      "cycle_frames": 84
+    },
+    {
+      "name": "Backward_Carry",
+      "duration": 0.6666666666666666,
+      "source_gait": "Backward",
+      "speed_mps": 1.08,
+      "cycle_frames": 16
+    },
+    {
+      "name": "Backward_Shoot",
+      "duration": 2.0,
+      "source_gait": "Backward",
+      "speed_mps": 1.08,
+      "cycle_frames": 48
+    }
+  ],
+  "body_meshes": 71,
+  "rifle_meshes": 43,
+  "weapon_socket": "weapon",
+  "source_file": "../head/sector-trooper-head.blend"
+}

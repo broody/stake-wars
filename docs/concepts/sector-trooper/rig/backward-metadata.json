@@ -1,0 +1,37 @@
+{
+  "cycle_frames": 16,
+  "fps": 24,
+  "speed_mps": 1.08,
+  "stride_m": 0.72,
+  "stance_fraction": 0.43,
+  "in_place": true,
+  "movement": "Backward: Blender +Y / glTF -Z",
+  "facing": "Blender -Y / glTF +Z",
+  "animation": "Backward",
+  "frames": [
+    1,
+    17
+  ],
+  "playback_frames": [
+    1,
+    16
+  ],
+  "duration_seconds": 0.6666666666666666,
+  "foot_half_width_m": 0.185,
+  "foot_y_bias_m": 0.12,
+  "minimum_reach_margin_m": 0.030705217295710185,
+  "minimum_sole_clearance_m": 0.0,
+  "maximum_swing_clearance_m": 0.11499249935150146,
+  "max_ik_target_error_m": 5.016380251445098e-05,
+  "body_backward_lean_degrees": 6,
+  "upper_arm_swing_amplitude_degrees": 6,
+  "geometry_skeleton_weights_unchanged": true,
+  "preserved_actions": {
+    "Rig_Check": "ac6778e39305fa90a391e24b3c2e3d53abbe1b5d1efa17063b68e3878af76390",
+    "Run": "6d8a3e7a6808c4e4b803c5079c9e8e57f823268f9e4abb3f00e39233c0fd449c",
+    "Strafe_Left": "570eca10e5cbd9330062a81d1480a0c7756cf19c7504cb6d2e822eb6b7edaa39",
+    "Strafe_Right": "0c087e415a1a8b3418c5a9102898039649d6ea125a9353bbc99091c9cf6397cd",
+    "Walk": "5eebfe8a2ca3a61b9b4add3b1160a26e029404093568e12c803bcf337bcb4e61"
+  },
+  "skeleton_signature": "9853f2d9c53fb149b6d1fa27c5f3b0f43b88dc75e92b3f8308769451a8e61329"
+}

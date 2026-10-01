@@ -1,0 +1,25 @@
+{
+  "action": "Strafe_Shoot_Left",
+  "source_gait": "Strafe_Left",
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Idle_Shoot",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Walk",
+    "Walk_Shoot_Forward"
+  ],
+  "max_grip_error_m": 9.993954087813878e-05,
+  "max_right_wrist_bend_degrees": 0.10279207250233743,
+  "max_foot_matrix_difference_from_source": 3.898143768310547e-05,
+  "max_horizontal_aim_error_degrees": 0.0,
+  "seam_error": 1.5348196029663086e-06,
+  "loop_frames": 84,
+  "fps": 24,
+  "speed_mps": 0.9257142857142857,
+  "strides": 6,
+  "shots": 7
+}

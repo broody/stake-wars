@@ -475,6 +475,7 @@ export function World({ active = true }: { active?: boolean }) {
     [searchParams]
   );
   const showEnemySwarms = swarmCounts.mites > 0 || swarmCounts.lancers > 0;
+  const showTrooper = searchParams.get('trooper') === '1';
   const isBeaconOpen = searchParams.get('tracking') === 'beacon';
   const isSupplyDropOpen = searchParams.get('tracking') === 'supplyDrop';
   const setBeaconTracking = useCallback(
@@ -595,6 +596,7 @@ export function World({ active = true }: { active?: boolean }) {
     isSupplyDropOpen ||
     isSupplyDropCameraControlled ||
     showEnemySwarms ||
+    showTrooper ||
     marqueeStart !== null;
 
   const localPointerPosition = useCallback(
@@ -671,6 +673,7 @@ export function World({ active = true }: { active?: boolean }) {
       }}
       onPointerDownCapture={(event) => {
         if (
+          showTrooper ||
           event.button !== 2 ||
           isSupplyDropOpen ||
           isSupplyDropCameraControlled ||
@@ -722,6 +725,14 @@ export function World({ active = true }: { active?: boolean }) {
             isSupplyDropTracking={isSupplyDropOpen}
             onInspectSupplyDrop={openSupplyDropDraw}
             swarmCounts={swarmCounts}
+            trooper={showTrooper}
+            trooperActive={
+              !isBeaconOpen &&
+              !isSupplyDropOpen &&
+              !isImageUploadMode &&
+              !isSectorInteractionLocked &&
+              !isPlacementLocked
+            }
             active={active}
           />
           <SceneReadySignal onReady={markSceneReady} />
@@ -734,23 +745,29 @@ export function World({ active = true }: { active?: boolean }) {
         <PlacementCameraCapture />
 
         {/* ArcballControls provides free rotation including roll by default */}
-        <ArcballControls
-          minDistance={8}
-          maxDistance={30}
-          enablePan={false}
-          enabled={
-            active &&
-            marqueeStart === null &&
-            !isBeaconOpen &&
-            !isSupplyDropOpen &&
-            !isSupplyDropCameraControlled &&
-            !isPlacementLocked
-          }
-        />
+        {!showTrooper ? (
+          <ArcballControls
+            minDistance={8}
+            maxDistance={30}
+            enablePan={false}
+            enabled={
+              active &&
+              marqueeStart === null &&
+              !isBeaconOpen &&
+              !isSupplyDropOpen &&
+              !isSupplyDropCameraControlled &&
+              !isPlacementLocked
+            }
+          />
+        ) : null}
 
         <CameraArrival
           active={
-            active && !showEnemySwarms && !isBeaconOpen && !isSupplyDropOpen
+            active &&
+            !showTrooper &&
+            !showEnemySwarms &&
+            !isBeaconOpen &&
+            !isSupplyDropOpen
           }
         />
 
@@ -761,7 +778,7 @@ export function World({ active = true }: { active?: boolean }) {
           projectionActive={isCoreWaveFlipped}
         />
         <SupplyDropCameraTracker
-          active={active && !isBeaconOpen}
+          active={active && !isBeaconOpen && (!showTrooper || isSupplyDropOpen)}
           tracking={isSupplyDropOpen}
           sectorId={supplyDropDraw?.lastDrawnSectorId ?? null}
           onControlChange={setSupplyDropCameraControlled}

@@ -1,0 +1,27 @@
+{
+  "action": "Backward_Shoot",
+  "source_gait": "Backward",
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Idle_Shoot",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Strafe_Shoot_Left",
+    "Strafe_Shoot_Right",
+    "Walk",
+    "Walk_Shoot_Forward"
+  ],
+  "max_grip_error_m": 0.00013107947785489504,
+  "max_right_wrist_bend_degrees": 0.055952909680744456,
+  "max_foot_matrix_difference_from_source": 3.4928321838378906e-05,
+  "max_horizontal_aim_error_degrees": 0.0,
+  "seam_error": 1.7881393432617188e-07,
+  "loop_frames": 48,
+  "fps": 24,
+  "speed_mps": 1.08,
+  "strides": 3,
+  "shots": 4
+}

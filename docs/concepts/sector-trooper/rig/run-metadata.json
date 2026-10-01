@@ -1,0 +1,53 @@
+{
+  "animation": "Run",
+  "frames": [
+    1,
+    19
+  ],
+  "playback_frames": [
+    1,
+    18
+  ],
+  "fps": 24,
+  "duration_seconds": 0.75,
+  "speed_mps": 1.76,
+  "stride_m": 1.32,
+  "stance_fraction": 0.32,
+  "steps_per_minute": 160.0,
+  "in_place": true,
+  "foot_half_width_m": 0.172,
+  "start_phase": 0.94,
+  "toe_roll_start": 0.14,
+  "heel_contact_degrees": -16,
+  "toe_off_degrees": 47,
+  "flight_fraction": 0.35185185185185186,
+  "max_ik_target_error_m": 5.601665199678048e-05,
+  "minimum_reach_margin_m": 0.02043621020603914,
+  "minimum_sole_clearance_m": 0.0,
+  "maximum_swing_clearance_m": 0.23582732677459717,
+  "dense_samples": 216,
+  "geometry_skeleton_weights_unchanged": true,
+  "preserved_actions": {
+    "Walk": "5eebfe8a2ca3a61b9b4add3b1160a26e029404093568e12c803bcf337bcb4e61",
+    "Rig_Check": "ac6778e39305fa90a391e24b3c2e3d53abbe1b5d1efa17063b68e3878af76390"
+  },
+  "skeleton_signature": "9853f2d9c53fb149b6d1fa27c5f3b0f43b88dc75e92b3f8308769451a8e61329",
+  "reference": "sector-trooper-run-reference.png",
+  "rearward_swing_extension_m": 0.24,
+  "body_motion": {
+    "pelvis_lateral_amplitude_m": 0.009,
+    "pelvis_vertical_amplitude_m": 0.04,
+    "pelvis_forward_offset_m": 0.075,
+    "pelvis_height_offset_m": -0.032,
+    "pelvis_twist_degrees": 7,
+    "pelvis_roll_degrees": 0.9,
+    "spine_side_bend_degrees": 0.6,
+    "chest_local_counter_twist_degrees": 22,
+    "arm_swing_amplitude_degrees": 40,
+    "arm_back_bias_degrees": 8,
+    "elbow_flexion_range_degrees": [
+      51,
+      105
+    ]
+  }
+}

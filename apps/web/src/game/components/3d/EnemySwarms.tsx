@@ -126,9 +126,11 @@ function EnemyBatch({
 export default function EnemySwarms({
   active,
   counts,
+  controlCamera = true,
 }: {
   active: boolean;
   counts: EnemySwarmCounts;
+  controlCamera?: boolean;
 }) {
   const { camera } = useThree();
   const { controlView, occupiedSectorIds, sectorCaptureForce } = useSectors();
@@ -156,11 +158,12 @@ export default function EnemySwarms({
     .join(' + ');
 
   useLayoutEffect(() => {
+    if (!controlCamera) return;
     camera.position.set(0, 0, 9);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     camera.updateMatrixWorld(true);
-  }, [camera]);
+  }, [camera, controlCamera]);
 
   useFrame(({ gl }, delta) => {
     if (!active) return;

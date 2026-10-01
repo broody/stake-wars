@@ -1,0 +1,20 @@
+{
+  "validation": "PASS",
+  "animation": "Run",
+  "subframe_samples": 144,
+  "max_contact_drift_m": 0.0005728786444119734,
+  "minimum_sole_clearance_m": -0.0005134344100952148,
+  "max_ik_target_error_m": 5.932196439330913e-05,
+  "max_loop_seam_error_m": 0.0,
+  "double_support_fraction": 0.0,
+  "flight_fraction": 0.3611111111111111,
+  "maximum_both_feet_clearance_m": 0.0969998836517334,
+  "no_flight_phase": false,
+  "body_motion_peak_to_peak": {
+    "chest_lateral_m": 0.04546649754047394,
+    "pelvis_vertical_m": 0.08000004291534424,
+    "chest_pitch_degrees": 3.1769207660061554,
+    "chest_side_bend_degrees": 8.774807205965203,
+    "chest_twist_degrees": 29.101807053307283
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "animations": {
+    "Strafe_Left": {
+      "cycle_frames": 14,
+      "fps": 24,
+      "speed_mps": 0.9257142857142857,
+      "stride_m": 0.54,
+      "stance_fraction": 0.42,
+      "in_place": true,
+      "direction_x": 1,
+      "movement": "Local +X (left); facing Blender -Y / glTF +Z",
+      "frames": [
+        1,
+        15
+      ],
+      "playback_frames": [
+        1,
+        14
+      ],
+      "duration_seconds": 0.5833333333333334,
+      "foot_half_width_m": 0.265,
+      "minimum_reach_margin_m": 0.018373770878646223,
+      "minimum_boot_gap_m": 0.08820050954818726,
+      "minimum_sole_clearance_m": 0.0,
+      "max_ik_target_error_m": 5.9521890073671134e-05
+    },
+    "Strafe_Right": {
+      "cycle_frames": 14,
+      "fps": 24,
+      "speed_mps": 0.9257142857142857,
+      "stride_m": 0.54,
+      "stance_fraction": 0.42,
+      "in_place": true,
+      "direction_x": -1,
+      "movement": "Local -X (right); facing Blender -Y / glTF +Z",
+      "frames": [
+        1,
+        15
+      ],
+      "playback_frames": [
+        1,
+        14
+      ],
+      "duration_seconds": 0.5833333333333334,
+      "foot_half_width_m": 0.265,
+      "minimum_reach_margin_m": 0.018373770878646223,
+      "minimum_boot_gap_m": 0.08820050954818726,
+      "minimum_sole_clearance_m": 0.0,
+      "max_ik_target_error_m": 5.9521890073671134e-05
+    }
+  },
+  "geometry_skeleton_weights_unchanged": true,
+  "preserved_actions": {
+    "Rig_Check": "ac6778e39305fa90a391e24b3c2e3d53abbe1b5d1efa17063b68e3878af76390",
+    "Run": "6d8a3e7a6808c4e4b803c5079c9e8e57f823268f9e4abb3f00e39233c0fd449c",
+    "Walk": "5eebfe8a2ca3a61b9b4add3b1160a26e029404093568e12c803bcf337bcb4e61"
+  },
+  "skeleton_signature": "9853f2d9c53fb149b6d1fa27c5f3b0f43b88dc75e92b3f8308769451a8e61329"
+}

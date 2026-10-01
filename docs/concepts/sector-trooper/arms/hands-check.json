@@ -1,0 +1,21 @@
+{
+  "validation": "PASS",
+  "changed_meshes": [
+    "ARMS | 05 simplified glove left",
+    "ARMS | 05 simplified glove right"
+  ],
+  "triangles_per_glove": 280,
+  "vertices_per_glove": 152,
+  "geometry_elsewhere_unchanged": true,
+  "topology_unchanged": true,
+  "palm_and_wrist_unchanged": true,
+  "skeleton_weights_actions_unchanged": true,
+  "previous_geometry_signature": "a50a78edfc2b175149ee26a9e420270da4cd6aa22af0f5e8fd6473a15807c633",
+  "geometry_signature": "5f81724bf9128832c310b8a41eb7c5ffe07f314cbe6943176ba09bcf44625703",
+  "preserved_actions": {
+    "Run": "6d8a3e7a6808c4e4b803c5079c9e8e57f823268f9e4abb3f00e39233c0fd449c",
+    "Walk": "5eebfe8a2ca3a61b9b4add3b1160a26e029404093568e12c803bcf337bcb4e61",
+    "Rig_Check": "ac6778e39305fa90a391e24b3c2e3d53abbe1b5d1efa17063b68e3878af76390"
+  },
+  "skeleton_signature": "9853f2d9c53fb149b6d1fa27c5f3b0f43b88dc75e92b3f8308769451a8e61329"
+}

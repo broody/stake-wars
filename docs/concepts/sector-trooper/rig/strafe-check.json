@@ -1,0 +1,26 @@
+{
+  "validation": "PASS",
+  "animations": {
+    "Strafe_Left": {
+      "subframe_samples": 112,
+      "max_loop_seam_error_m": 0.0,
+      "minimum_sole_clearance_m": -8.58306884765625e-05,
+      "max_contact_drift_m": 0.0002408363122988754,
+      "max_ik_target_error_m": 5.9378177901324456e-05,
+      "minimum_boot_gap_m": 0.08826383575797081,
+      "flight_fraction": 0.14285714285714285,
+      "maximum_both_feet_clearance_m": 0.00517725944519043
+    },
+    "Strafe_Right": {
+      "subframe_samples": 112,
+      "max_loop_seam_error_m": 0.0,
+      "minimum_sole_clearance_m": -8.594989776611328e-05,
+      "max_contact_drift_m": 0.00024085714798997363,
+      "max_ik_target_error_m": 5.9372622616489696e-05,
+      "minimum_boot_gap_m": 0.0882638432085514,
+      "flight_fraction": 0.14285714285714285,
+      "maximum_both_feet_clearance_m": 0.00517725944519043
+    }
+  },
+  "max_mirrored_bone_error_m": 1.3657139822709083e-07
+}

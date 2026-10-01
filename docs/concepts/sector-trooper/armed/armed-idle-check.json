@@ -1,0 +1,20 @@
+{
+  "preserved_actions": [
+    "Backward",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Walk"
+  ],
+  "unchanged_skeleton_and_character_meshes": true,
+  "max_hand_contact_error_m": 2.445107561561754e-07,
+  "loop_seam_error": 3.673940268242289e-19,
+  "fps": 24,
+  "loop_frames": 72,
+  "pose": "Relaxed two-handed chest carry, muzzle across the body",
+  "rifle_parent_bone": "hand.R",
+  "max_right_wrist_bend_degrees": 0.15825877810186145,
+  "foot_matrix_drift": 0.0,
+  "chest_breath_height_range_m": 0.005851671099662781
+}

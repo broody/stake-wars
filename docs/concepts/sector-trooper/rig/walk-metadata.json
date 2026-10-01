@@ -1,0 +1,29 @@
+{
+  "animation": "Walk",
+  "frames": [
+    1,
+    29
+  ],
+  "playback_frames": [
+    1,
+    28
+  ],
+  "fps": 24,
+  "duration_seconds": 1.1666666666666667,
+  "speed_mps": 0.72,
+  "stride_m": 0.84,
+  "stance_fraction": 0.62,
+  "steps_per_minute": 102.85714285714285,
+  "in_place": true,
+  "heel_contact_degrees": -12,
+  "toe_off_degrees": 25,
+  "max_ik_target_error_m": 3.224966921228646e-05,
+  "minimum_reach_margin_m": 0.00739617570591844,
+  "minimum_sole_clearance_m": 0.0,
+  "maximum_swing_clearance_m": 0.09185898303985596,
+  "dense_samples": 224,
+  "geometry_skeleton_weights_unchanged": true,
+  "rig_check_preserved": true,
+  "skeleton_signature": "9853f2d9c53fb149b6d1fa27c5f3b0f43b88dc75e92b3f8308769451a8e61329",
+  "rig_check_signature": "ac6778e39305fa90a391e24b3c2e3d53abbe1b5d1efa17063b68e3878af76390"
+}

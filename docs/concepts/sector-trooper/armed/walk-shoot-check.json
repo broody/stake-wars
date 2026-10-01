@@ -1,0 +1,23 @@
+{
+  "action": "Walk_Shoot_Forward",
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Idle_Shoot",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Walk"
+  ],
+  "max_grip_error_m": 4.1613818457319736e-05,
+  "max_right_wrist_bend_degrees": 0.07912936904061088,
+  "max_foot_matrix_difference_from_walk": 3.0994415283203125e-05,
+  "max_horizontal_aim_error_degrees": 0.0,
+  "seam_error": 1.7881393432617188e-07,
+  "loop_frames": 84,
+  "fps": 24,
+  "speed_mps": 0.72,
+  "strides": 3,
+  "shots": 7
+}

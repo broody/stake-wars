@@ -1,0 +1,27 @@
+{
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Walk"
+  ],
+  "weapon_socket": "weapon",
+  "clips": {
+    "Armed_Idle": {
+      "max_grip_error_m": 4.056292053704321e-07,
+      "max_right_wrist_bend_degrees": 0.15825877810186145,
+      "foot_drift": 0.0,
+      "seam_error": 3.673940268242289e-19
+    },
+    "Idle_Shoot": {
+      "max_grip_error_m": 0.00011275080769009404,
+      "max_right_wrist_bend_degrees": 0.20367177207835063,
+      "foot_drift": 0.0,
+      "seam_error": 3.5762786865234375e-07,
+      "max_horizontal_aim_error_degrees": 0.0
+    }
+  }
+}

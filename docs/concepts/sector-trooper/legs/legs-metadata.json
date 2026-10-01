@@ -1,0 +1,27 @@
+{
+  "head_triangles": 1590,
+  "torso_triangles": 1868,
+  "legs_triangles": 1982,
+  "arms_triangles": 1240,
+  "combined_triangles": 6680,
+  "mesh_count": 71,
+  "material_count": 6,
+  "head_and_torso_unchanged": true,
+  "approved_upper_signature": "5b4c7978958b2b8a4005055aab60004fdcb31675bf0b2437def224f42cb8c1ee",
+  "ground_z_m": -1.265625,
+  "height_m": 1.8828125,
+  "validation": "PASS",
+  "scope": "Complete rigged Sector Trooper with animation clips",
+  "glb_bytes": 1162136,
+  "blend_file": "../head/sector-trooper-head.blend",
+  "rigged": true,
+  "rig_bones": 30,
+  "animations": [
+    "Rig_Check",
+    "Walk",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Backward"
+  ]
+}

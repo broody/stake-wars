@@ -1696,11 +1696,13 @@ export function SectorOwnershipLayers({
 
 interface PlanetProps {
   intro: CoreIntro;
+  interactive?: boolean;
   tenureExtrusionEnabled?: boolean;
 }
 
 export function Planet({
   intro,
+  interactive = true,
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
   const { camera } = useThree();
@@ -1979,6 +1981,7 @@ export function Planet({
     sectorId: number,
     event: ThreeEvent<MouseEvent>
   ) => {
+    if (!interactive) return;
     event.stopPropagation();
     if (
       isSectorInteractionLocked ||
@@ -2004,6 +2007,7 @@ export function Planet({
     sectorId: number,
     event: ThreeEvent<MouseEvent>
   ) => {
+    if (!interactive) return;
     event.stopPropagation();
     if (
       isSectorInteractionLocked ||
@@ -2056,6 +2060,7 @@ export function Planet({
     sectorId: number,
     event: ThreeEvent<PointerEvent>
   ) => {
+    if (!interactive) return;
     event.stopPropagation();
     if (placementDraft !== null) {
       setHoveredSectorId(null);

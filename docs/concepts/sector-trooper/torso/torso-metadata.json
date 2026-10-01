@@ -1,0 +1,39 @@
+{
+  "head_triangles": 1590,
+  "torso_triangles": 1868,
+  "combined_triangles": 3458,
+  "torso_meshes": 15,
+  "materials": 6,
+  "validation": "PASS",
+  "approved_head_unchanged": true,
+  "approved_head_signature": "5f8e37fbec9da29772d4a617ae598f31a3941c4499f6656c998a9d5ef25c79c8",
+  "bounds_min": [
+    -0.4895833432674408,
+    -0.3046875,
+    -0.6145833134651184
+  ],
+  "bounds_max": [
+    0.4895833432674408,
+    0.3333333432674408,
+    0.6171875
+  ],
+  "scope": "Head, torso, shoulder caps and lower abdominal plate; no limbs, rig or animations",
+  "glb_bytes": 331460,
+  "blend_file": "../head/sector-trooper-head.blend",
+  "vest_revision": 2,
+  "pelvis_revision": 3,
+  "pelvis_meshes": 3,
+  "pelvis_triangles": 616,
+  "pelvis_part_triangles": {
+    "TORSO | 07 pelvic belt and keepers": 480,
+    "TORSO | 08 front groin armor": 32,
+    "TORSO | 09 rear culet armor": 104
+  },
+  "pelvis_construction": "Separate front and rear armor plates held together by a belt",
+  "rigid_hip_connections": false,
+  "crotch_bridge": false,
+  "belt_keeper_count": 4,
+  "rest_pose_thigh_clearance": "PASS",
+  "head_vest_shoulders_legs_unchanged": true,
+  "rear_armor_present": true
+}

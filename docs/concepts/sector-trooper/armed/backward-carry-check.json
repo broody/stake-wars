@@ -1,0 +1,29 @@
+{
+  "action": "Backward_Carry",
+  "source_gait": "Backward",
+  "preserved_actions": [
+    "Armed_Idle",
+    "Backward",
+    "Backward_Shoot",
+    "Idle_Shoot",
+    "Rig_Check",
+    "Run",
+    "Strafe_Left",
+    "Strafe_Right",
+    "Strafe_Shoot_Left",
+    "Strafe_Shoot_Right",
+    "Walk",
+    "Walk_Shoot_Forward"
+  ],
+  "max_grip_error_m": 3.7319897968674285e-07,
+  "max_right_wrist_bend_degrees": 0.0,
+  "max_foot_matrix_difference_from_source": 0.0,
+  "weapon_mode": "carry",
+  "seam_error": 0.0,
+  "loop_frames": 16,
+  "fps": 24,
+  "speed_mps": 1.08,
+  "strides": 1,
+  "shots": 0,
+  "max_chest_relative_weapon_difference": 3.5762786865234375e-07
+}
