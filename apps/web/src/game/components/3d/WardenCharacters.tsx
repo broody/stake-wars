@@ -5,6 +5,7 @@ import { enemyDeathOpacity } from '../../utils/enemyOpacity';
 import { WardenAnimation } from '../../utils/wardenAnimation';
 import { chord, lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
 import { SIM_HZ } from '../../survivors/sim';
+import { emergeLift } from '../../survivors/breach';
 import {
   surfaceRotation,
   toVector,
@@ -34,7 +35,13 @@ export function WardenCharacters({ registry }: { registry: Set<Renderer> }) {
     if (!container) return;
     const keep = new Set<number>();
     const { normal, up, facing } = scratch.current;
-    const get = (id: number, n: Vec3, heading: Vec3, scale: number) => {
+    const get = (
+      id: number,
+      n: Vec3,
+      heading: Vec3,
+      scale: number,
+      lift = 0
+    ) => {
       keep.add(id);
       let actor = actors.current.get(id);
       if (!actor) {
@@ -43,7 +50,7 @@ export function WardenCharacters({ registry }: { registry: Set<Renderer> }) {
         actors.current.set(id, actor);
         container.add(actor.root);
       }
-      actor.root.position.copy(toVector(up, n)).multiplyScalar(radius);
+      actor.root.position.copy(toVector(up, n)).multiplyScalar(radius + lift);
       surfaceRotation(actor.root.quaternion, up, toVector(facing, heading));
       actor.root.scale.setScalar(scale);
       return actor;
@@ -51,9 +58,24 @@ export function WardenCharacters({ registry }: { registry: Set<Renderer> }) {
     const time = Math.max(0, run.time - (1 - alpha) / SIM_HZ);
     for (const enemy of run.enemies) {
       if (enemy.spec.model !== 'warden' || enemy.dead) continue;
+      const lift = emergeLift(
+        enemy.emerge,
+        alpha,
+        1 / SIM_HZ,
+        enemy.spec.scale
+      );
       lerpNormal(normal, enemy.prev, enemy.n, alpha);
       const slam = enemy.slam;
-      get(enemy.id, normal, enemy.heading, enemy.spec.scale).update({
+      const actor = get(
+        enemy.id,
+        normal,
+        enemy.heading,
+        enemy.spec.scale,
+        lift ?? 0
+      );
+      // Still under its flipping Sector.
+      actor.root.visible = lift !== null;
+      actor.update({
         time,
         opacity: enemyDeathOpacity(run, enemy.n, enemy.spec.radius),
         scale: enemy.spec.scale,

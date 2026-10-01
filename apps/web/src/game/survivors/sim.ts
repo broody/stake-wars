@@ -1,8 +1,9 @@
 /**
  * Core Survivors: a single-player survival run on the surface of the Core.
  *
- * The simulation is deterministic for a seed and an input sequence, runs at a
- * fixed rate and knows nothing about rendering. Distances are world units on
+ * The simulation is deterministic for a seed, an input sequence and the
+ * reported `view` (where spawns breach), runs at a fixed rate and knows
+ * nothing about rendering. Distances are world units on
  * the Core (radius 5); times are seconds. Every actor is a unit normal.
  */
 import {
@@ -42,7 +43,16 @@ import {
   sweptShieldHit,
 } from './bulwarkAttack';
 
-import { ENEMY_DEFEAT, enemyDefeatTiming } from './enemyDefeat';
+import { ENEMY_DEFEAT, enemyDefeatTiming, STRIKE_TOSS } from './enemyDefeat';
+import {
+  BREACH,
+  BREACH_EMERGE,
+  BREACH_LIFE,
+  MAX_BREACHES,
+  type Breach,
+} from './breach';
+import { sectorAt, sectorCenter } from './sectors';
+import { MAX_RIPPLES, RIPPLE, rippleLife, type Ripple } from './ripple';
 import { WARDEN_SLAM, WARDEN_GAIT, wardenSlamOrigin } from './wardenAttack';
 
 import {
@@ -112,6 +122,8 @@ export interface Enemy {
   travel: number;
   maxTravel: number;
   hitAt: Partial<Record<WeaponId, number>>;
+  /** Seconds until it has risen out of its breach; inert and untargetable until 0. */
+  emerge: number;
   dead: boolean;
 }
 
@@ -121,6 +133,21 @@ export interface DefeatedEnemy
   diedAt: number;
   age: number;
   previousAge: number;
+  /**
+   * Thrown from `from`, touching down at `land`, then skidding to rest at
+   * `n`. `spin` turns it end over end in flight (half a turn lands a Mite on
+   * its back); as it skids it leans `tilt` toward the side `lean` radians
+   * around from its skid, and `twist` turns it.
+   */
+  toss?: {
+    from: Vec3;
+    land: Vec3;
+    height: number;
+    spin: number;
+    tilt: number;
+    lean: number;
+    twist: number;
+  };
 }
 
 export interface Gem {
@@ -335,6 +362,19 @@ export interface Run {
   healthScale: number;
   shake: number;
   hurtFlash: number;
+  /** Sectors flipping open for spawns. */
+  breaches: Breach[];
+  /** Rings running through the Sectors from Orbital Strike impacts. */
+  ripples: Ripple[];
+  /** Ground distance from the player to each screen edge, set by the renderer. */
+  view: ViewExtent;
+}
+
+export interface ViewExtent {
+  right: number;
+  left: number;
+  up: number;
+  down: number;
 }
 
 export interface MoveInput {
@@ -349,6 +389,11 @@ const PLAYER_SPEED = 1;
 /** Roughly the half-height of the view; "visible" targets are within it. */
 const VIEW = 3.4;
 const SPAWN_DISTANCE = 5.4;
+/** A landscape view from the follow camera, until the renderer reports one. */
+const DEFAULT_VIEW: ViewExtent = { right: 3.5, left: 3.5, up: 3.5, down: 2.4 };
+/** Breaches stay this far inside the screen edge, clear of the HUD. */
+const SPAWN_MARGIN = 0.7;
+const SPAWN_MIN = 1.6;
 const RECYCLE_DISTANCE = 7.6;
 const CELL = 0.6;
 const MAX_TEXTS = 120;
@@ -450,6 +495,9 @@ export function createRun(
     healthScale: 1,
     shake: 0,
     hurtFlash: 0,
+    breaches: [],
+    ripples: [],
+    view: { ...DEFAULT_VIEW },
   };
   playerRight(run.right, run.player);
   return run;
@@ -489,7 +537,7 @@ function buildGrid(run: Run) {
   grid.clear();
   const radius = run.groundRadius;
   for (const enemy of run.enemies) {
-    if (enemy.dead) continue;
+    if (enemy.dead || enemy.emerge > 0) continue;
     const key = gridKey(
       cellOf(enemy.n.x, radius),
       cellOf(enemy.n.y, radius),
@@ -529,7 +577,7 @@ function nearestEnemy(
   let best: Enemy | null = null;
   let bestDistance = reach / run.groundRadius;
   for (const enemy of run.enemies) {
-    if (enemy.dead || except?.has(enemy)) continue;
+    if (enemy.dead || enemy.emerge > 0 || except?.has(enemy)) continue;
     const d = chord(enemy.n, n);
     if (d < bestDistance) {
       bestDistance = d;
@@ -542,7 +590,8 @@ function nearestEnemy(
 function visibleEnemies(run: Run) {
   const reach = VIEW / run.groundRadius;
   return run.enemies.filter(
-    (enemy) => !enemy.dead && chord(enemy.n, run.player.n) < reach
+    (enemy) =>
+      !enemy.dead && enemy.emerge <= 0 && chord(enemy.n, run.player.n) < reach
   );
 }
 
@@ -586,7 +635,7 @@ function damage(
   }
   if (source) run.damageBy[source] = (run.damageBy[source] ?? 0) + dealt;
   addText(run, enemy.n, dealt, crit);
-  if (enemy.hp <= 0) kill(run, enemy);
+  if (enemy.hp <= 0) kill(run, enemy, tossOrigin(run, source, from));
 }
 
 function hitCircle(
@@ -615,7 +664,56 @@ function cooledDown(
   return true;
 }
 
-function kill(run: Run, enemy: Enemy) {
+/** `blast` is where a tossing hit came from: a strike impact or the saber's wielder. */
+/** Orbital Strikes throw bodies off their impact; saber cuts, away from the trooper. */
+function tossOrigin(run: Run, source: WeaponId | null, from?: Vec3) {
+  if (source === 'strike') return from;
+  if (source === 'blade') return from ?? run.player.n;
+  return undefined;
+}
+
+/** Throw a body away from the impact; it lands where it will settle. */
+function toss(run: Run, body: DefeatedEnemy, blast: Vec3) {
+  const away = tangentToward(vec3(), body.n, blast, body.heading);
+  set(away, -away.x, -away.y, -away.z);
+  // Struck dead center: any direction will do.
+  if (chord(body.n, blast) * run.groundRadius < 0.02)
+    rotateAbout(away, body.n, run.random() * TAU);
+  const spread = (limit: number) => (run.random() - 0.5) * 2 * limit;
+  rotateAbout(away, body.n, spread(STRIKE_TOSS.jitter));
+  const from = copy(vec3(), body.n);
+  const height = STRIKE_TOSS.height * (0.6 + 0.8 * run.random());
+  const onBack = body.spec.model === 'mite';
+  const spin = (run.random() < 0.5 ? -1 : 1) * (onBack ? Math.PI : TAU);
+  stepAlong(
+    body.n,
+    away,
+    (STRIKE_TOSS.distance + STRIKE_TOSS.spread * run.random()) /
+      run.groundRadius
+  );
+  const land = copy(vec3(), body.n);
+  rotateAbout(away, body.n, spread(STRIKE_TOSS.slideTurn));
+  stepAlong(
+    body.n,
+    away,
+    (STRIKE_TOSS.slide + STRIKE_TOSS.slideSpread * run.random()) /
+      run.groundRadius
+  );
+  body.toss = {
+    from,
+    land,
+    height,
+    spin,
+    tilt: onBack
+      ? STRIKE_TOSS.minTilt +
+        (STRIKE_TOSS.tilt - STRIKE_TOSS.minTilt) * run.random()
+      : 0,
+    lean: run.random() * TAU,
+    twist: spread(STRIKE_TOSS.twist),
+  };
+}
+
+function kill(run: Run, enemy: Enemy, blast?: Vec3) {
   if (enemy.dead) return;
   enemy.dead = true;
   enemy.slam = undefined;
@@ -630,7 +728,7 @@ function kill(run: Run, enemy: Enemy) {
   ) {
     if (run.defeatedEnemies.length >= ENEMY_DEFEAT.capacity)
       run.defeatedEnemies.shift();
-    run.defeatedEnemies.push({
+    const body: DefeatedEnemy = {
       id: enemy.id,
       kind: enemy.kind,
       spec: enemy.spec,
@@ -640,7 +738,11 @@ function kill(run: Run, enemy: Enemy) {
       diedAt: run.time,
       age: 0,
       previousAge: 0,
-    });
+    };
+    const spec = enemy.spec;
+    if (blast && spec.mass <= STRIKE_TOSS.maxMass && !spec.boss && !spec.elite)
+      toss(run, body, blast);
+    run.defeatedEnemies.push(body);
   }
   run.kills++;
   dropGem(run, enemy.n, enemy.spec.xp);
@@ -955,6 +1057,12 @@ function strikeAt(run: Run, n: Vec3, amount: number, radius: number) {
     age: 0,
     life: 0.25,
   });
+  if (run.ripples.length >= MAX_RIPPLES) run.ripples.shift();
+  run.ripples.push({
+    n: copy(vec3(), n),
+    strength: radius / RIPPLE.baseRadius,
+    age: 0,
+  });
 }
 
 function updateStrike(run: Run, weapon: Weapon, dt: number) {
@@ -1104,6 +1212,16 @@ const WEAPON_UPDATES: Record<
 
 // ---------- Enemies ----------
 
+function spawnDirection(run: Run, heading?: Vec3, spread = 1.6) {
+  const player = run.player;
+  const dir = vec3();
+  if (heading) {
+    copy(dir, heading);
+    rotateAbout(dir, player.n, (run.random() - 0.5) * spread);
+  } else shardDirection(dir, run.right, player.n, run.random() * TAU);
+  return normalize(projectTangent(dir, player.n));
+}
+
 function spawnPoint(
   run: Run,
   out: Vec3,
@@ -1111,18 +1229,65 @@ function spawnPoint(
   heading?: Vec3,
   spread = 1.6
 ) {
-  const player = run.player;
-  const dir = vec3();
-  if (heading) {
-    copy(dir, heading);
-    rotateAbout(dir, player.n, (run.random() - 0.5) * spread);
-  } else shardDirection(dir, run.right, player.n, run.random() * TAU);
+  const dir = spawnDirection(run, heading, spread);
+  return pointAt(out, run.player.n, dir, at / run.groundRadius);
+}
+
+/** Ground distance from the player, along tangent `dir`, that stays on screen. */
+function onScreen(run: Run, dir: Vec3, inset = 0) {
+  const x = dot(dir, run.right);
+  const y = dot(dir, run.player.forward);
+  const { view } = run;
+  let edge = Infinity;
+  if (x > 1e-6) edge = Math.min(edge, view.right / x);
+  if (x < -1e-6) edge = Math.min(edge, -view.left / x);
+  if (y > 1e-6) edge = Math.min(edge, view.up / y);
+  if (y < -1e-6) edge = Math.min(edge, -view.down / y);
+  return Math.max(SPAWN_MIN, edge - SPAWN_MARGIN - inset);
+}
+
+/** A point just inside the screen edge, so its breach is seen. */
+function edgePoint(
+  run: Run,
+  out: Vec3,
+  heading?: Vec3,
+  spread = 1.6,
+  inset = 0
+) {
+  const dir = spawnDirection(run, heading, spread);
   return pointAt(
     out,
-    player.n,
-    normalize(projectTangent(dir, player.n)),
-    at / run.groundRadius
+    run.player.n,
+    dir,
+    onScreen(run, dir, inset) / run.groundRadius
   );
+}
+
+/** Spawn by breaching the Sector under `n`, by default just inside the screen edge. */
+function breachEnemy(run: Run, kind: EnemyKind, n?: Vec3): Enemy {
+  const enemy = spawnEnemy(run, kind, n ?? edgePoint(run, vec3()));
+  emergeFrom(run, enemy);
+  return enemy;
+}
+
+/** Center the enemy on the Sector under it, flip that Sector and hold the enemy below until it rises. */
+function emergeFrom(run: Run, enemy: Enemy) {
+  const sector = sectorAt(enemy.n);
+  sectorCenter(enemy.n, sector);
+  copy(enemy.prev, enemy.n);
+  copy(
+    enemy.heading,
+    tangentToward(vec3(), enemy.n, run.player.n, enemy.heading)
+  );
+  const open = run.breaches.find((breach) => breach.sector === sector);
+  // Join a Sector that is still open; the enemy still rises before it closes.
+  if (open && open.age < BREACH.flip + BREACH.hold) {
+    enemy.emerge = Math.max(BREACH.rise, BREACH_EMERGE - open.age);
+    return;
+  }
+  if (open) run.breaches.splice(run.breaches.indexOf(open), 1);
+  if (run.breaches.length < MAX_BREACHES) run.breaches.push({ sector, age: 0 });
+  enemy.emerge = BREACH_EMERGE;
 }
 
 export function spawnEnemy(run: Run, kind: EnemyKind, n?: Vec3): Enemy {
@@ -1161,6 +1326,7 @@ export function spawnEnemy(run: Run, kind: EnemyKind, n?: Vec3): Enemy {
     travel: 0,
     maxTravel: 0,
     hitAt: {},
+    emerge: 0,
     dead: false,
   };
   run.enemies.push(enemy);
@@ -1197,7 +1363,7 @@ function director(run: Run, dt: number) {
   while (run.spawnCredit >= 1) {
     run.spawnCredit -= 1;
     if (alive < target) {
-      spawnEnemy(run, pickKind(run, minutes));
+      breachEnemy(run, pickKind(run, minutes));
       alive++;
     }
   }
@@ -1275,14 +1441,16 @@ function seekerPack(run: Run, dir: Vec3, across: number) {
 function encircle(run: Run, count: number, heavy: number) {
   const total = count + heavy;
   const every = heavy ? Math.ceil(total / heavy) : 0;
+  // The ring traces the screen edge, so every breach is in view.
   for (let i = 0; i < total; i++) {
+    const dir = around(run, (i / total) * TAU);
     const n = pointAt(
       vec3(),
       run.player.n,
-      around(run, (i / total) * TAU),
-      4.6 / run.groundRadius
+      dir,
+      onScreen(run, dir) / run.groundRadius
     );
-    spawnEnemy(run, heavy && i % every === 0 ? 'bulwark' : 'mite', n);
+    breachEnemy(run, heavy && i % every === 0 ? 'bulwark' : 'mite', n);
   }
 }
 
@@ -1298,10 +1466,10 @@ export function runEvent(run: Run, id: EventId) {
     case 'swarm': {
       const dir = around(run, run.random() * TAU);
       for (let i = 0; i < 20; i++)
-        spawnEnemy(
+        breachEnemy(
           run,
           'skitter',
-          spawnPoint(run, vec3(), SPAWN_DISTANCE + run.random() * 0.5, dir, 0.9)
+          edgePoint(run, vec3(), dir, 0.9, run.random() * 0.5)
         );
       break;
     }
@@ -1315,7 +1483,7 @@ export function runEvent(run: Run, id: EventId) {
     case 'captain':
     case 'captains':
       for (let i = 0; i < (id === 'captains' ? 2 : 1); i++)
-        spawnEnemy(run, 'captain');
+        breachEnemy(run, 'captain');
       break;
     case 'seekers':
     case 'seekerPacks': {
@@ -1339,13 +1507,8 @@ export function runEvent(run: Run, id: EventId) {
       encircle(run, 32, 8);
       break;
     case 'warden': {
-      const n = pointAt(
-        vec3(),
-        run.player.n,
-        run.player.forward,
-        SPAWN_DISTANCE / run.groundRadius
-      );
-      const warden = spawnEnemy(run, 'warden', n);
+      const n = edgePoint(run, vec3(), run.player.forward, 0);
+      const warden = breachEnemy(run, 'warden', n);
       warden.cooldown = 3;
       warden.cooldown2 = 5;
       run.wardens++;
@@ -1474,7 +1637,13 @@ function displaceBulwarkCrowds(run: Run, dt: number) {
       return bounds;
     };
     for (const other of run.enemies) {
-      if (other === charger || other.dead || other.spec.boss || other.thrust)
+      if (
+        other === charger ||
+        other.dead ||
+        other.emerge > 0 ||
+        other.spec.boss ||
+        other.thrust
+      )
         continue;
       const a = local(other.prev),
         b = local(other.n);
@@ -1774,7 +1943,7 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
         for (let i = 0; i < 6; i++) {
           copy(direction, toward);
           rotateAbout(direction, enemy.n, (i / 6) * TAU);
-          spawnEnemy(
+          breachEnemy(
             run,
             'mite',
             pointAt(vec3(), enemy.n, direction, 0.42 / run.groundRadius)
@@ -1803,6 +1972,10 @@ function updateEnemies(run: Run, dt: number) {
     if (enemy.dead) continue;
     copy(enemy.prev, enemy.n);
     enemy.age += dt;
+    if (enemy.emerge > 0) {
+      enemy.emerge = Math.max(0, enemy.emerge - dt);
+      continue;
+    }
     if (enemy.flash > 0) enemy.flash -= dt;
     if (enemy.slowTime > 0) enemy.slowTime -= dt;
     if (enemy.straight && enemy.kind !== 'seeker') {
@@ -1838,15 +2011,10 @@ function updateEnemies(run: Run, dt: number) {
     }
     const gap = distance(run, enemy.n, player.n);
     if (!enemy.straight && !enemy.spec.boss && gap > RECYCLE_DISTANCE) {
-      spawnPoint(
-        run,
-        enemy.n,
-        SPAWN_DISTANCE,
-        player.moving ? player.heading : undefined
-      );
-      copy(enemy.prev, enemy.n);
+      edgePoint(run, enemy.n, player.moving ? player.heading : undefined);
       enemy.mode = 'walk';
       enemy.thrust = undefined;
+      emergeFrom(run, enemy);
       continue;
     }
     if (enemy.spec.damage > 0 && gap < enemy.spec.radius + PLAYER_RADIUS)
@@ -1855,7 +2023,13 @@ function updateEnemies(run: Run, dt: number) {
   displaceBulwarkCrowds(run, dt);
   // Soft separation, so a crowd reads as a crowd.
   for (const enemy of run.enemies) {
-    if (enemy.dead || enemy.straight || enemy.spec.boss || enemy.thrust)
+    if (
+      enemy.dead ||
+      enemy.emerge > 0 ||
+      enemy.straight ||
+      enemy.spec.boss ||
+      enemy.thrust
+    )
       continue;
     let pushes = 0;
     for (const other of nearby(run, enemy.n, 0.45)) {
@@ -2199,6 +2373,12 @@ export function tick(run: Run, dt: number, input: MoveInput) {
         : effect.age + dt;
   }
   run.effects = run.effects.filter((effect) => effect.age < effect.life);
+  for (const breach of run.breaches) breach.age += dt;
+  run.breaches = run.breaches.filter((breach) => breach.age < BREACH_LIFE);
+  for (const ripple of run.ripples) ripple.age += dt;
+  run.ripples = run.ripples.filter(
+    (ripple) => ripple.age < rippleLife(ripple.strength)
+  );
   for (const text of run.texts) text.age += dt;
   run.texts = run.texts.filter((text) => text.age < 0.7);
   if (run.banner && (run.banner.age += dt) > 2.8) run.banner = null;

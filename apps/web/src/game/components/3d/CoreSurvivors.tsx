@@ -6,6 +6,7 @@ import { sectorStakeHeights } from '../../utils/sectorStakeRelief';
 import { enemyGroundRadius } from '../../utils/enemySwarm';
 import { colors } from '../../../ui/tokens';
 import { survivorsSession } from '../../survivors/session';
+import type { ViewExtent } from '../../survivors/sim';
 import { cross, lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
 import {
   Bolts,
@@ -27,6 +28,8 @@ import {
 
 import { SurvivorTrooper } from './SurvivorTrooper';
 import { SaberSlashes } from './SaberSlashes';
+import { SectorBreaches } from './SectorBreaches';
+import { SectorRipples } from './SectorRipples';
 
 import { DeathCamera } from '../../survivors/deathCamera';
 import { WardenCharacters } from './WardenCharacters';
@@ -34,6 +37,49 @@ import { WardenCharacters } from './WardenCharacters';
 const CAMERA_HEIGHT = 3.3;
 const CAMERA_BACK = 0.9;
 const CAMERA_LEAD = 0.15;
+
+/**
+ * Where a screen edge runs past the planet's horizon, spawns stop short of it:
+ * near the horizon a Sector is seen edge-on and its flip would not read.
+ */
+const HORIZON_FRACTION = 0.75;
+const edgeRay = new THREE.Ray();
+const edgeSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+const edgeHit = new THREE.Vector3();
+const edgePlayer = new THREE.Vector3();
+const EDGES = [
+  ['right', 1, 0],
+  ['left', -1, 0],
+  ['up', 0, 1],
+  ['down', 0, -1],
+] as const;
+
+/** Ground distance from the player to the middle of each screen edge. */
+function measureView(
+  view: ViewExtent,
+  camera: THREE.Camera,
+  player: Vec3,
+  radius: number
+) {
+  edgeSphere.radius = radius;
+  toVector(edgePlayer, player);
+  edgeRay.origin.setFromMatrixPosition(camera.matrixWorld);
+  const horizon =
+    Math.acos(Math.min(1, radius / edgeRay.origin.length())) *
+    radius *
+    HORIZON_FRACTION;
+  for (const [edge, x, y] of EDGES) {
+    edgeRay.direction
+      .set(x, y, 0.5)
+      .unproject(camera)
+      .sub(edgeRay.origin)
+      .normalize();
+    const hit = edgeRay.intersectSphere(edgeSphere, edgeHit);
+    view[edge] = hit
+      ? Math.min(horizon, hit.normalize().angleTo(edgePlayer) * radius)
+      : horizon;
+  }
+}
 
 function tangentLerp(out: Vec3, a: Vec3, b: Vec3, t: number, normal: Vec3) {
   out.x = a.x + (b.x - a.x) * t;
@@ -152,6 +198,8 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     camera.up.copy(ahead);
     camera.lookAt(look);
     camera.updateMatrixWorld();
+    if (run.status !== 'fallen')
+      measureView(run.view, camera, normal, groundRadius);
     // A light from the camera keeps the dark Hollow Legion readable on the Core.
     const light = headlight.current;
     if (light) {
@@ -181,6 +229,8 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
         intensity={2.2}
         color={colors.fg.DEFAULT}
       />
+      <SectorBreaches registry={registry} />
+      <SectorRipples registry={registry} />
       <PlayerFrameEffects registry={registry} />
       <WorldEffects registry={registry} />
       <BulwarkTelegraphs registry={registry} />

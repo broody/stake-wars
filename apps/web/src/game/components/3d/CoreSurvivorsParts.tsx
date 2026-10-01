@@ -34,8 +34,14 @@ import {
   vec3,
   type Vec3,
 } from '../../survivors/sphere';
-import { type Enemy } from '../../survivors/sim';
-import { ENEMY_DEFEAT, enemyDefeatOpacity } from '../../survivors/enemyDefeat';
+import { SIM_HZ, type DefeatedEnemy, type Enemy } from '../../survivors/sim';
+import { emergeLift } from '../../survivors/breach';
+import {
+  ENEMY_DEFEAT,
+  enemyDefeatOpacity,
+  TOSS_SHAPE,
+  tossFlight,
+} from '../../survivors/enemyDefeat';
 import {
   BULWARK_ATTACK,
   bulwarkWarningBounds,
@@ -66,7 +72,58 @@ const s = {
   rotation: new THREE.Quaternion(),
   scale: new THREE.Vector3(),
   color: new THREE.Color(),
+  tumble: new THREE.Quaternion(),
+  tilt: new THREE.Quaternion(),
+  twist: new THREE.Quaternion(),
+  axis: new THREE.Vector3(),
+  pivot: new THREE.Vector3(),
 };
+
+/** A body's matrix, following its toss while airborne. */
+function bodyMatrix(
+  out: THREE.Matrix4,
+  body: DefeatedEnemy,
+  age: number,
+  radius: number
+) {
+  const toss = body.toss;
+  const shape = TOSS_SHAPE[body.spec.model];
+  if (!toss || !shape)
+    return surfaceMatrix(out, body.n, body.heading, radius, 0, body.spec.scale);
+  // A Mite stays on its back, tilted, for the rest of its fade.
+  const flight = tossFlight(age);
+  if (flight.k < 1) lerpNormal(s.n, toss.from, toss.land, flight.travel);
+  else lerpNormal(s.n, toss.land, body.n, flight.slide);
+  toVector(s.up, s.n);
+  toVector(s.position, body.heading);
+  surfaceRotation(s.rotation, s.up, s.position);
+  // Tumble end over end about the axis across the line of flight.
+  toVector(s.axis, toss.land)
+    .sub(toVector(s.pivot, toss.from))
+    .cross(s.up)
+    .normalize();
+  s.tumble.setFromAxisAngle(s.axis, toss.spin * flight.k);
+  // Skidding, it leans toward its own random side and slews about its up.
+  toVector(s.axis, body.n)
+    .sub(toVector(s.pivot, toss.land))
+    .normalize()
+    .applyAxisAngle(s.up, toss.lean);
+  const tilt = toss.tilt * flight.slide;
+  s.tilt.setFromAxisAngle(s.axis, tilt);
+  s.twist.setFromAxisAngle(s.up, toss.twist * flight.slide);
+  s.tumble.premultiply(s.tilt).premultiply(s.twist);
+  s.rotation.premultiply(s.tumble);
+  // Turn about the body's middle, and keep a rolled edge out of the ground.
+  s.pivot.copy(s.up).multiplyScalar(shape.center * body.spec.scale);
+  const rolled = Math.abs(Math.sin(tilt)) * shape.halfWidth * body.spec.scale;
+  s.position
+    .copy(s.up)
+    .multiplyScalar(radius + toss.height * flight.lift + rolled)
+    .add(s.pivot)
+    .sub(s.pivot.applyQuaternion(s.tumble));
+  s.scale.setScalar(body.spec.scale);
+  return out.compose(s.position, s.rotation, s.scale);
+}
 
 /** Compose an instance matrix on the surface at `n`, `lift` above the ground. */
 function surfaceMatrix(
@@ -220,8 +277,22 @@ export function RiggedBatch({
     for (const enemy of run.enemies) {
       if (enemy.spec.model !== model) continue;
       if (index >= config.capacity) break;
+      const lift = emergeLift(
+        enemy.emerge,
+        alpha,
+        1 / SIM_HZ,
+        enemy.spec.scale
+      );
+      if (lift === null) continue;
       lerpNormal(s.n, enemy.prev, enemy.n, alpha);
-      surfaceMatrix(s.basis, s.n, enemy.heading, radius, 0, enemy.spec.scale);
+      surfaceMatrix(
+        s.basis,
+        s.n,
+        enemy.heading,
+        radius,
+        lift,
+        enemy.spec.scale
+      );
       const tint = tintFor(enemy, run.time);
       for (const batch of live.batches) {
         setEnemyInstanceOpacity(
@@ -354,7 +425,7 @@ export function DefeatedBatch({
       if (body.spec.model !== model) continue;
       if (i >= ENEMY_DEFEAT.capacity) break;
       const age = body.previousAge + (body.age - body.previousAge) * alpha;
-      surfaceMatrix(s.basis, body.n, body.heading, radius, 0, body.spec.scale);
+      bodyMatrix(s.basis, body, age, radius);
       for (const batch of live.batches) {
         setEnemyInstanceOpacity(
           batch,
@@ -486,10 +557,24 @@ export function PlaceholderBatch({
     for (const enemy of run.enemies) {
       if (enemy.spec.model !== model) continue;
       if (index >= capacity) break;
+      const lift = emergeLift(
+        enemy.emerge,
+        alpha,
+        1 / SIM_HZ,
+        enemy.spec.scale
+      );
+      if (lift === null) continue;
       lerpNormal(s.n, enemy.prev, enemy.n, alpha);
       const bob =
         enemy.mode === 'walk' ? Math.abs(Math.sin(enemy.age * 9)) * 0.015 : 0;
-      surfaceMatrix(s.basis, s.n, enemy.heading, radius, bob, enemy.spec.scale);
+      surfaceMatrix(
+        s.basis,
+        s.n,
+        enemy.heading,
+        radius,
+        bob + lift,
+        enemy.spec.scale
+      );
       const tint = tintFor(enemy, run.time);
       for (const mesh of meshes) {
         if (!mesh) continue;
