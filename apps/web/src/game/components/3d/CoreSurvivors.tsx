@@ -32,11 +32,8 @@ import { SectorBreaches } from './SectorBreaches';
 import { SectorRipples } from './SectorRipples';
 
 import { DeathCamera } from '../../survivors/deathCamera';
+import { FOLLOW_CAMERA, followPullback } from '../../survivors/followCamera';
 import { WardenCharacters } from './WardenCharacters';
-
-const CAMERA_HEIGHT = 3.3;
-const CAMERA_BACK = 0.9;
-const CAMERA_LEAD = 0.15;
 
 /**
  * Where a screen edge runs past the planet's horizon, spawns stop short of it:
@@ -165,14 +162,19 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     const right = cross(view.right, forward, normal);
     const { eye, look, ahead } = view;
     toVector(ahead, forward);
+    // Narrow screens back the camera off along its own line of sight.
+    const pullback = followPullback(
+      camera instanceof THREE.PerspectiveCamera ? camera.fov : 75,
+      size.width / size.height
+    );
     eye
       .set(normal.x, normal.y, normal.z)
-      .multiplyScalar(groundRadius + CAMERA_HEIGHT)
-      .addScaledVector(ahead, -CAMERA_BACK);
+      .multiplyScalar(groundRadius + FOLLOW_CAMERA.height * pullback)
+      .addScaledVector(ahead, -FOLLOW_CAMERA.back * pullback);
     look
       .set(normal.x, normal.y, normal.z)
       .multiplyScalar(groundRadius)
-      .addScaledVector(ahead, CAMERA_LEAD);
+      .addScaledVector(ahead, FOLLOW_CAMERA.lead);
     if (run.status === 'fallen') {
       if (!deathCamera.current)
         deathCamera.current = new DeathCamera(
