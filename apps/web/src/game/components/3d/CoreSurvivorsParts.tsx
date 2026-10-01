@@ -15,6 +15,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createWardenWarningGeometry } from '../../utils/wardenAnimation';
+import { createAimChevronGeometry } from '../../utils/aimChevron';
 import {
   enemyDeathOpacity,
   setEnemyInstanceOpacity,
@@ -977,18 +978,7 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
     geometry.rotateX(-Math.PI / 2);
     return geometry;
   }, []);
-  const chevron = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(-0.07, -0.03);
-    shape.lineTo(0, 0.04);
-    shape.lineTo(0.07, -0.03);
-    shape.lineTo(0.07, -0.06);
-    shape.lineTo(0, 0.01);
-    shape.lineTo(-0.07, -0.06);
-    const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateX(-Math.PI / 2);
-    return geometry;
-  }, []);
+  const chevron = useMemo(createAimChevronGeometry, []);
   const coneGeometry = useMemo(createWardenWarningGeometry, []);
   useEffect(
     () => () =>
