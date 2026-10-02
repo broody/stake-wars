@@ -364,6 +364,8 @@ export interface Run {
   healthScale: number;
   shake: number;
   hurtFlash: number;
+  /** Earliest time the next repair may drop. */
+  nextRepairAt: number;
   /** Sectors flipping open for spawns. */
   breaches: Breach[];
   /** Rings running through the Sectors from Orbital Strike impacts. */
@@ -401,6 +403,16 @@ const CELL = 0.6;
 const MAX_TEXTS = 120;
 const MAX_GEMS = 320;
 const MAX_EFFECTS = 240;
+/**
+ * Repairs drop from kills, but at most this often: late runs kill thousands a
+ * minute, and repairs scaling with kills let a crowd heal you faster than it
+ * could hurt you.
+ */
+const REPAIR_COOLDOWN = 30;
+/** Bastion's repair per pulse, however many enemies it burns. */
+const BASTION_REPAIR = 1;
+/** Enemy health compounds by `rate` a minute after minute `from`. */
+const HEALTH_RAMP = { from: 6, rate: 1.15 };
 const TAU = Math.PI * 2;
 
 export const xpForLevel = (level: number) =>
@@ -498,6 +510,7 @@ export function createRun(
     healthScale: 1,
     shake: 0,
     hurtFlash: 0,
+    nextRepairAt: 0,
     breaches: [],
     ripples: [],
     view: { ...DEFAULT_VIEW },
@@ -764,8 +777,12 @@ function kill(run: Run, enemy: Enemy, blast?: Vec3) {
     dropItem(run, 'drop', enemy.n, false);
   } else {
     const roll = run.random();
-    if (roll < 0.008) dropItem(run, 'repair', enemy.n);
-    else if (roll < 0.011) dropItem(run, 'tractor', enemy.n);
+    if (roll < 0.008) {
+      if (run.time >= run.nextRepairAt) {
+        dropItem(run, 'repair', enemy.n);
+        run.nextRepairAt = run.time + REPAIR_COOLDOWN;
+      }
+    } else if (roll < 0.011) dropItem(run, 'tractor', enemy.n);
     else if (roll < 0.013) dropItem(run, 'emp', enemy.n);
   }
 }
@@ -1197,9 +1214,10 @@ function updatePulse(run: Run, weapon: Weapon, dt: number) {
     enemy.slowTime = 0.3;
     if (pulse) {
       damage(run, enemy, amount, 'pulse');
-      if (weapon.evolved && repaired < 3) {
-        heal(run, 0.35, 'bastion');
-        repaired += 0.35;
+      if (weapon.evolved && repaired < BASTION_REPAIR) {
+        const amount = Math.min(0.35, BASTION_REPAIR - repaired);
+        heal(run, amount, 'bastion');
+        repaired += amount;
       }
     }
   }
@@ -1357,10 +1375,11 @@ function pickKind(run: Run, minutes: number): EnemyKind {
 
 function director(run: Run, dt: number) {
   const minutes = run.time / 60;
-  // Past 8 minutes enemy health compounds, so every run meets a wall.
+  // Enemy health compounds from mid-run, so every run meets a wall; starting
+  // early and gently makes it a climb rather than a cliff.
   run.healthScale =
     (1 + 0.32 * minutes + 0.045 * minutes * minutes) *
-    Math.pow(1.25, Math.max(0, minutes - 8));
+    Math.pow(HEALTH_RAMP.rate, Math.max(0, minutes - HEALTH_RAMP.from));
   let alive = 0;
   for (const enemy of run.enemies) if (!enemy.dead && !enemy.straight) alive++;
   const target =
