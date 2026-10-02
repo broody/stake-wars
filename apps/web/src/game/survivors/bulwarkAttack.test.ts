@@ -58,8 +58,8 @@ describe('Bulwark shield thrust', () => {
     const landed = { ...enemy.n };
     advance(run, 0.7);
     expect(enemy.n).toEqual(landed);
-    // The longer lunge lands in contact range, causing the normal repeat touch hit.
-    expect(run.player.hp).toBe(80);
+    // The hit throws the player clear of the landing, so no repeat touch hit.
+    expect(run.player.hp).toBe(90);
     advance(run, 0.1);
     expect(enemy.mode).toBe('walk');
     expect(enemy.cooldown).toBeGreaterThan(2.9);
@@ -122,6 +122,34 @@ describe('Bulwark shield thrust', () => {
     advance(run, 1);
     expect(run.enemies).not.toContain(enemy);
     expect(run.player.hp).toBe(100);
+  });
+
+  it('throws a hit player along the charge as a slide, not a jump', () => {
+    const { run, enemy } = encounter();
+    const aim = { ...enemy.thrust!.direction };
+    while (!enemy.thrust!.hit) tick(run, DT, still);
+    const struck = { ...run.player.n };
+    let previous = { ...struck };
+    let longestStep = 0;
+    for (let i = 0; i < Math.round(1 / DT); i++) {
+      tick(run, DT, still);
+      longestStep = Math.max(longestStep, chord(previous, run.player.n));
+      previous = { ...run.player.n };
+    }
+    const thrown = angleBetween(struck, run.player.n) * RADIUS;
+    expect(thrown).toBeCloseTo(BULWARK_ATTACK.knockback, 1);
+    // Every step is a fraction of the throw, and it has come to rest.
+    expect(longestStep * RADIUS).toBeLessThan(BULWARK_ATTACK.knockback / 3);
+    expect(run.player.shove).toBeUndefined();
+    // Along the charge: the travel lies on the attack's aim.
+    const travel = vec3(
+      run.player.n.x - struck.x,
+      run.player.n.y - struck.y,
+      run.player.n.z - struck.z
+    );
+    const length = Math.hypot(travel.x, travel.y, travel.z);
+    expect(dot(travel, aim) / length).toBeGreaterThan(0.95);
+    expect(dot(run.player.n, run.player.forward)).toBeCloseTo(0, 8);
   });
 
   it('does not charge through an invulnerable player or knock them back', () => {

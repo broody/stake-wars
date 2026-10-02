@@ -102,7 +102,8 @@ production Mainnet data:
 pnpm dev:web:prod
 ```
 
-Open [http://localhost:3000/play](http://localhost:3000/play). This uses
+Open [http://localhost:5000/play](http://localhost:5000/play) (set `PORT` to
+use another port). This uses
 `apps/web/.env.mainnet` and a localhost proxy for the production API, Torii,
 RPC, and artwork. Wallet actions use Mainnet. Build output is
 temporary and removed on exit; press Ctrl+C to stop, then rerun the command to

@@ -105,6 +105,10 @@ export const colors = {
   gold: {
     DEFAULT: '#d6a84b',
     soft: '#e4bd6b',
+    /** The lit edges of the 3D Supply Drop. */
+    edge: '#f2c76e',
+    /** The dark hull of the 3D Supply Drop before it has a winner. */
+    deep: '#17130b',
   },
   /** The player's own Sectors on the Core. */
   owned: '#ffb82e',

@@ -10,10 +10,9 @@ import {
 import { supplyDropSectorAnchor } from '../../utils/supplyDropCamera';
 import { isZeroAddress } from '../../utils/format';
 import { isSupplyDropDrawPending } from '../../services/supplyDrop';
+import { colors } from '../../../ui/tokens';
+import { SupplyDropModel } from './SupplyDropModel';
 
-const SUPPLY_DROP_GOLD = '#d6a84b';
-const MARKER_RADIUS = 0.32;
-const MARKER_HALF_HEIGHT = 0.25;
 const ARRIVAL_DURATION_SECONDS = 1.15;
 const DEPARTURE_DURATION_SECONDS = 0.9;
 const FLIGHT_DISTANCE = 2.1;
@@ -71,21 +70,6 @@ export function CoreSupplyDropMarker({
     () => new THREE.EdgesGeometry(sectorGeometry),
     [sectorGeometry]
   );
-  const beaconGeometry = useMemo(
-    () =>
-      new THREE.ConeGeometry(
-        MARKER_RADIUS,
-        MARKER_HALF_HEIGHT * 2,
-        3,
-        1,
-        false
-      ),
-    []
-  );
-  const beaconEdges = useMemo(
-    () => new THREE.EdgesGeometry(beaconGeometry),
-    [beaconGeometry]
-  );
   const prefersReducedMotion = useMemo(
     () =>
       globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
@@ -97,11 +81,9 @@ export function CoreSupplyDropMarker({
     () => () => {
       sectorEdges.dispose();
       sectorGeometry.dispose();
-      beaconEdges.dispose();
-      beaconGeometry.dispose();
       document.body.style.cursor = '';
     },
-    [beaconEdges, beaconGeometry, sectorEdges, sectorGeometry]
+    [sectorEdges, sectorGeometry]
   );
 
   useFrame(({ clock }, delta) => {
@@ -217,7 +199,7 @@ export function CoreSupplyDropMarker({
       >
         <meshBasicMaterial
           ref={sectorFillMaterialRef}
-          color={SUPPLY_DROP_GOLD}
+          color={colors.gold.DEFAULT}
           transparent
           opacity={prefersReducedMotion ? (isOpen ? 0.24 : 0.12) : 0}
           depthWrite={false}
@@ -232,7 +214,7 @@ export function CoreSupplyDropMarker({
       >
         <lineBasicMaterial
           ref={sectorEdgeMaterialRef}
-          color={SUPPLY_DROP_GOLD}
+          color={colors.gold.DEFAULT}
           transparent
           opacity={prefersReducedMotion ? (isOpen ? 1 : 0.72) : 0}
           depthWrite={false}
@@ -247,98 +229,12 @@ export function CoreSupplyDropMarker({
         scale={prefersReducedMotion ? 1 : ARRIVAL_SCALE}
         renderOrder={MARKER_GROUP_RENDER_ORDER}
       >
-        <mesh position={[0, -0.66, 0]} raycast={() => undefined}>
-          <cylinderGeometry args={[0.008, 0.008, 0.52, 3]} />
-          <meshBasicMaterial
-            color={SUPPLY_DROP_GOLD}
-            transparent
-            opacity={0.48}
-            toneMapped={false}
-          />
-        </mesh>
-
-        <group ref={bodyRef} renderOrder={MARKER_GROUP_RENDER_ORDER}>
-          <mesh
-            geometry={beaconGeometry}
-            position={[0, -MARKER_HALF_HEIGHT, 0]}
-            rotation={[0, 0, Math.PI]}
-            raycast={() => undefined}
-          >
-            <meshBasicMaterial
-              color={hasWinner ? SUPPLY_DROP_GOLD : '#17130b'}
-              transparent
-              opacity={hasWinner ? 0.58 : 0.7}
-              depthWrite={false}
-              side={THREE.DoubleSide}
-              toneMapped={false}
-            />
-          </mesh>
-          <lineSegments
-            geometry={beaconEdges}
-            position={[0, -MARKER_HALF_HEIGHT, 0]}
-            rotation={[0, 0, Math.PI]}
-            raycast={() => undefined}
-            renderOrder={3}
-          >
-            <lineBasicMaterial
-              color="#f2c76e"
-              transparent
-              opacity={0.96}
-              depthTest
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-              toneMapped={false}
-            />
-          </lineSegments>
-
-          <mesh
-            geometry={beaconGeometry}
-            position={[0, MARKER_HALF_HEIGHT, 0]}
-            raycast={() => undefined}
-          >
-            <meshBasicMaterial
-              color={hasWinner ? SUPPLY_DROP_GOLD : '#17130b'}
-              transparent
-              opacity={hasWinner ? 0.58 : 0.7}
-              depthWrite={false}
-              side={THREE.DoubleSide}
-              toneMapped={false}
-            />
-          </mesh>
-          <lineSegments
-            geometry={beaconEdges}
-            position={[0, MARKER_HALF_HEIGHT, 0]}
-            raycast={() => undefined}
-            renderOrder={3}
-          >
-            <lineBasicMaterial
-              color="#f2c76e"
-              transparent
-              opacity={0.96}
-              depthTest
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-              toneMapped={false}
-            />
-          </lineSegments>
-        </group>
-
-        <mesh
-          rotation={[Math.PI / 2, 0, 0]}
-          raycast={() => undefined}
-          renderOrder={1}
-        >
-          <torusGeometry args={[0.49, 0.01, 6, 64]} />
-          <meshBasicMaterial
-            color={SUPPLY_DROP_GOLD}
-            transparent
-            opacity={isOpen ? 0.94 : 0.66}
-            depthTest
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-            toneMapped={false}
-          />
-        </mesh>
+        <SupplyDropModel
+          bodyRef={bodyRef}
+          claimed={hasWinner}
+          ringOpacity={isOpen ? 0.94 : 0.66}
+          renderOrder={{ body: MARKER_GROUP_RENDER_ORDER, ring: 1 }}
+        />
 
         <mesh
           onPointerOver={(event) => {

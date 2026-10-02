@@ -13,7 +13,6 @@ import {
 import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createWardenWarningGeometry } from '../../utils/wardenAnimation';
 import { createAimChevronGeometry } from '../../utils/aimChevron';
 import {
@@ -22,6 +21,8 @@ import {
   setEnemyOpacity,
 } from '../../utils/enemyOpacity';
 import { bakeEnemyLocomotion } from '../../utils/enemyRunAtlas';
+import { addRimLight } from '../../utils/rimLight';
+import { SupplyDropModel, SUPPLY_DROP_TETHER_DEPTH } from './SupplyDropModel';
 import { colors } from '../../../ui/tokens';
 import {
   lerpNormal,
@@ -59,8 +60,6 @@ const WHITE = new THREE.Color(1, 1, 1);
 const FLASH = new THREE.Color(5, 5, 5);
 const VOLT = new THREE.Color(colors.danger.DEFAULT).multiplyScalar(1.6);
 const CAPTAIN = new THREE.Color(colors.gold.soft).multiplyScalar(1.5);
-const HOLLOW = colors.line.strong;
-const SENSOR = colors.danger.line;
 
 const s = {
   n: vec3(),
@@ -227,6 +226,7 @@ export function RiggedBatch({
       config.clip,
       model === 'bulwark' ? 'ShieldThrust' : undefined
     );
+    for (const part of parts) addRimLight(part.material);
     const gait = new THREE.InstancedBufferAttribute(
       new Float32Array(config.capacity * 2),
       2
@@ -370,6 +370,7 @@ export function DefeatedBatch({
       config.clip,
       'Defeated'
     );
+    for (const part of parts) addRimLight(part.material);
     const gait = new THREE.InstancedBufferAttribute(
       new Float32Array(ENEMY_DEFEAT.capacity * 2),
       2
@@ -468,160 +469,6 @@ export function DefeatedBatch({
   return <group ref={group} dispose={null} />;
 }
 
-// ---------- Placeholders for Hollow Legion units not yet modeled ----------
-
-function box(
-  w: number,
-  h: number,
-  d: number,
-  x = 0,
-  y = 0,
-  z = 0,
-  rx = 0,
-  ry = 0,
-  rz = 0
-) {
-  const geometry = new THREE.BoxGeometry(w, h, d);
-  geometry.rotateX(rx);
-  geometry.rotateY(ry);
-  geometry.rotateZ(rz);
-  geometry.translate(x, y, z);
-  return geometry;
-}
-
-function merged(...parts: THREE.BufferGeometry[]) {
-  const flat = parts.map((part) => (part.index ? part.toNonIndexed() : part));
-  flat.forEach((part) => {
-    part.deleteAttribute('uv');
-    part.deleteAttribute('normal');
-  });
-  const geometry = mergeGeometries(flat);
-  geometry.computeVertexNormals();
-  parts.forEach((part) => part.dispose());
-  return geometry;
-}
-
-interface PlaceholderParts {
-  body: THREE.BufferGeometry;
-  sensor: THREE.BufferGeometry;
-  mask?: THREE.BufferGeometry;
-}
-
-function placeholderGeometry(model: 'seeker'): PlaceholderParts {
-  switch (model) {
-    case 'seeker': {
-      // Low elongated hound with swept fins.
-      const hull = new THREE.ConeGeometry(0.075, 0.42, 4);
-      hull.rotateX(Math.PI / 2);
-      hull.translate(0, 0.12, 0.02);
-      return {
-        body: merged(
-          hull,
-          box(0.02, 0.1, 0.16, -0.06, 0.18, -0.08, -0.5, 0, -0.35),
-          box(0.02, 0.1, 0.16, 0.06, 0.18, -0.08, -0.5, 0, 0.35),
-          box(0.03, 0.1, 0.03, -0.05, 0.05, 0.08),
-          box(0.03, 0.1, 0.03, 0.05, 0.05, 0.08),
-          box(0.03, 0.1, 0.03, -0.05, 0.05, -0.1),
-          box(0.03, 0.1, 0.03, 0.05, 0.05, -0.1)
-        ),
-        sensor: box(0.08, 0.02, 0.02, 0, 0.13, 0.22),
-      };
-    }
-  }
-}
-
-export function PlaceholderBatch({
-  model,
-  capacity,
-  registry,
-}: {
-  model: 'seeker';
-  capacity: number;
-  registry: Set<Renderer>;
-}) {
-  const parts = useMemo(() => placeholderGeometry(model), [model]);
-  const body = useRef<THREE.InstancedMesh>(null);
-  const sensor = useRef<THREE.InstancedMesh>(null);
-  const mask = useRef<THREE.InstancedMesh>(null);
-  useInstanced(body);
-  useInstanced(sensor);
-  useInstanced(mask);
-  useEffect(
-    () => () => Object.values(parts).forEach((geometry) => geometry.dispose()),
-    [parts]
-  );
-  const maskGeometry = parts.mask ?? null;
-
-  useRenderer(registry, ({ run, alpha, radius }) => {
-    const meshes = [body.current, sensor.current, mask.current];
-    let index = 0;
-    for (const enemy of run.enemies) {
-      if (enemy.spec.model !== model) continue;
-      if (index >= capacity) break;
-      const lift = emergeLift(
-        enemy.emerge,
-        alpha,
-        1 / SIM_HZ,
-        enemy.spec.scale
-      );
-      if (lift === null) continue;
-      lerpNormal(s.n, enemy.prev, enemy.n, alpha);
-      const bob =
-        enemy.mode === 'walk' ? Math.abs(Math.sin(enemy.age * 9)) * 0.015 : 0;
-      surfaceMatrix(
-        s.basis,
-        s.n,
-        enemy.heading,
-        radius,
-        bob + lift,
-        enemy.spec.scale
-      );
-      const tint = tintFor(enemy, run.time);
-      for (const mesh of meshes) {
-        if (!mesh) continue;
-        setEnemyInstanceOpacity(
-          mesh,
-          index,
-          enemyDeathOpacity(run, enemy.n, enemy.spec.radius)
-        );
-        mesh.setMatrixAt(index, s.basis);
-        mesh.setColorAt(index, tint);
-      }
-      index++;
-    }
-    for (const mesh of meshes)
-      if (mesh) {
-        setEnemyOpacity(mesh.material, 1, run.status === 'fallen');
-        finish(mesh, index);
-      }
-  });
-
-  return (
-    <>
-      <instancedMesh ref={body} args={[parts.body, undefined, capacity]}>
-        <meshStandardMaterial
-          color={HOLLOW}
-          flatShading
-          roughness={0.7}
-          metalness={0.3}
-        />
-      </instancedMesh>
-      <instancedMesh ref={sensor} args={[parts.sensor, undefined, capacity]}>
-        <meshStandardMaterial
-          color={SENSOR}
-          emissive={SENSOR}
-          emissiveIntensity={2}
-        />
-      </instancedMesh>
-      {maskGeometry ? (
-        <instancedMesh ref={mask} args={[maskGeometry, undefined, capacity]}>
-          <meshStandardMaterial color={colors.fg.DEFAULT} flatShading />
-        </instancedMesh>
-      ) : null}
-    </>
-  );
-}
-
 // ---------- Bolts ----------
 
 export function Bolts({ registry }: { registry: Set<Renderer> }) {
@@ -655,8 +502,9 @@ export function Bolts({ registry }: { registry: Set<Renderer> }) {
         <boxGeometry args={[0.03, 0.03, 0.2]} />
         <meshBasicMaterial color={colors.fg.DEFAULT} toneMapped={false} />
       </instancedMesh>
+      {/* Rods like the Vanguard's, so hostile fire never reads as a pickup. */}
       <instancedMesh ref={hostile} args={[undefined, undefined, 300]}>
-        <octahedronGeometry args={[0.055, 0]} />
+        <boxGeometry args={[0.03, 0.03, 0.2]} />
         <meshBasicMaterial color={colors.danger.DEFAULT} toneMapped={false} />
       </instancedMesh>
     </>
@@ -1184,6 +1032,20 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
 
 // ---------- XP shards and pickups ----------
 
+/** Supply Drops on the ground, posed like the Core's own marker. */
+const DROP = {
+  capacity: 8,
+  scale: 0.2,
+  /** A Large Supply Drop, carried by the Warden. */
+  bigScale: 0.3,
+  spin: 0.45,
+  bob: 0.055,
+  /** It flies in from above, growing, when it lands. */
+  arrival: 1.15,
+  flight: 2.1,
+  arrivalScale: 0.35,
+};
+
 const SHARD_TIERS = [
   new THREE.Color(colors.accent.DEFAULT),
   new THREE.Color(colors.owned),
@@ -1195,15 +1057,11 @@ export function Pickups({ registry }: { registry: Set<Renderer> }) {
   const repair = useRef<THREE.InstancedMesh>(null);
   const tractor = useRef<THREE.InstancedMesh>(null);
   const emp = useRef<THREE.InstancedMesh>(null);
-  const drops = useRef<THREE.InstancedMesh>(null);
-  const beacons = useRef<THREE.InstancedMesh>(null);
+  const drops = useRef<(THREE.Group | null)[]>([]);
   useInstanced(gems, SHARD_TIERS[0]);
   useInstanced(repair);
   useInstanced(tractor);
   useInstanced(emp);
-  useInstanced(drops);
-  useInstanced(beacons);
-  const spin = useMemo(() => new THREE.Vector3(), []);
 
   useRenderer(registry, ({ run, alpha, radius }) => {
     const batch = gems.current;
@@ -1231,15 +1089,37 @@ export function Pickups({ registry }: { registry: Set<Renderer> }) {
     }
     finish(batch, index);
 
-    const counts = { repair: 0, tractor: 0, emp: 0, drop: 0 };
+    const counts = { repair: 0, tractor: 0, emp: 0 };
     const meshes = {
       repair: repair.current,
       tractor: tractor.current,
       emp: emp.current,
-      drop: drops.current,
     };
-    let lit = 0;
+    let landed = 0;
     for (const item of run.items) {
+      if (item.kind === 'drop') {
+        const drop = drops.current[landed];
+        if (!drop) continue;
+        landed++;
+        lerpNormal(s.n, item.prev, item.n, alpha);
+        s.dir.x = run.player.forward.x;
+        s.dir.y = run.player.forward.y;
+        s.dir.z = run.player.forward.z;
+        rotateAbout(s.dir, s.n, item.age * DROP.spin);
+        const arrived = 1 - (1 - Math.min(item.age / DROP.arrival, 1)) ** 3;
+        const full = item.big ? DROP.bigScale : DROP.scale;
+        const size =
+          full * (DROP.arrivalScale + (1 - DROP.arrivalScale) * arrived);
+        // Hang the tether to the ground, bobbing once it has landed.
+        const lift =
+          size * SUPPLY_DROP_TETHER_DEPTH +
+          full *
+            ((1 - arrived) * DROP.flight +
+              Math.sin(item.age * 1.45) * DROP.bob * arrived);
+        surfaceMatrix(drop.matrix, s.n, s.dir, radius, lift, size);
+        drop.visible = true;
+        continue;
+      }
       const mesh = meshes[item.kind];
       if (!mesh || counts[item.kind] >= mesh.instanceMatrix.count) continue;
       lerpNormal(s.n, item.prev, item.n, alpha);
@@ -1257,21 +1137,15 @@ export function Pickups({ registry }: { registry: Set<Renderer> }) {
         size
       );
       mesh.setMatrixAt(counts[item.kind]++, s.basis);
-      if (
-        item.kind === 'drop' &&
-        beacons.current &&
-        lit < beacons.current.instanceMatrix.count
-      ) {
-        spin.set(size, 1, size);
-        surfaceMatrix(s.basis, s.n, s.dir, radius, 1, spin);
-        beacons.current.setMatrixAt(lit++, s.basis);
-      }
     }
-    for (const kind of ['repair', 'tractor', 'emp', 'drop'] as const) {
+    for (const kind of ['repair', 'tractor', 'emp'] as const) {
       const mesh = meshes[kind];
       if (mesh) finish(mesh, counts[kind]);
     }
-    if (beacons.current) finish(beacons.current, lit);
+    for (let i = landed; i < DROP.capacity; i++) {
+      const drop = drops.current[i];
+      if (drop) drop.visible = false;
+    }
   });
 
   return (
@@ -1312,25 +1186,18 @@ export function Pickups({ registry }: { registry: Set<Renderer> }) {
           flatShading
         />
       </instancedMesh>
-      <instancedMesh ref={drops} args={[undefined, undefined, 8]}>
-        <boxGeometry args={[0.18, 0.14, 0.18]} />
-        <meshStandardMaterial
-          color={colors.gold.DEFAULT}
-          emissive={colors.gold.DEFAULT}
-          emissiveIntensity={0.4}
-          flatShading
-        />
-      </instancedMesh>
-      <instancedMesh ref={beacons} args={[undefined, undefined, 8]}>
-        <cylinderGeometry args={[0.02, 0.02, 2, 6, 1, true]} />
-        <meshBasicMaterial
-          color={colors.gold.soft}
-          transparent
-          opacity={0.6}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </instancedMesh>
+      {Array.from({ length: DROP.capacity }, (_, i) => (
+        <group
+          key={i}
+          ref={(group) => {
+            drops.current[i] = group;
+          }}
+          visible={false}
+          matrixAutoUpdate={false}
+        >
+          <SupplyDropModel />
+        </group>
+      ))}
     </>
   );
 }

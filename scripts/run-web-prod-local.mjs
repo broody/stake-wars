@@ -15,7 +15,10 @@ if (environment.VITE_STARKNET_CHAIN_ID !== 'SN_MAIN') {
   throw new Error('dev:web:prod requires the SN_MAIN environment.');
 }
 
-const local = 'http://localhost:3000/__prod';
+// Port 5000 keeps the production build clear of the Sepolia dev server on
+// 3000; set PORT to move it.
+const port = Number(process.env.PORT ?? 5000);
+const local = `http://localhost:${port}/__prod`;
 const rpc = new URL(environment.VITE_STARKNET_RPC_URL);
 const torii = new URL(environment.VITE_TORII_GRAPHQL_URL);
 if (torii.origin !== new URL(environment.VITE_API_DOMAIN).origin) {
@@ -110,7 +113,7 @@ try {
     configFile: join(root, 'vite.config.ts'),
     mode: 'mainnet',
     build: { outDir: join(directory, 'dist'), emptyOutDir: true },
-    preview: { host: 'localhost', port: 3000, strictPort: true },
+    preview: { host: 'localhost', port, strictPort: true },
     plugins: [
       {
         name: 'local-production-gateway',
@@ -121,7 +124,7 @@ try {
   await build(configuration);
   server = await preview(configuration);
   console.log('\nLocal production build using live Mainnet data:');
-  console.log('  http://localhost:3000/play');
+  console.log(`  http://localhost:${port}/play`);
   console.log('Press Ctrl+C to stop. Re-run pnpm dev:web:prod to rebuild.');
 } catch (error) {
   await stop();

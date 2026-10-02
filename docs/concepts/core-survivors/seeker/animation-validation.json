@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "finSpans": {
+    "Idle": 2.1841514198694987,
+    "Walk": 2.1841516962560363,
+    "Run": 2.184151596043343,
+    "Charge": 1.3948474026075837
+  },
+  "clips": {
+    "Idle": {
+      "duration": 2,
+      "minGround": 0.009999638122651705,
+      "maxHeight": 1.945469378325963,
+      "maxJointError": 0,
+      "loopGap": 0
+    },
+    "Walk": {
+      "duration": 1.2,
+      "minGround": 0.009993785723045922,
+      "maxHeight": 1.85977080325697,
+      "maxJointError": 2.38418578546451e-7,
+      "loopGap": 2.685646155464738e-7
+    },
+    "Run": {
+      "duration": 0.65,
+      "minGround": 0.009862713249317877,
+      "maxHeight": 1.8255920051759507,
+      "maxJointError": 2.980230283666785e-7,
+      "loopGap": 0
+    },
+    "ChargeWindup": {
+      "duration": 0.8,
+      "minGround": 0.00917962632285047,
+      "maxHeight": 2.075708104717411,
+      "maxJointError": 0,
+      "loopGap": 0.690508047965402
+    },
+    "Charge": {
+      "duration": 0.25,
+      "minGround": 0.002397388722072862,
+      "maxHeight": 1.559713716338794,
+      "maxJointError": 2.3841854535078255e-7,
+      "loopGap": 0
+    },
+    "ChargeRecover": {
+      "duration": 0.6,
+      "minGround": 0.00999176908218851,
+      "maxHeight": 1.9360003684384837,
+      "maxJointError": 2.3841854535078255e-7,
+      "loopGap": 0.6905081262521251
+    },
+    "ChargeAttack": {
+      "duration": 2.4,
+      "minGround": 0.002397422142955681,
+      "maxHeight": 2.075708104717411,
+      "maxJointError": 0,
+      "loopGap": 12.000000432253033
+    },
+    "Defeated": {
+      "duration": 1.8,
+      "minGround": 0.009794630642125102,
+      "maxHeight": 2.3758692598638147,
+      "maxJointError": 2.9802329204464684e-7,
+      "loopGap": 1.6676753188044353
+    }
+  },
+  "chargeDistance": 12,
+  "phaseTransitions": "continuous",
+  "sampleHz": 240
+}

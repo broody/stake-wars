@@ -40,3 +40,23 @@ Bulwark also includes `Defeated` (1.25 s): sixteen rigid chunks tumble apart, in
 `warden.glb` is the original authored Warden asset from the shared Blender work: 1,203 equipped triangles, 25 rigid bones, four primitives sharing two materials, and no textures. It includes Guard, Walk (1.667 s), Run (1 s), StaffSlam (2 s, impact 26/24 s), and Defeated (1.75 s). Defeated also carries SensorsOff morph tracks that extinguish its red inserts at 1.25 s. No third-party meshes or textures are included.
 
 Core Survivors uses the authored model at scale 0.30, with movement-driven playback, a locked staff-slam warning/damage area, and a harmless kneeling corpse that fades out at 2.5 s. Walk, run, slam, and death preserve the closed staff grip. The original source project and reproducible authoring scripts are in the primary checkout's `docs/concepts/core-survivors/warden` directory.
+
+
+## Seeker (rigged model)
+
+`seeker.glb` is the 1,704-triangle, two-material, 20-bone quadruped authored from
+the supplied Seeker concept. Editable source and final renders are under
+`docs/concepts/core-survivors/seeker/`. Source soles are at zero; +Z faces forward
+in glTF. The export contains Idle, Walk, Run, ChargeWindup, Charge, ChargeRecover,
+ChargeAttack and Defeated. The full attack uses 0.8s wind-up, 1s drive (12 source
+metres / 3 world units at scale 0.25) and 0.6s recovery. Separate in-place charge
+phases support long pack attacks. Core Survivors and the catalog use the model at
+scale 0.125, with movement-driven gaits and simulation-timed charge phases. The
+side-collapse death is harmless immediately and fades away at 2.5 seconds. The
+full root-motion ChargeAttack remains for authoring previews only. Animation
+source and validation are in the Seeker folder.
+
+Seeker fins spread outward during idle and locomotion, fold inward through the
+windup, stay tucked during the charge, and reopen during recovery. The current
+game scale is 50% of the original integration; charge playback scales
+to preserve the three-world-unit-per-second movement.

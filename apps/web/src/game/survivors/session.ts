@@ -99,6 +99,26 @@ export class SurvivorsSession {
         age: 0,
       };
     }
+    if (preview === 'seeker') {
+      const run = this.run;
+      run.weapons = [];
+      run.spawnCredit = -1e6;
+      run.eventIndex = 1000;
+      run.player.hp = run.player.maxHp = 10000;
+      const enemy = spawnEnemy(
+        run,
+        'seeker',
+        pointAt(vec3(), run.player.n, run.player.forward, 2.8 / groundRadius)
+      );
+      enemy.cooldown = 2;
+      run.banner = {
+        title: 'Seeker charge drill',
+        detail:
+          'Dodge the marked lane. Watch the crouch, bounding charge, and recovery. Weapons are disabled.',
+        tone: 'danger',
+        age: 0,
+      };
+    }
     if (preview === 'saber-death') {
       const run = this.run;
       run.spawnCredit = -1e6;
@@ -176,6 +196,7 @@ export class SurvivorsSession {
         'lancer-defeat',
         'bulwark-defeat',
         'warden-defeat',
+        'seeker-defeat',
       ].includes(
         new URLSearchParams(location.search).get('survivePreview') ?? ''
       )
@@ -187,13 +208,15 @@ export class SurvivorsSession {
         'survivePreview'
       );
       const kind =
-        preview === 'warden-defeat'
-          ? 'warden'
-          : preview === 'bulwark-defeat'
-            ? 'bulwark'
-            : preview === 'lancer-defeat'
-              ? 'lancer'
-              : 'mite';
+        preview === 'seeker-defeat'
+          ? 'seeker'
+          : preview === 'warden-defeat'
+            ? 'warden'
+            : preview === 'bulwark-defeat'
+              ? 'bulwark'
+              : preview === 'lancer-defeat'
+                ? 'lancer'
+                : 'mite';
       const spawn = () => {
         const enemy = spawnEnemy(
           run,

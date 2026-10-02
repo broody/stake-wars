@@ -7,10 +7,12 @@ import {
   Dialog,
   DialogHeader,
   Panel,
+  SegmentedControl,
   Stat,
   StatGrid,
   cn,
 } from '../../../ui';
+import { VOLUME_LEVELS, survivorAudio } from '../../survivors/audio';
 import { SURVIVE_PARAM, survivorsSession } from '../../survivors/session';
 import {
   ENEMIES,
@@ -348,6 +350,10 @@ function DamageTable({ run }: { run: Run }) {
 export function CoreSurvivorsHud() {
   const [, setSearchParams] = useSearchParams();
   useSyncExternalStore(survivorsSession.subscribe, survivorsSession.getVersion);
+  const volume = useSyncExternalStore(
+    survivorAudio.subscribe,
+    survivorAudio.getLevel
+  );
   const run = survivorsSession.run;
   const retryRef = useRef<HTMLButtonElement>(null);
   const resumeRef = useRef<HTMLButtonElement>(null);
@@ -369,6 +375,10 @@ export function CoreSurvivorsHud() {
     const keys = survivorsSession.keys;
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
+      if (event.code === 'KeyM' && !event.repeat) {
+        survivorAudio.toggleMute();
+        return;
+      }
       const status = survivorsSession.run?.status;
       if (status === 'choosing') {
         if (event.key >= '1' && event.key <= '3')
@@ -486,6 +496,16 @@ export function CoreSurvivorsHud() {
               {run.kills.toLocaleString()}
             </div>
           </Panel>
+          <Button
+            variant="outline"
+            size="sm"
+            className="pointer-events-auto"
+            aria-pressed={volume === 'off'}
+            title="Toggle sound (M)"
+            onClick={() => survivorAudio.toggleMute()}
+          >
+            {volume === 'off' ? 'SOUND OFF' : 'SOUND ON'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -645,6 +665,16 @@ export function CoreSurvivorsHud() {
         />
         <div className="border-b border-line px-5 py-4">
           <Loadout run={run} />
+        </div>
+        <div className="border-b border-line px-5 py-4">
+          <div className="text-label text-fg-subtle">SOUND</div>
+          <SegmentedControl
+            className="mt-2"
+            label="Sound volume"
+            options={VOLUME_LEVELS}
+            value={volume}
+            onChange={(level) => survivorAudio.setLevel(level)}
+          />
         </div>
         <div className="flex flex-wrap gap-3 px-5 py-4">
           <Button

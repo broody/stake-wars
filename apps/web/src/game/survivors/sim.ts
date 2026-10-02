@@ -6,6 +6,7 @@
  * nothing about rendering. Distances are world units on
  * the Core (radius 5); times are seconds. Every actor is a unit normal.
  */
+import { SEEKER_ATTACK } from './seekerAttack';
 import {
   ENEMIES,
   EVENT_BANNERS,
@@ -53,6 +54,7 @@ import {
 } from './breach';
 import { sectorAt, sectorCenter } from './sectors';
 import { MAX_RIPPLES, RIPPLE, rippleLife, type Ripple } from './ripple';
+import { SOUNDS, type SoundId } from './sounds';
 import { WARDEN_SLAM, WARDEN_GAIT, wardenSlamOrigin } from './wardenAttack';
 
 import {
@@ -265,6 +267,8 @@ export interface Weapon {
   level: number;
   evolved: boolean;
   cooldown: number;
+  /** Arc Blade: the next swing's sound is already queued. */
+  swingCued?: boolean;
   /** Orbit Shards: current and previous angle, radius and count. */
   angle: number;
   prevAngle: number;
@@ -298,6 +302,8 @@ export interface Player {
   armor: number;
   regen: number;
   magnet: number;
+  /** A knockback in progress: direction of travel and current speed. */
+  shove?: { dir: Vec3; speed: number };
 }
 
 export type Offer =
@@ -370,8 +376,23 @@ export interface Run {
   breaches: Breach[];
   /** Rings running through the Sectors from Orbital Strike impacts. */
   ripples: Ripple[];
+  /** Sounds for the renderer to play and clear; bounded if nobody listens. */
+  cues: Cue[];
   /** Ground distance from the player to each screen edge, set by the renderer. */
   view: ViewExtent;
+}
+
+export interface Cue {
+  id: SoundId;
+  /** Where it happened, to place it on screen; null for the whole run. */
+  n: Vec3 | null;
+  /** Playback speed, to fit a sound to an action's length; 1 as authored. */
+  rate: number;
+  /**
+   * Seconds from now until the moment the sound marks, such as a saber's
+   * cut, so the player can line its peak up with it; null to play at once.
+   */
+  at: number | null;
 }
 
 export interface ViewExtent {
@@ -513,6 +534,7 @@ export function createRun(
     nextRepairAt: 0,
     breaches: [],
     ripples: [],
+    cues: [],
     view: { ...DEFAULT_VIEW },
   };
   playerRight(run.right, run.player);
@@ -624,6 +646,27 @@ function addText(
   run.texts.push({ n: copy(vec3(), n), value, crit, hurt, age: 0 });
 }
 
+const MAX_CUES = 128;
+
+/**
+ * Queue a sound. Each sound keeps at most its voice limit in the queue, since
+ * the player would drop the rest, so a flood of hits never crowds out a
+ * one-off like `hurt` or `levelup`.
+ */
+function cue(
+  run: Run,
+  id: SoundId,
+  n?: Vec3,
+  rate = 1,
+  at: number | null = null
+) {
+  if (run.cues.length >= MAX_CUES) return;
+  let queued = 0;
+  for (const other of run.cues) if (other.id === id) queued++;
+  if (queued >= SOUNDS[id].voices) return;
+  run.cues.push({ id, n: n ? copy(vec3(), n) : null, rate, at });
+}
+
 function addEffect(run: Run, effect: Effect) {
   if (run.effects.length < MAX_EFFECTS) run.effects.push(effect);
 }
@@ -644,6 +687,9 @@ function damage(
   const crit = run.random() < 0.06;
   const dealt = Math.max(1, Math.round(amount * (crit ? 2 : 1)));
   enemy.hp -= dealt;
+  // Weapons with their own impact sound only add the shared crit.
+  if (crit) cue(run, 'crit', enemy.n);
+  else if (source === 'blade' || source === 'bolts') cue(run, 'hit', enemy.n);
   enemy.flash = 0.08;
   if (knock > 0 && !enemy.straight && !enemy.spec.boss) {
     enemy.knock = Math.max(enemy.knock, knock / enemy.spec.mass);
@@ -732,6 +778,8 @@ function toss(run: Run, body: DefeatedEnemy, blast: Vec3) {
 function kill(run: Run, enemy: Enemy, blast?: Vec3) {
   if (enemy.dead) return;
   enemy.dead = true;
+  const heavy = enemy.spec.mass > 1 || enemy.spec.elite || enemy.spec.boss;
+  cue(run, heavy ? 'death-heavy' : 'death', enemy.n);
   enemy.slam = undefined;
   run.effects = run.effects.filter(
     (e) => e.kind !== 'cone' || e.enemyId !== enemy.id
@@ -740,7 +788,8 @@ function kill(run: Run, enemy: Enemy, blast?: Vec3) {
     enemy.spec.model === 'mite' ||
     enemy.spec.model === 'lancer' ||
     enemy.spec.model === 'bulwark' ||
-    enemy.spec.model === 'warden'
+    enemy.spec.model === 'warden' ||
+    enemy.spec.model === 'seeker'
   ) {
     if (run.defeatedEnemies.length >= ENEMY_DEFEAT.capacity)
       run.defeatedEnemies.shift();
@@ -756,7 +805,14 @@ function kill(run: Run, enemy: Enemy, blast?: Vec3) {
       previousAge: 0,
     };
     const spec = enemy.spec;
-    if (blast && spec.mass <= STRIKE_TOSS.maxMass && !spec.boss && !spec.elite)
+    // The Seeker uses its grounded side-collapse instead of a thrown-body pose.
+    if (
+      blast &&
+      spec.model !== 'seeker' &&
+      spec.mass <= STRIKE_TOSS.maxMass &&
+      !spec.boss &&
+      !spec.elite
+    )
       toss(run, body, blast);
     run.defeatedEnemies.push(body);
   }
@@ -855,6 +911,7 @@ function hurt(run: Run, amount: number, by: EnemyKind) {
   run.hurtBy[by] = (run.hurtBy[by] ?? 0) + dealt;
   run.lastHitBy = by;
   addText(run, player.n, dealt, false, true);
+  cue(run, player.hp <= 0 ? 'fallen' : 'hurt');
   if (player.hp <= 0) {
     player.hp = 0;
     run.status = 'fallen';
@@ -881,6 +938,47 @@ function heal(run: Run, amount: number, source: HealSource) {
 const offset = vec3();
 const direction = vec3();
 
+/**
+ * Seconds ahead of a swing that its sound is queued: enough for each take to
+ * build to its peak and for the device's audio output delay, so the peak is
+ * heard with the cut rather than after it.
+ */
+const SWING_LEAD = 0.35;
+
+/** The next swing for the blade as it stands: cuts, their length, cooldown. */
+function bladeSwing(run: Run, weapon: Weapon) {
+  const evolved = weapon.evolved;
+  const cooldown =
+    (evolved ? 1.15 : weapon.level >= 5 ? 1 : 1.3) * run.player.cooldownScale;
+  const count = !evolved && weapon.level >= 2 ? 2 : 1;
+  return {
+    evolved,
+    cooldown,
+    count,
+    duration: Math.min(SABER.duration, cooldown / count),
+  };
+}
+
+/**
+ * Queue every cut of the swing starting in `startsIn` s, timed to what the
+ * player sees: a cut's sweep, or Eclipse's full-circle burst at the impact.
+ */
+function cueSwing(run: Run, weapon: Weapon, startsIn: number) {
+  const { evolved, count, duration } = bladeSwing(run, weapon);
+  // Swings shorter than the clip play it faster, up to the impact frame.
+  const sweep =
+    ((evolved ? SABER.impact : SABER.sweep) / SABER.duration) * duration;
+  for (let i = 0; i < count; i++)
+    cue(
+      run,
+      evolved ? 'eclipse' : 'blade',
+      run.player.n,
+      1,
+      startsIn + i * duration + sweep
+    );
+  weapon.swingCued = true;
+}
+
 function updateBlade(run: Run, weapon: Weapon, dt: number) {
   weapon.cooldown -= dt;
   const player = run.player;
@@ -889,19 +987,24 @@ function updateBlade(run: Run, weapon: Weapon, dt: number) {
     run.time >= player.saberAttack.startedAt + player.saberAttack.duration
   )
     player.saberAttack = undefined;
-  if (weapon.cooldown > 0) return;
+  if (weapon.cooldown > 0) {
+    // The swing starts on the first tick the cooldown runs out.
+    if (!weapon.swingCued && weapon.cooldown <= SWING_LEAD)
+      cueSwing(run, weapon, Math.ceil(weapon.cooldown / dt) * dt);
+    return;
+  }
+  // A swing that came sooner than the lead, like the first, is cued as it starts.
+  if (!weapon.swingCued) cueSwing(run, weapon, 0);
+  weapon.swingCued = false;
   const scale = might(run),
     level = weapon.level;
   const { reach, width, arc } = saberReach(level, player.area);
-  const evolved = weapon.evolved;
   const eclipseRadius = 1.18 * player.area;
+  const { evolved, cooldown, count, duration } = bladeSwing(run, weapon);
   const amount = evolved
     ? 42 * scale
     : 14 * (1 + (level >= 3 ? 0.3 : 0) + (level >= 5 ? 0.3 : 0)) * scale;
-  weapon.cooldown =
-    (evolved ? 1.15 : level >= 5 ? 1 : 1.3) * player.cooldownScale;
-  const count = !evolved && level >= 2 ? 2 : 1;
-  const duration = Math.min(SABER.duration, weapon.cooldown / count);
+  weapon.cooldown = cooldown;
   const target = nearestEnemy(run, player.n, reach + 0.5);
   const aim = saberAim(player.n, player.heading, target?.n);
   const start = (side: number, forward: Vec3) => {
@@ -999,6 +1102,7 @@ function updateBolts(run: Run, weapon: Weapon, dt: number) {
     rotateAbout(direction, player.n, (run.random() - 0.5) * 0.25);
     player.boltShot = { firedAt: run.time, forward: copy(vec3(), direction) };
     fireBolt(run, direction, 12 * scale, 3, 3.5);
+    cue(run, 'railstorm', player.n);
     return;
   }
   const level = weapon.level;
@@ -1008,6 +1112,7 @@ function updateBolts(run: Run, weapon: Weapon, dt: number) {
   weapon.cooldown = (level >= 5 ? 0.72 : 1) * player.cooldownScale;
   const base = copy(vec3(), direction);
   player.boltShot = { firedAt: run.time, forward: copy(vec3(), base) };
+  cue(run, 'bolt', player.n);
   for (let i = 0; i < count; i++) {
     copy(direction, base);
     rotateAbout(direction, player.n, (i - (count - 1) / 2) * 0.14);
@@ -1055,8 +1160,10 @@ function updateShards(run: Run, weapon: Weapon, dt: number) {
       if (
         distance(run, enemy.n, shard) < enemy.spec.radius + reach &&
         cooledDown(run, enemy, 'shards', 0.4)
-      )
+      ) {
+        cue(run, 'shard-hit', enemy.n);
         damage(run, enemy, amount, 'shards', 0.64);
+      }
     }
   }
 }
@@ -1073,6 +1180,7 @@ export function shardDirection(
 }
 
 function strikeAt(run: Run, n: Vec3, amount: number, radius: number) {
+  cue(run, 'strike', n);
   hitCircle(run, n, radius, amount, 'strike');
   addEffect(run, {
     kind: 'strike',
@@ -1131,6 +1239,7 @@ function updateStrike(run: Run, weapon: Weapon, dt: number) {
       seen.add(next);
       const to = copy(vec3(), next.n);
       addEffect(run, { kind: 'chain', a: current, b: to, age: 0, life: 0.22 });
+      cue(run, 'chain', to);
       strikeAt(run, to, amount * 0.8, radius * 0.8);
       current = to;
     }
@@ -1178,6 +1287,7 @@ function updateCharge(run: Run, weapon: Weapon, dt: number) {
       burn,
     });
   }
+  cue(run, 'lob', player.n);
 }
 
 function updatePulse(run: Run, weapon: Weapon, dt: number) {
@@ -1204,6 +1314,7 @@ function updatePulse(run: Run, weapon: Weapon, dt: number) {
   const pulse = weapon.cooldown <= 0;
   if (pulse) weapon.cooldown = 0.45;
   let repaired = 0;
+  let struck = false;
   for (const enemy of nearby(run, player.n, radius + 0.3)) {
     if (
       enemy.dead ||
@@ -1213,6 +1324,7 @@ function updatePulse(run: Run, weapon: Weapon, dt: number) {
     enemy.slow = slow;
     enemy.slowTime = 0.3;
     if (pulse) {
+      struck = true;
       damage(run, enemy, amount, 'pulse');
       if (weapon.evolved && repaired < BASTION_REPAIR) {
         const amount = Math.min(0.35, BASTION_REPAIR - repaired);
@@ -1221,6 +1333,7 @@ function updatePulse(run: Run, weapon: Weapon, dt: number) {
       }
     }
   }
+  if (struck) cue(run, weapon.evolved ? 'bastion' : 'pulse', player.n);
 }
 
 const WEAPON_UPDATES: Record<
@@ -1451,7 +1564,7 @@ function seekerPack(run: Run, dir: Vec3, across: number) {
     const enemy = spawnEnemy(run, 'seeker', n);
     march(enemy, dir, 0, 11);
     enemy.mode = 'aim';
-    enemy.modeTime = 1.6;
+    enemy.modeTime = SEEKER_ATTACK.packWindup;
     if (i === 0)
       addEffect(run, {
         kind: 'aim',
@@ -1459,7 +1572,7 @@ function seekerPack(run: Run, dir: Vec3, across: number) {
         dir: copy(vec3(), enemy.aim),
         length: 10,
         age: 0,
-        life: 1.6,
+        life: SEEKER_ATTACK.packWindup,
       });
   }
 }
@@ -1610,20 +1723,14 @@ function updateBulwarkThrust(run: Run, enemy: Enemy, dt: number) {
         )
       ) {
         attack.hit = true;
-        if (hurt(run, enemy.spec.damage * damageScale(run), 'bulwark')) {
-          const push = normalize(
-            projectTangent(copy(vec3(), enemy.aim), run.player.n)
-          );
-          const axis = normalize(cross(vec3(), run.player.n, push));
-          const arc = config.knockback / run.groundRadius;
-          for (const v of [
-            run.player.n,
-            run.player.forward,
-            run.player.heading,
-          ])
-            rotateAbout(v, axis, arc);
-          playerRight(run.right, run.player);
-        }
+        if (hurt(run, enemy.spec.damage * damageScale(run), 'bulwark'))
+          // Thrown the way the charge was going, starting next tick.
+          run.player.shove = {
+            dir: normalize(
+              projectTangent(copy(vec3(), enemy.aim), run.player.n)
+            ),
+            speed: config.knockback * config.knockbackDecay,
+          };
         break;
       }
       t = next;
@@ -1820,19 +1927,25 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
         enemy.modeTime -= dt;
         if (enemy.modeTime <= 0) {
           enemy.mode = 'charge';
-          enemy.modeTime = enemy.straight ? 99 : 1;
+          enemy.modeTime = enemy.straight
+            ? SEEKER_ATTACK.packDrive
+            : SEEKER_ATTACK.drive;
         }
         copy(toward, enemy.aim);
         return 0;
       }
       if (enemy.mode === 'charge') {
         enemy.modeTime -= dt;
-        stepAlong(enemy.n, enemy.aim, (3 * dt) / run.groundRadius);
+        stepAlong(
+          enemy.n,
+          enemy.aim,
+          (SEEKER_ATTACK.speed * dt) / run.groundRadius
+        );
         copy(enemy.heading, enemy.aim);
-        enemy.travel += 3 * dt;
+        enemy.travel += SEEKER_ATTACK.speed * dt;
         if (enemy.modeTime <= 0) {
           enemy.mode = 'recover';
-          enemy.modeTime = 0.6;
+          enemy.modeTime = SEEKER_ATTACK.recover;
         }
         copy(toward, enemy.aim);
         return 0;
@@ -1843,18 +1956,19 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
         return 0;
       }
       enemy.cooldown -= dt;
-      if (gap < 2.2 && enemy.cooldown <= 0) {
-        enemy.cooldown = 3;
+      if (gap < SEEKER_ATTACK.trigger && enemy.cooldown <= 0) {
+        enemy.cooldown = SEEKER_ATTACK.cooldown;
         enemy.mode = 'aim';
-        enemy.modeTime = 0.8;
+        enemy.modeTime = SEEKER_ATTACK.windup;
         copy(enemy.aim, toward);
+        copy(enemy.heading, enemy.aim);
         addEffect(run, {
           kind: 'aim',
           n: copy(vec3(), enemy.n),
           dir: copy(vec3(), toward),
           length: 3.2,
           age: 0,
-          life: 0.8,
+          life: SEEKER_ATTACK.windup,
         });
         return 0;
       }
@@ -2117,6 +2231,7 @@ function updateProjectiles(run: Run, dt: number) {
         damage: lob.damage,
         tick: 0,
       });
+      cue(run, 'ignite', lob.to);
       addEffect(run, {
         kind: 'blast',
         n: copy(vec3(), lob.to),
@@ -2158,6 +2273,7 @@ function updatePickups(run: Run, dt: number) {
     if (distance(run, gem.n, player.n) < 0.1) {
       gem.dead = true;
       player.xp += gem.value;
+      cue(run, 'shard');
     }
   }
   run.gems = run.gems.filter((gem) => !gem.dead);
@@ -2290,6 +2406,7 @@ function resumeFlow(run: Run) {
     run.pendingLevels--;
     run.offers = makeOffers(run, 3);
     run.status = 'choosing';
+    cue(run, 'levelup');
   }
 }
 
@@ -2319,6 +2436,18 @@ export function closeSupply(run: Run) {
 const travel = vec3();
 const axis = vec3();
 
+/** Turn the player, and everything that travels in its frame, about `axis`. */
+function carryPlayer(player: Player, axis: Vec3, arc: number) {
+  rotateAbout(player.n, axis, arc);
+  rotateAbout(player.forward, axis, arc);
+  rotateAbout(player.heading, axis, arc);
+  if (player.saberAttack) rotateAbout(player.saberAttack.forward, axis, arc);
+  if (player.boltShot) rotateAbout(player.boltShot.forward, axis, arc);
+  normalize(player.n);
+  normalize(projectTangent(player.forward, player.n));
+  normalize(projectTangent(player.heading, player.n));
+}
+
 function updatePlayer(run: Run, dt: number, input: MoveInput) {
   const player = run.player;
   copy(player.prev, player.n);
@@ -2347,14 +2476,23 @@ function updatePlayer(run: Run, dt: number, input: MoveInput) {
     normalize(cross(axis, player.n, travel));
     const arc =
       (PLAYER_SPEED * player.speedScale * strength * dt) / run.groundRadius;
-    rotateAbout(player.n, axis, arc);
-    rotateAbout(player.forward, axis, arc);
-    rotateAbout(player.heading, axis, arc);
-    if (player.saberAttack) rotateAbout(player.saberAttack.forward, axis, arc);
-    if (player.boltShot) rotateAbout(player.boltShot.forward, axis, arc);
-    normalize(player.n);
-    normalize(projectTangent(player.forward, player.n));
-    normalize(projectTangent(player.heading, player.n));
+    carryPlayer(player, axis, arc);
+  }
+  const shove = player.shove;
+  if (shove) {
+    // Thrown along a great circle, carrying the shove's direction with it.
+    // Travel exactly as far as the decaying speed covers this step, so the
+    // whole throw is the same length at any frame rate.
+    const decay = Math.exp(-BULWARK_ATTACK.knockbackDecay * dt);
+    const distance =
+      (shove.speed * (1 - decay)) / BULWARK_ATTACK.knockbackDecay;
+    normalize(cross(axis, player.n, shove.dir));
+    const arc = distance / run.groundRadius;
+    carryPlayer(player, axis, arc);
+    rotateAbout(shove.dir, axis, arc);
+    normalize(projectTangent(shove.dir, player.n));
+    shove.speed *= decay;
+    if (shove.speed < 0.05) player.shove = undefined;
   }
   playerRight(run.right, player);
   if (player.invulnerable > 0) player.invulnerable -= dt;

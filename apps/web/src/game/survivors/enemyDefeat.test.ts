@@ -24,7 +24,14 @@ const DT = 1 / 30,
   RADIUS = 5.006,
   still = { x: 0, y: 0 };
 function encounter(
-  kind: 'mite' | 'skitter' | 'volt' | 'lancer' | 'captain' | 'bulwark' = 'mite'
+  kind:
+    | 'mite'
+    | 'skitter'
+    | 'volt'
+    | 'lancer'
+    | 'captain'
+    | 'bulwark'
+    | 'seeker' = 'mite'
 ) {
   const run = createRun(17, RADIUS);
   run.spawnCredit = -1e6;
@@ -48,6 +55,7 @@ describe('Enemy defeat lifecycle', () => {
       'lancer',
       'captain',
       'bulwark',
+      'seeker',
     ] as const) {
       const { run, enemy } = encounter(kind);
       expect(run.enemies).not.toContain(enemy);
@@ -64,6 +72,19 @@ describe('Enemy defeat lifecycle', () => {
       expect(run.kills).toBe(1);
       expect(run.player.hp).toBe(100);
     }
+  });
+  it('keeps the Seeker collapse until it settles, then removes its harmless remains', () => {
+    const { run, enemy } = encounter('seeker');
+    expect(run.enemies).not.toContain(enemy);
+    const body = run.defeatedEnemies[0];
+    expect(body.toss).toBeUndefined();
+    run.player.n = { ...body.n };
+    for (let i = 0; i < 59; i++) tick(run, DT, still);
+    expect(run.defeatedEnemies).toContain(body);
+    expect(body.age).toBeGreaterThan(1.8);
+    expect(run.player.hp).toBe(100);
+    for (let i = 0; i < 17; i++) tick(run, DT, still);
+    expect(run.defeatedEnemies).toHaveLength(0);
   });
   it('lets a living unit and the player pass through the remains', () => {
     const { run } = encounter();

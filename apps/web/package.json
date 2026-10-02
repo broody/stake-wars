@@ -14,7 +14,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,json,js,cjs}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,json,js,cjs}\"",
     "preview": "vite preview",
-    "sim:balance": "node scripts/survivors-balance.mjs"
+    "sim:balance": "node scripts/survivors-balance.mjs",
+    "sfx:survivors": "node scripts/survivors-sfx.mjs"
   },
   "dependencies": {
     "@cartridge/connector": "^0.14.2",

@@ -5,7 +5,12 @@ export const BULWARK_ATTACK = {
   triggerRange: 1.3,
   rootMotionScale: 2,
   cooldown: 3,
-  knockback: 0.12,
+  /**
+   * A shield hit throws the player this far along the charge, as a slide
+   * that slows by `knockbackDecay` per second rather than a jump.
+   */
+  knockback: 0.9,
+  knockbackDecay: 8,
   blendIn: 0.12,
   blendOut: 0.16,
 };

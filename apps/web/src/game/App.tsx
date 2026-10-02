@@ -39,6 +39,12 @@ const UiReference = lazy(() =>
   }))
 );
 
+const Catalog = lazy(() =>
+  import('./pages/Catalog').then((module) => ({
+    default: module.Catalog,
+  }))
+);
+
 const SupplyDropCreator = lazy(() =>
   import('./pages/SupplyDropCreator').then((module) => ({
     default: module.SupplyDropCreator,
@@ -83,6 +89,14 @@ function GamePages() {
               element={
                 <Suspense fallback={null}>
                   <UiReference />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/objects"
+              element={
+                <Suspense fallback={null}>
+                  <Catalog />
                 </Suspense>
               }
             />

@@ -1,4 +1,4 @@
-import { Suspense, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSectors } from '../../contexts/SectorContext';
@@ -6,6 +6,8 @@ import { sectorStakeHeights } from '../../utils/sectorStakeRelief';
 import { enemyGroundRadius } from '../../utils/enemySwarm';
 import { colors } from '../../../ui/tokens';
 import { survivorsSession } from '../../survivors/session';
+import { survivorAudio } from '../../survivors/audio';
+import type { Run } from '../../survivors/sim';
 import type { ViewExtent } from '../../survivors/sim';
 import { cross, lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
 import {
@@ -13,7 +15,6 @@ import {
   BulwarkTelegraphs,
   DefeatedBatch,
   DamageNumbers,
-  PlaceholderBatch,
   PlayerFrameEffects,
   Pickups,
   RiggedBatch,
@@ -30,9 +31,11 @@ import { SurvivorTrooper } from './SurvivorTrooper';
 import { SaberSlashes } from './SaberSlashes';
 import { SectorBreaches } from './SectorBreaches';
 import { SectorRipples } from './SectorRipples';
+import { SurvivorGroundLight } from './SurvivorGroundLight';
 
 import { DeathCamera } from '../../survivors/deathCamera';
 import { FOLLOW_CAMERA, followPullback } from '../../survivors/followCamera';
+import { SeekerCharacters } from './SeekerCharacters';
 import { WardenCharacters } from './WardenCharacters';
 
 /**
@@ -76,6 +79,26 @@ function measureView(
       ? Math.min(horizon, hit.normalize().angleTo(edgePlayer) * radius)
       : horizon;
   }
+}
+
+const heard = new THREE.Vector3();
+
+/** Play the run's queued sounds, panned by where on screen they happened. */
+function playCues(run: Run, camera: THREE.Camera, radius: number) {
+  for (const cue of run.cues) {
+    let pan = 0;
+    let gain = 1;
+    if (cue.n) {
+      heard.set(cue.n.x, cue.n.y, cue.n.z).multiplyScalar(radius);
+      heard.project(camera);
+      pan = Math.max(-1, Math.min(1, heard.x)) * 0.6;
+      // Off-screen events are heard, but quieter than what you can see.
+      if (Math.abs(heard.x) > 1.05 || Math.abs(heard.y) > 1.05 || heard.z > 1)
+        gain = 0.4;
+    }
+    survivorAudio.play(cue.id, { pan, gain, rate: cue.rate, at: cue.at });
+  }
+  run.cues.length = 0;
 }
 
 function tangentLerp(out: Vec3, a: Vec3, b: Vec3, t: number, normal: Vec3) {
@@ -125,6 +148,18 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
   const deathCamera = useRef<DeathCamera | null>(null);
   const lastLook = useRef(new THREE.Vector3());
   const headlight = useRef<THREE.DirectionalLight>(null);
+
+  // Browsers only start audio from a gesture; the first key or click will do.
+  useEffect(() => {
+    const unlock = () => survivorAudio.unlock();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      survivorAudio.hold(false);
+    };
+  }, []);
 
   // Take the camera for the run and give it back afterwards.
   useLayoutEffect(() => {
@@ -202,6 +237,11 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     camera.updateMatrixWorld();
     if (run.status !== 'fallen')
       measureView(run.view, camera, normal, groundRadius);
+    survivorAudio.hold(survivorsSession.paused);
+    // A level-up or Supply Drop stops the run; drop sounds queued for later.
+    if (run.status === 'choosing' || run.status === 'supply')
+      survivorAudio.cancelPending();
+    playCues(run, camera, groundRadius);
     // A light from the camera keeps the dark Hollow Legion readable on the Core.
     const light = headlight.current;
     if (light) {
@@ -231,6 +271,7 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
         intensity={2.2}
         color={colors.fg.DEFAULT}
       />
+      <SurvivorGroundLight registry={registry} />
       <SectorBreaches registry={registry} />
       <SectorRipples registry={registry} />
       <PlayerFrameEffects registry={registry} />
@@ -252,7 +293,9 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
         <RiggedBatch model="bulwark" registry={registry} />
         <DefeatedBatch model="bulwark" registry={registry} />
       </Suspense>
-      <PlaceholderBatch model="seeker" capacity={80} registry={registry} />
+      <Suspense fallback={null}>
+        <SeekerCharacters registry={registry} />
+      </Suspense>
       <Suspense fallback={null}>
         <WardenCharacters registry={registry} />
       </Suspense>

@@ -1,0 +1,10 @@
+{
+  "finite_vertices": true,
+  "grounded": true,
+  "rigid_weights": true,
+  "nondegenerate_triangles": true,
+  "triangles": 1704,
+  "bones": 20,
+  "materials": 2,
+  "animations": []
+}

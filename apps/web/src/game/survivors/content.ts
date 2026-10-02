@@ -231,7 +231,7 @@ export const ENEMIES: Record<EnemyKind, EnemySpec> = {
     radius: 0.15,
     xp: 3,
     model: 'seeker',
-    scale: 1,
+    scale: 0.125,
     tint: 'none',
     mass: 1,
   },

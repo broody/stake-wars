@@ -15,8 +15,19 @@ export const WARDEN_DEFEAT = {
   lifetime: 2.5,
 };
 
+export const SEEKER_DEFEAT = {
+  ...ENEMY_DEFEAT,
+  duration: 1.8,
+  fadeStart: 1.95,
+  lifetime: 2.5,
+};
+
 export function enemyDefeatTiming(model: EnemyModel) {
-  return model === 'warden' ? WARDEN_DEFEAT : ENEMY_DEFEAT;
+  return model === 'warden'
+    ? WARDEN_DEFEAT
+    : model === 'seeker'
+      ? SEEKER_DEFEAT
+      : ENEMY_DEFEAT;
 }
 
 /** Immediately translucent, then fade the settled body away. */

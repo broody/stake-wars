@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+# Local secrets, such as ELEVENLABS_API_KEY for sound generation
+.env
 *.tsbuildinfo
 
 # Go build outputs

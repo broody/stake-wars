@@ -15,6 +15,12 @@ export const SABER = {
   runSpeed: 1.76,
   duration: 0.75,
   impact: 11 / 24,
+  /**
+   * The middle of the blade's visible cut, in clip seconds: the saber travels
+   * fastest from 7/24 to 11/24 in both swing clips (measured from the GLB).
+   * Swing sounds are timed to land here.
+   */
+  sweep: 8 / 24,
   effectLife: 0.24,
   deathDuration: 3,
 } as const;

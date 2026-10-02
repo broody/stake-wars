@@ -1,5 +1,6 @@
 import { setEnemyOpacity } from './enemyOpacity';
 import * as THREE from 'three';
+import { addRimLight } from './rimLight';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { WARDEN_GAIT, WARDEN_SLAM } from '../survivors/wardenAttack';
 import { enemyDefeatOpacity } from '../survivors/enemyDefeat';
@@ -32,7 +33,9 @@ export class WardenAnimation {
     this.root = clone(source);
     this.root.traverse((object) => {
       if (!(object instanceof THREE.SkinnedMesh)) return;
-      const material = (object.material as THREE.MeshStandardMaterial).clone();
+      const material = addRimLight(
+        (object.material as THREE.MeshStandardMaterial).clone()
+      ) as THREE.MeshStandardMaterial;
       object.material = material;
       object.frustumCulled = false;
       object.raycast = () => undefined;
