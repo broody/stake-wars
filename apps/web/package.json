@@ -13,7 +13,8 @@
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,json,js,cjs}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,json,js,cjs}\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sim:balance": "node scripts/survivors-balance.mjs"
   },
   "dependencies": {
     "@cartridge/connector": "^0.14.2",

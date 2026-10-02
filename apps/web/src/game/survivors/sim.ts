@@ -354,6 +354,8 @@ export interface Run {
   kills: number;
   damageBy: Partial<Record<WeaponId, number>>;
   hurtBy: Partial<Record<EnemyKind, number>>;
+  /** Integrity restored, by source. */
+  healedBy: Partial<Record<HealSource, number>>;
   lastHitBy: EnemyKind | null;
   nextId: number;
   eventIndex: number;
@@ -487,6 +489,7 @@ export function createRun(
     kills: 0,
     damageBy: {},
     hurtBy: {},
+    healedBy: {},
     lastHitBy: null,
     nextId: 1,
     eventIndex: 0,
@@ -848,8 +851,12 @@ function hurt(run: Run, amount: number, by: EnemyKind) {
   return true;
 }
 
-function heal(run: Run, amount: number) {
+export type HealSource = 'regen' | 'bastion' | 'repair' | 'offer';
+
+function heal(run: Run, amount: number, source: HealSource) {
+  const before = run.player.hp;
   run.player.hp = Math.min(run.player.maxHp, run.player.hp + amount);
+  run.healedBy[source] = (run.healedBy[source] ?? 0) + run.player.hp - before;
 }
 
 // ---------- Weapons ----------
@@ -1191,7 +1198,7 @@ function updatePulse(run: Run, weapon: Weapon, dt: number) {
     if (pulse) {
       damage(run, enemy, amount, 'pulse');
       if (weapon.evolved && repaired < 3) {
-        heal(run, 0.35);
+        heal(run, 0.35, 'bastion');
         repaired += 0.35;
       }
     }
@@ -2157,7 +2164,7 @@ function updatePickups(run: Run, dt: number) {
 
 function collect(run: Run, item: Item) {
   if (item.kind === 'repair') {
-    heal(run, 30);
+    heal(run, 30, 'repair');
     addText(run, run.player.n, 30, false);
   } else if (item.kind === 'tractor') {
     for (const gem of run.gems) gem.pulled = true;
@@ -2235,7 +2242,7 @@ export function applyOffer(run: Run, offer: Offer) {
       break;
     }
     case 'repair':
-      heal(run, 40);
+      heal(run, 40, 'offer');
       break;
     case 'sharpen':
       run.player.bonusMight += 0.04;
@@ -2332,7 +2339,7 @@ function updatePlayer(run: Run, dt: number, input: MoveInput) {
   }
   playerRight(run.right, player);
   if (player.invulnerable > 0) player.invulnerable -= dt;
-  if (player.regen > 0) heal(run, player.regen * dt);
+  if (player.regen > 0) heal(run, player.regen * dt, 'regen');
 }
 
 // ---------- Tick ----------
