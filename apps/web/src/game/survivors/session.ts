@@ -99,6 +99,24 @@ export class SurvivorsSession {
         age: 0,
       };
     }
+    if (preview === 'volt') {
+      const run = this.run;
+      run.weapons = [];
+      run.spawnCredit = -1e6;
+      run.eventIndex = 1000;
+      run.player.hp = run.player.maxHp = 10000;
+      spawnEnemy(
+        run,
+        'volt',
+        pointAt(vec3(), run.player.n, run.player.forward, 1.4 / groundRadius)
+      );
+      run.banner = {
+        title: 'Volt Mite lunge drill',
+        detail: 'Watch the carets fill, then dodge the red Mite’s lunge.',
+        tone: 'danger',
+        age: 0,
+      };
+    }
     if (preview === 'seeker') {
       const run = this.run;
       run.weapons = [];

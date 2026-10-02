@@ -4,6 +4,7 @@
  * draws it with the game's own renderers, so the catalog always matches a
  * run. Add an object here; add a Layer only for a new kind of renderer.
  */
+import { VOLT_LEAP, VOLT_END_TIME } from '../survivors/voltAttack';
 import { SEEKER_ATTACK } from '../survivors/seekerAttack';
 import { ENEMIES } from '../survivors/content';
 import {
@@ -130,6 +131,33 @@ function seeker(): CatalogEntry {
   return entry;
 }
 
+function voltMite(): CatalogEntry {
+  const entry = enemy(
+    'volt',
+    'Carets fill its lunge path before it jumps. Dodge the landing and avoid contact.',
+    { distance: 1.8, height: 0.2 },
+    'Volt Mite'
+  );
+  entry.animate = (run, dt) => {
+    turntable(run, dt);
+    const unit = run.enemies[0];
+    const elapsed = (run.time % (2 + VOLT_END_TIME)) - 2 + VOLT_LEAP.start;
+    unit.leap =
+      elapsed < VOLT_LEAP.start
+        ? undefined
+        : {
+            origin: copy(vec3(), unit.n),
+            direction: copy(vec3(), unit.heading),
+            distance: VOLT_LEAP.maxDistance,
+            impacted: false,
+            elapsed,
+            previousElapsed: elapsed,
+          };
+    unit.mode = unit.leap ? 'leap' : 'walk';
+  };
+  return entry;
+}
+
 const gem =
   (value: number) =>
   (run: Run): void => {
@@ -214,12 +242,7 @@ export const ENTRIES: CatalogEntry[] = [
     { distance: 0.6, height: 0.08 },
     'Skitter'
   ),
-  enemy(
-    'volt',
-    'Explodes when it gets close, and again when it dies.',
-    { distance: 0.75, height: 0.1 },
-    'Volt Mite'
-  ),
+  voltMite(),
   enemy(
     'lancer',
     'Stops at range and fires down a marked line.',

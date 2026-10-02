@@ -549,7 +549,9 @@ export function CoreSurvivorsHud() {
           Move with WASD or the arrow keys, or drag anywhere.{' '}
           {run.weapons.length
             ? 'Your weapons fire on their own.'
-            : 'Sidestep the orange lane to dodge the shield thrust.'}
+            : run.enemies.some((enemy) => enemy.kind === 'volt')
+              ? 'Step out of the red arrow path before the Mite lunges.'
+              : 'Sidestep the orange lane to dodge the shield thrust.'}
         </Panel>
       ) : null}
 

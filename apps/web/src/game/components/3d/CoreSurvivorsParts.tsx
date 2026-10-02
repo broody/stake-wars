@@ -36,6 +36,11 @@ import {
   vec3,
   type Vec3,
 } from '../../survivors/sphere';
+import {
+  VOLT_LEAP,
+  voltLeapClipTime,
+  sampleVoltLeap,
+} from '../../survivors/voltAttack';
 import { SIM_HZ, type DefeatedEnemy, type Enemy } from '../../survivors/sim';
 import { emergeLift } from '../../survivors/breach';
 import {
@@ -189,10 +194,7 @@ const MODELS = {
 
 function tintFor(enemy: Enemy, time: number) {
   if (enemy.flash > 0) return FLASH;
-  if (enemy.kind === 'volt')
-    return enemy.mode === 'fuse' && Math.floor(enemy.modeTime * 16) % 2 === 0
-      ? FLASH
-      : VOLT;
+  if (enemy.kind === 'volt') return VOLT;
   if (enemy.kind === 'captain') return CAPTAIN;
   if (enemy.mode === 'aim' && Math.floor(time * 12) % 2 === 0) return VOLT;
   return WHITE;
@@ -224,7 +226,11 @@ export function RiggedBatch({
       animations,
       time,
       config.clip,
-      model === 'bulwark' ? 'ShieldThrust' : undefined
+      model === 'bulwark'
+        ? 'ShieldThrust'
+        : model === 'mite'
+          ? 'LeapAttack'
+          : undefined
     );
     for (const part of parts) addRimLight(part.material);
     const gait = new THREE.InstancedBufferAttribute(
@@ -285,13 +291,23 @@ export function RiggedBatch({
         enemy.spec.scale
       );
       if (lift === null) continue;
+      const leapElapsed = enemy.leap
+        ? enemy.leap.previousElapsed +
+          (enemy.leap.elapsed - enemy.leap.previousElapsed) * alpha
+        : undefined;
+      const jumpHeight =
+        leapElapsed === undefined
+          ? 0
+          : sampleVoltLeap(voltLeapClipTime(leapElapsed)).height *
+            enemy.spec.scale *
+            VOLT_LEAP.heightScale;
       lerpNormal(s.n, enemy.prev, enemy.n, alpha);
       surfaceMatrix(
         s.basis,
         s.n,
         enemy.heading,
         radius,
-        lift,
+        lift + jumpHeight,
         enemy.spec.scale
       );
       const tint = tintFor(enemy, run.time);
@@ -304,17 +320,27 @@ export function RiggedBatch({
         batch.setMatrixAt(index, s.basis);
         batch.setColorAt(index, tint);
       }
-      const elapsed = enemy.thrust
-        ? enemy.thrust.previousElapsed +
-          (enemy.thrust.elapsed - enemy.thrust.previousElapsed) * alpha
-        : 0;
-      const blend = enemy.thrust
-        ? Math.min(
-            1,
-            elapsed / BULWARK_ATTACK.blendIn,
-            (BULWARK_ATTACK.duration - elapsed) / BULWARK_ATTACK.blendOut
-          )
-        : 0;
+      const elapsed =
+        leapElapsed !== undefined
+          ? voltLeapClipTime(leapElapsed)
+          : enemy.thrust
+            ? enemy.thrust.previousElapsed +
+              (enemy.thrust.elapsed - enemy.thrust.previousElapsed) * alpha
+            : 0;
+      const blend =
+        leapElapsed !== undefined
+          ? Math.min(
+              1,
+              (elapsed - VOLT_LEAP.start) / VOLT_LEAP.blendIn,
+              (VOLT_LEAP.duration - elapsed) / VOLT_LEAP.blendOut
+            )
+          : enemy.thrust
+            ? Math.min(
+                1,
+                elapsed / BULWARK_ATTACK.blendIn,
+                (BULWARK_ATTACK.duration - elapsed) / BULWARK_ATTACK.blendOut
+              )
+            : 0;
       // Three accelerating pulses across the windup, shared by all red sensors.
       // Integrating the frequency keeps the pulse continuous as its rate rises.
       const windup = Math.min(1, elapsed / BULWARK_ATTACK.driveStart);
@@ -325,7 +351,7 @@ export function RiggedBatch({
           ? (1 + 4 * windup) * pulse
           : 0;
       live.attack.setXYZ(index, elapsed, Math.max(0, blend), signal);
-      const standing = enemy.mode === 'aim' || enemy.mode === 'fuse';
+      const standing = enemy.mode === 'aim' || enemy.mode === 'leap';
       gait[index * 2] = (enemy.id * 0.618) % 1;
       gait[index * 2 + 1] = standing
         ? 0.05

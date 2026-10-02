@@ -16,6 +16,7 @@ import {
   Shards,
 } from '../components/3d/CoreSurvivorsParts';
 import { SurvivorTrooper } from '../components/3d/SurvivorTrooper';
+import { VoltTelegraphs } from '../components/3d/VoltTelegraphs';
 import { SeekerCharacters } from '../components/3d/SeekerCharacters';
 import { WardenCharacters } from '../components/3d/WardenCharacters';
 import { createRun, playerRight } from '../survivors/sim';
@@ -36,7 +37,12 @@ const DEFAULT_FRAMING = { distance: 0.7, height: 0.08 };
 
 const LAYERS: Record<Layer, (registry: Set<Renderer>) => ReactNode> = {
   trooper: (registry) => <SurvivorTrooper registry={registry} />,
-  mite: (registry) => <RiggedBatch model="mite" registry={registry} />,
+  mite: (registry) => (
+    <>
+      <RiggedBatch model="mite" registry={registry} />
+      <VoltTelegraphs registry={registry} />
+    </>
+  ),
   lancer: (registry) => <RiggedBatch model="lancer" registry={registry} />,
   bulwark: (registry) => <RiggedBatch model="bulwark" registry={registry} />,
   seeker: (registry) => <SeekerCharacters registry={registry} />,

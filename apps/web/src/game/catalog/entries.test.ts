@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { voltWarningCount, VOLT_LEAP } from '../survivors/voltAttack';
 import { ENEMIES } from '../survivors/content';
 import { createRun, type Run } from '../survivors/sim';
 import { CATEGORIES, ENTRIES, type Layer } from './entries';
@@ -51,6 +52,19 @@ describe('object catalog', () => {
       expect(unit.mode).toBe(mode);
       expect(unit.aim).toEqual(unit.heading);
     }
+  });
+
+  it('previews the Volt Mite coil and jump using the game warning clock', () => {
+    const entry = ENTRIES.find((e) => e.id === 'volt')!;
+    const run = createRun(7, 5.006);
+    entry.setup(run);
+    run.time = 2.3;
+    entry.animate!(run, 1 / 60);
+    expect(voltWarningCount(run.enemies[0].leap!.elapsed)).toBe(3);
+    expect(run.enemies[0].leap!.distance).toBe(VOLT_LEAP.maxDistance);
+    run.time = 2 + VOLT_LEAP.windup + 0.1;
+    entry.animate!(run, 1 / 60);
+    expect(voltWarningCount(run.enemies[0].leap!.elapsed)).toBe(0);
   });
 
   it('shows every kind of enemy in the game', () => {

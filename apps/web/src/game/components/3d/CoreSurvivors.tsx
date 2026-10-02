@@ -35,6 +35,7 @@ import { SurvivorGroundLight } from './SurvivorGroundLight';
 
 import { DeathCamera } from '../../survivors/deathCamera';
 import { FOLLOW_CAMERA, followPullback } from '../../survivors/followCamera';
+import { VoltTelegraphs } from './VoltTelegraphs';
 import { SeekerCharacters } from './SeekerCharacters';
 import { WardenCharacters } from './WardenCharacters';
 
@@ -277,6 +278,7 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
       <PlayerFrameEffects registry={registry} />
       <WorldEffects registry={registry} />
       <BulwarkTelegraphs registry={registry} />
+      <VoltTelegraphs registry={registry} />
       <Suspense fallback={null}>
         <SurvivorTrooper registry={registry} />
         <SaberSlashes registry={registry} />

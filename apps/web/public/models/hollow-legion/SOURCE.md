@@ -60,3 +60,16 @@ Seeker fins spread outward during idle and locomotion, fold inward through the
 windup, stay tucked during the charge, and reopen during recovery. The current
 game scale is 50% of the original integration; charge playback scales
 to preserve the three-world-unit-per-second movement.
+
+## Volt Mite lunge
+
+The red Volt Mite reuses Mite's `LeapAttack` clip. A 0.55-second coil fills
+up to five fixed-size, evenly spaced ground carets one at a time along its locked
+lunge path (fewer for shorter lunges), ending at the
+landing point up to 0.9 world units away. The carets disappear at takeoff. A landing hit deals
+16 base damage once; the Mite recovers and can attack again after a 1.2-second
+cooldown. Grounded contact deals 4 base damage, using the shared 0.6-second
+player hit cooldown; contact is disabled during the coil and flight. It no longer explodes on attack or death. Horizontal and vertical root
+motion are removed from GPU poses and applied once through the simulation and
+render placement; the vertical arc is amplified for readability. The Objects
+card previews the coil, carets, jump, and recovery.

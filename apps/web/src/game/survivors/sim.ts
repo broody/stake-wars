@@ -6,6 +6,13 @@
  * nothing about rendering. Distances are world units on
  * the Core (radius 5); times are seconds. Every actor is a unit normal.
  */
+import {
+  VOLT_LEAP,
+  VOLT_IMPACT_TIME,
+  VOLT_END_TIME,
+  voltLeapClipTime,
+  sampleVoltLeap,
+} from './voltAttack';
 import { SEEKER_ATTACK } from './seekerAttack';
 import {
   ENEMIES,
@@ -75,7 +82,7 @@ export type EnemyMode =
   | 'aim'
   | 'charge'
   | 'recover'
-  | 'fuse'
+  | 'leap'
   | 'slam'
   | 'thrust';
 
@@ -105,6 +112,14 @@ export interface Enemy {
     elapsed: number;
     previousElapsed: number;
     hit: boolean;
+  };
+  leap?: {
+    origin: Vec3;
+    direction: Vec3;
+    distance: number;
+    impacted: boolean;
+    elapsed: number;
+    previousElapsed: number;
   };
   slam?: {
     origin: Vec3;
@@ -781,6 +796,7 @@ function kill(run: Run, enemy: Enemy, blast?: Vec3) {
   const heavy = enemy.spec.mass > 1 || enemy.spec.elite || enemy.spec.boss;
   cue(run, heavy ? 'death-heavy' : 'death', enemy.n);
   enemy.slam = undefined;
+  enemy.leap = undefined;
   run.effects = run.effects.filter(
     (e) => e.kind !== 'cone' || e.enemyId !== enemy.id
   );
@@ -818,7 +834,6 @@ function kill(run: Run, enemy: Enemy, blast?: Vec3) {
   }
   run.kills++;
   dropGem(run, enemy.n, enemy.spec.xp);
-  if (enemy.kind === 'volt') voltBlast(run, enemy, false);
   if (enemy.spec.boss) {
     run.bosses = run.bosses.filter((boss) => boss !== enemy);
     dropItem(run, 'drop', enemy.n, true);
@@ -870,35 +885,6 @@ function dropItem(run: Run, kind: ItemKind, n: Vec3, big = false) {
 }
 
 const damageScale = (run: Run) => 1 + 0.08 * (run.time / 60);
-
-function voltBlast(run: Run, enemy: Enemy, fused: boolean) {
-  const radius = 0.42;
-  addEffect(run, {
-    kind: 'blast',
-    n: copy(vec3(), enemy.n),
-    radius,
-    tone: 'volt',
-    age: 0,
-    life: 0.3,
-  });
-  run.shake = Math.max(run.shake, 0.15);
-  if (fused && distance(run, run.player.n, enemy.n) < radius + PLAYER_RADIUS)
-    hurt(run, 16 * damageScale(run), 'volt');
-  const blast = copy(vec3(), enemy.n);
-  const amount = 30 * run.healthScale * 0.6;
-  run.timers.push({
-    at: run.time + 0.05,
-    run: () => {
-      for (const other of nearby(run, blast, radius + 0.3))
-        if (
-          !other.dead &&
-          other !== enemy &&
-          distance(run, other.n, blast) < radius + other.spec.radius
-        )
-          damage(run, other, amount, null, 1.3, blast);
-    },
-  });
-}
 
 function hurt(run: Run, amount: number, by: EnemyKind) {
   const player = run.player;
@@ -1467,6 +1453,7 @@ export function spawnEnemy(run: Run, kind: EnemyKind, n?: Vec3): Enemy {
     emerge: 0,
     dead: false,
   };
+  if (kind === 'volt') enemy.cooldown = 0;
   run.enemies.push(enemy);
   if (spec.boss) run.bosses.push(enemy);
   return enemy;
@@ -1775,7 +1762,8 @@ function displaceBulwarkCrowds(run: Run, dt: number) {
         other.dead ||
         other.emerge > 0 ||
         other.spec.boss ||
-        other.thrust
+        other.thrust ||
+        other.leap
       )
         continue;
       const a = local(other.prev),
@@ -1975,17 +1963,53 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
       return pace;
     }
     case 'volt': {
-      if (enemy.mode === 'fuse') {
-        enemy.modeTime -= dt;
-        if (enemy.modeTime <= 0) {
-          enemy.dead = true;
-          voltBlast(run, enemy, true);
+      if (enemy.leap) {
+        const attack = enemy.leap;
+        attack.previousElapsed = attack.elapsed;
+        attack.elapsed = Math.min(VOLT_END_TIME, attack.elapsed + dt);
+        const travel =
+          sampleVoltLeap(voltLeapClipTime(attack.elapsed)).progress *
+          attack.distance;
+        copy(enemy.n, attack.origin);
+        copy(enemy.aim, attack.direction);
+        stepAlong(enemy.n, enemy.aim, travel / run.groundRadius);
+        copy(enemy.heading, enemy.aim);
+        enemy.knock = 0;
+        if (!attack.impacted && attack.elapsed >= VOLT_IMPACT_TIME) {
+          attack.impacted = true;
+          if (
+            distance(run, run.player.n, enemy.n) <
+            enemy.spec.radius + PLAYER_RADIUS + VOLT_LEAP.hitReach
+          )
+            hurt(run, VOLT_LEAP.damage * damageScale(run), 'volt');
+        }
+        if (attack.elapsed >= VOLT_END_TIME) {
+          enemy.leap = undefined;
+          enemy.mode = 'walk';
+          enemy.cooldown = VOLT_LEAP.cooldown;
         }
         return 0;
       }
-      if (gap < 0.29) {
-        enemy.mode = 'fuse';
-        enemy.modeTime = 0.7;
+      enemy.cooldown -= dt;
+      if (gap < VOLT_LEAP.trigger && enemy.cooldown <= 0) {
+        enemy.mode = 'leap';
+        copy(enemy.aim, toward);
+        copy(enemy.heading, toward);
+        enemy.knock = 0;
+        enemy.leap = {
+          origin: copy(vec3(), enemy.n),
+          direction: copy(vec3(), toward),
+          // Convert chord distance to surface travel so the landing meets the target.
+          distance: Math.min(
+            VOLT_LEAP.maxDistance,
+            2 *
+              run.groundRadius *
+              Math.asin(Math.min(1, gap / (2 * run.groundRadius)))
+          ),
+          impacted: false,
+          elapsed: VOLT_LEAP.start,
+          previousElapsed: VOLT_LEAP.start,
+        };
         return 0;
       }
       return pace;
@@ -2135,10 +2159,11 @@ function updateEnemies(run: Run, dt: number) {
       } else if (
         enemy.mode !== 'charge' &&
         enemy.mode !== 'thrust' &&
+        enemy.mode !== 'leap' &&
         enemy.mode !== 'slam'
       )
         copy(enemy.heading, toward);
-      if (enemy.knock > 0.01 && !enemy.thrust && !enemy.slam) {
+      if (enemy.knock > 0.01 && !enemy.thrust && !enemy.slam && !enemy.leap) {
         tangentToward(toward, enemy.n, enemy.knockFrom, enemy.heading);
         set(toward, -toward.x, -toward.y, -toward.z);
         stepAlong(enemy.n, toward, (enemy.knock * dt) / radius);
@@ -2154,10 +2179,15 @@ function updateEnemies(run: Run, dt: number) {
       edgePoint(run, enemy.n, player.moving ? player.heading : undefined);
       enemy.mode = 'walk';
       enemy.thrust = undefined;
+      enemy.leap = undefined;
       emergeFrom(run, enemy);
       continue;
     }
-    if (enemy.spec.damage > 0 && gap < enemy.spec.radius + PLAYER_RADIUS)
+    if (
+      enemy.spec.damage > 0 &&
+      (!enemy.leap || enemy.leap.impacted) &&
+      gap < enemy.spec.radius + PLAYER_RADIUS
+    )
       hurt(run, enemy.spec.damage * scale, enemy.kind);
   }
   displaceBulwarkCrowds(run, dt);
@@ -2168,12 +2198,13 @@ function updateEnemies(run: Run, dt: number) {
       enemy.emerge > 0 ||
       enemy.straight ||
       enemy.spec.boss ||
-      enemy.thrust
+      enemy.thrust ||
+      enemy.leap
     )
       continue;
     let pushes = 0;
     for (const other of nearby(run, enemy.n, 0.45)) {
-      if (other === enemy || other.dead) continue;
+      if (other === enemy || other.dead || other.leap) continue;
       const overlap =
         (enemy.spec.radius + other.spec.radius) / radius -
         chord(enemy.n, other.n);

@@ -15,7 +15,7 @@ export function bakeEnemyLocomotion(
   animations: THREE.AnimationClip[],
   time: THREE.IUniform<number>,
   clipName: 'Walk' | 'Run' = 'Run',
-  attackName?: 'ShieldThrust' | 'Defeated'
+  attackName?: 'ShieldThrust' | 'LeapAttack' | 'Defeated'
 ): EnemyRunPart[] {
   const scene = clone(source);
   const run = animations.find((clip) => clip.name === clipName);

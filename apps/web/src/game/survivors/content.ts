@@ -190,7 +190,7 @@ export const ENEMIES: Record<EnemyKind, EnemySpec> = {
     label: 'Volt Mites',
     hp: 16,
     speed: 0.53,
-    damage: 0,
+    damage: 4,
     radius: 0.11,
     xp: 2,
     model: 'mite',
