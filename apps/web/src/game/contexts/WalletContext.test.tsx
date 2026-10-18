@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, StrictMode } from 'react';
+import { act, StrictMode, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   StarknetInjectedWallet,
+  createStore,
   type Store,
   type WalletWithStarknetFeatures,
 } from '@starknet-io/get-starknet-core';
@@ -11,6 +13,7 @@ import { StarknetConfig } from '@starknetfoundation/starknet-start-react';
 import { RpcProvider } from 'starknet';
 import { stakeWarsChain } from '../providers/chain';
 import { WalletProvider, useWallet } from './WalletContext';
+import { WalletButton } from '../components/ui/WalletButton';
 
 const LAST_WALLET_KEY = 'get-starknet.last-connected-wallet';
 const chainId = `0x${stakeWarsChain.id.toString(16)}`;
@@ -20,10 +23,12 @@ const provider = () => rpc;
 
 function readyWallet({
   id = 'argentX',
+  name = 'Ready',
   network = chainId,
   requestAccounts = async () => ['0x123'],
 }: {
   id?: string;
+  name?: string;
   network?: string;
   requestAccounts?: (silent?: boolean) => Promise<string[]>;
 } = {}) {
@@ -44,17 +49,26 @@ function readyWallet({
       throw new Error(`Unexpected wallet request: ${type}`);
     }
   );
-  const wallet = new StarknetInjectedWallet({
+  const injected = {
     id,
-    name: 'Ready',
+    name,
     icon: 'data:image/png;base64,AA==',
     version: '6.0.0',
     request,
     on: (event: string, listener: (accounts: string[]) => void) => {
       listeners.set(event, listener);
     },
-  } as unknown as ConstructorParameters<typeof StarknetInjectedWallet>[0]);
+    off: (event: string) => {
+      listeners.delete(event);
+    },
+  };
+  const wallet = new StarknetInjectedWallet(
+    injected as unknown as ConstructorParameters<
+      typeof StarknetInjectedWallet
+    >[0]
+  );
   return {
+    injected,
     wallet,
     request,
     accountsChanged: (accounts: string[]) =>
@@ -126,7 +140,7 @@ function WalletProbe() {
   );
 }
 
-async function mount(store: Store) {
+async function mount(store: Store, children?: ReactNode) {
   await act(async () => {
     root.render(
       <StrictMode>
@@ -138,6 +152,7 @@ async function mount(store: Store) {
         >
           <WalletProvider>
             <WalletProbe />
+            {children}
           </WalletProvider>
         </StarknetConfig>
       </StrictMode>
@@ -327,6 +342,47 @@ describe('wallet automatic reconnection', () => {
 });
 
 describe('wallet capabilities', () => {
+  it.each(['Outis', 'Privacy Wallet'])(
+    'discovers and connects the injected Outis provider named %s through the wallet menu',
+    async (name) => {
+      const outis = readyWallet({ id: 'outis', name });
+      vi.stubGlobal('starknet_outis', outis.injected);
+      const store = createStore({ eip1193Adapters: [] });
+      await mount(
+        store,
+        <MemoryRouter>
+          <WalletButton />
+        </MemoryRouter>
+      );
+
+      await act(async () => container.querySelector('button')!.click());
+      const option = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')
+      ).find((button) => button.textContent?.includes(name));
+      expect(option).toBeDefined();
+      await act(async () => option!.click());
+
+      expect(current.isConnected).toBe(true);
+      expect(current.walletId).toBe('outis');
+      expect(current.walletName).toBe(name);
+      expect(window.localStorage.getItem(LAST_WALLET_KEY)).toBe('outis');
+      expect(outis.request).toHaveBeenCalledWith({
+        type: 'wallet_requestAccounts',
+        params: { silent_mode: false },
+      });
+
+      const refreshed = readyWallet({ id: 'outis', name });
+      vi.stubGlobal('starknet_outis', refreshed.injected);
+      await reload(createStore({ eip1193Adapters: [] }));
+      expect(current.isConnected).toBe(true);
+      expect(current.walletId).toBe('outis');
+      expect(refreshed.request).toHaveBeenCalledWith({
+        type: 'wallet_requestAccounts',
+        params: { silent_mode: true },
+      });
+    }
+  );
+
   it('connects wallets that do not implement the privacy Wallet API', async () => {
     const braavos = braavosWallet();
     await mount(discovery([braavos.wallet]).store);

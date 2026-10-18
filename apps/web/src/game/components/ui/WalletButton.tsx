@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WalletList } from '@starknet-io/get-starknet-modal';
+import { StarknetWalletApi } from '@starknet-io/get-starknet-wallet-standard/features';
 import { Link, useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
@@ -183,7 +184,10 @@ export function WalletButton({
               <Eyebrow className="px-2 pb-2">SELECT WALLET</Eyebrow>
               <WalletList className="flex flex-col gap-1">
                 {(option) => {
-                  const id = option.info?.id;
+                  const id =
+                    option.state === 'available'
+                      ? option.wallet.features[StarknetWalletApi].id
+                      : option.info.id;
                   if (!isSupportedWallet(option.name, id)) {
                     return null;
                   }
