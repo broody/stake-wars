@@ -324,6 +324,19 @@ func (s *AccountSupplyDropSubmitter) invoke(
 	entrypoint string,
 	id uint64,
 ) (string, error) {
+	return s.invokeCall(
+		ctx, system, entrypoint, fmt.Sprint(id), []*felt.Felt{new(felt.Felt).SetUint64(id)},
+	)
+}
+
+// invokeCall submits one maintenance call. target identifies it in the
+// transaction journal and logs.
+func (s *AccountSupplyDropSubmitter) invokeCall(
+	ctx context.Context,
+	system *felt.Felt,
+	entrypoint, target string,
+	calldata []*felt.Felt,
+) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -342,7 +355,7 @@ func (s *AccountSupplyDropSubmitter) invoke(
 	}
 	var attempt *broadcastAttempt
 	if s.journal != nil {
-		attemptID, err := s.journal.Begin(ctx, txjournal.Metadata{Network: s.network, Source: "keeper", Account: s.keeperAddress, Contract: system.String(), Entrypoint: entrypoint, TargetID: fmt.Sprint(id)})
+		attemptID, err := s.journal.Begin(ctx, txjournal.Metadata{Network: s.network, Source: "keeper", Account: s.keeperAddress, Contract: system.String(), Entrypoint: entrypoint, TargetID: target})
 		if err != nil {
 			return "", err
 		}
@@ -355,7 +368,7 @@ func (s *AccountSupplyDropSubmitter) invoke(
 		[]starknetrpc.InvokeFunctionCall{{
 			ContractAddress: system,
 			FunctionName:    entrypoint,
-			CallData:        []*felt.Felt{new(felt.Felt).SetUint64(id)},
+			CallData:        calldata,
 		}},
 		nil,
 	)
@@ -394,7 +407,7 @@ func (s *AccountSupplyDropSubmitter) invoke(
 		}
 	}
 	slog.InfoContext(ctx, "Keeper transaction submitted", "entrypoint", entrypoint,
-		"target_id", id, "transaction_hash", response.Hash.String())
+		"target_id", target, "transaction_hash", response.Hash.String())
 	if err := s.waitPending(ctx); err != nil {
 		if s.pending != nil {
 			return response.Hash.String(), errors.Join(ErrKeeperTransactionPending, err)

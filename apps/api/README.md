@@ -87,9 +87,9 @@ else, including the winner, can submit the same call.
 | `AUTH_CHALLENGE_TTL` | `5m` | Lifetime of a single-use wallet challenge. |
 | `AUTH_SESSION_TTL` | `15m` | Lifetime of an API bearer session. |
 | `ALLOWED_ORIGINS` | production domains plus localhost in development | Comma-separated exact browser origins allowed by CORS. |
-| `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification. |
+| `CONTROL_SYSTEM_ADDRESS` | unset | Deployed Dojo Control System used for image ownership verification. With the keeper configured, it also enables Operator synchronization: every minute the keeper submits `sync_operators` for Operators the chain reports as out of sync, such as one who unpooled outside the game. |
 | `SUPPLY_DROP_SYSTEM_ADDRESS` | unset | Deployed Dojo SupplyDrop System. Configuring this enables the periodic keeper. |
-| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop and Beacon duties. |
+| `SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS` | unset | Dedicated unprivileged Starknet account used to pay for permissionless maintenance calls. Shared by SupplyDrop, Beacon, and Operator synchronization duties. |
 | `SUPPLY_DROP_KEEPER_PRIVATE_KEY` | unset | Private key for the dedicated keeper account. Configure only as a server secret. |
 | `IMAGE_BUCKET` | unset | S3-compatible bucket that stores Sector image objects. |
 | `IMAGE_PUBLIC_URL` | unset | Public CDN origin for image delivery, such as `https://assets.stakewars.gg`. |
@@ -116,7 +116,13 @@ rejected transactions can be retried on later passes with a new attempt record.
 Keep the dedicated account funded with STRK for fees and monitor maintenance
 error logs. Manual locking and settlement remain available when the keeper is
 delayed or disabled. Sector captures and takeovers complete in the player's own
-transaction, so the keeper has no Sector duty.
+transaction, so the keeper has no capture or takeover duty.
+
+When `CONTROL_SYSTEM_ADDRESS` is also set, a separate one-minute pass lists the
+unretired Operators indexed by Torii, reads each one's live status from the
+Control System, and submits `sync_operators` only for those the chain reports
+as out of sync. This retires an Operator who unpooled outside the game, which
+releases their Sectors and hides their artwork. An idle pass sends nothing.
 
 Local API runs must use the shared Sepolia deployment and a Sepolia keeper;
 never inject the production signing key into a local frontend or demo.

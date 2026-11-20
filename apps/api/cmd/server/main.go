@@ -14,6 +14,7 @@ import (
 	"stakewars.com/api/internal/auth"
 	"stakewars.com/api/internal/beacon"
 	"stakewars.com/api/internal/config"
+	"stakewars.com/api/internal/control"
 	"stakewars.com/api/internal/database"
 	"stakewars.com/api/internal/images"
 	"stakewars.com/api/internal/networkstats"
@@ -81,6 +82,7 @@ func run() error {
 		configuration.StarknetChainID,
 	)
 	var maintenanceWorker *beacon.Worker
+	var operatorSyncWorker *beacon.Worker
 	maintenanceDuties := make([]beacon.Duty, 0, 5)
 	if beaconReader != nil {
 		maintenanceDuties = append(maintenanceDuties, beaconProjector)
@@ -119,6 +121,35 @@ func run() error {
 			supplyDropSubmitter,
 			supplydrop.NewDuty(supplyDropReader, supplyDropSubmitter),
 		)
+		// Operator synchronization reads every active Operator from the chain,
+		// so it gets its own slower worker and never delays the other duties.
+		if configuration.ControlSystemAddress != "" {
+			operatorLister, err := starknet.NewOperatorLister(configuration.ToriiURL)
+			if err != nil {
+				return err
+			}
+			operatorReader, err := starknet.NewControlReader(
+				configuration.StarknetRPCURL,
+				configuration.ControlSystemAddress,
+			)
+			if err != nil {
+				return err
+			}
+			controlSubmitter, err := starknet.NewControlSubmitter(
+				supplyDropSubmitter, configuration.ControlSystemAddress,
+			)
+			if err != nil {
+				return err
+			}
+			operatorSyncWorker = beacon.NewWorker(
+				time.Minute,
+				control.NewSyncDuty(operatorLister, operatorReader, controlSubmitter),
+			)
+			slog.Info("Operator sync keeper enabled", "account", configuration.SupplyDropKeeperAccount,
+				"system", configuration.ControlSystemAddress)
+		} else {
+			slog.Warn("CONTROL_SYSTEM_ADDRESS is not configured; Operator synchronization is disabled")
+		}
 		if configuration.BeaconKeeper {
 			beaconSubmitter, err := starknet.NewBeaconSubmitter(
 				supplyDropSubmitter, configuration.BeaconSystemAddress,
@@ -253,6 +284,7 @@ func run() error {
 		worker *beacon.Worker
 	}{
 		{name: "Maintenance", worker: maintenanceWorker},
+		{name: "Operator sync", worker: operatorSyncWorker},
 		{name: "Staking statistics", worker: stakingWorker},
 	} {
 		if worker.worker == nil {
