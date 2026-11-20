@@ -1,8 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { View } from '@react-three/drei';
 import {
+  buttonStyles,
   Eyebrow,
   PageTitle,
   Panel,
@@ -68,6 +69,18 @@ export function Catalog() {
             onChange={(next) => setParams({ tab: next }, { replace: true })}
           />
         </header>
+        {tab === 'pickups' ? (
+          <Link
+            className={buttonStyles({
+              variant: 'link',
+              size: 'sm',
+              className: 'mt-4',
+            })}
+            to="/items"
+          >
+            OPEN ITEM PREVIEW
+          </Link>
+        ) : null}
         {tab === 'sounds' ? <SoundBoard /> : null}
         {[...groups].map(([group, entries]) => (
           <section key={group} className="mt-10">

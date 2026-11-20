@@ -11,8 +11,8 @@ const RADIUS = 0.32;
 
 /**
  * The Supply Drop, centred on its body: a dark double pyramid with lit edges,
- * a level ring and a tether hanging toward the ground. The Core marker, the
- * logo and Core Survivors all draw this one model; spin it through `bodyRef`.
+ * a level ring and a tether hanging toward the ground. The Core marker and
+ * logo share this model. Spin it through `bodyRef`.
  */
 export function SupplyDropModel({
   bodyRef,

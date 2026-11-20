@@ -17,12 +17,15 @@ import {
   tick,
   type EnemyKind,
   type HealSource,
+  type HeroId,
   type Run,
   type RunStatus,
   type WeaponId,
 } from '../sim';
-import { decide, pilot, type OfferPolicy } from './bot';
-import { BUILDS, type BuildName } from './builds';
+import { carriesAegis } from '../content';
+import type { AegisTuning } from '../aegis';
+import { decide, pilot, type OfferPolicy, type Stance } from './bot';
+import { buildFor, type BuildName } from './builds';
 
 export interface RunOptions {
   seed: number;
@@ -30,6 +33,16 @@ export interface RunOptions {
   build: BuildName;
   /** Seconds to play; runs always reach it. */
   cap: number;
+  /** The pre-class Sector Trooper unless named. */
+  hero?: HeroId;
+  /** How the bot moves; by default a shielded hero engages and others kite. */
+  stance?: Stance;
+  /** Aegis settings to try in place of the ground settings. */
+  aegis?: Partial<AegisTuning>;
+  /** A Legion clock speed to try in place of the game's `PACE`. */
+  pace?: number;
+  /** A level speed to try in place of the game's `LEVEL_PACE`. */
+  levelPace?: number;
 }
 
 export interface Minute {
@@ -50,6 +63,8 @@ export interface RunResult {
   policy: OfferPolicy;
   build: BuildName;
   cap: number;
+  hero: HeroId;
+  stance: Stance;
   /** When virtual health first reached 0, or null if it never did. */
   fellAt: number | null;
   killedBy: EnemyKind | null;
@@ -60,6 +75,9 @@ export interface RunResult {
   firstEvolution: number | null;
   damageBy: Partial<Record<WeaponId, number>>;
   hurtBy: Partial<Record<EnemyKind, number>>;
+  /** Damage Aegis took instead of integrity, and how often it broke. */
+  absorbedBy: Partial<Record<EnemyKind, number>>;
+  aegisBreaks: number;
   healedBy: Partial<Record<HealSource, number>>;
   minutes: Minute[];
   /** Wall-clock milliseconds, to keep an eye on simulator speed. */
@@ -80,10 +98,19 @@ export function runSurvivor({
   policy,
   build,
   cap,
+  hero = 'trooper',
+  stance = carriesAegis(hero) ? 'engage' : 'kite',
+  aegis,
+  pace,
+  levelPace,
 }: RunOptions): RunResult {
   const started = Date.now();
-  const run: Run = createRun(seed, GROUND_RADIUS);
-  for (const offer of BUILDS[build]) applyOffer(run, offer);
+  const run: Run = createRun(seed, GROUND_RADIUS, hero, {
+    aegis,
+    pace,
+    levelPace,
+  });
+  for (const offer of buildFor(hero, build)) applyOffer(run, offer);
   run.player.hp = run.player.maxHp;
   const random = seededRandom(seed ^ 0x5bd1e995);
   const dt = 1 / SIM_HZ;
@@ -103,7 +130,7 @@ export function runSurvivor({
     run.player.hp = pinned;
     const hurtBefore = sum(run.hurtBy);
     const healedBefore = sum(run.healedBy);
-    tick(run, dt, pilot(run, hurt));
+    tick(run, dt, pilot(run, hurt, stance));
     // A single hit past half health would end the real run; keep playing.
     if ((run.status as RunStatus) === 'fallen') run.status = 'playing';
     const hit = sum(run.hurtBy) - hurtBefore;
@@ -137,6 +164,8 @@ export function runSurvivor({
     policy,
     build,
     cap,
+    hero,
+    stance,
     fellAt,
     killedBy,
     level: run.player.level,
@@ -150,6 +179,8 @@ export function runSurvivor({
     firstEvolution,
     damageBy: { ...run.damageBy },
     hurtBy: { ...run.hurtBy },
+    absorbedBy: { ...run.absorbedBy },
+    aegisBreaks: run.aegisBreaks,
     healedBy: { ...run.healedBy },
     minutes,
     ms: Date.now() - started,

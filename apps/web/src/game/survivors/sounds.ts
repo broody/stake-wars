@@ -65,19 +65,23 @@ export const SOUNDS = {
   },
   'shard-hit': {
     name: 'Orbit Shard hit',
-    detail: 'An Orbit Shard cutting an enemy.',
-    volume: 0.3,
+    detail:
+      'An Orbit Shard’s energy slash through an enemy, or the Aegis absorbing a hit, from one of three generated takes at random.',
+    volume: 0.38,
     voices: 4,
     gap: 0.05,
     jitter: 0.12,
+    takes: 3,
   },
   strike: {
     name: 'Orbital Strike',
-    detail: 'A strike from orbit landing.',
+    detail: 'A strike from orbit landing, ringing out in a deep tone.',
     volume: 0.75,
-    voices: 3,
+    // The tone rings for 2.2 s, so four cover Chain Barrage's fastest volleys
+    // without dropping one; a narrow jitter keeps overlapping tones in tune.
+    voices: 4,
     gap: 0.08,
-    jitter: 0.05,
+    jitter: 0.03,
   },
   chain: {
     name: 'Chain Barrage',
@@ -151,9 +155,19 @@ export const SOUNDS = {
     gap: 0.12,
     jitter: 0.05,
   },
+  emp: {
+    name: 'EMP detonation',
+    detail:
+      'A breaker snaps shut as the EMP hits. A deep bass wave rolls across the screen and a lower aftershock follows.',
+    volume: 0.85,
+    voices: 2,
+    gap: 0.12,
+    jitter: 0.025,
+  },
   shard: {
     name: 'Shard pickup',
-    detail: 'Collecting a shard; rises in pitch through a streak.',
+    detail:
+      'A soft click and a hollow glass pluck. Quick pickups climb in pitch.',
     volume: 0.28,
     voices: 3,
     gap: 0.03,

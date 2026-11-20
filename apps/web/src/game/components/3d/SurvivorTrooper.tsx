@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { BOLT_CASTER_MODEL } from '../../utils/boltCasterAnimation';
 import { SaberAnimation } from '../../utils/saberAnimation';
 import { SABER } from '../../survivors/saberAttack';
 import { chord } from '../../survivors/sphere';
@@ -13,8 +14,6 @@ import {
 } from '../../survivors/renderFrame';
 
 export const SABER_MODEL = '/models/sector-trooper/sector-trooper-saber.glb';
-export const BOLT_CASTER_MODEL =
-  '/models/sector-trooper/sector-trooper-bolt-caster.glb';
 export function SurvivorTrooper({ registry }: { registry: Set<Renderer> }) {
   const { scene, animations } = useGLTF(SABER_MODEL);
   const { scene: gun } = useGLTF(BOLT_CASTER_MODEL);
@@ -37,7 +36,7 @@ export function SurvivorTrooper({ registry }: { registry: Set<Renderer> }) {
       actor.current = undefined;
     };
   }, [scene, animations, gun]);
-  useRenderer(registry, ({ run, radius, normal, alpha }) => {
+  useRenderer(registry, ({ run, radius, normal, alpha, openingAge = 0 }) => {
     const group = container.current,
       a = actor.current;
     if (!group || !a) return;
@@ -78,10 +77,13 @@ export function SurvivorTrooper({ registry }: { registry: Set<Renderer> }) {
         equipped: run.weapons.some((w) => w.id === 'bolts'),
         yaw: gunYaw,
         shotAge: shot ? time - shot.firedAt : -1,
-      }
+      },
+      time + openingAge
     );
+    // A wound blinks the model; a hit the Aegis took shows on the shield.
     group.visible = !(
       run.player.invulnerable > 0 &&
+      !run.player.shielded &&
       Math.floor(run.player.invulnerable * 20) % 2 === 0
     );
   });

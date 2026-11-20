@@ -8,7 +8,7 @@
     "Walk": 1.2,
     "Run": 0.65,
     "ChargeWindup": 0.8,
-    "Charge": 0.25,
+    "Charge": 0.5,
     "ChargeRecover": 0.6,
     "ChargeAttack": 2.4,
     "Defeated": 1.8
@@ -18,38 +18,38 @@
     3.2899999618530273,
     1.9299999475479126
   ],
-  "glb_bytes": 669896,
+  "glb_bytes": 695588,
   "pose": "Animated; Charge loop selected in Blender",
   "front_axis": "+Z in glTF",
   "gaits": {
     "Walk": {
       "duration": 1.2,
-      "duty": 0.7,
-      "stride": 0.4,
-      "lift": 0.115,
-      "drop": -0.09,
-      "bob": 0.018,
-      "pitch": 0.015,
-      "speed_mps": 0.4761904761904762
+      "duty": 0.64,
+      "stride": 0.78,
+      "lift": 0.17,
+      "drop": -0.12,
+      "bob": 0.034,
+      "pitch": 0.022,
+      "speed_mps": 1.015625
     },
     "Run": {
       "duration": 0.65,
-      "duty": 0.48,
-      "stride": 0.62,
-      "lift": 0.22,
-      "drop": -0.17,
-      "bob": 0.035,
-      "pitch": 0.045,
-      "speed_mps": 1.9871794871794872
+      "duty": 0.37,
+      "stride": 1.12,
+      "lift": 0.31,
+      "drop": -0.2,
+      "bob": 0.065,
+      "pitch": 0.095,
+      "speed_mps": 4.656964656964657
     },
     "Charge": {
-      "duration": 0.25,
-      "duty": 0.3333333333333333,
-      "stride": 1.0,
-      "lift": 0.25,
+      "duration": 0.5,
+      "duty": 0.21,
+      "stride": 1.26,
+      "lift": 0.37,
       "drop": -0.27,
-      "bob": 0.048,
-      "pitch": 0.075,
+      "bob": 0.083,
+      "pitch": 0.12,
       "speed_mps": 12.0
     }
   },

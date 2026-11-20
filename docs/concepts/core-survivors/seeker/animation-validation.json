@@ -2,65 +2,65 @@
   "passed": true,
   "finSpans": {
     "Idle": 2.1841514198694987,
-    "Walk": 2.1841516962560363,
-    "Run": 2.184151596043343,
-    "Charge": 1.3948474026075837
+    "Walk": 2.184791467618731,
+    "Run": 2.1847912900410957,
+    "Charge": 1.3955390526727418
   },
   "clips": {
     "Idle": {
       "duration": 2,
-      "minGround": 0.009999638122651705,
+      "minGround": 0.009999224831546421,
       "maxHeight": 1.945469378325963,
       "maxJointError": 0,
       "loopGap": 0
     },
     "Walk": {
       "duration": 1.2,
-      "minGround": 0.009993785723045922,
-      "maxHeight": 1.85977080325697,
-      "maxJointError": 2.38418578546451e-7,
-      "loopGap": 2.685646155464738e-7
+      "minGround": 0.009923771333447164,
+      "maxHeight": 1.823271485504535,
+      "maxJointError": 3.278255507610517e-7,
+      "loopGap": 2.213083901692059e-7
     },
     "Run": {
       "duration": 0.65,
-      "minGround": 0.009862713249317877,
-      "maxHeight": 1.8255920051759507,
-      "maxJointError": 2.980230283666785e-7,
+      "minGround": 0.00883245246163149,
+      "maxHeight": 1.8160500636256236,
+      "maxJointError": 2.980232228777524e-7,
       "loopGap": 0
     },
     "ChargeWindup": {
       "duration": 0.8,
-      "minGround": 0.00917962632285047,
-      "maxHeight": 2.075708104717411,
+      "minGround": 0.009809085357009995,
+      "maxHeight": 2.0752537270726217,
       "maxJointError": 0,
-      "loopGap": 0.690508047965402
+      "loopGap": 0.8060560171418254
     },
     "Charge": {
-      "duration": 0.25,
-      "minGround": 0.002397388722072862,
-      "maxHeight": 1.559713716338794,
-      "maxJointError": 2.3841854535078255e-7,
+      "duration": 0.5,
+      "minGround": 0.005767055882914438,
+      "maxHeight": 1.5393706837472676,
+      "maxJointError": 2.9802325707262156e-7,
       "loopGap": 0
     },
     "ChargeRecover": {
       "duration": 0.6,
-      "minGround": 0.00999176908218851,
-      "maxHeight": 1.9360003684384837,
-      "maxJointError": 2.3841854535078255e-7,
-      "loopGap": 0.6905081262521251
+      "minGround": 0.009990803098585854,
+      "maxHeight": 1.9360002983025926,
+      "maxJointError": 2.9802325707262156e-7,
+      "loopGap": 0.8060563619819101
     },
     "ChargeAttack": {
       "duration": 2.4,
-      "minGround": 0.002397422142955681,
-      "maxHeight": 2.075708104717411,
+      "minGround": 0.005766857710987344,
+      "maxHeight": 2.0752537270726217,
       "maxJointError": 0,
-      "loopGap": 12.000000432253033
+      "loopGap": 12.000000394297919
     },
     "Defeated": {
       "duration": 1.8,
       "minGround": 0.009794630642125102,
       "maxHeight": 2.3758692598638147,
-      "maxJointError": 2.9802329204464684e-7,
+      "maxJointError": 2.8463897472352784e-7,
       "loopGap": 1.6676753188044353
     }
   },

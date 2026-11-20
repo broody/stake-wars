@@ -95,18 +95,19 @@ describe('sound cues', () => {
     expect(cue!.time + cue!.at).toBeCloseTo(attack.startedAt + impact, 9);
   });
 
-  it('queues both cuts of a double swing, one swing length apart', () => {
-    const run = quietRun();
-    run.weapons[0].level = 2;
-    run.weapons[0].cooldown = 1;
-    const ats: number[] = [];
-    for (let i = 0; i < 2 * SIM_HZ && !run.player.saberAttack; i++) {
-      tick(run, DT, still);
-      for (const cue of run.cues) if (cue.id === 'blade') ats.push(cue.at!);
-      run.cues.length = 0;
+  it('queues one cut per swing at every level', () => {
+    for (const level of [1, 2, 4, 5]) {
+      const run = quietRun();
+      run.weapons[0].level = level;
+      run.weapons[0].cooldown = 1;
+      const ats: number[] = [];
+      for (let i = 0; i < 2 * SIM_HZ && !run.player.saberAttack; i++) {
+        tick(run, DT, still);
+        for (const cue of run.cues) if (cue.id === 'blade') ats.push(cue.at!);
+        run.cues.length = 0;
+      }
+      expect(ats).toHaveLength(1);
     }
-    expect(ats).toHaveLength(2);
-    expect(ats[1] - ats[0]).toBeCloseTo(run.player.saberAttack!.duration, 9);
   });
 
   it('marks a heavy kill apart from a small one', () => {
@@ -134,6 +135,33 @@ describe('sound cues', () => {
     play(run, 2, 'fallen');
     expect(heard(run)).toContain('fallen');
   });
+
+  it.each([0, 24])(
+    'plays one centered EMP blast on pickup with %i targets',
+    (count) => {
+      const run = quietRun();
+      run.weapons = [];
+      const n = pointAt(vec3(), run.player.n, run.right, 0.8 / RADIUS);
+      for (let i = 0; i < count; i++) spawnEnemy(run, 'mite', { ...n }).hp = 1;
+      run.items.push({
+        kind: 'emp',
+        n: { ...run.player.n },
+        prev: { ...run.player.n },
+        age: 0,
+        big: false,
+        dead: false,
+      });
+      tick(run, DT, still);
+      const blasts = run.cues.filter((cue) => cue.id === 'emp');
+      expect(blasts).toHaveLength(1);
+      expect(blasts[0].n).toBeNull();
+      expect(run.effects.some((effect) => effect.kind === 'emp')).toBe(true);
+      expect(run.kills).toBe(count);
+      run.cues.length = 0;
+      tick(run, DT, still);
+      expect(heard(run)).not.toContain('emp');
+    }
+  );
 
   it('chimes for shards and level-ups', () => {
     const run = quietRun();

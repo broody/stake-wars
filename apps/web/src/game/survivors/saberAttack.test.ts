@@ -31,6 +31,9 @@ describe('single-saber combat', () => {
     expect(e.hp).toBe(1000);
     tick(r, dt, { x: 0, y: 0 });
     expect(e.hp).toBeLessThan(1000);
+    const contact = r.texts.find((hit) => hit.bladeFrom);
+    expect(contact?.bladeFrom).toEqual(r.player.n);
+    expect(contact?.bladeFrom).not.toBe(r.player.n);
     const effect = r.effects.find((e) => e.kind === 'sweep');
     expect(effect).toMatchObject({
       kind: 'sweep',
@@ -110,16 +113,25 @@ describe('single-saber combat', () => {
     expect(chord(start, r.player.n) * 5).toBeCloseTo(0.3, 2);
     expect(r.player.saberAttack).toBeDefined();
   });
-  it('uses one sequential opposite-side follow-up for the level-two upgrade', () => {
-    const { r } = drill();
-    r.weapons[0].level = 2;
-    tick(r, dt, { x: 0, y: 0 });
-    const first = r.player.saberAttack!;
-    expect(first.duration).toBeCloseTo(0.65);
-    while (r.time < first.startedAt + first.duration + dt)
+  it('cuts once per swing at every level, swinging faster at levels 4 and 5', () => {
+    for (const [level, cooldown] of [
+      [1, 1.3],
+      [2, 1.3],
+      [3, 1.3],
+      [4, 1.1],
+      [5, 0.9],
+    ]) {
+      const { r } = drill();
+      r.weapons[0].level = level;
       tick(r, dt, { x: 0, y: 0 });
-    expect(r.player.saberAttack!.side).toBe(-first.side);
-    expect(r.player.saberAttack!.id).not.toBe(first.id);
+      const first = r.player.saberAttack!;
+      expect(first.duration).toBeCloseTo(Math.min(SABER.duration, cooldown));
+      // No follow-up cut: the next swing waits for the whole cooldown.
+      while (r.time < first.startedAt + cooldown - dt)
+        tick(r, dt, { x: 0, y: 0 });
+      const current = r.player.saberAttack;
+      expect(current === undefined || current.id === first.id).toBe(true);
+    }
   });
   it('extends damage and the displayed envelope together with reach and area upgrades', () => {
     const base = saberReach(1, 1),
@@ -134,13 +146,13 @@ describe('single-saber combat', () => {
     );
     expect(saberHits(-0.1, 0, large.reach, large.width, large.arc)).toBe(false);
   });
-  it('widens only at levels 3 and 4 and keeps area bonuses independent of angle', () => {
+  it('widens 30° a level to a full 180° at level 4 and keeps area bonuses independent of angle', () => {
     for (const [level, degrees] of [
       [1, 90],
-      [2, 90],
-      [3, 120],
-      [4, 150],
-      [5, 150],
+      [2, 120],
+      [3, 150],
+      [4, 180],
+      [5, 180],
     ]) {
       const shape = saberReach(level, 1);
       expect((shape.arc * 180) / Math.PI).toBeCloseTo(degrees);

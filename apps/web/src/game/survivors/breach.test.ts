@@ -86,7 +86,7 @@ describe('breach spawns', () => {
 
   it('follows the view the renderer reports', () => {
     const run = createRun(11, RADIUS);
-    run.view = { right: 3, left: 3, up: 3, down: 3 };
+    run.view = { yaw: 0, right: 3, left: 3, up: 3, down: 3 };
     const enemy = firstSpawn(run);
     const { x, y } = screen(run, enemy.n);
     // 0.7 inside the reported square edge along the spawn direction, give or

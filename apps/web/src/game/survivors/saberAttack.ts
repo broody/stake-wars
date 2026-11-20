@@ -35,12 +35,13 @@ export interface SaberAttack {
   forward: Vec3;
 }
 
+/** 90° at level 1, widening 30° a level to a full 180° at level 4. */
 export function saberArc(level: number) {
-  return ((level >= 4 ? 150 : level >= 3 ? 120 : 90) * Math.PI) / 180;
+  return ((90 + 30 * Math.min(3, Math.max(0, level - 1))) * Math.PI) / 180;
 }
 
 export function saberReach(level: number, area: number) {
-  const reach = 0.77 * (level >= 4 ? 1.25 : 1) * area;
+  const reach = 0.77 * (level >= 3 ? 1.25 : 1) * area;
   return { reach, width: reach * 1.6, arc: saberArc(level) };
 }
 
@@ -74,16 +75,21 @@ export function saberHits(
   );
 }
 
-/** Retiming keeps the strike aligned while standing/running recover at different rates. */
+/**
+ * Retiming keeps the strike aligned while standing/running recover at
+ * different rates. A clip whose cut lands at `clipImpact` seconds, rather than
+ * the saber's, is stretched so its impact still meets the sim's.
+ */
 export function saberClipTime(
   elapsed: number,
   duration: number,
-  clipDuration: number
+  clipDuration: number,
+  clipImpact: number = SABER.impact
 ) {
   const t = Math.max(0, Math.min(1, elapsed / duration)) * SABER.duration;
   return t <= SABER.impact
-    ? t
-    : SABER.impact +
+    ? (t / SABER.impact) * clipImpact
+    : clipImpact +
         ((t - SABER.impact) / (SABER.duration - SABER.impact)) *
-          (clipDuration - SABER.impact);
+          (clipDuration - clipImpact);
 }

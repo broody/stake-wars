@@ -5,8 +5,10 @@ import {
   closeSupply,
   createRun,
   makeOffers,
+  PACE,
   playerRight,
   runEvent,
+  shardDirection,
   SIM_HZ,
   spawnEnemy,
   tick,
@@ -82,6 +84,175 @@ describe('Core Survivors simulation', () => {
     expect(a.enemies.map((e) => e.n)).toEqual(b.enemies.map((e) => e.n));
   });
 
+  it.each([
+    [1, false, 0.96],
+    [2, false, 1.152],
+    [3, false, 1.152],
+    [4, false, 1.344],
+    [5, false, 1.344],
+    [5, true, 2],
+  ] as const)(
+    'applies the field up to its visible edge at rank %i (evolved %s)',
+    (level, evolved, baseRadius) => {
+      const run = createRun(7, RADIUS);
+      run.weapons = [];
+      run.spawnCredit = -1e6;
+      run.eventIndex = 1000;
+      applyOffer(run, { kind: 'weapon', id: 'pulse', isNew: true });
+      applyOffer(run, { kind: 'system', id: 'amplifier', isNew: true });
+      const weapon = run.weapons[0];
+      Object.assign(weapon, { level, evolved, cooldown: 0 });
+      const expected = baseRadius * 1.1;
+      const place = (sign: number) => {
+        const target = spawnEnemy(run, 'mite', { ...run.player.n });
+        const contact = expected + target.spec.radius + sign * 0.01;
+        const angle = sign * 2 * Math.asin(contact / (2 * RADIUS));
+        pointAt(target.n, run.player.n, run.right, angle);
+        target.hp = target.maxHp = 200;
+        target.speed = 0;
+        return target;
+      };
+      const inside = place(-1),
+        outside = place(1);
+      tick(run, DT, still);
+      expect(weapon.radius).toBeCloseTo(expected, 9);
+      expect(inside.hp).toBeLessThan(200);
+      expect(inside.slowTime).toBeGreaterThan(0);
+      expect(outside.hp).toBe(200);
+      expect(outside.slowTime).toBe(0);
+    }
+  );
+
+  it.each([
+    [1, false, 0, 1.1],
+    [2, false, 0, 1.1],
+    [3, false, 0, 1.32],
+    [4, false, 0, 1.32],
+    [5, false, 0, 1.32],
+    [5, true, Math.PI / 2 / 2.2, 2],
+    [5, true, (1.5 * Math.PI) / 2.2, 0.96],
+  ] as const)(
+    'hits on the doubled shard orbit at rank %i (evolved %s, time %f)',
+    (level, evolved, time, reach) => {
+      const run = createRun(7, RADIUS);
+      run.weapons = [];
+      run.eventIndex = 1000;
+      run.spawnCredit = -1e6;
+      applyOffer(run, { kind: 'weapon', id: 'shards', isNew: true });
+      applyOffer(run, { kind: 'system', id: 'amplifier', isNew: true });
+      const weapon = run.weapons[0];
+      Object.assign(weapon, { level, evolved });
+      run.time = Math.max(DT, time) - DT;
+      const spin = evolved ? 4.2 : level === 5 ? 3.2 * 1.35 : 3.2;
+      const bearing = shardDirection(
+        vec3(),
+        run.right,
+        run.player.n,
+        spin * DT
+      );
+      const place = (distance: number) => {
+        const target = spawnEnemy(
+          run,
+          'mite',
+          pointAt(vec3(), run.player.n, bearing, distance / RADIUS)
+        );
+        target.speed = 0;
+        target.hp = target.maxHp = 100;
+        return target;
+      };
+      const expected = reach * run.player.area;
+      const inner = place(expected / 2),
+        onOrbit = place(expected);
+      tick(run, DT, still);
+      expect(weapon.radius).toBeCloseTo(expected, 9);
+      expect(inner.hp).toBe(100);
+      expect(onOrbit.hp).toBeLessThan(100);
+    }
+  );
+
+  it.each([
+    [1, false, 5, 0.9],
+    [2, false, 5, 0.6],
+    [3, false, 7, 0.45],
+    [4, false, 7, 0.45],
+    [5, false, 9, 0.45],
+    [5, true, 10, 0.45],
+  ] as const)(
+    'slows immediately and deals discrete pulses at rank %i (evolved %s)',
+    (level, evolved, damage, interval) => {
+      const run = createRun(7, RADIUS);
+      run.weapons = [];
+      run.eventIndex = 1000;
+      run.spawnCredit = -1e6;
+      for (let i = 0; i < level; i++)
+        applyOffer(run, { kind: 'weapon', id: 'pulse', isNew: i === 0 });
+      if (evolved) applyOffer(run, { kind: 'evolution', id: 'pulse' });
+      const target = spawnEnemy(
+        run,
+        'mite',
+        pointAt(vec3(), run.player.n, run.right, 0.6 / RADIUS)
+      );
+      target.speed = 0;
+      target.hp = target.maxHp = 200;
+      const ticks = Math.ceil(interval * SIM_HZ);
+      for (let beat = 0; beat < 2; beat++) {
+        const before = target.hp;
+        for (let i = 1; i < ticks; i++) {
+          tick(run, DT, still);
+          expect(target.slowTime).toBeGreaterThan(0);
+          expect(target.hp).toBe(before);
+        }
+        tick(run, DT, still);
+        const hit = run.texts[run.texts.length - 1];
+        expect(hit.pulseContact).toBeDefined();
+        expect(before - target.hp).toBe(damage * (hit.crit ? 2 : 1));
+      }
+    }
+  );
+
+  it('signals Stake Pulse contacts only on damage and Bastion returns only on actual repair', () => {
+    const run = createRun(7, RADIUS);
+    run.weapons = [];
+    run.spawnCredit = -1e6;
+    run.eventIndex = 1000;
+    applyOffer(run, { kind: 'weapon', id: 'pulse', isNew: true });
+    const weapon = run.weapons[0];
+    const lastContact = () => run.texts[run.texts.length - 1]?.pulseContact;
+    const discharge = () => {
+      weapon.cooldown = 0;
+      tick(run, DT, still);
+    };
+    const target = spawnEnemy(
+      run,
+      'mite',
+      pointAt(vec3(), run.player.n, run.right, 2 / RADIUS)
+    );
+    target.speed = 0;
+    target.hp = target.maxHp = 200;
+    discharge();
+    expect(weapon.dischargedAt).toBeUndefined();
+    expect(run.texts).toHaveLength(0);
+    pointAt(target.n, run.player.n, run.right, 0.4 / RADIUS);
+    tick(run, DT, still);
+    expect(target.slowTime).toBeGreaterThan(0);
+    expect(weapon.dischargedAt).toBeUndefined();
+    discharge();
+    expect(weapon.dischargedAt).toBe(run.time);
+    expect(lastContact()).toEqual({
+      radius: target.spec.radius,
+      repaired: false,
+    });
+    applyOffer(run, { kind: 'evolution', id: 'pulse' });
+    discharge();
+    expect(lastContact()?.repaired).toBe(false);
+    run.player.hp -= 3;
+    target.hp = 1;
+    discharge();
+    expect(run.enemies).not.toContain(target);
+    expect(run.healedBy.bastion).toBeCloseTo(0.35);
+    expect(lastContact()?.repaired).toBe(true);
+  });
+
   it('keeps the player on the surface with a tangent screen frame', () => {
     const run = createRun(7, RADIUS);
     for (let i = 0; i < 40 * SIM_HZ; i++) {
@@ -141,19 +312,40 @@ describe('Core Survivors simulation', () => {
     if (offer.kind === 'system') expect(run.systems[offer.id]).toBe(1);
   });
 
-  it('offers an evolution for a maxed weapon with its paired system, and Supply Drops grant it', () => {
-    const run = createRun(17, RADIUS);
-    run.weapons[0].level = 5;
-    applyOffer(run, { kind: 'system', id: 'force', isNew: true });
-    expect(makeOffers(run, 3).some((o) => o.kind === 'evolution')).toBe(true);
-    run.pendingDrops.push(1);
-    tick(run, DT, still);
-    expect(run.status).toBe('supply');
-    expect(run.supply[0]).toEqual({ kind: 'evolution', id: 'blade' });
-    expect(run.weapons[0].evolved).toBe(true);
-    closeSupply(run);
-    expect(run.status).toBe('playing');
-  });
+  it.each([
+    ['trooper', 'blade', 'force'],
+    ['trooper', 'charge', 'tractor'],
+    ['vanguard', 'charge', 'tractor'],
+    ['vanguard', 'rebuke', 'aegis'],
+    ['vanguard', 'bolts', 'overclock'],
+  ] as const)(
+    '%s can evolve %s with %s through level-ups and Supply Drops',
+    (hero, weapon, system) => {
+      const run = createRun(17, RADIUS, hero);
+      if (weapon !== 'blade')
+        applyOffer(run, { kind: 'weapon', id: weapon, isNew: true });
+      const owned = run.weapons.find((w) => w.id === weapon)!;
+      owned.level = 5;
+      const evolution = { kind: 'evolution', id: weapon };
+      const allOffers = () => makeOffers(run, Infinity);
+      const unpaired = allOffers();
+      expect(unpaired).not.toContainEqual(evolution);
+      expect(unpaired).toContainEqual({
+        kind: 'system',
+        id: system,
+        isNew: true,
+      });
+      applyOffer(run, { kind: 'system', id: system, isNew: true });
+      expect(allOffers()).toContainEqual(evolution);
+      run.pendingDrops.push(1);
+      tick(run, DT, still);
+      expect(run.status).toBe('supply');
+      expect(run.supply[0]).toEqual(evolution);
+      expect(owned.evolved).toBe(true);
+      closeSupply(run);
+      expect(run.status).toBe('playing');
+    }
+  );
 
   it('fires every weapon', () => {
     const run = createRun(19, RADIUS);
@@ -191,21 +383,24 @@ describe('Core Survivors simulation', () => {
     expect(run.enemies.filter((e) => e.straight)).toHaveLength(0);
   });
 
-  it('brings the Warden at three and a half minutes and keeps enemies near the player', () => {
+  it('brings the Warden at three and a half Legion minutes and keeps enemies near the player', () => {
     const run = createRun(29, RADIUS);
     run.player.invulnerable = 1e9;
-    play(run, 215, kite);
+    play(run, 210 / PACE - 1, kite);
+    expect(run.wardens).toBe(0);
+    play(run, 2, kite);
     expect(run.wardens).toBe(1);
     for (const enemy of run.enemies)
       if (!enemy.straight)
         expect(chord(enemy.n, run.player.n) * RADIUS).toBeLessThan(7.7);
   });
 
-  it('eventually overwhelms a player who stands still', () => {
+  it('eventually overwhelms a player who stands still, though not at once', () => {
     const run = play(createRun(5, RADIUS), 600, () => still);
     expect(run.status).toBe('fallen');
     expect(run.lastHitBy).not.toBeNull();
-    expect(run.time).toBeGreaterThan(30);
+    // A trooper that never moves lasts about half a minute on the slower XP curve.
+    expect(run.time).toBeGreaterThan(20);
   });
 });
 
@@ -235,8 +430,8 @@ it('fires Lancer bolts without a warning while preserving Captain volley warning
   }
 });
 
-it('adds common charging Bulwarks to the spawn pool at 2:30', () => {
-  for (const time of [149, 150]) {
+it('adds common charging Bulwarks to the spawn pool at 2:30 on the Legion clock', () => {
+  for (const time of [150 / PACE - 1, 150 / PACE]) {
     const run = createRun(17, RADIUS);
     run.weapons = [];
     run.time = time;
@@ -244,10 +439,38 @@ it('adds common charging Bulwarks to the spawn pool at 2:30', () => {
     run.spawnCredit = 100;
     tick(run, DT, still);
     const bulwarks = run.enemies.filter((enemy) => enemy.kind === 'bulwark');
-    if (time < 150) expect(bulwarks).toHaveLength(0);
+    if (time < 150 / PACE) expect(bulwarks).toHaveLength(0);
     else {
       expect(bulwarks.length).toBeGreaterThan(0);
       expect(bulwarks.every((enemy) => !enemy.straight)).toBe(true);
     }
   }
+});
+
+it('spaces out lone Seeker breaches and caps them independently of pack waves', () => {
+  const run = createRun(17, RADIUS);
+  run.weapons = [];
+  run.eventIndex = 1000;
+  // Seekers are the last entry in the ordinary spawn pool. Pick one whenever eligible.
+  run.random = () => 0.999;
+  const spawnAt = (seconds: number, credits = 1) => {
+    run.time = seconds - DT;
+    run.spawnCredit = credits;
+    tick(run, DT, still);
+    return run.enemies.filter(
+      (enemy) => enemy.kind === 'seeker' && !enemy.straight
+    );
+  };
+  expect(spawnAt((5.25 * 60) / PACE - 1)).toHaveLength(0);
+  runEvent(run, 'seekerPacks');
+  expect(spawnAt(360, 12)).toHaveLength(1);
+  expect(spawnAt(361.9)).toHaveLength(1);
+  expect(spawnAt(362)).toHaveLength(2);
+  expect(spawnAt(364)).toHaveLength(3);
+  const capped = spawnAt(366);
+  expect(capped).toHaveLength(3);
+  capped[0].dead = true;
+  const replenished = spawnAt(367);
+  expect(replenished).toHaveLength(3);
+  expect(replenished).not.toContain(capped[0]);
 });

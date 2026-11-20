@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+export const BOLT_CASTER_MODEL =
+  '/models/sector-trooper/sector-trooper-bolt-caster.glb';
+
 /** An independent left arm layer; saber twists and the running legs stay intact. */
 export class BoltCasterAnimation {
   readonly gun: THREE.Object3D;
@@ -88,7 +91,7 @@ export class BoltCasterAnimation {
     for (const { bone, rotation } of this.poses) bone.quaternion.copy(rotation);
   }
 
-  update(equipped: boolean, yaw: number, shotAge: number) {
+  update(equipped: boolean, yaw: number, shotAge: number, gestureWeight = 0) {
     for (const { bone, rotation } of this.poses) rotation.copy(bone.quaternion);
     this.gun.visible = equipped;
     this.flash.visible = equipped && shotAge >= 0 && shotAge < 0.065;
@@ -135,6 +138,11 @@ export class BoltCasterAnimation {
       .multiply(this.delta.copy(this.attachment).invert());
     this.hand.parent!.getWorldQuaternion(this.parentRotation).invert();
     this.hand.quaternion.copy(this.parentRotation).multiply(this.rotation);
+    // Between shots, let a Vanguard counter or throw with the same arm.
+    if (gestureWeight > 0) {
+      for (const { bone, rotation } of this.poses)
+        bone.quaternion.slerp(rotation, gestureWeight);
+    }
     this.root.updateMatrixWorld(true);
   }
 

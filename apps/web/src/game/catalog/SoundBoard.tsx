@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import originalShardUrl from '../../../assets/sfx-source/shard-original.mp3?url';
 import { Button, Panel, PanelSection, SectionHeading } from '../../ui';
 import { survivorAudio } from '../survivors/audio';
 import {
@@ -11,6 +12,14 @@ import {
 /** Every Core Survivors sound, each with a play button and its mix. */
 export function SoundBoard() {
   const [delay, setDelay] = useState<number | null>(null);
+  const originalShard = useRef<HTMLAudioElement>(null);
+  const playOriginalShard = () => {
+    const audio = originalShard.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.volume = SOUNDS.shard.volume;
+    void audio.play();
+  };
   const preview = async (id: SoundId, take?: number) => {
     await survivorAudio.preview(id, take);
     setDelay(survivorAudio.outputDelay());
@@ -31,7 +40,7 @@ export function SoundBoard() {
           const sound = SOUNDS[id];
           const takes = soundFiles(id).length;
           return (
-            <Panel key={id}>
+            <Panel key={id} id={id}>
               <PanelSection className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h3 className="text-label text-fg">{sound.name}</h3>
@@ -53,6 +62,23 @@ export function SoundBoard() {
                   >
                     PLAY
                   </Button>
+                  {id === 'shard' && (
+                    <>
+                      <audio
+                        ref={originalShard}
+                        src={originalShardUrl}
+                        preload="none"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Play original shard pickup"
+                        onClick={playOriginalShard}
+                      >
+                        ORIGINAL
+                      </Button>
+                    </>
+                  )}
                   {takes > 1
                     ? Array.from({ length: takes }, (_, take) => (
                         <Button

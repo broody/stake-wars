@@ -1,12 +1,17 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { Camera } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Run } from './sim';
+import type { EnemyKind, Run } from './sim';
+import type { GlobeView } from './openingCamera';
 import type { Vec3 } from './sphere';
 
 export interface FrameContext {
   run: Run;
   alpha: number;
+  /** Offset for the hero’s idle animation during the opening shot. */
+  openingAge?: number;
+  /** Present only while the orbital insertion is playing. */
+  orbit?: GlobeView;
   radius: number;
   camera: Camera;
   size: { width: number; height: number };
@@ -17,6 +22,20 @@ export interface FrameContext {
 }
 
 export type Renderer = (frame: FrameContext) => void;
+
+/**
+ * Ground warnings ahead of enemy attacks: Volt Mite carets, Bulwark lanes,
+ * aimed-shot chevrons and Warden cones. Off while playtesting without them;
+ * the attacks keep their timing either way.
+ */
+export const ENEMY_TELEGRAPHS = false;
+
+/**
+ * Whether an enemy's ground warning shows. Seekers keep their aim lines
+ * either way: a charge across the whole view needs one to be fair.
+ */
+export const telegraphed = (kind: EnemyKind) =>
+  ENEMY_TELEGRAPHS || kind === 'seeker';
 
 /** Register a renderer that always sees the latest props. */
 export function useRenderer(registry: Set<Renderer>, renderer: Renderer) {

@@ -22,7 +22,7 @@ import {
 } from '../../utils/enemyOpacity';
 import { bakeEnemyLocomotion } from '../../utils/enemyRunAtlas';
 import { addRimLight } from '../../utils/rimLight';
-import { SupplyDropModel, SUPPLY_DROP_TETHER_DEPTH } from './SupplyDropModel';
+import { PickupInstances } from '../../survivors/pickupInstances';
 import { colors } from '../../../ui/tokens';
 import {
   lerpNormal,
@@ -31,7 +31,6 @@ import {
   pointAt,
   normalize,
   projectTangent,
-  rotateAbout,
   stepAlong,
   vec3,
   type Vec3,
@@ -41,7 +40,12 @@ import {
   voltLeapClipTime,
   sampleVoltLeap,
 } from '../../survivors/voltAttack';
-import { SIM_HZ, type DefeatedEnemy, type Enemy } from '../../survivors/sim';
+import {
+  BOLT_LIFETIME,
+  SIM_HZ,
+  type DefeatedEnemy,
+  type Enemy,
+} from '../../survivors/sim';
 import { emergeLift } from '../../survivors/breach';
 import {
   ENEMY_DEFEAT,
@@ -50,12 +54,20 @@ import {
   tossFlight,
 } from '../../survivors/enemyDefeat';
 import {
+  arcCount,
+  arcGlow,
+  DEATH_ARCS,
+  traceArc,
+} from '../../survivors/deathArcs';
+import {
   BULWARK_ATTACK,
   bulwarkWarningBounds,
   sampleBulwarkAttack,
 } from '../../survivors/bulwarkAttack';
 import {
+  ENEMY_TELEGRAPHS,
   surfaceRotation,
+  telegraphed,
   toVector,
   useRenderer,
   type Renderer,
@@ -495,6 +507,113 @@ export function DefeatedBatch({
   return <group ref={group} dispose={null} />;
 }
 
+// ---------- Death arcs ----------
+
+/** World thickness of one arc segment. */
+const ARC_THICKNESS = 0.016;
+const ARC_FORWARD = new THREE.Vector3(0, 0, 1);
+
+/** One draw call of thin glowing segments crawling over dying enemies. */
+export function DeathArcs({ registry }: { registry: Set<Renderer> }) {
+  const segments = useRef<THREE.InstancedMesh>(null);
+  const scratch = useMemo(
+    () => ({
+      points: Array.from({ length: DEATH_ARCS.steps + 1 }, () => vec3()),
+      world: Array.from(
+        { length: DEATH_ARCS.steps + 1 },
+        () => new THREE.Vector3()
+      ),
+      body: new THREE.Matrix4(),
+      matrix: new THREE.Matrix4(),
+      middle: new THREE.Vector3(),
+      along: new THREE.Vector3(),
+      rotation: new THREE.Quaternion(),
+      scale: new THREE.Vector3(),
+      head: new THREE.Color(colors.fg.DEFAULT),
+      tail: new THREE.Color(colors.accent.DEFAULT),
+      color: new THREE.Color(),
+    }),
+    []
+  );
+  useLayoutEffect(() => {
+    const mesh = segments.current;
+    if (!mesh) return;
+    // Create per-instance colors before the material first compiles.
+    mesh.setColorAt(0, scratch.tail);
+    mesh.count = 0;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.raycast = () => undefined;
+  }, [scratch]);
+
+  useRenderer(registry, ({ run, alpha, radius }) => {
+    const mesh = segments.current;
+    if (!mesh) return;
+    let count = 0;
+    // Bodies are kept in order of death, so walk back from the newest.
+    for (let b = run.defeatedEnemies.length - 1; b >= 0; b--) {
+      const body = run.defeatedEnemies[b];
+      const age = body.previousAge + (body.age - body.previousAge) * alpha;
+      if (age >= DEATH_ARCS.life || count >= DEATH_ARCS.capacity) break;
+      bodyMatrix(scratch.body, body, age, radius);
+      for (let slot = 0; slot < arcCount(body); slot++) {
+        const lit = traceArc(scratch.points, body, slot, age);
+        const glow = arcGlow(body, slot, age);
+        for (let i = 0; i < lit; i++)
+          toVector(scratch.world[i], scratch.points[i]).applyMatrix4(
+            scratch.body
+          );
+        for (let i = 1; i < lit && count < DEATH_ARCS.capacity; i++) {
+          const from = scratch.world[i - 1];
+          const to = scratch.world[i];
+          const length = scratch.along.subVectors(to, from).length();
+          if (length < 1e-6) continue;
+          scratch.rotation.setFromUnitVectors(
+            ARC_FORWARD,
+            scratch.along.divideScalar(length)
+          );
+          scratch.middle.addVectors(from, to).multiplyScalar(0.5);
+          scratch.scale.set(ARC_THICKNESS, ARC_THICKNESS, length);
+          mesh.setMatrixAt(
+            count,
+            scratch.matrix.compose(
+              scratch.middle,
+              scratch.rotation,
+              scratch.scale
+            )
+          );
+          // The growing head burns white; the rest of the arc cools to orange.
+          mesh.setColorAt(
+            count++,
+            scratch.color
+              .copy(scratch.tail)
+              .lerp(scratch.head, i / (lit - 1))
+              .multiplyScalar(glow)
+          );
+        }
+      }
+    }
+    mesh.count = count;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh
+      ref={segments}
+      args={[undefined, undefined, DEATH_ARCS.capacity]}
+      frustumCulled={false}
+    >
+      <boxGeometry />
+      <meshBasicMaterial
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 // ---------- Bolts ----------
 
 export function Bolts({ registry }: { registry: Set<Renderer> }) {
@@ -502,8 +621,6 @@ export function Bolts({ registry }: { registry: Set<Renderer> }) {
   const hostile = useRef<THREE.InstancedMesh>(null);
   useInstanced(friendly);
   useInstanced(hostile);
-  const stretch = useMemo(() => new THREE.Vector3(1, 1, 1), []);
-
   useRenderer(registry, ({ run, alpha, radius }) => {
     let mine = 0;
     let theirs = 0;
@@ -512,8 +629,24 @@ export function Bolts({ registry }: { registry: Set<Renderer> }) {
     if (!a || !b) return;
     for (const shot of run.projectiles) {
       lerpNormal(s.n, shot.prev, shot.n, alpha);
-      stretch.set(1, 1, 1);
-      surfaceMatrix(s.basis, s.n, shot.dir, radius, 0.14, stretch);
+      surfaceMatrix(s.basis, s.n, shot.dir, radius, 0.14, 1);
+      if (!shot.from && run.hero === 'vanguard' && shot.speed > 0) {
+        // Leave the raised left-hand muzzle, then converge on the hit path.
+        const age = BOLT_LIFETIME - shot.life - (1 - alpha) / SIM_HZ;
+        const muzzle = 1 - THREE.MathUtils.smoothstep(age, 0, 0.28);
+        if (muzzle > 0) {
+          s.position.addScaledVector(s.up, 0.2 * muzzle);
+          s.position.addScaledVector(
+            toVector(s.ahead, shot.dir),
+            0.21 * muzzle
+          );
+          s.position.addScaledVector(
+            s.right.crossVectors(s.up, s.ahead),
+            0.066 * muzzle
+          );
+          s.basis.setPosition(s.position);
+        }
+      }
       if (shot.from) {
         if (theirs < b.instanceMatrix.count) b.setMatrixAt(theirs++, s.basis);
       } else if (mine < a.instanceMatrix.count) a.setMatrixAt(mine++, s.basis);
@@ -534,114 +667,6 @@ export function Bolts({ registry }: { registry: Set<Renderer> }) {
         <meshBasicMaterial color={colors.danger.DEFAULT} toneMapped={false} />
       </instancedMesh>
     </>
-  );
-}
-
-// ---------- Weapons around the Vanguard ----------
-
-export function Shards({ registry }: { registry: Set<Renderer> }) {
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  useInstanced(mesh);
-  const flat = useMemo(() => new THREE.Vector3(1, 0.35, 1), []);
-
-  useRenderer(registry, ({ run, alpha, radius, normal, right }) => {
-    const batch = mesh.current;
-    if (!batch) return;
-    const weapon = run.weapons.find((w) => w.id === 'shards');
-    let index = 0;
-    if (weapon && weapon.count) {
-      const angle =
-        weapon.prevAngle + (weapon.angle - weapon.prevAngle) * alpha;
-      for (let i = 0; i < weapon.count; i++) {
-        s.dir.x = right.x;
-        s.dir.y = right.y;
-        s.dir.z = right.z;
-        rotateAbout(s.dir, normal, angle + (i * Math.PI * 2) / weapon.count);
-        s.n.x = normal.x;
-        s.n.y = normal.y;
-        s.n.z = normal.z;
-        stepAlong(s.n, s.dir, weapon.radius / radius);
-        flat.set(weapon.evolved ? 1.5 : 1, 0.35, weapon.evolved ? 1.5 : 1);
-        rotateAbout(s.dir, s.n, run.time * 14 + i);
-        surfaceMatrix(s.basis, s.n, s.dir, radius, 0.13, flat);
-        batch.setMatrixAt(index, s.basis);
-        batch.setColorAt(index, weapon.evolved ? CAPTAIN : WHITE);
-        index++;
-      }
-    }
-    finish(batch, index);
-  });
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, 8]}>
-      <octahedronGeometry args={[0.07, 0]} />
-      <meshStandardMaterial
-        color={colors.fg.DEFAULT}
-        emissive={colors.fg.secondary}
-        emissiveIntensity={0.6}
-        flatShading
-      />
-    </instancedMesh>
-  );
-}
-
-/** Things drawn flat on the ground in the player's screen frame. */
-export function PlayerFrameEffects({ registry }: { registry: Set<Renderer> }) {
-  const frame = useRef<THREE.Group>(null);
-  const field = useRef<THREE.Mesh>(null);
-  const fieldRing = useRef<THREE.Mesh>(null);
-  useRenderer(registry, ({ run, radius, normal, forward }) => {
-    const group = frame.current;
-    if (!group) return;
-    toVector(s.up, normal);
-    toVector(s.position, forward);
-    surfaceRotation(group.quaternion, s.up, s.position);
-    group.position.copy(s.up).multiplyScalar(radius + 0.02);
-
-    const pulse = run.weapons.find((w) => w.id === 'pulse');
-    const disc = field.current;
-    const ring = fieldRing.current;
-    if (disc && ring) {
-      const on = Boolean(pulse && pulse.radius);
-      disc.visible = on;
-      ring.visible = on;
-      if (pulse && on) {
-        disc.scale.setScalar(pulse.radius);
-        ring.scale.setScalar(pulse.radius);
-        ring.rotation.z = run.time * 0.6;
-        const material = disc.material as THREE.MeshBasicMaterial;
-        material.color.set(
-          pulse.evolved ? colors.gold.DEFAULT : colors.accent.DEFAULT
-        );
-        (ring.material as THREE.MeshBasicMaterial).color.set(
-          pulse.evolved ? colors.gold.soft : colors.accent.soft
-        );
-      }
-    }
-  });
-
-  return (
-    <group ref={frame}>
-      <mesh ref={field} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <circleGeometry args={[1, 48]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0.05}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-      <mesh ref={fieldRing} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[0.96, 1, 48, 1, 0, Math.PI * 1.7]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0.55}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    </group>
   );
 }
 
@@ -729,7 +754,7 @@ export function BulwarkTelegraphs({ registry }: { registry: Set<Renderer> }) {
       const across = (warning.left + warning.right) / 2;
       const width = warning.right - warning.left;
       const launch = elapsed >= BULWARK_ATTACK.driveStart;
-      if (elapsed < BULWARK_ATTACK.driveStart + 0.08) {
+      if (ENEMY_TELEGRAPHS && elapsed < BULWARK_ATTACK.driveStart + 0.08) {
         const progress = Math.min(1, elapsed / BULWARK_ATTACK.driveStart);
         const tip = warning.near + (warning.far - warning.near) * progress;
         for (let i = 0; i < 12; i++) {
@@ -817,10 +842,9 @@ export function BulwarkTelegraphs({ registry }: { registry: Set<Renderer> }) {
   );
 }
 
-// ---------- Ground effects, burns, lobs and telegraphs ----------
+// ---------- Ground effects and telegraphs ----------
 
 const TONES = {
-  fire: new THREE.Color(colors.accent.DEFAULT),
   volt: new THREE.Color(colors.danger.DEFAULT),
   strike: new THREE.Color(colors.fg.DEFAULT),
   warden: new THREE.Color(colors.danger.strong),
@@ -828,58 +852,35 @@ const TONES = {
 
 export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
   const blasts = useRef<THREE.InstancedMesh>(null);
-  const burns = useRef<THREE.InstancedMesh>(null);
-  const beams = useRef<THREE.InstancedMesh>(null);
-  const links = useRef<THREE.InstancedMesh>(null);
   const chevrons = useRef<THREE.InstancedMesh>(null);
-  const lobs = useRef<THREE.InstancedMesh>(null);
   const cone = useRef<THREE.InstancedMesh>(null);
   useInstanced(cone);
   useInstanced(blasts);
-  useInstanced(burns);
-  useInstanced(beams);
-  useInstanced(links);
   useInstanced(chevrons);
-  useInstanced(lobs);
   const flat = useMemo(() => new THREE.Vector3(), []);
   const flatDisc = useMemo(() => {
     const geometry = new THREE.CircleGeometry(1, 32);
     geometry.rotateX(-Math.PI / 2);
     return geometry;
   }, []);
-  const flatRing = useMemo(() => {
-    const geometry = new THREE.RingGeometry(0.82, 1, 32);
-    geometry.rotateX(-Math.PI / 2);
-    return geometry;
-  }, []);
   const chevron = useMemo(createAimChevronGeometry, []);
   const coneGeometry = useMemo(createWardenWarningGeometry, []);
   useEffect(
-    () => () =>
-      [flatDisc, flatRing, chevron, coneGeometry].forEach((g) => g.dispose()),
-    [flatDisc, flatRing, chevron, coneGeometry]
+    () => () => [flatDisc, chevron, coneGeometry].forEach((g) => g.dispose()),
+    [flatDisc, chevron, coneGeometry]
   );
 
-  useRenderer(registry, ({ run, alpha, radius }) => {
-    const [blast, burn, beam, link, marks, lob] = [
-      blasts.current,
-      burns.current,
-      beams.current,
-      links.current,
-      chevrons.current,
-      lobs.current,
-    ];
-    if (!blast || !burn || !beam || !link || !marks || !lob) return;
+  useRenderer(registry, ({ run, radius }) => {
+    const blast = blasts.current,
+      marks = chevrons.current;
+    if (!blast || !marks) return;
     let b = 0;
-    let bm = 0;
-    let l = 0;
     let c = 0;
     let coneCount = 0;
     for (const effect of run.effects) {
       const k = effect.age / effect.life;
-      if (effect.kind === 'blast' || effect.kind === 'strike') {
-        const tone =
-          effect.kind === 'strike' ? TONES.strike : TONES[effect.tone];
+      if (effect.kind === 'blast') {
+        const tone = TONES[effect.tone];
         flat.setScalar(effect.radius * (0.5 + 0.5 * k));
         surfaceMatrix(
           s.basis,
@@ -894,32 +895,7 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
           blast.setMatrixAt(b, s.basis);
           blast.setColorAt(b++, s.color);
         }
-        if (effect.kind === 'strike' && bm < beam.instanceMatrix.count) {
-          flat.set(1 - k, 1, 1 - k);
-          surfaceMatrix(
-            s.basis,
-            effect.n,
-            run.player.forward,
-            radius,
-            1.5,
-            flat
-          );
-          beam.setMatrixAt(bm, s.basis);
-          beam.setColorAt(bm++, s.color);
-        }
-      } else if (effect.kind === 'chain' && l < link.instanceMatrix.count) {
-        // A straight bar between two nearby points, lifted off the ground.
-        toVector(s.position, effect.a).multiplyScalar(radius + 0.15);
-        toVector(s.up, effect.b).multiplyScalar(radius + 0.15);
-        const length = s.position.distanceTo(s.up);
-        s.ahead.copy(s.up).sub(s.position).normalize();
-        s.right.copy(s.position).add(s.up).multiplyScalar(0.5);
-        s.rotation.setFromUnitVectors(new THREE.Vector3(0, 0, 1), s.ahead);
-        s.scale.set(1 - k, 1 - k, length);
-        s.basis.compose(s.right, s.rotation, s.scale);
-        link.setMatrixAt(l, s.basis);
-        link.setColorAt(l++, s.color.copy(TONES.strike).multiplyScalar(1 - k));
-      } else if (effect.kind === 'aim') {
+      } else if (effect.kind === 'aim' && telegraphed(effect.from)) {
         const blink = Math.floor(effect.age * 10) % 2 === 0 ? 1 : 0.45;
         const steps = Math.min(16, Math.ceil(effect.length / 0.22));
         s.n.x = effect.n.x;
@@ -936,6 +912,7 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
         }
       } else if (
         effect.kind === 'cone' &&
+        ENEMY_TELEGRAPHS &&
         cone.current &&
         coneCount < cone.current.instanceMatrix.count
       ) {
@@ -956,68 +933,12 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
     }
     if (cone.current) finish(cone.current, coneCount);
     finish(blast, b);
-    finish(beam, bm);
-    finish(link, l);
     finish(marks, c);
-
-    let z = 0;
-    for (const zone of run.zones) {
-      if (z >= burn.instanceMatrix.count) break;
-      const fade = Math.min(1, (zone.life - zone.age) * 3);
-      flat.setScalar(zone.radius * (0.92 + Math.sin(run.time * 20 + z) * 0.06));
-      surfaceMatrix(s.basis, zone.n, run.player.forward, radius, 0.015, flat);
-      burn.setMatrixAt(z, s.basis);
-      burn.setColorAt(z++, s.color.copy(TONES.fire).multiplyScalar(0.3 * fade));
-    }
-    finish(burn, z);
-
-    let i = 0;
-    for (const item of run.lobs) {
-      if (i >= lob.instanceMatrix.count) break;
-      const t = Math.min(1, (item.age + alpha / 30) / item.life);
-      lerpNormal(s.n, item.from, item.to, t);
-      surfaceMatrix(
-        s.basis,
-        s.n,
-        run.player.forward,
-        radius,
-        0.1 + Math.sin(t * Math.PI) * 0.55,
-        1
-      );
-      lob.setMatrixAt(i++, s.basis);
-    }
-    finish(lob, i);
   });
 
   return (
     <>
       <instancedMesh ref={blasts} args={[flatDisc, undefined, 80]}>
-        <meshBasicMaterial
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </instancedMesh>
-      <instancedMesh ref={burns} args={[flatDisc, undefined, 60]}>
-        <meshBasicMaterial
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </instancedMesh>
-      <instancedMesh ref={beams} args={[undefined, undefined, 24]}>
-        <cylinderGeometry args={[0.05, 0.02, 3, 6, 1, true]} />
-        <meshBasicMaterial
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </instancedMesh>
-      <instancedMesh ref={links} args={[undefined, undefined, 40]}>
-        <boxGeometry args={[0.025, 0.025, 1]} />
         <meshBasicMaterial
           transparent
           depthWrite={false}
@@ -1032,15 +953,6 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
           side={THREE.DoubleSide}
           blending={THREE.AdditiveBlending}
           toneMapped={false}
-        />
-      </instancedMesh>
-      <instancedMesh ref={lobs} args={[undefined, undefined, 24]}>
-        <icosahedronGeometry args={[0.05, 0]} />
-        <meshStandardMaterial
-          color={colors.accent.DEFAULT}
-          emissive={colors.accent.DEFAULT}
-          emissiveIntensity={0.8}
-          flatShading
         />
       </instancedMesh>
       <instancedMesh ref={cone} args={[coneGeometry, undefined, 16]}>
@@ -1058,174 +970,24 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
 
 // ---------- XP shards and pickups ----------
 
-/** Supply Drops on the ground, posed like the Core's own marker. */
-const DROP = {
-  capacity: 8,
-  scale: 0.2,
-  /** A Large Supply Drop, carried by the Warden. */
-  bigScale: 0.3,
-  spin: 0.45,
-  bob: 0.055,
-  /** It flies in from above, growing, when it lands. */
-  arrival: 1.15,
-  flight: 2.1,
-  arrivalScale: 0.35,
-};
-
-const SHARD_TIERS = [
-  new THREE.Color(colors.accent.DEFAULT),
-  new THREE.Color(colors.owned),
-  new THREE.Color(colors.gold.DEFAULT),
-];
-
 export function Pickups({ registry }: { registry: Set<Renderer> }) {
-  const gems = useRef<THREE.InstancedMesh>(null);
-  const repair = useRef<THREE.InstancedMesh>(null);
-  const tractor = useRef<THREE.InstancedMesh>(null);
-  const emp = useRef<THREE.InstancedMesh>(null);
-  const drops = useRef<(THREE.Group | null)[]>([]);
-  useInstanced(gems, SHARD_TIERS[0]);
-  useInstanced(repair);
-  useInstanced(tractor);
-  useInstanced(emp);
-
-  useRenderer(registry, ({ run, alpha, radius }) => {
-    const batch = gems.current;
-    if (!batch) return;
-    let index = 0;
-    for (const gem of run.gems) {
-      if (index >= batch.instanceMatrix.count) break;
-      lerpNormal(s.n, gem.prev, gem.n, alpha);
-      const tier = gem.value < 2 ? 0 : gem.value < 10 ? 1 : 2;
-      s.dir.x = run.player.forward.x;
-      s.dir.y = run.player.forward.y;
-      s.dir.z = run.player.forward.z;
-      rotateAbout(s.dir, s.n, run.time * 2 + index);
-      surfaceMatrix(
-        s.basis,
-        s.n,
-        s.dir,
-        radius,
-        0.07 + Math.sin(run.time * 4 + index) * 0.015,
-        1 + tier * 0.35
-      );
-      batch.setMatrixAt(index, s.basis);
-      batch.setColorAt(index, SHARD_TIERS[tier]);
-      index++;
-    }
-    finish(batch, index);
-
-    const counts = { repair: 0, tractor: 0, emp: 0 };
-    const meshes = {
-      repair: repair.current,
-      tractor: tractor.current,
-      emp: emp.current,
+  const group = useRef<THREE.Group>(null);
+  const instances = useRef<PickupInstances | null>(null);
+  useLayoutEffect(() => {
+    const parent = group.current!;
+    const pickups = new PickupInstances();
+    instances.current = pickups;
+    parent.add(pickups.group);
+    return () => {
+      parent.remove(pickups.group);
+      pickups.dispose();
+      instances.current = null;
     };
-    let landed = 0;
-    for (const item of run.items) {
-      if (item.kind === 'drop') {
-        const drop = drops.current[landed];
-        if (!drop) continue;
-        landed++;
-        lerpNormal(s.n, item.prev, item.n, alpha);
-        s.dir.x = run.player.forward.x;
-        s.dir.y = run.player.forward.y;
-        s.dir.z = run.player.forward.z;
-        rotateAbout(s.dir, s.n, item.age * DROP.spin);
-        const arrived = 1 - (1 - Math.min(item.age / DROP.arrival, 1)) ** 3;
-        const full = item.big ? DROP.bigScale : DROP.scale;
-        const size =
-          full * (DROP.arrivalScale + (1 - DROP.arrivalScale) * arrived);
-        // Hang the tether to the ground, bobbing once it has landed.
-        const lift =
-          size * SUPPLY_DROP_TETHER_DEPTH +
-          full *
-            ((1 - arrived) * DROP.flight +
-              Math.sin(item.age * 1.45) * DROP.bob * arrived);
-        surfaceMatrix(drop.matrix, s.n, s.dir, radius, lift, size);
-        drop.visible = true;
-        continue;
-      }
-      const mesh = meshes[item.kind];
-      if (!mesh || counts[item.kind] >= mesh.instanceMatrix.count) continue;
-      lerpNormal(s.n, item.prev, item.n, alpha);
-      s.dir.x = run.player.forward.x;
-      s.dir.y = run.player.forward.y;
-      s.dir.z = run.player.forward.z;
-      rotateAbout(s.dir, s.n, item.age * 1.5);
-      const size = item.big ? 1.5 : 1;
-      surfaceMatrix(
-        s.basis,
-        s.n,
-        s.dir,
-        radius,
-        0.1 + Math.sin(item.age * 4) * 0.02,
-        size
-      );
-      mesh.setMatrixAt(counts[item.kind]++, s.basis);
-    }
-    for (const kind of ['repair', 'tractor', 'emp'] as const) {
-      const mesh = meshes[kind];
-      if (mesh) finish(mesh, counts[kind]);
-    }
-    for (let i = landed; i < DROP.capacity; i++) {
-      const drop = drops.current[i];
-      if (drop) drop.visible = false;
-    }
+  }, []);
+  useRenderer(registry, ({ run, alpha, radius }) => {
+    instances.current?.update(run, radius, alpha);
   });
-
-  return (
-    <>
-      <instancedMesh ref={gems} args={[undefined, undefined, 400]}>
-        <octahedronGeometry args={[0.045, 0]} />
-        <meshStandardMaterial
-          color={colors.fg.DEFAULT}
-          emissive={colors.fg.DEFAULT}
-          emissiveIntensity={0.35}
-          flatShading
-        />
-      </instancedMesh>
-      <instancedMesh ref={repair} args={[undefined, undefined, 12]}>
-        <boxGeometry args={[0.12, 0.12, 0.12]} />
-        <meshStandardMaterial
-          color={colors.success}
-          emissive={colors.success}
-          emissiveIntensity={0.5}
-          flatShading
-        />
-      </instancedMesh>
-      <instancedMesh ref={tractor} args={[undefined, undefined, 12]}>
-        <torusGeometry args={[0.07, 0.022, 6, 12]} />
-        <meshStandardMaterial
-          color={colors.fg.DEFAULT}
-          emissive={colors.fg.secondary}
-          emissiveIntensity={0.6}
-          flatShading
-        />
-      </instancedMesh>
-      <instancedMesh ref={emp} args={[undefined, undefined, 12]}>
-        <icosahedronGeometry args={[0.08, 0]} />
-        <meshStandardMaterial
-          color={colors.danger.DEFAULT}
-          emissive={colors.danger.DEFAULT}
-          emissiveIntensity={0.7}
-          flatShading
-        />
-      </instancedMesh>
-      {Array.from({ length: DROP.capacity }, (_, i) => (
-        <group
-          key={i}
-          ref={(group) => {
-            drops.current[i] = group;
-          }}
-          visible={false}
-          matrixAutoUpdate={false}
-        >
-          <SupplyDropModel />
-        </group>
-      ))}
-    </>
-  );
+  return <group ref={group} />;
 }
 
 // ---------- Damage numbers, as a DOM layer over the canvas ----------

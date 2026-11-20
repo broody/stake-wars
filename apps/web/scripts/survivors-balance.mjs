@@ -5,8 +5,18 @@
  *   pnpm sim:balance [options]      (from the repository root)
  *
  *   --runs N         seeds 0..N-1 per build (default 24)
- *   --cap SECONDS    play every run to this time (default 1500)
- *   --builds LIST    natural,mid,max (default all three)
+ *   --cap SECONDS    play every run to this time (default 900)
+ *   --builds LIST    natural,mid,kit,max (default natural,mid,max); a
+ *                    hero without a build skips it
+ *   --heroes LIST    trooper,vanguard (default trooper, the pre-class baseline)
+ *   --stance NAME    kite | engage (default: engage with Aegis, else kite)
+ *   --aegis LIST     Aegis settings to try on shielded heroes, as
+ *                    key=value pairs; separate variants with /, e.g.
+ *                    segments=6,rechargeDelay=4/growth=0.08
+ *   --pace LIST      Legion clock speeds to try, separated by /, e.g.
+ *                    1.4/1.5/1.6 (default: the game's PACE)
+ *   --levels LIST    level speeds to try, separated by / (default: the
+ *                    game's LEVEL_PACE); combined with every --pace
  *   --policy NAME    greedy | random | first (default greedy)
  *   --workers N      worker threads (default: cores - 2)
  *   --json FILE      save the full results
@@ -28,7 +38,7 @@ import {
 if (!isMainThread) {
   const sim = await import(workerData.bundle);
   for (const job of workerData.jobs)
-    parentPort.postMessage(sim.runSurvivor(job));
+    parentPort.postMessage({ ...sim.runSurvivor(job), key: job.key });
   process.exit(0);
 }
 
@@ -43,8 +53,35 @@ for (let i = 2; i < process.argv.length; i++) {
   } else args.set(key, 'true');
 }
 const runs = Number(args.get('runs') ?? 24);
-const cap = Number(args.get('cap') ?? 1500);
+const cap = Number(args.get('cap') ?? 900);
 const builds = (args.get('builds') ?? 'natural,mid,max').split(',');
+const heroes = (args.get('heroes') ?? 'trooper').split(',');
+const stance = args.get('stance');
+const speeds = (name) =>
+  (args.get(name) ?? '')
+    .split('/')
+    .filter(Boolean)
+    .map((value) => {
+      if (!(Number(value) > 0))
+        throw new Error(`--${name} ${value}: expected > 0`);
+      return Number(value);
+    });
+const paces = speeds('pace');
+const levelPaces = speeds('levels');
+const aegisVariants = (args.get('aegis') ?? '')
+  .split('/')
+  .filter(Boolean)
+  .map((label) => ({
+    label,
+    tuning: Object.fromEntries(
+      label.split(',').map((pair) => {
+        const [key, value] = pair.split('=');
+        if (!Number.isFinite(Number(value)))
+          throw new Error(`--aegis ${pair}: expected key=number`);
+        return [key, Number(value)];
+      })
+    ),
+  }));
 const policy = args.get('policy') ?? 'greedy';
 const workers = Number(
   args.get('workers') ?? Math.max(1, availableParallelism() - 2)
@@ -67,14 +104,62 @@ await build({
   },
 });
 const bundle = pathToFileURL(resolve(outDir, 'balance.mjs')).href;
-const { TARGETS } = await import(bundle);
+const { TARGETS, BUILDS, HEROES } = await import(bundle);
 
-const jobs = builds.flatMap((name) =>
+/**
+ * Each hero's builds that exist, once per pace and, for a shielded hero, per
+ * Aegis variant, as `hero build [variant]` keys in the report.
+ */
+const variantsFor = (hero) => {
+  const shields =
+    HEROES[hero]?.systems.includes('aegis') && aegisVariants.length
+      ? aegisVariants
+      : [{ label: '', tuning: undefined }];
+  return (paces.length ? paces : [undefined]).flatMap((pace) =>
+    (levelPaces.length ? levelPaces : [undefined]).flatMap((levelPace) =>
+      shields.map(({ label, tuning }) => ({
+        label: [
+          pace === undefined ? '' : `pace=${pace}`,
+          levelPace === undefined ? '' : `levels=${levelPace}`,
+          label,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        tuning,
+        pace,
+        levelPace,
+      }))
+    )
+  );
+};
+const suffix = (label) => (label ? ` [${label}]` : '');
+const groups = heroes.flatMap((hero) =>
+  builds
+    .filter((name) => BUILDS[hero]?.[name])
+    .flatMap((name) =>
+      variantsFor(hero).map(({ label, tuning, pace, levelPace }) => ({
+        hero,
+        name,
+        label,
+        tuning,
+        pace,
+        levelPace,
+        key: `${hero} ${name}${suffix(label)}`,
+      }))
+    )
+);
+const jobs = groups.flatMap(({ hero, name, tuning, pace, levelPace, key }) =>
   Array.from({ length: runs }, (_, seed) => ({
     seed,
     policy,
     build: name,
     cap,
+    hero,
+    stance,
+    aegis: tuning,
+    pace,
+    levelPace,
+    key,
   }))
 );
 const started = Date.now();
@@ -167,6 +252,15 @@ function summarize(group) {
       healing[id] = (healing[id] ?? 0) + value;
   const totalHealing = Object.values(healing).reduce((a, b) => a + b, 0) || 1;
   const losingFrom = losingFromMinutes(minutes);
+  const absorbed = group.reduce(
+    (total, r) =>
+      total + Object.values(r.absorbedBy ?? {}).reduce((a, b) => a + b, 0),
+    0
+  );
+  const taken = group.reduce(
+    (total, r) => total + Object.values(r.hurtBy).reduce((a, b) => a + b, 0),
+    0
+  );
   const evolutions = group
     .map((r) => r.firstEvolution)
     .filter((t) => t !== null);
@@ -190,6 +284,10 @@ function summarize(group) {
       Object.entries(healing).map(([id, v]) => [id, v / totalHealing])
     ),
     losingFrom,
+    absorbedShare: absorbed / (absorbed + taken || 1),
+    breaksPerMinute: median(
+      group.map((r) => (r.aegisBreaks ?? 0) / (r.cap / 60))
+    ),
     firstEvolution: evolutions.length ? median(evolutions) : null,
     evolvedShare: evolutions.length / group.length,
     level: median(group.map((r) => r.level)),
@@ -197,9 +295,9 @@ function summarize(group) {
 }
 
 const summary = Object.fromEntries(
-  builds.map((name) => [
-    name,
-    summarize(results.filter((r) => r.build === name)),
+  groups.map(({ key }) => [
+    key,
+    summarize(results.filter((r) => r.key === key)),
   ])
 );
 const baseline = args.has('compare')
@@ -217,16 +315,17 @@ const lines = [];
 const say = (text = '') => lines.push(text);
 say(
   `Core Survivors balance: ${runs} seeds per build, ${clock(cap)} cap, ${policy} picks, ` +
-    `${((Date.now() - started) / 1000).toFixed(1)}s`
+    `${stance ? `${stance} stance, ` : ''}${((Date.now() - started) / 1000).toFixed(1)}s`
 );
 say(
   'Headless: default landscape view, flat Core, virtual health (see balance/run.ts).'
 );
-for (const name of builds) {
-  const s = summary[name];
-  const b = baseline?.[name];
+for (const { hero, name, key } of groups) {
+  const s = summary[key];
+  // Files saved before heroes keyed the trooper's builds by name alone.
+  const b = baseline?.[key] ?? (hero === 'trooper' ? baseline?.[name] : null);
   say();
-  say(`== ${name} build ==`);
+  say(`== ${key} build ==`);
   say(
     `  falls at   median ${clock(s.median)}${delta(s.median, b?.median)}   ` +
       `p10 ${clock(s.p10)}  p25 ${clock(s.p25)}  p75 ${clock(s.p75)}  p90 ${clock(s.p90)}`
@@ -249,6 +348,11 @@ for (const name of builds) {
   say(
     `  evolves    ${pct(s.evolvedShare)} of runs, first at ${clock(s.firstEvolution ?? NaN)}`
   );
+  if (s.absorbedShare > 0)
+    say(
+      `  aegis      took ${pct(s.absorbedShare)} of incoming damage, ` +
+        `${s.breaksPerMinute.toFixed(2)} breaks/min (median)`
+    );
   say(
     `  damage     ${Object.entries(s.damageShare)
       .sort((a, b) => b[1] - a[1])
@@ -280,45 +384,53 @@ for (const name of builds) {
 const checks = [];
 const within = ([lo, hi], value) => value >= lo && value <= hi;
 const span = ([lo, hi]) => `${clock(lo)}–${clock(hi)}`;
-if (summary.natural)
-  checks.push([
-    `${pct(TARGETS.earlyShare)} of natural runs pass ${clock(TARGETS.earlySeconds)}`,
-    summary.natural.earlyShare >= TARGETS.earlyShare,
-    pct(summary.natural.earlyShare),
-  ]);
-if (summary.mid) {
-  const safe = summary.mid.minutes[TARGETS.midSafeMinute - 1]?.standing ?? 0;
-  checks.push([
-    `${pct(TARGETS.midSafeShare)} of mid builds stand at minute ${TARGETS.midSafeMinute}`,
-    safe >= TARGETS.midSafeShare,
-    pct(safe),
-  ]);
-  checks.push([
-    `mid build falls at ${span(TARGETS.midMedian)} (median)`,
-    within(TARGETS.midMedian, summary.mid.median),
-    summary.mid.capShare >= 0.5
-      ? `${pct(summary.mid.capShare)} last the cap`
-      : clock(summary.mid.median),
-  ]);
-}
-for (const [name, by] of [
-  ['mid', TARGETS.midLosingBy],
-  ['max', TARGETS.maxLosingBy],
-])
-  if (summary[name])
+for (const [hero, label] of heroes.flatMap((hero) =>
+  variantsFor(hero).map((variant) => [hero, variant.label])
+)) {
+  const of = (name) => summary[`${hero} ${name}${suffix(label)}`];
+  const natural = of('natural');
+  const mid = of('mid');
+  const max = of('max');
+  if (natural)
     checks.push([
-      `${name === 'max' ? 'maxed' : 'mid'} build loses health on balance by minute ${by}`,
-      summary[name].losingFrom !== null && summary[name].losingFrom <= by,
-      summary[name].losingFrom ? `minute ${summary[name].losingFrom}` : 'never',
+      `${hero}${suffix(label)}: ${pct(TARGETS.earlyShare)} of natural runs pass ${clock(TARGETS.earlySeconds)}`,
+      natural.earlyShare >= TARGETS.earlyShare,
+      pct(natural.earlyShare),
     ]);
-if (summary.max)
-  checks.push([
-    `maxed build falls at ${span(TARGETS.maxMedian)} (median)`,
-    within(TARGETS.maxMedian, summary.max.median),
-    summary.max.capShare >= 0.5
-      ? `${pct(summary.max.capShare)} last the cap`
-      : clock(summary.max.median),
-  ]);
+  if (mid) {
+    const safe = mid.minutes[TARGETS.midSafeMinute - 1]?.standing ?? 0;
+    checks.push([
+      `${hero}${suffix(label)}: ${pct(TARGETS.midSafeShare)} of mid builds stand at minute ${TARGETS.midSafeMinute}`,
+      safe >= TARGETS.midSafeShare,
+      pct(safe),
+    ]);
+    checks.push([
+      `${hero}${suffix(label)}: mid build falls at ${span(TARGETS.midMedian)} (median)`,
+      within(TARGETS.midMedian, mid.median),
+      mid.capShare >= 0.5
+        ? `${pct(mid.capShare)} last the cap`
+        : clock(mid.median),
+    ]);
+  }
+  for (const [name, by] of [
+    ['mid', TARGETS.midLosingBy],
+    ['max', TARGETS.maxLosingBy],
+  ])
+    if (of(name))
+      checks.push([
+        `${hero}${suffix(label)}: ${name === 'max' ? 'maxed' : 'mid'} build loses health on balance by minute ${by}`,
+        of(name).losingFrom !== null && of(name).losingFrom <= by,
+        of(name).losingFrom ? `minute ${of(name).losingFrom}` : 'never',
+      ]);
+  if (max)
+    checks.push([
+      `${hero}${suffix(label)}: maxed build falls at ${span(TARGETS.maxMedian)} (median)`,
+      within(TARGETS.maxMedian, max.median),
+      max.capShare >= 0.5
+        ? `${pct(max.capShare)} last the cap`
+        : clock(max.median),
+    ]);
+}
 say();
 say('== targets ==');
 for (const [label, ok, value] of checks)
@@ -329,7 +441,21 @@ if (args.has('json')) {
   writeFileSync(
     args.get('json'),
     JSON.stringify(
-      { options: { runs, cap, builds, policy }, summary, results },
+      {
+        options: {
+          runs,
+          cap,
+          builds,
+          heroes,
+          stance,
+          aegis: aegisVariants,
+          paces,
+          levelPaces,
+          policy,
+        },
+        summary,
+        results,
+      },
       null,
       1
     )

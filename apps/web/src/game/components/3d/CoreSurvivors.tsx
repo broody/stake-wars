@@ -1,11 +1,10 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { useSectors } from '../../contexts/SectorContext';
-import { sectorStakeHeights } from '../../utils/sectorStakeRelief';
-import { enemyGroundRadius } from '../../utils/enemySwarm';
+import { ENEMY_GROUND_RADIUS } from '../../utils/enemySwarm';
 import { colors } from '../../../ui/tokens';
-import { survivorsSession } from '../../survivors/session';
+import { currentHero, survivorsSession } from '../../survivors/session';
 import { survivorAudio } from '../../survivors/audio';
 import type { Run } from '../../survivors/sim';
 import type { ViewExtent } from '../../survivors/sim';
@@ -13,28 +12,45 @@ import { cross, lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
 import {
   Bolts,
   BulwarkTelegraphs,
+  DeathArcs,
   DefeatedBatch,
   DamageNumbers,
-  PlayerFrameEffects,
   Pickups,
   RiggedBatch,
-  Shards,
   WorldEffects,
 } from './CoreSurvivorsParts';
 import {
+  ENEMY_TELEGRAPHS,
   toVector,
   type FrameContext,
   type Renderer,
 } from '../../survivors/renderFrame';
 
-import { SurvivorTrooper } from './SurvivorTrooper';
-import { SaberSlashes } from './SaberSlashes';
+import { SABER_MODEL, SurvivorTrooper } from './SurvivorTrooper';
+import { BOLT_CASTER_MODEL } from '../../utils/boltCasterAnimation';
+import { VANGUARD } from '../../utils/vanguardAnimation';
+import { SurvivorVanguard } from './SurvivorVanguard';
+import { SaberSlashes, TrooperSaberSlashes } from './SaberSlashes';
+import { SectorChargeEffects } from './SectorChargeEffects';
+import { VanguardEffects } from './VanguardEffects';
 import { SectorBreaches } from './SectorBreaches';
+import { OrbitalStrikes } from './OrbitalStrikes';
 import { SectorRipples } from './SectorRipples';
+import { StakePulseField } from './StakePulseField';
+import { OrbitShards } from './OrbitShards';
 import { SurvivorGroundLight } from './SurvivorGroundLight';
 
+import { SurvivorMeteor } from './SurvivorMeteor';
+import {
+  captureGlobeView,
+  OPENING_CAMERA,
+  sampleOpeningCamera,
+} from '../../survivors/openingCamera';
 import { DeathCamera } from '../../survivors/deathCamera';
-import { FOLLOW_CAMERA, followPullback } from '../../survivors/followCamera';
+import {
+  sampleFollowCamera,
+  followPullback,
+} from '../../survivors/followCamera';
 import { VoltTelegraphs } from './VoltTelegraphs';
 import { SeekerCharacters } from './SeekerCharacters';
 import { WardenCharacters } from './WardenCharacters';
@@ -48,6 +64,7 @@ const edgeRay = new THREE.Ray();
 const edgeSphere = new THREE.Sphere(new THREE.Vector3(), 1);
 const edgeHit = new THREE.Vector3();
 const edgePlayer = new THREE.Vector3();
+const screenPlayer = new THREE.Vector3();
 const EDGES = [
   ['right', 1, 0],
   ['left', -1, 0],
@@ -64,6 +81,7 @@ function measureView(
 ) {
   edgeSphere.radius = radius;
   toVector(edgePlayer, player);
+  screenPlayer.copy(edgePlayer).multiplyScalar(radius).project(camera);
   edgeRay.origin.setFromMatrixPosition(camera.matrixWorld);
   const horizon =
     Math.acos(Math.min(1, radius / edgeRay.origin.length())) *
@@ -71,7 +89,7 @@ function measureView(
     HORIZON_FRACTION;
   for (const [edge, x, y] of EDGES) {
     edgeRay.direction
-      .set(x, y, 0.5)
+      .set(x || screenPlayer.x, y || screenPlayer.y, 0.5)
       .unproject(camera)
       .sub(edgeRay.origin)
       .normalize();
@@ -86,6 +104,7 @@ const heard = new THREE.Vector3();
 
 /** Play the run's queued sounds, panned by where on screen they happened. */
 function playCues(run: Run, camera: THREE.Camera, radius: number) {
+  const emp = run.cues.some((cue) => cue.id === 'emp');
   for (const cue of run.cues) {
     let pan = 0;
     let gain = 1;
@@ -97,6 +116,12 @@ function playCues(run: Run, camera: THREE.Camera, radius: number) {
       if (Math.abs(heard.x) > 1.05 || Math.abs(heard.y) > 1.05 || heard.z > 1)
         gain = 0.4;
     }
+    // Keep the individual kills underneath the detonation that caused them.
+    if (
+      emp &&
+      (cue.id === 'death' || cue.id === 'death-heavy' || cue.id === 'crit')
+    )
+      gain *= 0.28;
     survivorAudio.play(cue.id, { pan, gain, rate: cue.rate, at: cue.at });
   }
   run.cues.length = 0;
@@ -119,22 +144,14 @@ function tangentLerp(out: Vec3, a: Vec3, b: Vec3, t: number, normal: Vec3) {
 
 export default function CoreSurvivors({ active }: { active: boolean }) {
   const { camera, size } = useThree();
-  const { controlView, occupiedSectorIds, sectorCaptureForce } = useSectors();
   const registry = useMemo(() => new Set<Renderer>(), []);
-  const groundRadius = useMemo(
-    () =>
-      enemyGroundRadius(
-        sectorStakeHeights(
-          controlView === 'staked',
-          occupiedSectorIds,
-          sectorCaptureForce,
-          false
-        )
-      ),
-    [controlView, occupiedSectorIds, sectorCaptureForce]
-  );
-  const radiusRef = useRef(groundRadius);
-  radiusRef.current = groundRadius;
+  // The run started on mount plays this hero; it only changes with the page.
+  const hero = useMemo(currentHero, []);
+  // Suspend until the hero's model is in, so a run never starts without it.
+  useGLTF(hero === 'trooper' ? SABER_MODEL : VANGUARD.url);
+  useGLTF(BOLT_CASTER_MODEL);
+  // The run plays on the bare Core, which never raises its Sectors.
+  const groundRadius = ENEMY_GROUND_RADIUS;
   const view = useMemo(
     () => ({
       normal: vec3(),
@@ -146,6 +163,7 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     }),
     []
   );
+  const heroGroup = useRef<THREE.Group>(null);
   const deathCamera = useRef<DeathCamera | null>(null);
   const lastLook = useRef(new THREE.Vector3());
   const headlight = useRef<THREE.DirectionalLight>(null);
@@ -169,13 +187,19 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
       quaternion: camera.quaternion.clone(),
       up: camera.up.clone(),
     };
-    if (!survivorsSession.run) survivorsSession.start(radiusRef.current);
+    if (!survivorsSession.run)
+      survivorsSession.start(
+        ENEMY_GROUND_RADIUS,
+        undefined,
+        captureGlobeView(camera)
+      );
     return () => {
       camera.position.copy(saved.position);
       camera.quaternion.copy(saved.quaternion);
       camera.up.copy(saved.up);
       camera.updateMatrixWorld(true);
       survivorsSession.run = null;
+      survivorsSession.globeView = undefined;
       survivorsSession.keys.clear();
     };
   }, [camera]);
@@ -185,6 +209,12 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     if (!run || !active) return;
     run.groundRadius = groundRadius;
     survivorsSession.advance(delta);
+    const orbit = survivorsSession.opening
+      ? survivorsSession.globeView
+      : undefined;
+    const age = survivorsSession.openingAge;
+    const actor = heroGroup.current;
+    if (actor) actor.visible = !orbit || age >= OPENING_CAMERA.split;
     const alpha = survivorsSession.alpha;
     const player = run.player;
     const normal = lerpNormal(view.normal, player.prev, player.n, alpha);
@@ -197,20 +227,22 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     );
     const right = cross(view.right, forward, normal);
     const { eye, look, ahead } = view;
-    toVector(ahead, forward);
     // Narrow screens back the camera off along its own line of sight.
-    const pullback = followPullback(
-      camera instanceof THREE.PerspectiveCamera ? camera.fov : 75,
-      size.width / size.height
+    const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 75;
+    const aspect = size.width / Math.max(1, size.height);
+    const pullback = followPullback(fov, aspect);
+    const cameraOrbit = survivorsSession.cameraOrbit;
+    sampleFollowCamera(
+      normal,
+      forward,
+      groundRadius,
+      pullback * cameraOrbit.sampleDistance(delta),
+      eye,
+      look,
+      ahead,
+      cameraOrbit.yaw,
+      cameraOrbit.pitch
     );
-    eye
-      .set(normal.x, normal.y, normal.z)
-      .multiplyScalar(groundRadius + FOLLOW_CAMERA.height * pullback)
-      .addScaledVector(ahead, -FOLLOW_CAMERA.back * pullback);
-    look
-      .set(normal.x, normal.y, normal.z)
-      .multiplyScalar(groundRadius)
-      .addScaledVector(ahead, FOLLOW_CAMERA.lead);
     if (run.status === 'fallen') {
       if (!deathCamera.current)
         deathCamera.current = new DeathCamera(
@@ -224,6 +256,16 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
       deathCamera.current.sample(run.deathAge, eye, look, ahead);
     } else {
       deathCamera.current = null;
+      if (orbit)
+        sampleOpeningCamera(
+          age,
+          orbit,
+          groundRadius,
+          pullback,
+          eye,
+          look,
+          ahead
+        );
     }
     if (run.shake > 0 && run.status !== 'fallen') {
       const amount = run.shake * 0.12;
@@ -236,8 +278,10 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     camera.up.copy(ahead);
     camera.lookAt(look);
     camera.updateMatrixWorld();
-    if (run.status !== 'fallen')
+    if (run.status !== 'fallen' && !survivorsSession.opening) {
+      run.view.yaw = cameraOrbit.yaw;
       measureView(run.view, camera, normal, groundRadius);
+    }
     survivorAudio.hold(survivorsSession.paused);
     // A level-up or Supply Drop stops the run; drop sounds queued for later.
     if (run.status === 'choosing' || run.status === 'supply')
@@ -252,6 +296,8 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     }
     const frame: FrameContext = {
       run,
+      openingAge: age,
+      orbit,
       alpha,
       radius: groundRadius,
       camera,
@@ -272,16 +318,31 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
         intensity={2.2}
         color={colors.fg.DEFAULT}
       />
+      <SurvivorMeteor registry={registry} />
       <SurvivorGroundLight registry={registry} />
       <SectorBreaches registry={registry} />
       <SectorRipples registry={registry} />
-      <PlayerFrameEffects registry={registry} />
+      <OrbitalStrikes registry={registry} />
+      <StakePulseField registry={registry} />
       <WorldEffects registry={registry} />
+      <SectorChargeEffects registry={registry} />
+      <VanguardEffects registry={registry} />
+      <DeathArcs registry={registry} />
       <BulwarkTelegraphs registry={registry} />
-      <VoltTelegraphs registry={registry} />
+      {ENEMY_TELEGRAPHS && <VoltTelegraphs registry={registry} />}
       <Suspense fallback={null}>
-        <SurvivorTrooper registry={registry} />
-        <SaberSlashes registry={registry} />
+        <group ref={heroGroup} visible={false}>
+          {hero === 'trooper' ? (
+            <SurvivorTrooper registry={registry} />
+          ) : (
+            <SurvivorVanguard registry={registry} />
+          )}
+        </group>
+        {hero === 'trooper' ? (
+          <TrooperSaberSlashes registry={registry} />
+        ) : (
+          <SaberSlashes registry={registry} color={colors.accent.soft} />
+        )}
       </Suspense>
       <Suspense fallback={null}>
         <RiggedBatch model="mite" registry={registry} />
@@ -301,7 +362,7 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
       <Suspense fallback={null}>
         <WardenCharacters registry={registry} />
       </Suspense>
-      <Shards registry={registry} />
+      <OrbitShards registry={registry} />
       <Bolts registry={registry} />
       <Pickups registry={registry} />
       <DamageNumbers registry={registry} />

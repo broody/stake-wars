@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { colors } from '../../../ui/tokens';
+import { OPENING_CAMERA } from '../../survivors/openingCamera';
 import { CORE_RADIUS } from '../../utils/sectorGeometry';
 import { useRenderer, type Renderer } from '../../survivors/renderFrame';
 
@@ -61,7 +62,8 @@ export function SurvivorGroundLight({ registry }: { registry: Set<Renderer> }) {
   );
   useEffect(() => () => material.dispose(), [material]);
 
-  useRenderer(registry, ({ normal }) => {
+  useRenderer(registry, ({ normal, orbit, openingAge = 0 }) => {
+    material.visible = !orbit || openingAge >= OPENING_CAMERA.impact;
     material.uniforms.center.value.set(normal.x, normal.y, normal.z);
   });
 

@@ -40,7 +40,11 @@ export class SeekerAnimation {
   private current?: ClipName;
   private lastTime?: number;
 
-  constructor(source: THREE.Object3D, clips: THREE.AnimationClip[]) {
+  constructor(
+    source: THREE.Object3D,
+    clips: THREE.AnimationClip[],
+    private readonly startPhase = 0
+  ) {
     this.root = clone(source);
     this.root.traverse((object) => {
       if (!(object instanceof THREE.SkinnedMesh)) return;
@@ -83,19 +87,30 @@ export class SeekerAnimation {
       this.lastTime === undefined ? 0 : Math.max(0, pose.time - this.lastTime);
     this.lastTime = pose.time;
     const dead = pose.defeatAge !== undefined;
+    // A small band keeps a slowing hound from repeatedly changing gait.
+    const walkLimit =
+      SEEKER_GAIT.walkSpeed * pose.scale * (this.current === 'Run' ? 1.65 : 2);
     const name: ClipName = dead
       ? 'Defeated'
       : pose.attack !== undefined
         ? pose.attack.clip
         : pose.speed < 0.005
           ? 'Idle'
-          : pose.speed <= SEEKER_GAIT.walkSpeed * pose.scale * 1.3
+          : pose.speed <= walkLimit
             ? 'Walk'
             : 'Run';
     const action = this.actions.get(name)!;
     if (this.current !== name) {
       const previous = this.current && this.actions.get(this.current);
       action.reset().setEffectiveWeight(1).play();
+      if (name === 'Walk' || name === 'Run') {
+        // Both clips touch down with the leading forepaw at phase zero.
+        const phase =
+          previous && (this.current === 'Walk' || this.current === 'Run')
+            ? previous.time / previous.getClip().duration
+            : this.startPhase;
+        action.time = phase * action.getClip().duration;
+      }
       if (previous) {
         previous.fadeOut(0.1);
         action.fadeIn(0.1);

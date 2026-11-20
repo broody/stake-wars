@@ -1,5 +1,5 @@
 import { DEATH_RESULTS_DELAY } from '../../survivors/deathCamera';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Badge,
@@ -23,8 +23,11 @@ import {
   type SystemId,
   type WeaponId,
 } from '../../survivors/sim';
-import { PAIRED_WEAPON } from '../../survivors/content';
+import { pairedWeapons } from '../../survivors/content';
+import type { Aegis } from '../../survivors/aegis';
 import { SurvivorsIcon } from './SurvivorsIcon';
+import { SurvivorControls } from './SurvivorControls';
+import { ENEMY_TELEGRAPHS } from '../../survivors/renderFrame';
 
 const MOVE_KEYS = new Set([
   'KeyW',
@@ -36,7 +39,6 @@ const MOVE_KEYS = new Set([
   'ArrowLeft',
   'ArrowRight',
 ]);
-const STICK_RADIUS = 48;
 
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -84,69 +86,43 @@ function Meter({
   );
 }
 
-/** A drag-anywhere joystick; the HUD layer also keeps pointer input off the Core. */
-function Joystick() {
-  const origin = useRef<{ id: number; x: number; y: number } | null>(null);
-  const [stick, setStick] = useState<{
-    x: number;
-    y: number;
-    dx: number;
-    dy: number;
-  } | null>(null);
-
-  const release = () => {
-    origin.current = null;
-    survivorsSession.stick.x = 0;
-    survivorsSession.stick.y = 0;
-    setStick(null);
-  };
-
+/** The Aegis gauge: a cell per segment, the one refilling drawn part-full. */
+function AegisMeter({ aegis }: { aegis: Aegis }) {
+  const whole = Math.floor(aegis.segments);
+  const broken = whole < 1 && Number.isFinite(aegis.brokeAt);
   return (
-    <div
-      className="absolute inset-0 touch-none"
-      onPointerDown={(event) => {
-        if (event.button !== 0) return;
-        event.currentTarget.setPointerCapture(event.pointerId);
-        origin.current = {
-          id: event.pointerId,
-          x: event.clientX,
-          y: event.clientY,
-        };
-        setStick({ x: event.clientX, y: event.clientY, dx: 0, dy: 0 });
-      }}
-      onPointerMove={(event) => {
-        const start = origin.current;
-        if (!start || start.id !== event.pointerId) return;
-        const dx = event.clientX - start.x;
-        const dy = event.clientY - start.y;
-        const distance = Math.hypot(dx, dy);
-        const scale = distance > STICK_RADIUS ? STICK_RADIUS / distance : 1;
-        survivorsSession.stick.x =
-          distance > 6 ? (dx * scale) / STICK_RADIUS : 0;
-        survivorsSession.stick.y =
-          distance > 6 ? (dy * scale) / STICK_RADIUS : 0;
-        setStick({ x: start.x, y: start.y, dx: dx * scale, dy: dy * scale });
-      }}
-      onPointerUp={release}
-      onPointerCancel={release}
-    >
-      {stick ? (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute rounded-full border border-fg-subtle"
-          style={{
-            left: stick.x - STICK_RADIUS,
-            top: stick.y - STICK_RADIUS,
-            width: STICK_RADIUS * 2,
-            height: STICK_RADIUS * 2,
-          }}
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-3 text-label text-fg-subtle">
+        <span>AEGIS</span>
+        <span
+          className={cn(
+            'tabular-nums',
+            broken ? 'text-warning' : 'text-fg-secondary'
+          )}
         >
-          <div
-            className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg/40"
-            style={{ marginLeft: stick.dx, marginTop: stick.dy }}
-          />
-        </div>
-      ) : null}
+          {broken ? 'BROKEN' : `${whole}/${aegis.max}`}
+        </span>
+      </div>
+      <div
+        className="mt-1.5 flex gap-0.5"
+        role="meter"
+        aria-label="AEGIS"
+        aria-valuemin={0}
+        aria-valuemax={aegis.max}
+        aria-valuenow={whole}
+      >
+        {Array.from({ length: aegis.max }, (_, i) => {
+          const fill = Math.max(0, Math.min(1, aegis.segments - i));
+          return (
+            <div key={i} className="h-1.5 flex-1 bg-line">
+              <div
+                className={cn('h-full', fill >= 1 ? 'bg-fg' : 'bg-fg-subtle')}
+                style={{ width: `${fill * 100}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -235,14 +211,21 @@ function describeOffer(run: Run, offer: Offer): OfferText {
     case 'system': {
       const spec = SYSTEMS[offer.id];
       const level = run.systems[offer.id] ?? 0;
-      const paired = PAIRED_WEAPON[offer.id];
+      // Name the owned weapon it would evolve, or every one it could.
+      const paired = pairedWeapons(offer.id, run.hero);
+      const owned = paired.filter((id) =>
+        run.weapons.some((w) => w.id === id && !w.evolved)
+      );
+      const named = (owned.length ? owned : paired).map(
+        (id) => WEAPONS[id].name
+      );
       return {
         icon: offer.id,
         name: spec.name,
         chip: level ? `LV ${level} → ${level + 1}` : 'NEW SYSTEM',
         chipTone: level ? 'neutral' : 'success',
-        detail: spec.detail,
-        note: paired ? `Evolves ${WEAPONS[paired].name}` : undefined,
+        detail: spec.levels?.[level] ?? spec.detail,
+        note: named.length ? `Evolves ${named.join(' or ')}` : undefined,
       };
     }
     case 'repair':
@@ -425,6 +408,21 @@ export function CoreSurvivorsHud() {
   const player = run.player;
   const fallen = run.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY;
   const paused = survivorsSession.paused && run.status === 'playing';
+  if (survivorsSession.opening && !paused) {
+    return (
+      <div className="absolute inset-0 z-[5] font-mono">
+        <SurvivorControls />
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute bottom-6 right-4"
+          onClick={() => survivorsSession.skipOpening()}
+        >
+          SKIP INTRO
+        </Button>
+      </div>
+    );
+  }
   const killer = run.lastHitBy
     ? ENEMIES[run.lastHitBy].label
     : 'the Hollow Legion';
@@ -433,7 +431,7 @@ export function CoreSurvivorsHud() {
 
   return (
     <div className="absolute inset-0 z-[5] font-mono">
-      <Joystick />
+      {run.status === 'playing' && !paused ? <SurvivorControls /> : null}
       {run.hurtFlash > 0 ? (
         <div
           aria-hidden="true"
@@ -467,6 +465,7 @@ export function CoreSurvivorsHud() {
               }
               detail={`${Math.ceil(player.hp)}/${player.maxHp}`}
             />
+            {player.aegis ? <AegisMeter aegis={player.aegis} /> : null}
           </Panel>
           <Loadout run={run} />
         </div>
@@ -541,19 +540,37 @@ export function CoreSurvivorsHud() {
         </div>
       ) : null}
 
-      {run.time < 7 && run.status === 'playing' ? (
-        <Panel
-          tone="floating"
-          className="pointer-events-none absolute bottom-8 left-1/2 w-max max-w-md -translate-x-1/2 px-4 py-3 text-caption text-fg-secondary"
-        >
-          Move with WASD or the arrow keys, or drag anywhere.{' '}
-          {run.weapons.length
-            ? 'Your weapons fire on their own.'
-            : run.enemies.some((enemy) => enemy.kind === 'volt')
-              ? 'Step out of the red arrow path before the Mite lunges.'
-              : 'Sidestep the orange lane to dodge the shield thrust.'}
-        </Panel>
-      ) : null}
+      <div className="pointer-events-none absolute inset-x-4 bottom-4 flex flex-col items-end gap-2 sm:flex-row sm:items-end">
+        {run.time < 7 && run.status === 'playing' ? (
+          <Panel
+            tone="floating"
+            className="max-w-md px-4 py-3 text-caption text-fg-secondary"
+          >
+            Move with WASD, the arrow keys, or a one-finger or left-button drag.{' '}
+            {run.weapons.length
+              ? 'Your weapons fire on their own.'
+              : run.enemies.some((enemy) => enemy.kind === 'volt')
+                ? ENEMY_TELEGRAPHS
+                  ? 'Step out of the red arrow path before the Mite lunges.'
+                  : 'Sidestep when the Mite coils to lunge.'
+                : ENEMY_TELEGRAPHS
+                  ? 'Sidestep the orange lane to dodge the shield thrust.'
+                  : "Sidestep the Bulwark's shield thrust."}
+          </Panel>
+        ) : null}
+
+        {run.status === 'playing' && !paused ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="pointer-events-auto ml-auto shrink-0"
+            title="Restore the default camera angle and zoom"
+            onClick={() => survivorsSession.cameraOrbit.reset()}
+          >
+            RESET CAMERA
+          </Button>
+        ) : null}
+      </div>
 
       <Dialog
         open={run.status === 'choosing'}
@@ -667,6 +684,10 @@ export function CoreSurvivorsHud() {
         />
         <div className="border-b border-line px-5 py-4">
           <Loadout run={run} />
+          <p className="mt-3 text-caption text-fg-secondary">
+            Scroll to zoom and right-drag to orbit your character. On
+            touchscreens, pinch to zoom and drag with two fingers to orbit.
+          </p>
         </div>
         <div className="border-b border-line px-5 py-4">
           <div className="text-label text-fg-subtle">SOUND</div>

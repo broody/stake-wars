@@ -479,8 +479,10 @@ export function World({ active = true }: { active?: boolean }) {
   const showEnemySwarms =
     !isSurviving && (swarmCounts.mites > 0 || swarmCounts.lancers > 0);
   const showTrooper = !isSurviving && searchParams.get('trooper') === '1';
-  const isBeaconOpen = searchParams.get('tracking') === 'beacon';
-  const isSupplyDropOpen = searchParams.get('tracking') === 'supplyDrop';
+  const isBeaconOpen =
+    !isSurviving && searchParams.get('tracking') === 'beacon';
+  const isSupplyDropOpen =
+    !isSurviving && searchParams.get('tracking') === 'supplyDrop';
   const setBeaconTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
@@ -785,7 +787,12 @@ export function World({ active = true }: { active?: boolean }) {
           projectionActive={isCoreWaveFlipped}
         />
         <SupplyDropCameraTracker
-          active={active && !isBeaconOpen && (!showTrooper || isSupplyDropOpen)}
+          active={
+            active &&
+            !isSurviving &&
+            !isBeaconOpen &&
+            (!showTrooper || isSupplyDropOpen)
+          }
           tracking={isSupplyDropOpen}
           sectorId={supplyDropDraw?.lastDrawnSectorId ?? null}
           onControlChange={setSupplyDropCameraControlled}

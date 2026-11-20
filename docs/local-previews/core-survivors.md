@@ -2,38 +2,51 @@
 
 A single-player survival run on the Core, following the [Core Survivors concept](../concepts/core-survivors/README.md). The Vanguard holds out against the Hollow Legion while weapons fire on their own; the score is how long you last. Gameplay is ported from the Last Ronin prototype (`~/development/last-ronin`), with its numbers converted from pixels to world units on the Core.
 
-Open `/play?survive=1`. Without the parameter the Core is unchanged and the mode's code is not loaded.
+Choose **Play Survivors** on the globe at `/play`, or open `/play?survive=1` directly. A miniature icosphere drops onto the visible side of the Core and cracks open around the hero. The survival clock starts when the camera settles overhead. Move or choose **Skip intro** to start immediately.
 
 ```bash
 pnpm dev:web
 ```
 
-Then visit `http://localhost:3000/play?survive=1`.
+Then visit `http://localhost:3000/play?survive=1`. Inspect the XP shards, field gear and Supply Drops at [/play/items](/play/items). **Full field** shows all three XP tiers at the 320-shard limit.
 
 ## Controls
 
-- Move with WASD or the arrow keys, or drag anywhere to use a virtual joystick.
+- Move with WASD, the arrow keys, or a one-finger or left-button drag.
+- Scroll or pinch to zoom. Right-drag or drag with two fingers to orbit your character. **Reset camera** restores the default follow view for the current screen.
 - Pick an upgrade with 1, 2 or 3, or click it; R rerolls (twice per run).
 - P or Escape pauses. Leaving removes the parameter and returns the Core.
 
-The camera follows the Vanguard from above. Screen-up is carried along as the Vanguard moves, so the view never spins, even when crossing a pole.
+The 6.35-second opening follows the shell from orbit through impact, then holds on the hero’s sword side before rising overhead. Movement or **Skip intro** goes straight to play. With reduced motion enabled, the run opens in the follow view. Survival time and combat begin after the opening.
+
+The camera follows the Vanguard from above. The orbit pivots at the torso. Movement follows the camera angle, and the view stays upright as the Vanguard crosses a pole.
 
 ## Content
 
-| Weapon         | Pairs with | Evolution     |
-| -------------- | ---------- | ------------- |
-| Arc Blade      | FORCE      | Eclipse       |
-| Bolt Caster    | Overclock  | Railstorm     |
-| Orbit Shards   | Thrusters  | Shard Halo    |
-| Orbital Strike | Amplifier  | Chain Barrage |
-| Sector Charge  | Plating    | Meltdown      |
-| Stake Pulse    | Nanorepair | Bastion       |
+| Weapon         | Pairs with   | Evolution     |
+| -------------- | ------------ | ------------- |
+| Arc Blade      | FORCE        | Eclipse       |
+| Bolt Caster    | Overclock    | Railstorm     |
+| Orbit Shards   | Thrusters    | Shard Halo    |
+| Orbital Strike | Amplifier    | Chain Barrage |
+| Sector Charge  | Tractor Beam | Meltdown      |
+| Stake Pulse    | Nanorepair   | Bastion       |
+| Crescent Wave  | Amplifier    | Meridian      |
+| Rebuke         | Aegis        | Rampart       |
 
-Tractor Beam is the seventh system and has no pair. A weapon at level 5 with its paired system evolves from a level-up offer or from a Supply Drop, which Lancer Captains and the Warden drop.
+Crescent Wave, Rebuke and Aegis are Vanguard upgrades. Both the Vanguard and Sector Trooper can equip Bolt Caster in their left hand. A weapon at level 5 with its paired system evolves from a level-up offer or from a Supply Drop, which Lancer Captains and the Warden drop.
 
 The Hollow Legion: Mites and faster Skitters swarm; Volt Mites explode and set off chain reactions; Lancers keep their distance and fire slow bolts without a pre-shot warning; Bulwarks are slow and heavy and also march in lines; Seekers stop, mark a path and charge along it; Lancer Captains fire volleys and drop Supply Drops; the Warden slams its staff into a marked frontal area, fires rings of bolts and summons Mites.
 
-Scripted events arrive on a timeline: a Skitter swarm at 0:40, a Bulwark line at 1:20, a Captain at 1:50, Seekers at 2:20 and the Warden at 3:30, then heavier versions until 6:30, when the cycle repeats every 2.5 minutes. Enemy health compounds after 8 minutes, so every run ends.
+Scripted events arrive on a timeline: a Skitter swarm at 0:40, a Bulwark line at 1:20, a Captain at 1:50, Seekers at 2:20 and the Warden at 3:30, then heavier versions until 6:30, when the cycle repeats every 2.5 minutes. Enemy health compounds after minute 6, so every run ends.
+
+Ordinary breaches release at most one lone Seeker every two seconds, with up to three alive at once. The scripted pack waves have their own schedule.
+
+Each Seeker pack wave adds a lane: three packs the first time, then four, up to eight (`SEEKER_LANES`). The first four lanes run side by side and the rest cross them at right angles. Seekers always draw their aim lines on the ground, even while the other enemies' ground warnings are off (`telegraphed` in `renderFrame.ts`). A pack is eight Seekers in one staggered file (`SEEKER_PACK`): the player can't walk through a waiting column, and a charging Seeker shoves the player across its lane, all to the side the player is already on, instead of passing through.
+
+Every living enemy is solid (`bodyBlock` in `sim.ts`). The player can't walk through one, and one that walks into the player pushes them back, so a closing ring or a crowd at your back holds you in place; touching one still hurts on the usual 0.6 s invulnerability cadence. Remains of defeated enemies never block, and neither does an enemy still rising out of a breach or a Volt Mite mid-leap. Two scripted formations become walls: a Bulwark line sweeps a player who stands in its path ahead of it until they get around it or cut through, and the Encircle ring blocks most straight walks out of it.
+
+Times in this document are on the Legion's clock, which runs `PACE` (1.15) times faster than real time so that good builds fall at about 10:00 (`sim.ts`). Divide by 1.15 for real time: the first Warden arrives at 3:03, the second at 5:39, and health starts compounding at 5:13. The XP to the next level is `6 + 1.6 × level²` (`XP_CURVE`), so a strong run reaches about level 35 by 10:00. The design and the simulation results are in [hero-classes.md](../concepts/core-survivors/hero-classes.md).
 
 ## Assets
 
@@ -107,9 +120,8 @@ Ordinary `?survive=1` uses normal gameplay stats. The seven-clip GLB is in
 Saber attacks select the nearest enemy in any direction at wind-up, including
 pursuers behind the player. That direction stays committed through impact and is
 transported over the Core as the player moves. The torso aims independently of
-the running legs. The crescent starts at 90°, widens to 120° at blade level 3 and 150° at
-level 4. Its ellipse has a half-width of 80% of its reach; Area and reach upgrades grow both damage and the visible edge together.
-The second cut keeps the same frame and covers the opposite side.
+the running legs. The crescent starts at 90° and widens 30° a level to a full 180° at
+blade level 4; every swing is a single cut. Its ellipse has a half-width of 80% of its reach; Area and reach upgrades grow both damage and the visible edge together.
 
 Player defeat: `?survive=1&survivePreview=saber-death` is a local fatal-contact
 drill. The authored three-second Saber_Death clip plays while a 3.5-second spiral zoom
@@ -124,8 +136,10 @@ restores living enemies to full opacity; enemy corpses retain their own fade.
 
 
 The Bolt Caster weapon upgrade equips a compact gun in the left hand while retaining
-one saber in the right. Its separate arm layer follows the latest volley, with recoil
-and a muzzle flash, during standing, running and saber attacks. Local preview:
+one saber in the right. The Vanguard tracks the next target with his shoulders,
+plants a boot to pivot for rear shots, and backpedals when firing against his
+direction of travel. Railstorm keeps firing through the turn. Scrub the pivot in
+`/play/actions?action=bolt-caster` or try it in a run with
 `?survive=1&survivePreview=saber-gun`. Weapon damage, spread, speed and cooldowns
 are unchanged. The gun remains attached during death; restarting removes it until
 the upgrade is acquired again.

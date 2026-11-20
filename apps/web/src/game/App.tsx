@@ -45,6 +45,16 @@ const Catalog = lazy(() =>
   }))
 );
 
+const Items = lazy(() =>
+  import('./pages/Items').then((module) => ({ default: module.Items }))
+);
+
+const Actions = lazy(() =>
+  import('./pages/Actions').then((module) => ({
+    default: module.Actions,
+  }))
+);
+
 const SupplyDropCreator = lazy(() =>
   import('./pages/SupplyDropCreator').then((module) => ({
     default: module.SupplyDropCreator,
@@ -97,6 +107,22 @@ function GamePages() {
               element={
                 <Suspense fallback={null}>
                   <Catalog />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/items"
+              element={
+                <Suspense fallback={null}>
+                  <Items />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/actions"
+              element={
+                <Suspense fallback={null}>
+                  <Actions />
                 </Suspense>
               }
             />

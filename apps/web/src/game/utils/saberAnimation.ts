@@ -173,7 +173,8 @@ export class SaberAnimation {
     speed: number,
     attack?: SaberAttack,
     aimYaw = 0,
-    gun?: { equipped: boolean; yaw: number; shotAge: number }
+    gun?: { equipped: boolean; yaw: number; shotAge: number },
+    idleTime = time
   ) {
     if (this.dying) {
       // Restore the last live pose before resuming the locomotion mixer's bindings.
@@ -227,7 +228,7 @@ export class SaberAnimation {
     }
     for (const part of ['lower', 'upper']) {
       const weight = part === 'upper' ? 1 - attackWeight : 1;
-      sample('Saber_Idle', part, (1 - this.moving) * weight, time % 3);
+      sample('Saber_Idle', part, (1 - this.moving) * weight, idleTime % 3);
       sample(
         'Saber_Run',
         part,
@@ -279,7 +280,14 @@ export function createSaberSlashGeometry(
   aspect = 1
 ) {
   const half = Math.atan2(Math.sin(arc / 2) / aspect, Math.cos(arc / 2));
-  const g = new THREE.RingGeometry(inner, 1, 40, 1, -half, half * 2);
+  const segments = 48;
+  const g = new THREE.RingGeometry(inner, 1, segments, 1, -half, half * 2);
+  // U follows the cut from one tip to the other; V crosses the band to its cutting edge.
+  const uv = g.getAttribute('uv');
+  for (let i = 0; i <= segments; i++) {
+    uv.setXY(i, i / segments, 0);
+    uv.setXY(i + segments + 1, i / segments, 1);
+  }
   g.rotateX(-Math.PI / 2);
   return g;
 }

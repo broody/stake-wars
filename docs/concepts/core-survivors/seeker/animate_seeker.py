@@ -51,8 +51,8 @@ def chain(upper,lower,a,b,pole,poses):
  poses[upper]=aimed(upper,a,knee);poses[lower]=aimed(lower,knee,b)
  return b
 
-def body_pose(drop=0,shift=0,pitch=0,roll=0,fin=0,head=0,spread=.25):
- transform=Matrix.Translation((0,shift,drop))@pivot(rest['Body'].translation,Matrix.Rotation(pitch,4,'X')@Matrix.Rotation(roll,4,'Y'))
+def body_pose(drop=0,shift=0,pitch=0,roll=0,fin=0,head=0,spread=.25,sway=0):
+ transform=Matrix.Translation((sway,shift,drop))@pivot(rest['Body'].translation,Matrix.Rotation(pitch,4,'X')@Matrix.Rotation(roll,4,'Y'))
  poses={'Root':rest['Root'].copy(),'Body':transform@rest['Body']}
  poses['Neck']=joint('Neck',Matrix.Rotation(head*.4,4,'X'),poses)
  poses['Head']=joint('Head',Matrix.Rotation(head*.6,4,'X'),poses)
@@ -61,10 +61,12 @@ def body_pose(drop=0,shift=0,pitch=0,roll=0,fin=0,head=0,spread=.25):
   poses['Fin'+side]=joint('Fin'+side,Matrix.Rotation(fin,4,'X')@Matrix.Rotation(-sign*spread,4,'Z'),poses)
  return poses
 
-def solve_feet(poses,targets):
+def solve_feet(poses,targets,paw_pitch=None):
  transform=poses['Body']@inv['Body']
  for tag,leg in legs.items():
-  ankle=targets[tag];hip=transform@leg['hip'];pole=Vector((leg['sign']*.40,1,.05))
+  ankle=targets[tag];hip=transform@leg['hip']
+  # The elbow folds back; the stifle folds forward, ahead of the rear hock.
+  pole=Vector((leg['sign']*.18,1 if leg['front'] else -1,.05))
   if leg['front']:
    chain(tag+'Upper',tag+'Lower',hip,ankle,pole,poses)
   else:
@@ -76,41 +78,54 @@ def solve_feet(poses,targets):
     delta=hip-ankle;distance=delta.length;axis=delta.normalized();length=offset.length
     along=(distance*distance+length*length-limit*limit)/(2*distance)
     assert abs(along)<length,(tag,'rear leg cannot reach')
-    pole=(offset-axis*offset.dot(axis)).normalized()
-    hock=ankle+axis*along+pole*math.sqrt(length*length-along*along)
+    hock_bend=(offset-axis*offset.dot(axis)).normalized()
+    hock=ankle+axis*along+hock_bend*math.sqrt(length*length-along*along)
    hock=chain(tag+'Upper',tag+'Lower',hip,hock,pole,poses)
    poses[tag+'Hock']=aimed(tag+'Hock',hock,ankle)
-  poses[tag+'Foot']=rest[tag+'Foot'].copy();poses[tag+'Foot'].translation=ankle
+  angle=paw_pitch[tag] if paw_pitch else 0
+  poses[tag+'Foot']=Matrix.Rotation(angle,4,'X')@rest[tag+'Foot']
+  poses[tag+'Foot'].translation=ankle
  return poses
 
 def idle(phase=0):
  p=body_pose(drop=-.012+.008*math.cos(math.tau*phase),fin=.009*math.sin(math.tau*phase),head=.008*math.sin(math.tau*phase))
  return solve_feet(p,{tag:l['ankle'].copy() for tag,l in legs.items()})
 
-GAITS={'Walk':dict(duration=1.2,duty=.70,stride=.40,lift=.115,drop=-.09,bob=.018,pitch=.015),
-       'Run':dict(duration=.65,duty=.48,stride=.62,lift=.22,drop=-.17,bob=.035,pitch=.045),
-       'Charge':dict(duration=.25,duty=1/3,stride=1.0,lift=.25,drop=-.27,bob=.048,pitch=.075)}
+GAITS={'Walk':dict(duration=1.2,duty=.64,stride=.78,lift=.17,drop=-.12,bob=.034,pitch=.022),
+       'Run':dict(duration=.65,duty=.37,stride=1.12,lift=.31,drop=-.20,bob=.065,pitch=.095),
+       'Charge':dict(duration=.5,duty=.21,stride=1.26,lift=.37,drop=-.27,bob=.083,pitch=.12)}
+# Touchdown fractions. Walk in lateral sequence; split the leading and trailing
+# paws of the gallop so the hindquarters push before the shoulders take the load.
+CONTACTS={'Walk':{'FrontL':0,'RearR':.25,'FrontR':.5,'RearL':.75},
+          'Run':{'FrontL':0,'RearR':.47,'RearL':.57,'FrontR':.90},
+          'Charge':{'FrontL':0,'RearR':.46,'RearL':.54,'FrontR':.93}}
 def gait(phase,name):
- g=GAITS[name];cycle=math.tau*phase
- p=body_pose(drop=g['drop']+g['bob']*math.cos(cycle*(1 if name=='Charge' else 2)),pitch=g['pitch']+.015*math.sin(cycle),roll=.018*math.sin(cycle),fin=(-.15 if name=='Charge' else -.035)+.014*math.sin(cycle-.4),head=-g['pitch']*.5,spread=-.16 if name=='Charge' else .25+.012*math.sin(cycle))
- targets={}
+ g=GAITS[name];cycle=math.tau*phase;walking=name=='Walk'
+ load=math.cos(2*cycle-1.15)
+ pitch=g['pitch']*math.sin(cycle+.25)
+ p=body_pose(drop=g['drop']-g['bob']*load,shift=.026*math.sin(2*cycle),
+             pitch=pitch,roll=.026*math.sin(cycle+.5),head=-.68*pitch,
+             sway=(.04 if walking else .017)*math.cos(cycle-.7),
+             fin=(-.15 if name=='Charge' else -.035)-.32*pitch,
+             spread=-.16 if name=='Charge' else .25+.015*math.sin(cycle))
+ targets={};paw_pitch={}
  for tag,l in legs.items():
-  if name=='Walk':off={'RearL':0,'FrontL':.25,'RearR':.5,'FrontR':.75}[tag]
-  elif name=='Run':off=0 if tag in ['FrontL','RearR'] else .5
-  else:off=(0 if l['front'] else .5)+(0 if l['sign']==1 else .06)
-  phase_leg=(phase+off)%1;duty=g['duty'];stride=g['stride']
+  phase_leg=(phase-CONTACTS[name][tag])%1;duty=g['duty'];stride=g['stride']
+  paw_pitch[tag]=0
   if phase_leg<=duty:
    y=stride*(phase_leg/duty-.5);lift=0
   else:
    u=(phase_leg-duty)/(1-duty)
-   # Cubic Hermite return has the same paw velocity at takeoff and landing.
+   # Keep ground speed at lift-off and touchdown, then gather the paw under the hip.
    tangent=stride*(1-duty)/duty
-   y=stride*(.5-smooth(u))+tangent*(2*u**3-3*u*u+u)
-   lift=g['lift']*math.sin(math.pi*u)**2
+   y=stride*(.5-smooth(u))+tangent*u*(1-u)*(1-2*u)**5
+   arc=math.sin(math.pi*u)
+   lift=g['lift']*arc**2*(1+.28*(1-2*u))
+   paw_pitch[tag]=(.26 if walking else .50)*math.sin(math.tau*u)*arc
   target=l['ankle'].copy();target.x*=.96
-  target.y=(-.77 if l['front'] else .74)+y;target.z+=lift
+  target.y=(-.63 if l['front'] else .74)+y;target.z+=lift
   targets[tag]=target
- return solve_feet(p,targets)
+ return solve_feet(p,targets,paw_pitch)
 
 def blend(a,b,t):
  if t<=0:return a
@@ -163,8 +178,7 @@ def attack(t):
  if t<WINDUP:p=windup(t);distance=0
  elif t<WINDUP+DRIVE:
   age=t-WINDUP
-  # Four bounds with stance speed matched to the twelve-metre charge.
-  p=gait((age/.25)%1,'Charge');distance=DISTANCE*age/DRIVE
+  p=gait((age/GAITS['Charge']['duration'])%1,'Charge');distance=DISTANCE*age/DRIVE
  else:p=recover(t-WINDUP-DRIVE);distance=DISTANCE
  shift=Matrix.Translation((0,-distance,0));return {n:shift@m for n,m in p.items()}
 
@@ -182,7 +196,11 @@ def apply(poses):
   if bone.rotation_quaternion.dot(rotation)<0:rotation.negate()
   bone.location=pos;bone.rotation_quaternion=rotation;bone.scale=scale
 
-specs=[('Idle',2,lambda t:idle(t/2)),('Walk',1.2,lambda t:gait(t/1.2,'Walk')),('Run',.65,lambda t:gait(t/.65,'Run')),('ChargeWindup',.8,windup),('Charge',.25,lambda t:gait(t/.25,'Charge')),('ChargeRecover',.6,recover),('ChargeAttack',2.4,attack),('Defeated',1.8,defeated)]
+def gait_spec(name):
+ duration=GAITS[name]['duration']
+ return name,duration,lambda t:gait(t/duration,name)
+
+specs=[('Idle',2,lambda t:idle(t/2)),gait_spec('Walk'),gait_spec('Run'),('ChargeWindup',.8,windup),gait_spec('Charge'),('ChargeRecover',.6,recover),('ChargeAttack',2.4,attack),('Defeated',1.8,defeated)]
 scene.render.fps=FPS
 for name,duration,sample in specs:
  rig.animation_data.action=None

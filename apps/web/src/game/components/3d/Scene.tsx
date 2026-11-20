@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useSyncExternalStore } from 'react';
+import { survivorsSession } from '../../survivors/session';
 import { Planet } from './Planet';
 import { Stars } from './Stars';
 import { ShootingStars } from './ShootingStars';
@@ -39,12 +40,21 @@ export function Scene({
   active?: boolean;
 }) {
   const coreIntro = useCoreIntro();
+  const onSurface = useSyncExternalStore(
+    survivorsSession.subscribe,
+    survivorsSession.surfaceActive
+  );
+  const bare = isSurviving && onSurface;
 
   return (
     <>
       <Stars />
       <ShootingStars />
-      <Planet intro={coreIntro} interactive={!trooper && !isSurviving} />
+      <Planet
+        intro={coreIntro}
+        interactive={!trooper && !isSurviving}
+        bare={bare}
+      />
       {trooper && !isSurviving ? (
         <Suspense fallback={null}>
           <SectorTrooper active={active && trooperActive} />
@@ -69,7 +79,8 @@ export function Scene({
         onInspect={onInspectBeacon}
         isCoreProjectionSettled={coreIntro.isProjectionSettled}
       />
-      {supplyDropDraw ? (
+      {/* The $STRK Supply Drop would read as a Core Survivors pickup. */}
+      {supplyDropDraw && !bare ? (
         <CoreSupplyDropMarker
           key={`${supplyDropDraw.id.toString()}:${supplyDropDraw.drawCount}:${supplyDropDraw.lastDrawnSectorId}`}
           supplyDrop={supplyDropDraw}

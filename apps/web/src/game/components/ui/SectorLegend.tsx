@@ -1,8 +1,11 @@
+import { Link, useSearchParams } from 'react-router-dom';
+import { SURVIVE_PARAM } from '../../survivors/session';
+import { survivorAudio } from '../../survivors/audio';
 import { useSectors } from '../../contexts/SectorContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { SECTOR_COUNT } from '../../utils/sectorGeometry';
 import { SECTOR_COLORS } from '../../utils/sectorVisuals';
-import { Button, panelStyles } from '../../../ui';
+import { Button, buttonStyles, panelStyles } from '../../../ui';
 
 interface LegendRowProps {
   color: string;
@@ -30,6 +33,7 @@ function LegendRow({ color, label, value, outline = false }: LegendRowProps) {
 }
 
 export function SectorLegend() {
+  const [search] = useSearchParams();
   const { isConnected } = useWallet();
   const {
     isImageUploadMode,
@@ -44,6 +48,10 @@ export function SectorLegend() {
   if (isImageUploadMode) return null;
 
   const neutralCount = SECTOR_COUNT - occupiedSectorIds.length;
+
+  const launch = new URLSearchParams(search);
+  launch.delete('tracking');
+  launch.set(SURVIVE_PARAM, '1');
 
   return (
     <section
@@ -118,6 +126,19 @@ export function SectorLegend() {
           </Button>
         </div>
       )}
+      <Link
+        to={{ search: launch.toString() }}
+        onClick={() => survivorAudio.unlock()}
+        className={buttonStyles({
+          variant: 'outline',
+          tone: 'accent',
+          size: 'sm',
+          fullWidth: true,
+          className: 'mt-3',
+        })}
+      >
+        Play Survivors
+      </Link>
     </section>
   );
 }

@@ -13,9 +13,9 @@ import {
   Bolts,
   Pickups,
   RiggedBatch,
-  Shards,
 } from '../components/3d/CoreSurvivorsParts';
-import { SurvivorTrooper } from '../components/3d/SurvivorTrooper';
+import { OrbitShards } from '../components/3d/OrbitShards';
+import { SurvivorVanguard } from '../components/3d/SurvivorVanguard';
 import { VoltTelegraphs } from '../components/3d/VoltTelegraphs';
 import { SeekerCharacters } from '../components/3d/SeekerCharacters';
 import { WardenCharacters } from '../components/3d/WardenCharacters';
@@ -36,7 +36,7 @@ const GROUND = CORE_RADIUS + 0.006;
 const DEFAULT_FRAMING = { distance: 0.7, height: 0.08 };
 
 const LAYERS: Record<Layer, (registry: Set<Renderer>) => ReactNode> = {
-  trooper: (registry) => <SurvivorTrooper registry={registry} />,
+  vanguard: (registry) => <SurvivorVanguard registry={registry} />,
   mite: (registry) => (
     <>
       <RiggedBatch model="mite" registry={registry} />
@@ -49,7 +49,7 @@ const LAYERS: Record<Layer, (registry: Set<Renderer>) => ReactNode> = {
   warden: (registry) => <WardenCharacters registry={registry} />,
   pickups: (registry) => <Pickups registry={registry} />,
   bolts: (registry) => <Bolts registry={registry} />,
-  shards: (registry) => <Shards registry={registry} />,
+  shards: (registry) => <OrbitShards registry={registry} />,
 };
 
 /**

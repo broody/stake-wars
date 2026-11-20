@@ -152,13 +152,18 @@ describe('Bulwark shield thrust', () => {
     expect(dot(run.player.n, run.player.forward)).toBeCloseTo(0, 8);
   });
 
-  it('does not charge through an invulnerable player or knock them back', () => {
-    const { run } = encounter();
+  it('neither hurts nor throws an invulnerable player, only shoulders them off its landing', () => {
+    const { run, enemy } = encounter();
     run.player.invulnerable = 5;
     const start = { ...run.player.n };
     advance(run, 1);
     expect(run.player.hp).toBe(100);
-    expect(run.player.n).toEqual(start);
+    // The solid body moves them out of where it lands, well short of a throw.
+    const reach = enemy.spec.radius + 0.1;
+    expect(angleBetween(enemy.n, run.player.n) * RADIUS).toBeGreaterThan(
+      reach - 1e-3
+    );
+    expect(angleBetween(start, run.player.n) * RADIUS).toBeLessThan(reach);
   });
 
   it('resists separation and hit knockback while its warning is committed', () => {

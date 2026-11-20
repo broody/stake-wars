@@ -11,7 +11,7 @@ const glb=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,
 const root=glb.scene;const meshes=[],bones=[];root.traverse(o=>{if(o.isSkinnedMesh)meshes.push(o);if(o.isBone)bones.push(o);});
 const mixer=new AnimationMixer(root);
 const actions=Object.fromEntries(glb.animations.map(clip=>{const a=mixer.clipAction(clip);a.setLoop(LoopOnce,1);a.clampWhenFinished=true;a.play();a.paused=true;a.setEffectiveWeight(0);return [clip.name,a];}));
-const expected={Idle:2,Walk:1.2,Run:.65,ChargeWindup:.8,Charge:.25,ChargeRecover:.6,ChargeAttack:2.4,Defeated:1.8};
+const expected={Idle:2,Walk:1.2,Run:.65,ChargeWindup:.8,Charge:.5,ChargeRecover:.6,ChargeAttack:2.4,Defeated:1.8};
 const assert=(value,message)=>{if(!value)throw Error(message);};
 function sample(name,time){for(const a of Object.values(actions))a.setEffectiveWeight(0);const a=actions[name];a.time=time;a.setEffectiveWeight(1);mixer.update(0);root.updateMatrixWorld(true);for(const m of meshes)m.skeleton.update();}
 function snapshot(){return bones.flatMap(b=>b.matrixWorld.elements.slice());}

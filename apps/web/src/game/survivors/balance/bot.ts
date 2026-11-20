@@ -3,6 +3,8 @@
  * only to play the same way every time, so changes to the game show up as
  * changes in how long it lasts. It kites away from contact and hostile fire,
  * steps off marked paths, and collects shards and pickups while it is safe.
+ * Engaging, a shielded hero instead wades into the nearest crowd while its
+ * Aegis holds, and kites to let it refill.
  */
 import {
   chooseOffer,
@@ -12,10 +14,16 @@ import {
   type Offer,
   type Run,
 } from '../sim';
-import { PAIRED_WEAPON, WEAPONS } from '../content';
+import { pairedWeapons, WEAPONS } from '../content';
 import { vec3, type Vec3 } from '../sphere';
 
 export type OfferPolicy = 'greedy' | 'random' | 'first';
+export type Stance = 'kite' | 'engage';
+
+/** The share of the Aegis gauge an engaging bot wants before it closes in. */
+const ENGAGE_SHARE = 0.5;
+/** It closes until the crowd's middle is this near: inside blade reach. */
+const ENGAGE_RANGE = 0.7;
 
 const right = vec3();
 
@@ -40,9 +48,15 @@ function local(run: Run, n: Vec3): [number, number] {
  */
 export function pilot(
   run: Run,
-  hurt = 1 - run.player.hp / run.player.maxHp
+  hurt = 1 - run.player.hp / run.player.maxHp,
+  stance: Stance = 'kite'
 ): MoveInput {
   playerRight(right, run.player);
+  const aegis = run.player.aegis;
+  const engaged =
+    stance === 'engage' &&
+    aegis !== undefined &&
+    aegis.segments >= aegis.max * ENGAGE_SHARE;
   // A slow wander keeps it from parking while nothing is near.
   let x = Math.cos(run.time * 0.31) * 0.25;
   let y = Math.sin(run.time * 0.47) * 0.25;
@@ -52,12 +66,34 @@ export function pilot(
     if (enemy.emerge > 0.3) continue;
     const [ex, ey] = local(run, enemy.n);
     const distance = Math.hypot(ex, ey);
-    const reach = 1.1 + enemy.spec.radius + (enemy.spec.boss ? 1.2 : 0);
+    // Engaged, it only keeps from being swamped; bosses still get room.
+    const reach = enemy.spec.boss
+      ? 2.3 + enemy.spec.radius
+      : (engaged ? 0.35 : 1.1) + enemy.spec.radius;
     if (distance >= reach || distance < 1e-4) continue;
     const push = ((reach - distance) / reach) ** 2 * 3;
     danger += push;
     x -= (ex / distance) * push;
     y -= (ey / distance) * push;
+  }
+
+  if (engaged) {
+    let cx = 0,
+      cy = 0,
+      count = 0;
+    for (const enemy of run.enemies) {
+      if (enemy.emerge > 0.3 || enemy.spec.boss) continue;
+      const [ex, ey] = local(run, enemy.n);
+      if (Math.hypot(ex, ey) > 2) continue;
+      cx += ex;
+      cy += ey;
+      count++;
+    }
+    const middle = Math.hypot(cx / (count || 1), cy / (count || 1));
+    if (count && middle > ENGAGE_RANGE) {
+      x += (cx / count / middle) * 1.2;
+      y += (cy / count / middle) * 1.2;
+    }
   }
 
   // A marching Bulwark wall can't be outrun backwards: head for its nearer
@@ -206,11 +242,15 @@ function offerScore(run: Run, offer: Offer, hurt: number) {
     }
     case 'system': {
       const level = run.systems[offer.id] ?? 0;
-      const weapon = PAIRED_WEAPON[offer.id];
-      const owned = run.weapons.find((w) => w.id === weapon && !w.evolved);
+      const paired = pairedWeapons(offer.id, run.hero);
+      // The furthest-along owned weapon this system would evolve.
+      const owned = run.weapons
+        .filter((w) => paired.includes(w.id) && !w.evolved)
+        .sort((a, b) => b.level - a.level)[0];
       let score = owned ? 17 + (owned.level >= 3 ? 5 : 0) : 8;
-      if (offer.id === 'plating' || offer.id === 'nanorepair')
-        score = Math.max(score, 16 - level);
+      if (offer.id === 'nanorepair') score = Math.max(score, 16 - level);
+      // The engage stance is built on Aegis, so a shielded hero raises it early.
+      if (offer.id === 'aegis') score = Math.max(score, 22 - level);
       return score + (level > 0 ? 1 : 0);
     }
     case 'repair':

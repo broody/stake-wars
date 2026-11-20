@@ -5,10 +5,11 @@
  * run. Add an object here; add a Layer only for a new kind of renderer.
  */
 import { VOLT_LEAP, VOLT_END_TIME } from '../survivors/voltAttack';
-import { SEEKER_ATTACK } from '../survivors/seekerAttack';
+import { SEEKER_ATTACK, SEEKER_GAIT } from '../survivors/seekerAttack';
 import { ENEMIES } from '../survivors/content';
 import {
   applyOffer,
+  shardOrbitRadius,
   spawnEnemy,
   type EnemyKind,
   type ItemKind,
@@ -18,7 +19,7 @@ import { copy, rotateAbout, vec3 } from '../survivors/sphere';
 
 /** A game renderer the stage mounts; see LAYERS in CatalogStage. */
 export type Layer =
-  | 'trooper'
+  | 'vanguard'
   | 'mite'
   | 'lancer'
   | 'bulwark'
@@ -53,8 +54,6 @@ export interface CatalogEntry {
 }
 
 const SMALL = { distance: 0.7, height: 0.08 };
-/** Supply Drops stand on a tether, taller than the other pickups. */
-const DROP_FRAMING = { distance: 0.9, height: 0.12 };
 
 /** Turn every character on the run slowly, to show all sides. */
 function turntable(run: Run, dt: number) {
@@ -92,11 +91,11 @@ function enemy(
   };
 }
 
-/** Show the folding fins through the same attack phases as a live Seeker. */
+/** Let the walk open into a lope before the Seeker commits to its charge. */
 function seeker(): CatalogEntry {
   const entry = enemy(
     'seeker',
-    `Locks on from ${SEEKER_ATTACK.trigger} units away. Wings fold before charging, then reopen.`,
+    `Walks, breaks into a lope, then folds its fins to charge. Locks on from ${SEEKER_ATTACK.trigger} units away.`,
     { distance: 0.8, height: 0.12 },
     'Seeker'
   );
@@ -104,17 +103,24 @@ function seeker(): CatalogEntry {
     turntable(run, dt);
     const unit = run.enemies[0];
     copy(unit.aim, unit.heading);
-    const idle = 2;
+    const approach = 5.4;
     let elapsed =
       run.time %
-      (idle +
+      (approach +
         SEEKER_ATTACK.windup +
         SEEKER_ATTACK.drive +
         SEEKER_ATTACK.recover);
     unit.mode = 'walk';
     unit.modeTime = 0;
-    if (elapsed < idle) return;
-    elapsed -= idle;
+    unit.seekerPace = 0;
+    if (elapsed < approach) {
+      const walk = SEEKER_GAIT.walkSpeed * unit.spec.scale;
+      const acceleration = Math.min(1, Math.max(0, elapsed - 2.6));
+      if (elapsed >= 0.6)
+        unit.seekerPace = walk + (unit.speed - walk) * acceleration;
+      return;
+    }
+    elapsed -= approach;
     for (const [mode, duration] of [
       ['aim', SEEKER_ATTACK.windup],
       ['charge', SEEKER_ATTACK.drive],
@@ -206,7 +212,7 @@ const pickup = (
   name: string,
   detail: string,
   setup: (run: Run) => void,
-  framing = SMALL
+  framing: NonNullable<CatalogEntry['framing']>
 ): CatalogEntry => ({
   id,
   category: 'pickups',
@@ -224,8 +230,9 @@ export const ENTRIES: CatalogEntry[] = [
     category: 'characters',
     group: 'Vanguard',
     name: 'Vanguard',
-    detail: 'You. Fights with the Arc Blade, plus whatever the run hands you.',
-    layers: ['trooper'],
+    detail:
+      'You. Fights with the Arc Blade and can raise the Aegis shield, plus whatever the run hands you.',
+    layers: ['vanguard'],
     setup: () => undefined,
     animate: turntable,
     framing: { distance: 0.95, height: 0.2 },
@@ -269,49 +276,57 @@ export const ENTRIES: CatalogEntry[] = [
     'Warden'
   ),
 
-  pickup(
-    'shard-1',
-    'Shards',
-    'Shard',
-    'Worth 1 XP. Every kill drops one.',
-    gem(1)
-  ),
+  pickup('shard-1', 'Shards', 'Shard', 'Collect to gain 1 XP.', gem(1), {
+    distance: 0.29,
+    height: 0.088,
+  }),
   pickup(
     'shard-2',
     'Shards',
     'Shard · 2–9 XP',
     'Tougher enemies, or shards merged when the field is full.',
-    gem(5)
+    gem(5),
+    { distance: 0.33, height: 0.092 }
   ),
   pickup(
     'shard-10',
     'Shards',
     'Shard · 10+ XP',
     'Bosses and heavily merged shards.',
-    gem(12)
+    gem(12),
+    { distance: 0.39, height: 0.095 }
   ),
   pickup(
     'repair',
-    'Items',
+    'Field gear',
     'Repair',
     'Restores 30 integrity. Drops from kills, at most every 30 s.',
-    item('repair')
+    item('repair'),
+    { distance: 0.45, height: 0.083 }
   ),
   pickup(
     'tractor',
-    'Items',
+    'Field gear',
     'Tractor Pulse',
     'Pulls every shard on the Core to you.',
-    item('tractor')
+    item('tractor'),
+    { distance: 0.44, height: 0.083 }
   ),
-  pickup('emp', 'Items', 'EMP', 'Damages every enemy on screen.', item('emp')),
+  pickup(
+    'emp',
+    'Field gear',
+    'EMP',
+    'Damages every enemy on screen.',
+    item('emp'),
+    { distance: 0.44, height: 0.083 }
+  ),
   pickup(
     'drop',
     'Supply Drops',
     'Supply Drop',
     'One upgrade. Carried by Lancer Captains.',
     item('drop'),
-    DROP_FRAMING
+    { distance: 0.52, height: 0.145 }
   ),
   pickup(
     'drop-large',
@@ -319,7 +334,7 @@ export const ENTRIES: CatalogEntry[] = [
     'Large Supply Drop',
     'Three upgrades. Carried by the Warden.',
     item('drop', true),
-    DROP_FRAMING
+    { distance: 0.68, height: 0.2 }
   ),
 
   {
@@ -355,13 +370,18 @@ export const ENTRIES: CatalogEntry[] = [
       applyOffer(run, { kind: 'weapon', id: 'shards', isNew: true });
       const shards = run.weapons.find((w) => w.id === 'shards')!;
       shards.count = 2;
-      shards.radius = 0.3;
+      shards.radius = shardOrbitRadius(
+        shards.level,
+        false,
+        run.player.area,
+        run.time
+      );
     },
     animate: (run, dt) => {
       const shards = run.weapons.find((w) => w.id === 'shards')!;
       shards.prevAngle = shards.angle;
       shards.angle += dt * 1.6;
     },
-    framing: { distance: 0.9, height: 0.1 },
+    framing: { distance: 3.5, height: 0.1 },
   },
 ];

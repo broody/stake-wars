@@ -46,17 +46,17 @@ The original neutral model is preserved in `revisions/pre-animation/seeker.blend
 | Clip | Seconds | Behavior |
 | --- | ---: | --- |
 | Idle | 2.0 | Planted paws, restrained breathing and sensor-head movement |
-| Walk | 1.2 | Four-beat walk, sequential paw contacts |
-| Run | 0.65 | Diagonal trot with longer stride and lower body |
+| Walk | 1.2 | Four-beat walk with a lateral weight shift and a flat stance paw |
+| Run | 0.65 | Staggered gallop with hind-leg drive, forepaw catch and head stabilization |
 | ChargeWindup | 0.8 | Crouch, rear preload, raised fins, then launch stance |
-| Charge | 0.25 | Seamless, low bounding loop with folding hocks |
+| Charge | 0.5 | Low, extended bound with a short planted push and tucked swing paws |
 | ChargeRecover | 0.6 | Planted brake and return to ready stance |
 | ChargeAttack | 2.4 | Full wind-up, one-second forward drive, and recovery |
 | Defeated | 1.8 | Front-leg buckle, side collapse, folded paws, final hold |
 
 The charge is modeled to match the existing simulation: 0.8 seconds of aim,
 1 second of drive, 0.6 seconds of recovery. ChargeAttack travels 12 source metres
-(3 world units at the recommended 0.25 game scale), holds its landing position,
+(3 world units at the original 0.25 authoring scale), holds its landing position,
 and never snaps back. The looping Charge gait has a matching 12 m/s stance speed.
 
 For gameplay, use ChargeWindup → Charge (loop as needed) → ChargeRecover while
@@ -74,8 +74,8 @@ The runtime uses the separate in-place clips; ChargeAttack stays an authoring pr
 `validate_animation.mjs` samples the exported GLB at 240 Hz, checks ground clearance,
 finite transforms, joint lengths, loop endpoints, charge phase continuity, the
 12-metre displacement, a planted charging paw and the final death hold.
-`animation-validation.json` contains the result. `seeker-charge.mp4` previews the
-complete moving attack; `render_charge_preview.py` renders it through live MCP.
+`animation-validation.json` contains the result. Preview the current gaits in the
+Seeker card at `/play/objects` and the moving charge in the development drill.
 
 The fins now sweep outward by 0.25 radians at rest and during both movement
 gaits, fold to -0.16 radians during windup/charge, and reopen during recovery.

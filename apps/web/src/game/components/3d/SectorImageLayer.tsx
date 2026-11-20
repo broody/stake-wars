@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SectorArtwork } from '../../types';
+import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import { useArtworkAtlas } from '../../hooks/useArtworkAtlas';
 import {
   measureArtworkDetailCandidates,
@@ -16,6 +17,7 @@ import {
 const ATLAS_MAX_COLUMNS = 16;
 const ATLAS_PAGE_CAPACITY = 256;
 const DETAIL_LOD_SAMPLE_INTERVAL_SECONDS = 0.2;
+const WASH_COLOR = new THREE.Color(SECTOR_COLORS.neutral);
 
 /** The Core's shared flip clock (see useFlipProgress). */
 export interface FlipProgressRef {
@@ -70,6 +72,8 @@ const vertexShader = `
 const fragmentShader = `
   uniform sampler2D artworkMap;
   uniform float opacity;
+  uniform vec3 washColor;
+  uniform float wash;
   uniform float flipProgress;
   uniform float flipDirection;
   uniform float visibleOnBothFaces;
@@ -142,7 +146,7 @@ const fragmentShader = `
     vec2 atlasUv = vAtlasRect.xy + uv * vAtlasRect.zw;
     vec4 color = texture2D(artworkMap, atlasUv);
     if (color.a <= 0.001) discard;
-    gl_FragColor = vec4(color.rgb, color.a * opacity);
+    gl_FragColor = vec4(mix(color.rgb, washColor, wash), color.a * opacity);
   }
 `;
 
@@ -159,6 +163,7 @@ function ProjectedArtworkMesh({
   presence,
   relief,
   opacity = 1,
+  wash = 0,
   renderOrder = 3,
   atlasColumns = 1,
   atlasRows = 1,
@@ -175,6 +180,7 @@ function ProjectedArtworkMesh({
   presence?: ArtworkPresence;
   relief?: ArtworkRelief;
   opacity?: number;
+  wash?: number;
   renderOrder?: number;
   atlasColumns?: number;
   atlasRows?: number;
@@ -200,6 +206,8 @@ function ProjectedArtworkMesh({
         uniforms: {
           artworkMap: { value: texture },
           opacity: { value: opacity },
+          washColor: { value: WASH_COLOR },
+          wash: { value: wash },
           flipProgress: { value: flipProgress.current },
           flipDirection: { value: flipped ? 1 : -1 },
           visibleOnBothFaces: { value: visibleOnBothFaces ? 1 : 0 },
@@ -214,7 +222,8 @@ function ProjectedArtworkMesh({
         fragmentShader,
         side: THREE.DoubleSide,
         transparent: opacity < 1,
-        depthWrite: opacity >= 1,
+        // Washed art sits under the grid and ground effects drawn after it.
+        depthWrite: opacity >= 1 && wash === 0,
         polygonOffset: true,
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
@@ -226,6 +235,7 @@ function ProjectedArtworkMesh({
       opacity,
       texture,
       visibleOnBothFaces,
+      wash,
       waveDelay,
       waveDistanceRange,
       waveOrigin,
@@ -262,6 +272,7 @@ function ArtworkAtlasPage({
   visibleOnBothFaces,
   presence,
   relief,
+  wash,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -274,6 +285,7 @@ function ArtworkAtlasPage({
   visibleOnBothFaces: boolean;
   presence?: ArtworkPresence;
   relief?: ArtworkRelief;
+  wash?: number;
   onLoadingChange?: (pageId: string, loading: boolean) => void;
 }) {
   const pageId = artworks[0].id;
@@ -313,6 +325,7 @@ function ArtworkAtlasPage({
       visibleOnBothFaces={visibleOnBothFaces}
       presence={presence}
       relief={relief}
+      wash={wash}
       atlasColumns={columns}
       atlasRows={rows}
     />
@@ -331,6 +344,7 @@ export function SectorImageLayer({
   visibleOnBothFaces = false,
   presence,
   relief,
+  wash,
   onLoadingChange,
 }: {
   artworks: readonly SectorArtwork[];
@@ -344,6 +358,11 @@ export function SectorImageLayer({
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
   relief?: ArtworkRelief;
+  /**
+   * How far the art fades toward the bare Core's color, 0–1. Washed art also
+   * leaves the grid and ground effects drawn over it.
+   */
+  wash?: number;
   onLoadingChange?: (loading: boolean) => void;
 }) {
   const loadingPageIdsRef = useRef(new Set<string>());
@@ -386,6 +405,7 @@ export function SectorImageLayer({
           visibleOnBothFaces={visibleOnBothFaces}
           presence={presence}
           relief={relief}
+          wash={wash}
           onLoadingChange={reportPageLoading}
         />
       ))}
@@ -404,6 +424,7 @@ export function SectorDetailImageLayer({
   visibleOnBothFaces = false,
   presence,
   relief,
+  wash,
 }: {
   artwork: SectorArtwork;
   heights: ReadonlyMap<number, number>;
@@ -415,6 +436,7 @@ export function SectorDetailImageLayer({
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
   relief?: ArtworkRelief;
+  wash?: number;
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const slots = useMemo(() => [{ artwork, column: 0, row: 0 }], [artwork]);
@@ -448,6 +470,7 @@ export function SectorDetailImageLayer({
       visibleOnBothFaces={visibleOnBothFaces}
       presence={presence}
       relief={relief}
+      wash={wash}
       renderOrder={4}
       atlasColumns={1}
       atlasRows={1}
@@ -467,6 +490,7 @@ export function SectorDetailImageLayers({
   visibleOnBothFaces = false,
   presence,
   relief,
+  wash,
 }: {
   artworks: readonly SectorArtwork[];
   priorityArtworkIds: readonly string[];
@@ -479,6 +503,7 @@ export function SectorDetailImageLayers({
   visibleOnBothFaces?: boolean;
   presence?: ArtworkPresence;
   relief?: ArtworkRelief;
+  wash?: number;
 }) {
   const { camera, gl } = useThree();
   const [detailArtworkIds, setDetailArtworkIds] = useState<string[]>([]);
@@ -536,6 +561,7 @@ export function SectorDetailImageLayers({
         visibleOnBothFaces={visibleOnBothFaces}
         presence={presence}
         relief={relief}
+        wash={wash}
       />
     );
   });

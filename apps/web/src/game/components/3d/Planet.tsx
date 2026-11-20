@@ -56,6 +56,9 @@ const TENURE_CLOCK_INTERVAL_MS = 60 * 60 * 1_000;
 const SECTOR_GRID_FULL_DISTANCE = 10;
 const SECTOR_GRID_FADE_DISTANCE = 22;
 const FLAT_SECTOR_HEIGHTS = new Map<number, number>();
+/** On the bare Core, Sector art fades halfway to the Core's color. */
+const BARE_ART_WASH = 0.5;
+const NO_ARTWORK_IDS: readonly string[] = [];
 const CORE_WAVE_FLIP_DURATION_MS = SECTOR_FLIP_DURATION_SECONDS * 1_000;
 const RELIEF_TRANSITION_SECONDS = 0.55;
 // Relief advances before any layer reads it (R3F runs frame callbacks in
@@ -1697,12 +1700,18 @@ export function SectorOwnershipLayers({
 interface PlanetProps {
   intro: CoreIntro;
   interactive?: boolean;
+  /**
+   * Core Survivors plays on the bare Core: the sphere, its grid and Sector
+   * art at half strength, without ownership, relief or selection.
+   */
+  bare?: boolean;
   tenureExtrusionEnabled?: boolean;
 }
 
 export function Planet({
   intro,
   interactive = true,
+  bare = false,
   tenureExtrusionEnabled = DEFAULT_TENURE_EXTRUSION_ENABLED,
 }: PlanetProps) {
   const { camera } = useThree();
@@ -2136,130 +2145,151 @@ export function Planet({
         />
       </mesh>
 
+      {/* On the bare Core the art shows on either face, washed toward the
+          Core's color, with the grid and the run's ground effects over it. */}
       <SectorImageLayer
         artworks={artworks}
         heights={imageHeights}
         flipped={coreFlipped}
         flipProgress={imageFlipProgress}
-        visible={projectionSurfaceVisible}
-        visibleOnBothFaces={isImageUploadMode}
-        presence={opponentArtworkPresence}
-        relief={artworkRelief}
+        visible={projectionSurfaceVisible || bare}
+        visibleOnBothFaces={isImageUploadMode || bare}
+        presence={bare ? undefined : opponentArtworkPresence}
+        relief={bare ? undefined : artworkRelief}
+        wash={bare ? BARE_ART_WASH : undefined}
         waveOrigin={flipWaveOrigin}
         waveDistanceRange={flipWaveDistanceRange}
         waveDelay={flipWaveDelay}
         onLoadingChange={setThumbnailAtlasLoading}
       />
 
-      {shouldShowProjection && projectionSurfaceVisible ? (
+      {bare ? (
+        // Full-resolution art for the Sectors nearest the camera.
         <SectorDetailImageLayers
-          artworks={detailArtworks}
-          priorityArtworkIds={priorityDetailArtworkIds}
-          heights={imageHeights}
-          flipped={coreFlipped}
-          flipProgress={imageFlipProgress}
-          visibleOnBothFaces={isImageUploadMode}
-          presence={opponentArtworkPresence}
-          relief={artworkRelief}
-          waveOrigin={flipWaveOrigin}
-          waveDistanceRange={flipWaveDistanceRange}
-          waveDelay={flipWaveDelay}
-        />
-      ) : null}
-
-      {isImageUploadMode && placementArtwork ? (
-        <PlacementPreviewLayer
-          artwork={placementArtwork}
+          artworks={artworks}
+          priorityArtworkIds={NO_ARTWORK_IDS}
           heights={imageHeights}
           flipped={coreFlipped}
           flipProgress={imageFlipProgress}
           visibleOnBothFaces
+          wash={BARE_ART_WASH}
           waveOrigin={flipWaveOrigin}
           waveDistanceRange={flipWaveDistanceRange}
           waveDelay={flipWaveDelay}
         />
-      ) : null}
-
-      <SectorOwnershipLayers
-        ownedSectorIds={ownedSectorIds}
-        opponentSectorIds={opponentSectorIds}
-        sectorOwnerGroups={sectorOwnerGroups}
-        sectorHeights={sectorHeights}
-        extrusionHeights={extrusionHeights}
-        flatHeights={flatSectorHeights}
-        stakedHeights={stakedSectorHeights}
-        reliefAnimation={reliefAnimation}
-        flipped={coreFlipped}
-        interactive={!isImageUploadMode}
-        waveOrigin={flipWaveOrigin}
-        waveDistanceRange={flipWaveDistanceRange}
-        waveDelay={flipWaveDelay}
-        loadRevealAnimation={sectorLoadRevealAnimation}
-        opponentsVisible={!showsOnlyOwnedSectors}
-        opponentRevealAnimation={opponentRevealAnimation}
-        onClickSector={handleSectorClick}
-        onDoubleClickSector={handleSectorDoubleClick}
-        onHoverSector={handleSectorHover}
-        onPointerOut={() => setHoveredSectorId(null)}
-      />
-
-      {hoveredSectorId !== null && !isHoveredSectorActive && (
-        <SectorLayer
-          sectorIds={hoveredSectorIds}
-          color={SECTOR_COLORS.hover}
-          opacity={0.12}
-          scale={1.007}
-          edges
-          edgeOpacity={0.62}
-          heights={sectorHeights}
-        />
-      )}
-
-      {placementDraft === null ? (
+      ) : (
         <>
-          <SectorLayer
-            sectorIds={activeSectorIds}
-            color={SECTOR_COLORS.selected}
-            opacity={isImageUploadMode ? 0.28 : 0.2}
-            scale={isImageUploadMode ? 1.006 : 1.01}
-            heights={sectorHeights}
-            renderOrder={isImageUploadMode ? 9 : undefined}
+          {shouldShowProjection && projectionSurfaceVisible ? (
+            <SectorDetailImageLayers
+              artworks={detailArtworks}
+              priorityArtworkIds={priorityDetailArtworkIds}
+              heights={imageHeights}
+              flipped={coreFlipped}
+              flipProgress={imageFlipProgress}
+              visibleOnBothFaces={isImageUploadMode}
+              presence={opponentArtworkPresence}
+              relief={artworkRelief}
+              waveOrigin={flipWaveOrigin}
+              waveDistanceRange={flipWaveDistanceRange}
+              waveDelay={flipWaveDelay}
+            />
+          ) : null}
+
+          {isImageUploadMode && placementArtwork ? (
+            <PlacementPreviewLayer
+              artwork={placementArtwork}
+              heights={imageHeights}
+              flipped={coreFlipped}
+              flipProgress={imageFlipProgress}
+              visibleOnBothFaces
+              waveOrigin={flipWaveOrigin}
+              waveDistanceRange={flipWaveDistanceRange}
+              waveDelay={flipWaveDelay}
+            />
+          ) : null}
+
+          <SectorOwnershipLayers
+            ownedSectorIds={ownedSectorIds}
+            opponentSectorIds={opponentSectorIds}
+            sectorOwnerGroups={sectorOwnerGroups}
+            sectorHeights={sectorHeights}
+            extrusionHeights={extrusionHeights}
+            flatHeights={flatSectorHeights}
+            stakedHeights={stakedSectorHeights}
+            reliefAnimation={reliefAnimation}
+            flipped={coreFlipped}
+            interactive={!isImageUploadMode}
+            waveOrigin={flipWaveOrigin}
+            waveDistanceRange={flipWaveDistanceRange}
+            waveDelay={flipWaveDelay}
+            loadRevealAnimation={sectorLoadRevealAnimation}
+            opponentsVisible={!showsOnlyOwnedSectors}
+            opponentRevealAnimation={opponentRevealAnimation}
+            onClickSector={handleSectorClick}
+            onDoubleClickSector={handleSectorDoubleClick}
+            onHoverSector={handleSectorHover}
+            onPointerOut={() => setHoveredSectorId(null)}
           />
 
-          {activeSectorIds.length > 0 ? (
-            <ThickSectorBorderLayer
-              sectorIds={activeSectorIds}
-              color={SECTOR_COLORS.selected}
-              scale={1.014}
+          {hoveredSectorId !== null && !isHoveredSectorActive && (
+            <SectorLayer
+              sectorIds={hoveredSectorIds}
+              color={SECTOR_COLORS.hover}
+              opacity={0.12}
+              scale={1.007}
+              edges
+              edgeOpacity={0.62}
               heights={sectorHeights}
+            />
+          )}
+
+          {placementDraft === null ? (
+            <>
+              <SectorLayer
+                sectorIds={activeSectorIds}
+                color={SECTOR_COLORS.selected}
+                opacity={isImageUploadMode ? 0.28 : 0.2}
+                scale={isImageUploadMode ? 1.006 : 1.01}
+                heights={sectorHeights}
+                renderOrder={isImageUploadMode ? 9 : undefined}
+              />
+
+              {activeSectorIds.length > 0 ? (
+                <ThickSectorBorderLayer
+                  sectorIds={activeSectorIds}
+                  color={SECTOR_COLORS.selected}
+                  scale={1.014}
+                  heights={sectorHeights}
+                />
+              ) : null}
+            </>
+          ) : null}
+
+          {isSectorInteractionLocked && pendingStandardSectorIds.length > 0 ? (
+            <AnimatedStripeSectorLayer
+              sectorIds={pendingStandardSectorIds}
+              heights={sectorHeights}
+              color={SECTOR_COLORS.transaction}
+              baseOpacity={0.08}
+              stripeOpacity={0.88}
+              stripeAngleDegrees={315}
+              scale={1.016}
+            />
+          ) : null}
+
+          {isSectorInteractionLocked && pendingTakeoverSectorIds.length > 0 ? (
+            <AnimatedStripeSectorLayer
+              sectorIds={pendingTakeoverSectorIds}
+              heights={sectorHeights}
+              color={SECTOR_COLORS.takeover}
+              baseOpacity={0}
+              stripeOpacity={0.5}
+              stripeAngleDegrees={45}
+              scale={1.016}
             />
           ) : null}
         </>
-      ) : null}
-
-      {isSectorInteractionLocked && pendingStandardSectorIds.length > 0 ? (
-        <AnimatedStripeSectorLayer
-          sectorIds={pendingStandardSectorIds}
-          heights={sectorHeights}
-          color={SECTOR_COLORS.transaction}
-          baseOpacity={0.08}
-          stripeOpacity={0.88}
-          stripeAngleDegrees={315}
-          scale={1.016}
-        />
-      ) : null}
-
-      {isSectorInteractionLocked && pendingTakeoverSectorIds.length > 0 ? (
-        <AnimatedStripeSectorLayer
-          sectorIds={pendingTakeoverSectorIds}
-          heights={sectorHeights}
-          color={SECTOR_COLORS.takeover}
-          baseOpacity={0}
-          stripeOpacity={0.5}
-          stripeAngleDegrees={45}
-          scale={1.016}
-        />
-      ) : null}
+      )}
     </group>
   );
 }

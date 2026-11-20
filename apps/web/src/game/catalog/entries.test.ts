@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { voltWarningCount, VOLT_LEAP } from '../survivors/voltAttack';
+import { SEEKER_GAIT } from '../survivors/seekerAttack';
 import { ENEMIES } from '../survivors/content';
 import { createRun, type Run } from '../survivors/sim';
 import { CATEGORIES, ENTRIES, type Layer } from './entries';
 
 /** What each layer draws from, so an entry can't list a layer it never feeds. */
 const FEEDS: Record<Layer, (run: Run) => boolean> = {
-  trooper: () => true,
+  vanguard: () => true,
   mite: (run) => run.enemies.some((e) => e.spec.model === 'mite'),
   lancer: (run) => run.enemies.some((e) => e.spec.model === 'lancer'),
   bulwark: (run) => run.enemies.some((e) => e.spec.model === 'bulwark'),
@@ -34,22 +35,25 @@ describe('object catalog', () => {
     }
   );
 
-  it('previews the Seeker at game scale through idle, windup, charge and recovery', () => {
+  it('previews the grounded walk, chase, windup, charge and recovery at game scale', () => {
     const entry = ENTRIES.find((e) => e.id === 'seeker')!;
     const run = createRun(7, 5.006);
     entry.setup(run);
     const unit = run.enemies[0];
     expect(unit.spec.scale).toBe(ENEMIES.seeker.scale);
-    for (const [time, mode] of [
-      [1, 'walk'],
-      [2.4, 'aim'],
-      [3.2, 'charge'],
-      [4, 'recover'],
-      [4.5, 'walk'],
+    for (const [time, mode, pace] of [
+      [0.3, 'walk', 0],
+      [1, 'walk', SEEKER_GAIT.walkSpeed * unit.spec.scale],
+      [4.5, 'walk', unit.speed],
+      [5.8, 'aim', 0],
+      [6.6, 'charge', 0],
+      [7.4, 'recover', 0],
+      [8, 'walk', 0],
     ] as const) {
       run.time = time;
       entry.animate!(run, 1 / 60);
       expect(unit.mode).toBe(mode);
+      expect(unit.seekerPace).toBeCloseTo(pace);
       expect(unit.aim).toEqual(unit.heading);
     }
   });

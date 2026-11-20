@@ -1,5 +1,9 @@
+import { OPENING_CAMERA, type GlobeView } from './openingCamera';
 import { DEATH_RESULTS_DELAY } from './deathCamera';
+import { FollowOrbit } from './followCamera';
 import { pointAt, vec3 } from './sphere';
+import { ENEMY_TELEGRAPHS } from './renderFrame';
+import { HEROES, type HeroId } from './content';
 import {
   applyOffer,
   chooseOffer,
@@ -15,6 +19,19 @@ import {
 } from './sim';
 
 export const SURVIVE_PARAM = 'survive';
+/** `&hero=trooper` plays the pre-class Sector Trooper, for comparison. */
+export const HERO_PARAM = 'hero';
+const DEFAULT_HERO: HeroId = 'vanguard';
+
+function heroFrom(params: URLSearchParams): HeroId {
+  const value = params.get(HERO_PARAM);
+  return value && value in HEROES ? (value as HeroId) : DEFAULT_HERO;
+}
+
+/** The hero the page asks for; a run started now plays it. */
+export function currentHero(): HeroId {
+  return heroFrom(new URLSearchParams(location.search));
+}
 
 /** `/play?survive=1` turns the Core into a Core Survivors run. */
 export function isSurviveMode(params: URLSearchParams) {
@@ -36,8 +53,16 @@ export class SurvivorsSession {
   readonly keys = new Set<string>();
   /** Touch or mouse joystick, −1…1 on each axis (screen y points down). */
   readonly stick = { x: 0, y: 0 };
+  readonly cameraOrbit = new FollowOrbit();
   private readonly input: MoveInput = { x: 0, y: 0 };
   paused = false;
+  opening = false;
+  globeView?: GlobeView;
+  /** The original globe stays on screen while the hero is loading and falling. */
+  surfaceActive = () =>
+    !!this.run && (!this.opening || this.openingAge >= OPENING_CAMERA.impact);
+  /** Seconds of idle animation played before combat (including a shortened intro). */
+  openingAge = 0;
   /** Fraction of a tick since the last one, for interpolation. */
   alpha = 0;
   private accumulator = 0;
@@ -45,8 +70,16 @@ export class SurvivorsSession {
   private version = 0;
   private readonly listeners = new Set<() => void>();
 
-  start(groundRadius: number, seed = Math.floor(Math.random() * 2 ** 31)) {
-    this.run = createRun(seed, groundRadius);
+  start(
+    groundRadius: number,
+    seed = Math.floor(Math.random() * 2 ** 31),
+    globeView = this.globeView
+  ) {
+    this.globeView = globeView;
+    this.cameraOrbit.reset();
+    this.run = createRun(seed, groundRadius, currentHero(), {
+      landing: globeView,
+    });
     const preview = import.meta.env.DEV
       ? new URLSearchParams(location.search).get('survivePreview')
       : null;
@@ -143,6 +176,11 @@ export class SurvivorsSession {
       run.eventIndex = 1000;
       run.player.hp = 1;
       run.player.invulnerable = 1.2;
+      // Aegis would take the hit; leave it broken so the fall comes at once.
+      if (run.player.aegis) {
+        run.player.aegis.segments = 0;
+        run.player.aegis.delay = Infinity;
+      }
       run.weapons[0].cooldown = 10;
       const enemy = spawnEnemy(run, 'mite', { ...run.player.n });
       enemy.speed = 0;
@@ -177,8 +215,7 @@ export class SurvivorsSession {
       enemy.cooldown = 4;
       this.run.banner = {
         title: 'Bulwark drill',
-        detail:
-          'Sidestep the orange lane. Weapons are disabled in this local preview.',
+        detail: `${ENEMY_TELEGRAPHS ? 'Sidestep the orange lane' : 'Sidestep the shield thrust'}. Weapons are disabled in this local preview.`,
         tone: 'danger',
         age: 0,
       };
@@ -266,8 +303,19 @@ export class SurvivorsSession {
       };
     }
     this.paused = false;
+    this.openingAge = 0;
+    this.opening = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
+      .matches;
+    this.keys.clear();
+    this.stick.x = this.stick.y = 0;
     this.accumulator = 0;
     this.alpha = 0;
+    this.notify();
+  }
+
+  skipOpening() {
+    if (!this.opening) return;
+    this.opening = false;
     this.notify();
   }
 
@@ -301,7 +349,33 @@ export class SurvivorsSession {
       return;
     }
     this.readInput();
-    this.accumulator += Math.min(Math.max(delta, 0), 0.25);
+    const elapsed = Math.min(Math.max(delta, 0), 0.25);
+    if (this.opening) {
+      if (this.input.x !== 0 || this.input.y !== 0) this.skipOpening();
+      else {
+        const before = this.openingAge;
+        this.openingAge = Math.min(
+          OPENING_CAMERA.duration,
+          this.openingAge + elapsed
+        );
+        if (
+          before < OPENING_CAMERA.impact &&
+          this.openingAge >= OPENING_CAMERA.impact
+        ) {
+          run.cues.push({
+            id: 'strike',
+            n: run.player.n,
+            rate: 0.88,
+            at: null,
+          });
+          this.notify();
+        }
+        if (this.openingAge >= OPENING_CAMERA.duration) this.skipOpening();
+      }
+      // Give the scene a frame at the follow camera to measure the spawn bounds.
+      return;
+    }
+    this.accumulator += elapsed;
     let steps = 0;
     while (this.accumulator >= STEP && steps < 8) {
       tick(run, STEP, this.input);
@@ -332,8 +406,11 @@ export class SurvivorsSession {
       x = this.stick.x;
       y = -this.stick.y;
     }
-    this.input.x = x;
-    this.input.y = y;
+    // Convert screen-relative steering into the transported simulation frame.
+    const cos = Math.cos(this.cameraOrbit.yaw),
+      sin = Math.sin(this.cameraOrbit.yaw);
+    this.input.x = x * cos - y * sin;
+    this.input.y = x * sin + y * cos;
   }
 
   choose(index: number) {

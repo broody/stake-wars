@@ -184,26 +184,8 @@ const sound = (seconds, build) => () => {
 // ---------- Recipes ----------
 
 const RECIPES = {
-  'shard-hit': sound(0.14, (o) => {
-    for (const [f, a] of [
-      [2800, 0.5],
-      [4210, 0.3],
-      [5600, 0.15],
-    ])
-      layer(o, {
-        dur: 0.13,
-        wave: 'sine',
-        freq: constant(f),
-        amp: (t) => perc(0.001, 0.035)(t) * a,
-      });
-    layer(o, {
-      dur: 0.01,
-      hp: constant(6000),
-      amp: (t) => perc(0.001, 0.004)(t) * 0.4,
-    });
-  }),
-  strike: sound(1.1, (o) => {
-    // A short fall from orbit, then the impact.
+  strike: sound(2.2, (o) => {
+    // A short fall from orbit, then the impact, ringing out in a tone.
     layer(o, {
       dur: 0.08,
       wave: 'saw',
@@ -233,6 +215,38 @@ const RECIPES = {
       gate: 300,
       amp: (t) => perc(0.002, 0.09)(t) * 0.45,
       seed: 4,
+    });
+    // The tone: a low A power chord that swells in under the impact, crests
+    // once the debris has cleared, and rings out alone. Driven with the rest,
+    // so the detuned saws saturate into a cinematic braam.
+    const crest = 0.45;
+    const tone = (t) =>
+      (t < crest ? (t / crest) ** 2 : Math.exp(-(t - crest) / 0.6)) *
+      Math.min(1, (2.05 - t) / 0.4);
+    const sweep = (t) =>
+      t < crest
+        ? 300 * Math.pow(1400 / 300, t / crest)
+        : 250 + 1150 * Math.exp(-(t - crest) / 0.5);
+    for (const [f, a] of [
+      [54.7, 0.2],
+      [55.3, 0.2],
+      [82.4, 0.12],
+      [110.2, 0.1],
+    ])
+      layer(o, {
+        at: 0.1,
+        dur: 2.05,
+        wave: 'saw',
+        freq: constant(f),
+        lp: sweep,
+        amp: (t) => tone(t) * a,
+      });
+    layer(o, {
+      at: 0.1,
+      dur: 2.05,
+      wave: 'sine',
+      freq: constant(55),
+      amp: (t) => tone(t) * 0.45,
     });
     drive(o, 1.6);
     reverb(o, 0.25);
@@ -411,25 +425,84 @@ const RECIPES = {
     drive(o, 1.5);
     reverb(o, 0.2);
   }),
-  shard: sound(0.13, (o) => {
+  emp: sound(3.1, (o) => {
+    // The short breaker snap marks the flash before the sub-bass takes over.
     layer(o, {
-      dur: 0.12,
-      wave: 'sine',
-      freq: constant(1320),
-      amp: perc(0.002, 0.035),
+      dur: 0.085,
+      seed: 37,
+      bp: glide(2500, 580, 0.044),
+      amp: (t) => 0.65 * perc(0.001, 0.011)(t),
     });
+    const plunge = (t) =>
+      34 + 52 * Math.exp(-t / 0.047) + 20 * Math.exp(-t / 0.68);
     layer(o, {
-      dur: 0.1,
+      dur: 2.85,
       wave: 'sine',
-      freq: constant(1980),
-      amp: (t) => perc(0.002, 0.03)(t) * 0.4,
+      freq: plunge,
+      amp: (t) => 1.15 * perc(0.006, 0.55)(t),
     });
+    // Follow the sub with an octave of electrical grit so the downward bend
+    // still reads through the mid-bass on a small speaker.
     layer(o, {
-      dur: 0.08,
+      dur: 1.85,
+      wave: 'saw',
+      freq: (t) => 2 * plunge(t),
+      lp: glide(820, 195, 0.65),
+      amp: (t) => 0.58 * perc(0.009, 0.41)(t),
+    });
+    // A slower returning surge swells below the first, leaving a low tail.
+    layer(o, {
+      at: 0.42,
+      dur: 2.65,
       wave: 'triangle',
-      freq: constant(2640),
-      amp: (t) => perc(0.002, 0.02)(t) * 0.15,
+      freq: glide(54, 32, 1.35),
+      amp: (t) => 0.64 * perc(0.16, 0.57)(t),
     });
+    for (const [at, cutoff, gain, decay, seed] of [
+      [0.012, 1800, 1.85, 0.23, 41],
+      [0.23, 900, 1.5, 0.41, 67],
+      [0.61, 440, 1.4, 0.48, 73],
+    ]) {
+      layer(o, {
+        at,
+        dur: 2.95 - at,
+        seed,
+        hp: constant(50),
+        lp: glide(cutoff, 145, 0.74),
+        amp: (t) => perc(0.018, decay)(t) * gain,
+      });
+    }
+    drive(o, 1.3);
+    reverb(o, 0.14);
+  }),
+  // A crystal seating in its socket: a dry contact, then a hollow glass note.
+  // The upper modes die first so even an octave-up collection streak stays soft.
+  shard: sound(0.15, (o) => {
+    layer(o, {
+      dur: 0.027,
+      bp: glide(1700, 900, 0.018),
+      seed: 29,
+      amp: (t) => 0.55 * perc(0.0015, 0.005)(t),
+    });
+    layer(o, {
+      dur: 0.045,
+      wave: 'sine',
+      freq: glide(320, 210, 0.016),
+      amp: (t) => 0.46 * perc(0.002, 0.009)(t),
+    });
+    for (const [hz, gain, decay] of [
+      [587, 0.75, 0.029],
+      [1364, 0.26, 0.016],
+      [2147, 0.1, 0.011],
+    ]) {
+      layer(o, {
+        at: 0.006,
+        dur: 0.144,
+        wave: 'sine',
+        freq: glide(hz * 0.91, hz, 0.009),
+        amp: (t) => gain * perc(0.0025, decay)(t),
+      });
+    }
   }),
   hurt: sound(0.36, (o) => {
     layer(o, {
@@ -555,6 +628,18 @@ const SAMPLES = {
       { file: 'assets/sfx-source/railstorm.wav', from: 0, seconds: 0.16 },
     ],
   },
+  // Orbit Shard hits, generated with ElevenLabs sound effects: "A glowing
+  // sci-fi energy blade slicing through an alien creature: a sharp, fast,
+  // punchy and weighty "shwick" cut with a crisp energy zap. One single very
+  // short hit, the impact first, dry and tight, no tail, no ringing, no
+  // metallic tink, no voices, no music." (0.5 s, influence 0.7). Each take is
+  // cut to its first 0.3 s, where it has faded 20 dB, so rapid hits do not
+  // stack long tails.
+  'shard-hit': [1, 2, 3].map((take) => ({
+    file: `assets/sfx-source/shard-hit-${take}.wav`,
+    from: 0,
+    seconds: 0.3,
+  })),
   // Three lightsaber swings, the third an upward swing.
   blade: [
     'assets/sfx-source/blade-1.wav',

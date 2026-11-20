@@ -3,7 +3,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { enemyDeathOpacity } from '../../utils/enemyOpacity';
 import { SeekerAnimation } from '../../utils/seekerAnimation';
-import { chord, lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
+import { lerpNormal, vec3, type Vec3 } from '../../survivors/sphere';
 import { seekerAttackPose } from '../../survivors/seekerAttack';
 import type { Run } from '../../survivors/sim';
 import { SIM_HZ } from '../../survivors/sim';
@@ -18,12 +18,15 @@ import {
 export function SeekerCharacters({ registry }: { registry: Set<Renderer> }) {
   const { scene, animations } = useGLTF('/models/hollow-legion/seeker.glb');
   const previousRun = useRef<Run | null>(null);
+  const lastTime = useRef(0);
   const group = useRef<THREE.Group>(null);
   const actors = useRef(new Map<number, SeekerAnimation>());
   const scratch = useRef({
     normal: vec3(),
     up: new THREE.Vector3(),
     facing: new THREE.Vector3(),
+    previousFacing: new THREE.Vector3(),
+    axis: new THREE.Vector3(),
   });
   useLayoutEffect(() => {
     const map = actors.current;
@@ -42,28 +45,49 @@ export function SeekerCharacters({ registry }: { registry: Set<Renderer> }) {
       previousRun.current = run;
     }
     const keep = new Set<number>();
-    const { normal, up, facing } = scratch.current;
+    const { normal, up, facing, previousFacing, axis } = scratch.current;
+    const time = Math.max(0, run.time - (1 - alpha) / SIM_HZ);
+    const maxTurn = 9 * Math.max(0, time - lastTime.current);
+    lastTime.current = time;
     const get = (
       id: number,
       n: Vec3,
       heading: Vec3,
       scale: number,
-      lift = 0
+      lift = 0,
+      steer = false
     ) => {
       keep.add(id);
       let actor = actors.current.get(id);
       if (!actor) {
-        actor = new SeekerAnimation(scene, animations);
+        actor = new SeekerAnimation(
+          scene,
+          animations,
+          (id * 0.61803398875) % 1
+        );
         actor.root.name = `Seeker ${id}`;
         actors.current.set(id, actor);
         container.add(actor.root);
+        steer = false;
       }
       actor.root.position.copy(toVector(up, n)).multiplyScalar(radius + lift);
-      surfaceRotation(actor.root.quaternion, up, toVector(facing, heading));
+      toVector(facing, heading);
+      if (steer) {
+        // Turn about the local ground normal so all four paws stay on the Core.
+        previousFacing.set(0, 0, 1).applyQuaternion(actor.root.quaternion);
+        previousFacing.projectOnPlane(up).normalize();
+        const yaw = Math.atan2(
+          axis.crossVectors(previousFacing, facing).dot(up),
+          previousFacing.dot(facing)
+        );
+        facing
+          .copy(previousFacing)
+          .applyAxisAngle(up, THREE.MathUtils.clamp(yaw, -maxTurn, maxTurn));
+      }
+      surfaceRotation(actor.root.quaternion, up, facing);
       actor.root.scale.setScalar(scale);
       return actor;
     };
-    const time = Math.max(0, run.time - (1 - alpha) / SIM_HZ);
     for (const enemy of run.enemies) {
       if (enemy.spec.model !== 'seeker' || enemy.dead) continue;
       const lift = emergeLift(
@@ -86,7 +110,8 @@ export function SeekerCharacters({ registry }: { registry: Set<Renderer> }) {
         normal,
         attack ? enemy.aim : enemy.heading,
         enemy.spec.scale,
-        lift ?? 0
+        lift ?? 0,
+        enemy.emerge <= 0 && (!attack || attack.clip === 'ChargeWindup')
       );
       // Still under its flipping Sector.
       actor.root.visible = lift !== null;
@@ -94,8 +119,7 @@ export function SeekerCharacters({ registry }: { registry: Set<Renderer> }) {
         time,
         opacity: enemyDeathOpacity(run, enemy.n, enemy.spec.radius),
         scale: enemy.spec.scale,
-        speed:
-          enemy.emerge > 0 ? 0 : chord(enemy.prev, enemy.n) * radius * SIM_HZ,
+        speed: enemy.emerge > 0 ? 0 : (enemy.seekerPace ?? 0),
         attack,
         flash: enemy.flash > 0,
       });

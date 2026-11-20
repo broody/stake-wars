@@ -36,6 +36,18 @@ const GLYPHS: Record<WeaponId | SystemId | 'repair' | 'sharpen', ReactNode> = {
       <circle cx="12" cy="12" r="9" strokeDasharray="2 3" />
     </>
   ),
+  crescent: (
+    <>
+      <path d="M5 8c4 1 10 1 14 0" />
+      <path d="M7 13c3 .8 7 .8 10 0M9 18c2 .5 4 .5 6 0" />
+    </>
+  ),
+  rebuke: (
+    <>
+      <path d="M12 6 17 8.5v4c0 2.5-2 4-5 5-3-1-5-2.5-5-5v-4z" />
+      <path d="M3 12a9 9 0 0 1 2.5-6.2M21 12a9 9 0 0 0-2.5-6.2" />
+    </>
+  ),
   force: <path d="M12 4 20 19H4z" />,
   overclock: (
     <>
@@ -45,7 +57,6 @@ const GLYPHS: Record<WeaponId | SystemId | 'repair' | 'sharpen', ReactNode> = {
   ),
   thrusters: <path d="M6 5l6 7-6 7M12 5l6 7-6 7" />,
   amplifier: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
-  plating: <path d="M12 3 20 7v6c0 4-3.5 6.5-8 8-4.5-1.5-8-4-8-8V7z" />,
   nanorepair: (
     <>
       <path d="M12 6v12M6 12h12" />
@@ -53,6 +64,12 @@ const GLYPHS: Record<WeaponId | SystemId | 'repair' | 'sharpen', ReactNode> = {
     </>
   ),
   tractor: <path d="M6 4v8a6 6 0 0 0 12 0V4M6 8h3M15 8h3" />,
+  aegis: (
+    <>
+      <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />
+      <path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" />
+    </>
+  ),
   repair: <path d="M12 6v12M6 12h12" />,
   sharpen: <path d="M5 19 19 5M14 5h5v5" />,
 };
