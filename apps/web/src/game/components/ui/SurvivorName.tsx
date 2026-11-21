@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import { Button, fieldStyles } from '../../../ui';
 import { api } from '../../services/api';
-import { survivorGuestId } from '../../survivors/guest';
 import { shortAddress } from '../../utils/format';
 
-export function SurvivorName({ address }: { address: string | null }) {
+export function SurvivorName({ address }: { address: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
@@ -21,7 +20,7 @@ export function SurvivorName({ address }: { address: string | null }) {
   );
 }
 
-function NameForm({ address }: { address: string | null }) {
+function NameForm({ address }: { address: string }) {
   const { signTypedDataAsync } = useSignTypedData({});
   const [value, setValue] = useState('');
   const [message, setMessage] = useState('');
@@ -29,10 +28,8 @@ function NameForm({ address }: { address: string | null }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     let active = true;
-    const profile = address
-      ? api.getWalletProfile(address)
-      : api.guestProfile(survivorGuestId());
-    profile
+    api
+      .getWalletProfile(address)
       .then(
         ({ name }) => {
           if (active) setValue(name);
@@ -53,9 +50,11 @@ function NameForm({ address }: { address: string | null }) {
     setSaving(true);
     setMessage('');
     try {
-      const { name } = address
-        ? await api.walletProfile(address, signTypedDataAsync, value.trim())
-        : await api.guestProfile(survivorGuestId(), value.trim());
+      const { name } = await api.walletProfile(
+        address,
+        signTypedDataAsync,
+        value.trim()
+      );
       setValue(name);
       setMessage('Name saved.');
     } catch (error) {
@@ -76,12 +75,12 @@ function NameForm({ address }: { address: string | null }) {
     >
       <label>
         <span className="text-label text-fg-muted">
-          {address ? `Wallet name · ${shortAddress(address)}` : 'Guest name'}
+          Wallet name · {shortAddress(address)}
         </span>
         <input
           className={fieldStyles({ size: 'sm', className: 'mt-1' })}
           disabled={loading || saving}
-          placeholder="Anonymous"
+          placeholder={shortAddress(address)}
           required
           maxLength={64}
           value={value}
@@ -96,7 +95,7 @@ function NameForm({ address }: { address: string | null }) {
         busy={saving}
         disabled={loading || !value.trim()}
       >
-        {address ? 'Sign and save' : 'Save name'}
+        Sign and save
       </Button>
       {message && (
         <p role="status" className="w-full text-caption">

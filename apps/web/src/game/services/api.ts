@@ -154,6 +154,13 @@ function jsonRequest(body: unknown, token?: string): RequestInit {
   };
 }
 
+function cachedSession(scope: 'artwork' | 'survivor', wallet: string) {
+  const cached = walletSessions.get(scope + ':' + wallet.toLowerCase());
+  return cached && Date.parse(cached.expiresAt) > Date.now() + 15_000
+    ? cached
+    : undefined;
+}
+
 async function walletSession(
   scope: 'artwork' | 'survivor',
   walletAddress: string,
@@ -161,8 +168,8 @@ async function walletSession(
   onSigningComplete?: () => void
 ): Promise<AuthSession> {
   const key = `${scope}:${walletAddress.toLowerCase()}`;
-  const cached = walletSessions.get(key);
-  if (cached && new Date(cached.expiresAt).getTime() > Date.now() + 15_000) {
+  const cached = cachedSession(scope, walletAddress);
+  if (cached) {
     onSigningComplete?.();
     return cached;
   }
@@ -268,44 +275,39 @@ export const api = {
     const signature = await sign(typedData);
     return requestJSON<{ claimed: boolean }>(path, jsonRequest({ signature }));
   },
-  finishGuestRun(
-    token: string,
-    replay: string,
-    guestId: string
-  ): Promise<{ destroyed: number }> {
-    return requestJSON(
-      '/v1/survivors/runs/finish',
-      jsonRequest({ token, replay, guestId })
-    );
-  },
   hasSurvivorSession(wallet: string) {
-    const session = walletSessions.get('survivor:' + wallet.toLowerCase());
-    return Boolean(
-      session && Date.parse(session.expiresAt) > Date.now() + 15000
-    );
+    return Boolean(cachedSession('survivor', wallet));
   },
-  async attachSurvivorWallet(
-    token: string,
-    guestId: string,
+  authorizeSurvivor(
     wallet: string,
     sign: (data: UseSignTypedDataArgs) => Promise<string[]>
   ) {
-    const session = await walletSession('survivor', wallet, sign);
-    return requestJSON<{ wallet: string }>(
-      '/v1/survivors/runs/wallet',
-      jsonRequest({ token, guestId }, session.token)
-    );
+    return walletSession('survivor', wallet, sign);
+  },
+  async finishSurvivorRun(token: string, replay: string, wallet: string) {
+    const session = cachedSession('survivor', wallet);
+    if (!session)
+      throw new ApiError('Sign in with your wallet to submit.', 401);
+    try {
+      return await requestJSON<{ destroyed: number }>(
+        '/v1/survivors/runs/finish',
+        jsonRequest({ token, replay }, session.token)
+      );
+    } catch (error) {
+      const key = 'survivor:' + wallet.toLowerCase();
+      if (
+        error instanceof ApiError &&
+        error.status === 401 &&
+        walletSessions.get(key) === session
+      )
+        walletSessions.delete(key);
+      throw error;
+    }
   },
   getWalletProfile(wallet: string) {
     return requestJSON<{ name: string }>(
       '/v1/survivors/profile?wallet=' + encodeURIComponent(wallet),
       { cache: 'no-store' }
-    );
-  },
-  guestProfile(guestId: string, name?: string) {
-    return requestJSON<{ name: string }>(
-      '/v1/survivors/profile',
-      jsonRequest({ guestId, name })
     );
   },
   async walletProfile(

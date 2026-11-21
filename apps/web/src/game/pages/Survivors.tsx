@@ -29,6 +29,7 @@ import { SurvivorFinalSkills } from '../components/ui/SurvivorFinalSkills';
 import { SurvivorChase } from '../components/3d/SurvivorChase';
 import { WalletButton } from '../components/ui/WalletButton';
 import { voyagerTransactionUrl } from '../utils/voyager';
+import { isOutisWallet } from '../utils/wallets';
 import { api, type SurvivorBoard } from '../services/api';
 import { config } from '../services/config';
 import { survivorsSession } from '../survivors/session';
@@ -42,6 +43,7 @@ import {
 
 export function Survivors() {
   const navigate = useNavigate();
+  const { address } = useWallet();
   const [board, setBoard] = useState<
     (SurvivorBoard & { isCurrent: boolean }) | null
   >(null);
@@ -56,7 +58,8 @@ export function Survivors() {
   const [params] = useSearchParams();
   const viewedRound = params.get('round') || undefined;
   useEffect(() => {
-    const flush = () => void retrySurvivorRuns();
+    if (!address) return;
+    const flush = () => void retrySurvivorRuns(address);
     flush();
     window.addEventListener('online', flush);
     const timer = window.setInterval(flush, 15000);
@@ -64,7 +67,7 @@ export function Survivors() {
       window.removeEventListener('online', flush);
       window.clearInterval(timer);
     };
-  }, []);
+  }, [address]);
   useEffect(() => {
     setBoard(null);
     setStartError('');
@@ -266,17 +269,14 @@ export function Survivors() {
                       className="absolute inset-0 size-full object-contain"
                     />
                   </div>
-                  <p className="min-w-0 self-center text-body text-fg-secondary">
+                  <p
+                    role="status"
+                    className="min-w-0 self-center text-body text-fg-secondary"
+                  >
                     {round.closed && !winner ? (
                       'No Outis wallet qualified for this prize.'
                     ) : (
-                      <>
-                        Every player can join the leaderboard. Only{' '}
-                        <strong className="font-medium text-fg">
-                          Outis wallets
-                        </strong>{' '}
-                        are eligible for the prize.
-                      </>
+                      <PrizeEligibility />
                     )}
                   </p>
                 </div>
@@ -488,6 +488,37 @@ export function Survivors() {
         />
       )}
     </div>
+  );
+}
+
+function PrizeEligibility() {
+  const { isConnected, address, walletName, walletId } = useWallet();
+  if (!isConnected || !address || (!walletName && !walletId))
+    return (
+      <>
+        Play as a guest. Submit scores with any Starknet wallet. Only{' '}
+        <strong className="font-medium text-fg">Outis wallets</strong> are
+        eligible for the prize.
+      </>
+    );
+
+  if (isOutisWallet(walletName ?? '', walletId))
+    return (
+      <>
+        <strong className="font-medium text-success">
+          Outis wallet connected.
+        </strong>{' '}
+        Submit your score with this wallet to compete for the daily prize.
+      </>
+    );
+
+  return (
+    <>
+      You can submit scores with {walletName || 'this wallet'}.{' '}
+      <strong className="font-medium text-warning">
+        This wallet can’t claim the daily prize, even if you finish first.
+      </strong>
+    </>
   );
 }
 

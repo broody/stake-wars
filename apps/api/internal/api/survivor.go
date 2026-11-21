@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
@@ -65,52 +64,29 @@ func (s *server) startSurvivorRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) finishSurvivorRun(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.authenticate(w, r, auth.Survivor)
+	if !ok {
+		return
+	}
 	var input struct {
 		Token  string `json:"token"`
 		Replay []byte `json:"replay"`
-		Guest  string `json:"guestId"`
 	}
 	if err := decodeLimitedJSON(w, r, &input, 310000); err != nil {
 		writeProblem(w, 400, "invalid replay", "a run ticket and base64 replay are required")
 		return
 	}
-	player, ok := s.survivorPlayer(w, r, input.Guest)
-	if !ok {
+	if s.dependencies.SurvivorAccounts == nil {
+		writeProblem(w, 503, "Survivor unavailable", "wallet verification is unavailable")
 		return
 	}
-	var check func(context.Context, string) (bool, error)
-	if input.Guest == "" {
-		if s.dependencies.SurvivorAccounts == nil {
-			writeProblem(w, 503, "Survivor unavailable", "wallet verification is unavailable")
-			return
-		}
-		check = s.dependencies.SurvivorAccounts.IsOutis
-	}
-	score, err := s.survivors.Finish(r.Context(), input.Token, player, input.Replay, check)
+	score, err := s.survivors.Finish(r.Context(), input.Token, session.WalletAddress, input.Replay, s.dependencies.SurvivorAccounts.IsOutis)
 	if err != nil {
 		s.survivorError(w, r, err)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]int{"destroyed": score})
-}
-
-// A wallet identity comes exclusively from a verified Survivor session.
-func (s *server) survivorPlayer(w http.ResponseWriter, r *http.Request, guestID string) (string, bool) {
-	if guestID == "" {
-		session, ok := s.authenticate(w, r, auth.Survivor)
-		return session.WalletAddress, ok
-	}
-	if r.Header.Get("Authorization") != "" {
-		writeProblem(w, 400, "invalid player", "supply one player identity")
-		return "", false
-	}
-	player, err := survivor.GuestPlayer(guestID)
-	if err != nil {
-		s.survivorError(w, r, err)
-		return "", false
-	}
-	return player, true
 }
 
 func (s *server) survivorWalletProfile(w http.ResponseWriter, r *http.Request) {

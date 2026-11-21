@@ -2,7 +2,7 @@
 
 A single-player survival run on the Core, following the [Core Survivors concept](../concepts/core-survivors/README.md). The Vanguard holds out against the Hollow Legion while weapons fire on their own; the score is the number of enemies destroyed. Gameplay is ported from the Last Ronin prototype (`~/development/last-ronin`), with its numbers converted from pixels to world units on the Core.
 
-Open `/play/survivors` and choose **Play**. The game records completed runs automatically. Local development drills can be opened directly with the preview URLs below.
+Open `/play/survivors` and choose **Play**. Guests can play immediately and connect a Starknet wallet on the results screen to submit their score. Local development drills can be opened directly with the preview URLs below.
 
 For the optional Bulwark interception, open `/play?survive=1&survivePreview=kite-wall` in local development. After four minutes, retreating in good health with a crowd behind you can bring the next Bulwark line forward. Find the gap or turn around its flank.
 
@@ -19,7 +19,7 @@ Then visit `http://localhost:3000/play?survive=1`. Inspect the XP shards, field 
 - Pick an upgrade with 1, 2 or 3, or click it; R rerolls (twice per run).
 - P or Escape pauses. Leaving removes the parameter and returns the Core.
 
-The 6.35-second opening follows the shell from orbit through impact, then holds on the hero’s sword side before rising overhead. Movement or **Skip intro** goes straight to play. With reduced motion enabled, the run opens in the follow view. Survival time and combat begin after the opening.
+The 3.85-second opening tracks the falling shell and sweeps behind the Vanguard at gameplay distance as it opens. Movement or **Skip intro** goes straight to play. With reduced motion enabled, the run opens in the follow view. Survival time and combat begin after the opening.
 
 The camera follows the Vanguard from above. The orbit pivots at the torso. Movement follows the camera angle, and the view stays upright as the Vanguard crosses a pole.
 

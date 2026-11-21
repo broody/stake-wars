@@ -66,6 +66,9 @@ func TestSurvivorRankedAdmission(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&ticket); err != nil || len(ticket.Token) != 128 {
 		t.Fatal("expected a run ticket")
 	}
+	guestBody := fmt.Sprintf(`{"token":%q,"replay":"AAA=","guestId":"89940506-50f8-4ce7-b6db-338b9bfbad25"}`, ticket.Token)
+	request(http.MethodPost, runs+"/finish", guestBody, "", 401)
+	request(http.MethodPost, runs+"/finish", guestBody, token, 400)
 	// The client cannot supply a score or submit for another player's wallet.
 	request(http.MethodPost, runs+"/finish", fmt.Sprintf(`{"token":%q,"destroyed":400}`, ticket.Token), token, 400)
 	request(http.MethodPost, runs+"/finish", fmt.Sprintf(`{"token":%q,"replay":""}`, ticket.Token), token, 422)
@@ -164,6 +167,6 @@ func TestSurvivorProfiles(t *testing.T) {
 		t.Fatal(body)
 	}
 	request("POST", "runs", "{}", 201)
-	request("POST", "runs/finish", fmt.Sprintf(`{"guestId":%q,"token":"bad"}`, guestID), 403)
+	request("POST", "runs/finish", fmt.Sprintf(`{"guestId":%q,"token":"bad"}`, guestID), 401)
 	request("POST", "runs/wallet", fmt.Sprintf(`{"guestId":%q,"token":"bad"}`, guestID), 401)
 }

@@ -129,3 +129,53 @@ describe('image upload authorization', () => {
     });
   });
 });
+
+it('finishes a Survivor run using the signed wallet session and clears a rejected session', async () => {
+  const wallet = '0x4598';
+  const sign = vi.fn().mockResolvedValue(['0x1']);
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    await expect(
+      api.finishSurvivorRun('ticket', 'fwA=', wallet)
+    ).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          challengeId: 'challenge',
+          walletAddress: wallet,
+          typedData: {},
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          token: 'signed',
+          walletAddress: wallet,
+          expiresAt: '2099-01-01T00:00:00Z',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ destroyed: 4 }));
+    await api.authorizeSurvivor(wallet, sign);
+    await expect(
+      api.finishSurvivorRun('ticket', 'fwA=', wallet)
+    ).resolves.toEqual({ destroyed: 4 });
+    const [url, request] = fetchMock.mock.calls[2];
+    expect(String(url)).toMatch(/survivors\/runs\/finish$/);
+    expect(new Headers(request?.headers).get('Authorization')).toBe(
+      'Bearer signed'
+    );
+    expect(JSON.parse(String(request?.body))).toEqual({
+      token: 'ticket',
+      replay: 'fwA=',
+    });
+    expect(api.hasSurvivorSession(wallet)).toBe(true);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    await expect(
+      api.finishSurvivorRun('ticket', 'fwA=', wallet)
+    ).rejects.toMatchObject({ status: 401 });
+    expect(api.hasSurvivorSession(wallet)).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

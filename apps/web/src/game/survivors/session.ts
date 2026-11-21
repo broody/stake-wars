@@ -24,7 +24,7 @@ import {
 } from './sim';
 
 import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
-import { recordSurvivorRun, survivorGuestId } from './guest';
+import { recordSurvivorRun } from './guest';
 import { api, ApiError, type SurvivorTicket } from '../services/api';
 import {
   rankedRun,
@@ -69,18 +69,19 @@ export class SurvivorsSession {
   ticket: SurvivorTicket | null = null;
   replay: RankedReplay | null = null;
   scoreResult:
-    | { destroyed: number }
-    | { error: string; retryable: boolean }
+    | { destroyed: number; wallet: string }
+    | { error: string; wallet: string; retryable: boolean }
     | null = null;
   submitting = false;
 
-  attachedWallet: string | null = null;
-  walletError = '';
-  attaching = false;
-  async recordScore() {
+  async submitScore(
+    wallet: string,
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
+  ) {
     const replay = this.replay,
       ticket = this.ticket;
     if (
+      !wallet ||
       !ticket ||
       !replay ||
       this.submitting ||
@@ -91,16 +92,25 @@ export class SurvivorsSession {
     this.submitting = true;
     this.scoreResult = null;
     this.notify();
+    let authorized = false;
     try {
-      const result = await recordSurvivorRun(ticket.token, replay.data());
-      if (replay === this.replay) this.scoreResult = result;
+      await api.authorizeSurvivor(wallet, sign);
+      authorized = true;
+      const result = await recordSurvivorRun(
+        ticket.token,
+        replay.data(),
+        wallet
+      );
+      if (replay === this.replay) this.scoreResult = { ...result, wallet };
     } catch (reason) {
       if (replay === this.replay)
         this.scoreResult = {
+          wallet,
           retryable:
-            !(reason instanceof ApiError) ||
-            reason.status >= 500 ||
-            reason.status === 429,
+            authorized &&
+            (!(reason instanceof ApiError) ||
+              reason.status >= 500 ||
+              reason.status === 429),
           error:
             reason instanceof Error
               ? reason.message
@@ -109,42 +119,6 @@ export class SurvivorsSession {
     } finally {
       if (replay === this.replay) {
         this.submitting = false;
-        this.notify();
-      }
-    }
-  }
-
-  async attachWallet(
-    wallet: string,
-    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
-  ) {
-    const ticket = this.ticket;
-    if (
-      !ticket ||
-      this.attaching ||
-      this.attachedWallet ||
-      !this.scoreResult ||
-      !('destroyed' in this.scoreResult)
-    )
-      return;
-    this.attaching = true;
-    this.walletError = '';
-    this.notify();
-    try {
-      const result = await api.attachSurvivorWallet(
-        ticket.token,
-        survivorGuestId(),
-        wallet,
-        sign
-      );
-      if (ticket === this.ticket) this.attachedWallet = result.wallet;
-    } catch (reason) {
-      if (ticket === this.ticket)
-        this.walletError =
-          reason instanceof Error ? reason.message : 'Could not link this run.';
-    } finally {
-      if (ticket === this.ticket) {
-        this.attaching = false;
         this.notify();
       }
     }
@@ -182,9 +156,6 @@ export class SurvivorsSession {
     this.cameraOrbit.reset();
     const params = new URLSearchParams(location.search);
     const ranked = this.ticket;
-    this.attachedWallet = null;
-    this.walletError = '';
-    this.attaching = false;
     this.submitting = false;
     this.scoreResult = null;
     this.replay = ranked ? new RankedReplay() : null;
@@ -543,11 +514,6 @@ export class SurvivorsSession {
       this.accumulator -= STEP;
       steps++;
       if (run.status !== 'playing' || this.atRankedLimit) {
-        if (
-          this.replay &&
-          (this.run?.status === 'fallen' || this.atRankedLimit)
-        )
-          void this.recordScore();
         this.accumulator = 0;
         this.notify();
         break;

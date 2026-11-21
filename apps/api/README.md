@@ -258,21 +258,19 @@ verified run earned zero upgrades.
 Use `?round=ID` to retrieve an earlier round. To override the default when
 opening a round, pass `-deadline` with an RFC3339 timestamp. Successive prize
 deadlines must be at least 24 hours apart.
-Clients persist one random UUID v4 per installation. Web uses localStorage.
-Guest IDs authorize guest edits and are sent in request bodies. Public guest
-identifiers are hashes. Display names may repeat.
+Starting a run is public. Submitting a score requires a wallet-authenticated Survivor session. Historical guest entries keep their hashed public identifiers. Display names may repeat.
 
 | Endpoint | Request and result |
 | --- | --- |
 | `POST /v1/survivors/runs` | Send `{}` to get a signed ticket and simulation seed. The API selects the open prize round, if any. |
-| `POST /v1/survivors/runs/finish` | Send `{token, replay, guestId}` at game over. Replay is base64-encoded input from the shared simulation. Retry the same ticket after a transient failure. A signed Survivor bearer session can submit directly with `{token, replay}`. |
-| `POST /v1/survivors/runs/wallet` | Send `{token, guestId}` with a signed Survivor bearer session to attach one verified guest run to that wallet. Prize-round runs can be attached until the round closes. |
+| `POST /v1/survivors/runs/finish` | Send `{token, replay}` with a signed Survivor bearer session at game over. Replay is base64-encoded input from the shared simulation. Retry the same ticket with the same wallet after a transient failure. |
+| `POST /v1/survivors/runs/wallet` | Send `{token, guestId}` with a signed Survivor bearer session to attach one previously recorded guest run to that wallet. Prize-round runs can be attached until the round closes. |
 | `POST /v1/survivors/profile` | Send `{guestId}` to read a guest name. Include `name` to set it. An unset name is returned as an empty string. |
-| `GET /v1/survivors/profile?wallet=ADDRESS` | Read a wallet name. An unnamed player appears as Anonymous on the leaderboard. |
+| `GET /v1/survivors/profile?wallet=ADDRESS` | Read a wallet name. An unnamed wallet appears by its shortened address on the leaderboard. |
 | `POST /v1/survivors/profile/wallet` | Send `{wallet, name}` for SNIP-12 typed data and its revision. Sign and resend the same fields with `revision` and `signature`. A newer revision supersedes old signatures. |
 
 Clients rank by the best verified run for each player, breaking ties by first
-recording. The API stores each completed run, including lower scores. Runs
+recording. The API stores each verified wallet submission, including lower scores. Runs
 verified after their starting round closes count towards all-time standings.
 The prize tie goes to the first verified Outis account to register that score.
 

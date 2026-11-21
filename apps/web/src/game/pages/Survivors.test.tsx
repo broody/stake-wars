@@ -2,21 +2,39 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { api } from '../services/api';
 import { config } from '../services/config';
 import { Survivors } from './Survivors';
+import type { WalletState } from '../types';
 
 vi.mock('../services/api', () => ({
   api: {
     getSurvivorBoard: vi.fn(),
     startSurvivorRun: vi.fn(),
+    hasSurvivorSession: () => false,
     claimSurvivorPrize: vi.fn(),
   },
 }));
-vi.mock('../contexts/WalletContext', () => ({
-  useWallet: () => ({ address: '0x000123' }),
+const { wallet } = vi.hoisted(() => ({
+  wallet:
+    vi.fn<
+      () => Pick<
+        WalletState,
+        'address' | 'isConnected' | 'walletName' | 'walletId'
+      >
+    >(),
 }));
+vi.mock('../contexts/WalletContext', () => ({ useWallet: wallet }));
+const guest = {
+  address: null,
+  isConnected: false,
+  walletName: null,
+  walletId: null,
+};
+beforeEach(() => {
+  wallet.mockReturnValue(guest);
+});
 vi.mock('@starknetfoundation/starknet-start-react', () => ({
   useSignTypedData: () => ({}),
 }));
@@ -92,7 +110,7 @@ it('displays active time and expands the final skills for the selected score', a
     const prize = node.querySelector('section[aria-label="Prize round"]')!;
     expect(prize.textContent).toContain('100 STRK');
     expect(prize.textContent).toContain(
-      'Every player can join the leaderboard. Only Outis wallets are eligible for the prize.'
+      'Play as a guest. Submit scores with any Starknet wallet. Only Outis wallets are eligible for the prize.'
     );
     expect(node.querySelector('header')?.textContent).not.toMatch(
       /player name|set leaderboard name/i
@@ -128,6 +146,65 @@ it('displays active time and expands the final skills for the selected score', a
     await act(async () => legacy.click());
     expect(node.textContent).toContain('Final skills unrecorded.');
     expect(node.querySelector('ol')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it('updates prize eligibility when a player connects, switches wallets, or disconnects', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.mocked(api.getSurvivorBoard).mockResolvedValue({
+    network: config.starknetChainId,
+    payoutsEnabled: true,
+    round: {
+      id: 1,
+      closed: false,
+      deadline: '2099-01-01T00:00:00Z',
+      prizeAmount: '100000000000000000000',
+      winner: null,
+      claimed: false,
+    },
+    entries: [],
+  });
+  const node = document.createElement('div');
+  const root = createRoot(node);
+  const render = () =>
+    act(async () =>
+      root.render(
+        <MemoryRouter>
+          <Survivors />
+        </MemoryRouter>
+      )
+    );
+  const message = () =>
+    node.querySelector('section[aria-label="Prize round"] [role="status"]')
+      ?.textContent;
+  try {
+    await render();
+    const guestMessage = message();
+    expect(guestMessage).toContain('Play as a guest');
+    const connected = { address: '0x123', isConnected: true };
+    wallet.mockReturnValue({
+      ...connected,
+      walletName: 'Privacy Wallet',
+      walletId: 'outis',
+    });
+    await render();
+    expect(message()).toContain('Outis wallet connected.');
+    wallet.mockReturnValue({
+      ...connected,
+      walletName: 'Braavos',
+      walletId: 'braavos',
+    });
+    await render();
+    expect(message()).toContain('You can submit scores with Braavos.');
+    expect(message()).toContain(
+      'This wallet can’t claim the daily prize, even if you finish first.'
+    );
+    wallet.mockReturnValue(guest);
+    await render();
+    expect(message()).toBe(guestMessage);
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -322,6 +399,12 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
 });
 
 it('keeps the claim and its payment receipt in the eligible winner’s last cell', async () => {
+  wallet.mockReturnValue({
+    address: '0x000123',
+    isConnected: true,
+    walletId: 'outis',
+    walletName: 'Outis',
+  });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const winner = {
     wallet: '0x123',

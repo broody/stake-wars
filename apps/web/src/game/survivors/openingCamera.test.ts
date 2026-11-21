@@ -47,19 +47,18 @@ describe('Survivors opening camera', () => {
       sample(0);
       expect(eye.distanceTo(orbit.eye)).toBeLessThan(1e-8);
       expect(camera.quaternion.angleTo(globeRotation)).toBeLessThan(1e-7);
-      sample(OPENING_CAMERA.portrait);
-      const start = eye.clone(),
-        offset = eye.clone().sub(origin);
-      expect(offset.dot(front)).toBeGreaterThan(0);
-      expect(offset.dot(swordSide)).toBeGreaterThan(0);
-      const feet = origin.clone().project(camera);
-      const head = origin.clone().addScaledVector(normal, 0.49).project(camera);
-      expect(feet.y).toBeGreaterThan(-0.9);
-      expect(head.y).toBeLessThan(0.9);
-      expect(head.y - feet.y).toBeGreaterThan(0.65);
-      sample(OPENING_CAMERA.hold);
-      expect(eye.distanceTo(start)).toBeLessThan(1e-8);
-
+      const torso = origin
+        .clone()
+        .addScaledVector(normal, FOLLOW_CAMERA.targetHeight);
+      const followDistance =
+        Math.hypot(
+          FOLLOW_CAMERA.back,
+          FOLLOW_CAMERA.height - FOLLOW_CAMERA.targetHeight
+        ) * pullback;
+      sample(OPENING_CAMERA.impact);
+      expect(eye.clone().sub(torso).dot(front)).toBeGreaterThan(0);
+      expect(eye.clone().sub(torso).dot(swordSide)).toBeGreaterThan(0);
+      let lastBearing = -Infinity;
       sample(0);
       const rotation = camera.quaternion.clone();
       for (let i = 1; i <= Math.ceil(OPENING_CAMERA.duration * 60); i++) {
@@ -74,6 +73,19 @@ describe('Survivors opening camera', () => {
           expect(Math.abs(shellCenter.x)).toBeLessThan(0.97);
           expect(Math.abs(shellCenter.y)).toBeLessThan(0.97);
           expect(shellCenter.z).toBeLessThan(1);
+        }
+        if (age >= OPENING_CAMERA.impact) {
+          const offset = eye.clone().sub(torso);
+          expect(offset.length()).toBeCloseTo(followDistance, 8);
+          const bearing = offset.projectOnPlane(normal).angleTo(front);
+          expect(bearing).toBeGreaterThanOrEqual(lastBearing - 1e-8);
+          lastBearing = bearing;
+          const feet = origin.clone().project(camera);
+          const head = origin
+            .clone()
+            .addScaledVector(normal, 0.49)
+            .project(camera);
+          expect(head.y - feet.y).toBeLessThan(0.24);
         }
         expect(eye.length()).toBeGreaterThan(radius);
         expect(camera.quaternion.angleTo(rotation)).toBeLessThan(0.09);
@@ -135,7 +147,7 @@ it('keeps the shell sealed through impact, opens a sightline to the hero, and re
   expect(blocksHero(OPENING_CAMERA.release + 0.3)).toBe(true);
   expect(blocksHero(OPENING_CAMERA.split - 0.01)).toBe(true);
   expect(blocksHero(OPENING_CAMERA.split + 0.72)).toBe(false);
-  shell.pose(OPENING_CAMERA.portrait);
+  shell.pose(OPENING_CAMERA.duration);
   expect(shell.root.visible).toBe(false);
   expect(blocksHero(OPENING_CAMERA.release + 0.3)).toBe(true);
   expect(shell.root.visible).toBe(true);

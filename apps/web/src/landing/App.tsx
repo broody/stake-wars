@@ -268,11 +268,12 @@ function LandingApp() {
 
               <FaqItem question="How do I win the Core Survivors daily prize?">
                 <p>
-                  Every completed run joins the leaderboard. Link your run to an
-                  Outis wallet before the round closes. The most enemies
-                  destroyed in one run wins. If eligible scores tie, the first
-                  submission wins. After the round closes, sign the claim from
-                  the winning wallet on the leaderboard to receive 100 STRK.
+                  Play as a guest and submit your score with any Starknet
+                  wallet. The Outis wallet with the most enemies destroyed in a
+                  single run before the round closes wins. If eligible scores
+                  tie, the first submission wins. After the round closes, sign
+                  the claim from the winning wallet on the leaderboard to
+                  receive 100 STRK.
                 </p>
               </FaqItem>
 

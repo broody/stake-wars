@@ -396,42 +396,38 @@ export function CoreSurvivorsHud() {
     };
   }, []);
 
-  const recorded = Boolean(
-    survivorsSession.scoreResult && 'destroyed' in survivorsSession.scoreResult
-  );
   const ticket = survivorsSession.ticket;
   const scoreResult = survivorsSession.scoreResult;
+  const fallen =
+    survivorsSession.atRankedLimit ||
+    (run?.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY);
   useEffect(() => {
+    if (!fallen || !ticket || !address || !api.hasSurvivorSession(address))
+      return;
+    if (!scoreResult) {
+      void survivorsSession.submitScore(address, signTypedDataAsync);
+      return;
+    }
     if (
-      !ticket ||
-      !scoreResult ||
       !('error' in scoreResult) ||
-      !scoreResult.retryable
+      !scoreResult.retryable ||
+      !addressesMatch(address, scoreResult.wallet)
     )
       return;
-    const retry = () => void survivorsSession.recordScore();
+    const retry = () => {
+      if (api.hasSurvivorSession(address))
+        void survivorsSession.submitScore(address, signTypedDataAsync);
+    };
     const timer = window.setTimeout(retry, 5000);
     window.addEventListener('online', retry);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('online', retry);
     };
-  }, [ticket, scoreResult]);
-  const autoLinked = useRef<string | null>(null);
-  useEffect(() => {
-    if (!ticket || !recorded || !address || !api.hasSurvivorSession(address))
-      return;
-    const key = ticket.token + address;
-    if (autoLinked.current === key) return;
-    autoLinked.current = key;
-    void survivorsSession.attachWallet(address, signTypedDataAsync);
-  }, [ticket, recorded, address, signTypedDataAsync]);
+  }, [fallen, ticket, address, scoreResult, signTypedDataAsync]);
 
   if (!run) return null;
   const player = run.player;
-  const fallen =
-    survivorsSession.atRankedLimit ||
-    (run.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY);
   const paused = survivorsSession.paused && run.status === 'playing';
   if (survivorsSession.opening && !paused) {
     return (
@@ -784,63 +780,39 @@ export function CoreSurvivorsHud() {
             role="status"
             className="border-t border-line px-5 py-3 text-caption text-fg-secondary"
           >
-            {recorded ? (
+            {scoreResult && 'destroyed' in scoreResult ? (
               <div className="space-y-2">
-                <p>
-                  {survivorsSession.attachedWallet
-                    ? `Score recorded for ${shortAddress(survivorsSession.attachedWallet)}`
-                    : 'Score recorded on the leaderboard.'}
-                </p>
-                {!survivorsSession.attaching &&
-                  (!survivorsSession.attachedWallet ||
-                    (address &&
-                      addressesMatch(
-                        address,
-                        survivorsSession.attachedWallet
-                      ))) && (
-                    <SurvivorName
-                      key={survivorsSession.attachedWallet ?? 'guest'}
-                      address={survivorsSession.attachedWallet}
-                    />
-                  )}
-                {!survivorsSession.attachedWallet &&
-                  (address ? (
-                    <Button
-                      variant="outline"
-                      busy={survivorsSession.attaching}
-                      onClick={() =>
-                        void survivorsSession.attachWallet(
-                          address,
-                          signTypedDataAsync
-                        )
-                      }
-                    >
-                      Link score to {shortAddress(address)}
-                    </Button>
-                  ) : (
-                    <WalletButton
-                      variant="block"
-                      label="Connect to link this score"
-                    />
-                  ))}
-                {survivorsSession.walletError && (
-                  <p role="alert">{survivorsSession.walletError}</p>
+                <p>Score recorded for {shortAddress(scoreResult.wallet)}</p>
+                {address && addressesMatch(address, scoreResult.wallet) && (
+                  <SurvivorName address={scoreResult.wallet} />
                 )}
               </div>
-            ) : survivorsSession.scoreResult &&
-              'error' in survivorsSession.scoreResult ? (
-              <div>
-                <p role="alert">{survivorsSession.scoreResult.error}</p>
+            ) : survivorsSession.submitting ? (
+              'Submitting score…'
+            ) : address ? (
+              <div className="space-y-2">
+                {scoreResult &&
+                  'error' in scoreResult &&
+                  addressesMatch(address, scoreResult.wallet) && (
+                    <p role="alert">{scoreResult.error}</p>
+                  )}
                 <Button
                   variant="outline"
-                  busy={survivorsSession.submitting}
-                  onClick={() => void survivorsSession.recordScore()}
+                  onClick={() =>
+                    void survivorsSession.submitScore(
+                      address,
+                      signTypedDataAsync
+                    )
+                  }
                 >
-                  Retry saving
+                  Submit score as {shortAddress(address)}
                 </Button>
               </div>
             ) : (
-              'Saving score…'
+              <WalletButton
+                variant="block"
+                label="Connect wallet to submit score"
+              />
             )}
           </div>
         )}
