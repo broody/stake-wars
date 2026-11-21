@@ -7,7 +7,6 @@ import { Hero } from './components/Hero';
 import { Ticker } from './components/Ticker';
 import { StatsBoard } from './components/StatsBoard';
 import { MechanicsCard } from './components/MechanicsCard';
-import { SupplyDropFeature } from './components/SupplyDropFeature';
 import { Footer } from './components/Footer';
 import { buttonStyles, Eyebrow, ExternalLink, Panel } from '../ui';
 
@@ -188,8 +187,47 @@ function LandingApp() {
           </div>
         </Panel>
 
-        {/* Supply Drop */}
-        <SupplyDropFeature />
+        <Panel
+          id="core-survivors"
+          aria-labelledby="survivors-heading"
+          tone="strong"
+          className="mb-16 scroll-mt-28 overflow-hidden bg-surface/70 lg:grid lg:grid-cols-[1.35fr_0.65fr]"
+        >
+          <h2
+            id="survivors-heading"
+            className="flex items-center border-b border-line-strong bg-surface lg:border-b-0 lg:border-r"
+          >
+            <a href="/play/survivors" className="block w-full">
+              <img
+                src="/og/core-survivors-v1.png"
+                alt="Core Survivors"
+                width={1200}
+                height={630}
+                loading="lazy"
+                className="block h-auto w-full"
+              />
+            </a>
+          </h2>
+          <div className="flex flex-col justify-center px-6 py-8 sm:px-10 lg:py-10">
+            <Eyebrow>DAILY PRIZE</Eyebrow>
+            <p className="mt-2 text-figure font-bold text-fg">100 STRK</p>
+            <p className="mt-5 max-w-xl text-body text-fg-secondary">
+              Fight wave after wave of the Hollow Legion. Submit the highest
+              single-run kill count with an Outis wallet to claim the daily
+              prize.
+            </p>
+            <a
+              href="/play/survivors"
+              className={buttonStyles({
+                variant: 'solid',
+                tone: 'accent',
+                className: 'mt-6 w-fit',
+              })}
+            >
+              Play Core Survivors
+            </a>
+          </div>
+        </Panel>
 
         {/* FAQ */}
         <section
@@ -228,14 +266,13 @@ function LandingApp() {
                 </p>
               </FaqItem>
 
-              <FaqItem question="What is a Supply Drop?">
+              <FaqItem question="How do I win the Core Survivors daily prize?">
                 <p>
-                  A Supply Drop is a prize round funded by a portion of Stake
-                  Wars pool commissions. When the round closes, one Sector is
-                  selected at random, and the Operator who controlled it at the
-                  deadline wins the prize. Every Sector you control gives you
-                  another chance to win. If the selected Sector has no eligible
-                  controller, the prize rolls over into another round.
+                  Start a ranked run as a guest and submit your score with an
+                  Outis wallet before the round closes. The most enemies
+                  destroyed in one run wins. If eligible scores tie, the first
+                  submission wins. After the round closes, sign the claim from
+                  the winning wallet on the leaderboard to receive 100 STRK.
                 </p>
               </FaqItem>
 
