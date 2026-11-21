@@ -1,4 +1,4 @@
-import { cross, normalize, pointAt, vec3, type Vec3 } from './sphere';
+import { cross, dot, normalize, pointAt, vec3, type Vec3 } from './sphere';
 
 /** StaffSlam's authored timing (24 fps); the simulation and renderer share it. */
 export const WARDEN_SLAM = {
@@ -16,8 +16,38 @@ export const WARDEN_SLAM = {
 export const WARDEN_GAIT = {
   walkSpeed: 0.6,
   runSpeed: 2.15,
-  runDistance: 1.8,
+  walkDistance: 1.4,
+  runDistance: 2.2,
 };
+
+/** Both the warning and collision measure distance along the Core from the staff. */
+export function insideWardenSlam(
+  origin: Vec3,
+  direction: Vec3,
+  feet: Vec3,
+  groundRadius: number
+) {
+  const alignment = Math.max(-1, Math.min(1, dot(origin, feet)));
+  if (alignment < Math.cos(WARDEN_SLAM.radius / groundRadius)) return false;
+  if (alignment >= 1 - 1e-12) return true;
+  return (
+    dot(feet, direction) >=
+    Math.sqrt(1 - alignment * alignment) * Math.cos(WARDEN_SLAM.halfAngle)
+  );
+}
+
+export function wardenApproachSpeed(gap: number, walk: number, run: number) {
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      (gap - WARDEN_GAIT.walkDistance) /
+        (WARDEN_GAIT.runDistance - WARDEN_GAIT.walkDistance)
+    )
+  );
+  const nearSpeed = Math.min(walk, run);
+  return nearSpeed + (run - nearSpeed) * t * t * (3 - 2 * t);
+}
 
 /** Place the warning/damage origin under the staff, on the Core's surface. */
 export function wardenSlamOrigin(

@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "go run ./cmd/server",
-    "build": "go build ./...",
+    "dev": "node ../web/scripts/build-survivor-verifier.mjs && go run ./cmd/server",
+    "build": "node ../web/scripts/build-survivor-verifier.mjs && go build ./...",
     "lint": "go vet ./...",
     "format": "gofmt -w .",
     "format:check": "test -z \"$(gofmt -l .)\"",

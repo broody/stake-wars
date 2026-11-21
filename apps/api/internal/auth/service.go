@@ -19,9 +19,27 @@ var (
 	ErrVerificationFailure = errors.New("wallet signature verification failed")
 )
 
+type Scope string
+
+const (
+	Artwork  Scope = "artwork"
+	Survivor Scope = "survivor"
+)
+
+func (scope Scope) Statement() string {
+	switch scope {
+	case Artwork:
+		return "Authorize artwork projection"
+	case Survivor:
+		return "Submit Survivor scores"
+	default:
+		return ""
+	}
+}
+
 type SignatureVerifier interface {
 	NormalizeWallet(value string) (string, error)
-	TypedData(wallet, nonce string, issuedAt, expiresAt time.Time) (json.RawMessage, error)
+	TypedData(wallet, nonce string, issuedAt, expiresAt time.Time, statement string) (json.RawMessage, error)
 	Verify(ctx context.Context, wallet string, typedData json.RawMessage, signature []string) (bool, error)
 }
 
@@ -62,7 +80,7 @@ func NewService(store *Store, verifier SignatureVerifier, config ServiceConfig) 
 	}
 }
 
-func (s *Service) CreateChallenge(ctx context.Context, wallet string) (ChallengeResponse, error) {
+func (s *Service) CreateChallenge(ctx context.Context, wallet string, scope Scope) (ChallengeResponse, error) {
 	wallet, err := s.verifier.NormalizeWallet(wallet)
 	if err != nil {
 		return ChallengeResponse{}, fmt.Errorf("%w: %v", ErrInvalidWallet, err)
@@ -78,6 +96,7 @@ func (s *Service) CreateChallenge(ctx context.Context, wallet string) (Challenge
 	}
 	now := s.now().UTC().Truncate(time.Second)
 	challenge := Challenge{
+		Scope:         scope,
 		ID:            id,
 		WalletAddress: wallet,
 		Nonce:         nonce,
@@ -89,6 +108,7 @@ func (s *Service) CreateChallenge(ctx context.Context, wallet string) (Challenge
 		challenge.Nonce,
 		challenge.IssuedAt,
 		challenge.ExpiresAt,
+		challenge.Scope.Statement(),
 	)
 	if err != nil {
 		return ChallengeResponse{}, fmt.Errorf("build wallet challenge: %w", err)
@@ -127,6 +147,7 @@ func (s *Service) CreateSession(
 		challenge.Nonce,
 		challenge.IssuedAt,
 		challenge.ExpiresAt,
+		challenge.Scope.Statement(),
 	)
 	if err != nil {
 		return SessionResponse{}, fmt.Errorf("rebuild wallet challenge: %w", err)
@@ -145,6 +166,7 @@ func (s *Service) CreateSession(
 	}
 	hash := sha256.Sum256([]byte(token))
 	session := Session{
+		Scope:         challenge.Scope,
 		WalletAddress: wallet,
 		CreatedAt:     now,
 		ExpiresAt:     now.Add(s.config.SessionTTL),

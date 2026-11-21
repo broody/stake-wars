@@ -85,3 +85,8 @@ export function addressesMatch(left: string, right: string): boolean {
     return false;
   }
 }
+
+export function formatSurvivalTime(seconds: number): string {
+  const whole = Math.floor(seconds);
+  return `${String(Math.floor(whole / 60)).padStart(2, '0')}:${String(whole % 60).padStart(2, '0')}`;
+}

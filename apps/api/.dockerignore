@@ -2,5 +2,7 @@
 .gitignore
 bin
 coverage.out
+stakewars.db*
+.env*
 Dockerfile*
 fly.toml

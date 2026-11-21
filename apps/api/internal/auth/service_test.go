@@ -26,10 +26,12 @@ func (f *fakeVerifier) NormalizeWallet(value string) (string, error) {
 func (f *fakeVerifier) TypedData(
 	wallet, nonce string,
 	issuedAt, expiresAt time.Time,
+	statement string,
 ) (json.RawMessage, error) {
 	return json.Marshal(map[string]any{
 		"wallet":    wallet,
 		"nonce":     nonce,
+		"statement": statement,
 		"issuedAt":  issuedAt.Unix(),
 		"expiresAt": expiresAt.Unix(),
 	})
@@ -47,7 +49,7 @@ func (f *fakeVerifier) Verify(
 func TestChallengeCreatesSingleUseSession(t *testing.T) {
 	service := newTestService(t, &fakeVerifier{valid: true})
 
-	challenge, err := service.CreateChallenge(context.Background(), "0x123")
+	challenge, err := service.CreateChallenge(context.Background(), "0x123", Artwork)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +86,7 @@ func TestExpiredChallengeCannotCreateSession(t *testing.T) {
 	service := newTestService(t, &fakeVerifier{valid: true})
 	now := service.now()
 
-	challenge, err := service.CreateChallenge(context.Background(), "0x123")
+	challenge, err := service.CreateChallenge(context.Background(), "0x123", Artwork)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +101,7 @@ func TestExpiredChallengeCannotCreateSession(t *testing.T) {
 
 func TestInvalidSignatureCannotCreateSession(t *testing.T) {
 	service := newTestService(t, &fakeVerifier{valid: false})
-	challenge, err := service.CreateChallenge(context.Background(), "0x123")
+	challenge, err := service.CreateChallenge(context.Background(), "0x123", Artwork)
 	if err != nil {
 		t.Fatal(err)
 	}

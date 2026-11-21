@@ -1,6 +1,16 @@
+import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
+import { SurvivorName } from './SurvivorName';
+import { WalletButton } from './WalletButton';
+import { api } from '../../services/api';
+import { useWallet } from '../../contexts/WalletContext';
+import {
+  addressesMatch,
+  formatSurvivalTime,
+  shortAddress,
+} from '../../utils/format';
 import { DEATH_RESULTS_DELAY } from '../../survivors/deathCamera';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
@@ -13,9 +23,10 @@ import {
   cn,
 } from '../../../ui';
 import { VOLUME_LEVELS, survivorAudio } from '../../survivors/audio';
-import { SURVIVE_PARAM, survivorsSession } from '../../survivors/session';
+import { survivorsSession } from '../../survivors/session';
 import {
   ENEMIES,
+  offerName,
   SYSTEMS,
   WEAPONS,
   type Offer,
@@ -25,7 +36,7 @@ import {
 } from '../../survivors/sim';
 import { pairedWeapons } from '../../survivors/content';
 import type { Aegis } from '../../survivors/aegis';
-import { SurvivorsIcon } from './SurvivorsIcon';
+import { SurvivorsIcon, SurvivorUpgradeTile } from './SurvivorsIcon';
 import { SurvivorControls } from './SurvivorControls';
 import { StrikeLevelSelect } from './StrikeLevelSelect';
 import { ENEMY_TELEGRAPHS } from '../../survivors/renderFrame';
@@ -47,11 +58,6 @@ const isTypingTarget = (target: EventTarget | null) =>
     target.tagName === 'INPUT' ||
     target.tagName === 'TEXTAREA' ||
     target.tagName === 'SELECT');
-
-const formatClock = (seconds: number) => {
-  const whole = Math.floor(seconds);
-  return `${String(Math.floor(whole / 60)).padStart(2, '0')}:${String(whole % 60).padStart(2, '0')}`;
-};
 
 function Meter({
   label,
@@ -134,40 +140,29 @@ function Loadout({ run }: { run: Run }) {
     <div className="grid gap-1.5">
       <div className="flex flex-wrap gap-1.5">
         {run.weapons.map((weapon) => (
-          <div
+          <SurvivorUpgradeTile
             key={weapon.id}
+            icon={weapon.id}
+            kind={weapon.evolved ? 'evolution' : 'weapon'}
+            level={weapon.evolved ? undefined : weapon.level}
             title={
               weapon.evolved
                 ? WEAPONS[weapon.id].evolution
                 : `${WEAPONS[weapon.id].name} ${weapon.level}`
             }
-            className={cn(
-              'relative grid h-8 w-8 place-items-center border bg-surface/80',
-              weapon.evolved
-                ? 'border-gold text-gold'
-                : 'border-line-strong text-fg'
-            )}
-          >
-            <SurvivorsIcon id={weapon.id} className="h-5 w-5" />
-            <span className="absolute -bottom-1 -right-1 bg-surface px-0.5 text-tag tabular-nums text-fg-secondary">
-              {weapon.evolved ? 'EVO' : weapon.level}
-            </span>
-          </div>
+          />
         ))}
       </div>
       {systems.length ? (
         <div className="flex flex-wrap gap-1.5">
           {systems.map(([id, level]) => (
-            <div
+            <SurvivorUpgradeTile
               key={id}
+              icon={id}
+              kind="system"
+              level={level}
               title={`${SYSTEMS[id].name} ${level}`}
-              className="relative grid h-8 w-8 place-items-center border border-line bg-surface/80 text-fg-muted"
-            >
-              <SurvivorsIcon id={id} className="h-4 w-4" />
-              <span className="absolute -bottom-1 -right-1 bg-surface px-0.5 text-tag tabular-nums text-fg-subtle">
-                {level}
-              </span>
-            </div>
+            />
           ))}
         </div>
       ) : null}
@@ -190,7 +185,7 @@ function describeOffer(run: Run, offer: Offer): OfferText {
       const spec = WEAPONS[offer.id];
       return {
         icon: offer.id,
-        name: spec.evolution,
+        name: offerName(offer),
         chip: 'EVOLUTION',
         chipTone: 'gold',
         detail: spec.evolutionDetail,
@@ -202,7 +197,7 @@ function describeOffer(run: Run, offer: Offer): OfferText {
       const level = run.weapons.find((w) => w.id === offer.id)?.level ?? 0;
       return {
         icon: offer.id,
-        name: spec.name,
+        name: offerName(offer),
         chip: level ? `LV ${level} → ${level + 1}` : 'NEW WEAPON',
         chipTone: level ? 'neutral' : 'success',
         detail: spec.levels[level],
@@ -222,7 +217,7 @@ function describeOffer(run: Run, offer: Offer): OfferText {
       );
       return {
         icon: offer.id,
-        name: spec.name,
+        name: offerName(offer),
         chip: level ? `LV ${level} → ${level + 1}` : 'NEW SYSTEM',
         chipTone: level ? 'neutral' : 'success',
         detail: spec.levels?.[level] ?? spec.detail,
@@ -232,7 +227,7 @@ function describeOffer(run: Run, offer: Offer): OfferText {
     case 'repair':
       return {
         icon: 'repair',
-        name: 'Field repair',
+        name: offerName(offer),
         chip: 'REPAIR',
         chipTone: 'neutral',
         detail: 'Restore 40 integrity.',
@@ -240,7 +235,7 @@ function describeOffer(run: Run, offer: Offer): OfferText {
     case 'sharpen':
       return {
         icon: 'sharpen',
-        name: 'Calibrate',
+        name: offerName(offer),
         chip: 'BONUS',
         chipTone: 'neutral',
         detail: '+4% damage for the rest of the run.',
@@ -332,7 +327,9 @@ function DamageTable({ run }: { run: Run }) {
 }
 
 export function CoreSurvivorsHud() {
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { address } = useWallet();
+  const { signTypedDataAsync } = useSignTypedData({});
   useSyncExternalStore(survivorsSession.subscribe, survivorsSession.getVersion);
   const volume = useSyncExternalStore(
     survivorAudio.subscribe,
@@ -343,15 +340,9 @@ export function CoreSurvivorsHud() {
   const resumeRef = useRef<HTMLButtonElement>(null);
   const supplyRef = useRef<HTMLButtonElement>(null);
 
-  const leave = () =>
-    setSearchParams(
-      (params) => {
-        params.delete(SURVIVE_PARAM);
-        return params;
-      },
-      { replace: true }
-    );
+  const leave = () => navigate('/survivors', { replace: true });
   const restart = () => {
+    if (survivorsSession.replay) return leave();
     if (run) survivorsSession.start(run.groundRadius);
   };
 
@@ -405,9 +396,42 @@ export function CoreSurvivorsHud() {
     };
   }, []);
 
+  const recorded = Boolean(
+    survivorsSession.scoreResult && 'destroyed' in survivorsSession.scoreResult
+  );
+  const ticket = survivorsSession.ticket;
+  const scoreResult = survivorsSession.scoreResult;
+  useEffect(() => {
+    if (
+      !ticket ||
+      !scoreResult ||
+      !('error' in scoreResult) ||
+      !scoreResult.retryable
+    )
+      return;
+    const retry = () => void survivorsSession.recordScore();
+    const timer = window.setTimeout(retry, 5000);
+    window.addEventListener('online', retry);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('online', retry);
+    };
+  }, [ticket, scoreResult]);
+  const autoLinked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ticket || !recorded || !address || !api.hasSurvivorSession(address))
+      return;
+    const key = ticket.token + address;
+    if (autoLinked.current === key) return;
+    autoLinked.current = key;
+    void survivorsSession.attachWallet(address, signTypedDataAsync);
+  }, [ticket, recorded, address, signTypedDataAsync]);
+
   if (!run) return null;
   const player = run.player;
-  const fallen = run.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY;
+  const fallen =
+    survivorsSession.atRankedLimit ||
+    (run.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY);
   const paused = survivorsSession.paused && run.status === 'playing';
   if (survivorsSession.opening && !paused) {
     return (
@@ -472,9 +496,9 @@ export function CoreSurvivorsHud() {
         </div>
         <div className="grid justify-items-center gap-3 text-center">
           <div>
-            <div className="text-label text-fg-subtle">SURVIVED</div>
+            <div className="text-label text-fg-subtle">DESTROYED</div>
             <div className="text-figure tabular-nums text-fg">
-              {formatClock(run.time)}
+              {run.kills.toLocaleString()}
             </div>
           </div>
           {boss ? (
@@ -491,9 +515,9 @@ export function CoreSurvivorsHud() {
         </div>
         <div className="flex items-start justify-end gap-3">
           <Panel tone="floating" className="px-4 py-3 text-right">
-            <div className="text-label text-fg-subtle">DESTROYED</div>
+            <div className="text-label text-fg-subtle">SURVIVED</div>
             <div className="text-figure-sm tabular-nums text-fg">
-              {run.kills.toLocaleString()}
+              {formatSurvivalTime(run.time)}
             </div>
           </Panel>
           <Button
@@ -561,13 +585,15 @@ export function CoreSurvivorsHud() {
             Move with WASD, the arrow keys, or a one-finger or left-button drag.{' '}
             {run.weapons.length
               ? 'Your weapons fire on their own.'
-              : run.enemies.some((enemy) => enemy.kind === 'volt')
-                ? ENEMY_TELEGRAPHS
-                  ? 'Step out of the red arrow path before the Mite lunges.'
-                  : 'Sidestep when the Mite coils to lunge.'
-                : ENEMY_TELEGRAPHS
-                  ? 'Sidestep the orange lane to dodge the shield thrust.'
-                  : "Sidestep the Bulwark's shield thrust."}
+              : run.bosses.some((boss) => boss.kind === 'warden')
+                ? 'Move your feet outside the red sector before the staff lands.'
+                : run.enemies.some((enemy) => enemy.kind === 'volt')
+                  ? ENEMY_TELEGRAPHS
+                    ? 'Step out of the red arrow path before the Mite lunges.'
+                    : 'Sidestep when the Mite coils to lunge.'
+                  : ENEMY_TELEGRAPHS
+                    ? 'Sidestep the orange lane to dodge the shield thrust.'
+                    : "Sidestep the Bulwark's shield thrust."}
           </Panel>
         ) : null}
 
@@ -720,11 +746,13 @@ export function CoreSurvivorsHud() {
             RESUME
           </Button>
           <Button variant="outline" onClick={restart}>
-            RESTART
+            {survivorsSession.replay ? 'BACK TO LOBBY' : 'RESTART'}
           </Button>
-          <Button variant="ghost" onClick={leave}>
-            LEAVE
-          </Button>
+          {!survivorsSession.replay && (
+            <Button variant="ghost" onClick={leave}>
+              LEADERBOARD
+            </Button>
+          )}
         </div>
       </Dialog>
 
@@ -736,24 +764,95 @@ export function CoreSurvivorsHud() {
         initialFocus={retryRef}
       >
         <DialogHeader
-          eyebrow={`OVERRUN BY ${killer.toUpperCase()}`}
-          title={`You lasted ${formatClock(run.time)}`}
+          eyebrow={
+            survivorsSession.atRankedLimit
+              ? 'TIME LIMIT'
+              : `OVERRUN BY ${killer.toUpperCase()}`
+          }
+          title={`${run.kills.toLocaleString()} destroyed`}
           titleId="survivors-fallen-title"
           canClose={false}
         />
         <StatGrid className="grid-cols-3">
-          <Stat label="SURVIVED" value={formatClock(run.time)} emphasis />
-          <Stat label="DESTROYED" value={run.kills.toLocaleString()} />
+          <Stat label="DESTROYED" value={run.kills.toLocaleString()} emphasis />
+          <Stat label="SURVIVED" value={formatSurvivalTime(run.time)} />
           <Stat label="LEVEL" value={player.level} />
         </StatGrid>
         <DamageTable run={run} />
+        {fallen && survivorsSession.replay && (
+          <div
+            role="status"
+            className="border-t border-line px-5 py-3 text-caption text-fg-secondary"
+          >
+            {recorded ? (
+              <div className="space-y-2">
+                <p>
+                  {survivorsSession.attachedWallet
+                    ? `Score recorded for ${shortAddress(survivorsSession.attachedWallet)}`
+                    : 'Score recorded on the leaderboard.'}
+                </p>
+                {!survivorsSession.attaching &&
+                  (!survivorsSession.attachedWallet ||
+                    (address &&
+                      addressesMatch(
+                        address,
+                        survivorsSession.attachedWallet
+                      ))) && (
+                    <SurvivorName
+                      key={survivorsSession.attachedWallet ?? 'guest'}
+                      address={survivorsSession.attachedWallet}
+                    />
+                  )}
+                {!survivorsSession.attachedWallet &&
+                  (address ? (
+                    <Button
+                      variant="outline"
+                      busy={survivorsSession.attaching}
+                      onClick={() =>
+                        void survivorsSession.attachWallet(
+                          address,
+                          signTypedDataAsync
+                        )
+                      }
+                    >
+                      Link score to {shortAddress(address)}
+                    </Button>
+                  ) : (
+                    <WalletButton
+                      variant="block"
+                      label="Connect to link this score"
+                    />
+                  ))}
+                {survivorsSession.walletError && (
+                  <p role="alert">{survivorsSession.walletError}</p>
+                )}
+              </div>
+            ) : survivorsSession.scoreResult &&
+              'error' in survivorsSession.scoreResult ? (
+              <div>
+                <p role="alert">{survivorsSession.scoreResult.error}</p>
+                <Button
+                  variant="outline"
+                  busy={survivorsSession.submitting}
+                  onClick={() => void survivorsSession.recordScore()}
+                >
+                  Retry saving
+                </Button>
+              </div>
+            ) : (
+              'Saving score…'
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-3 border-t border-line px-5 py-4">
           <Button ref={retryRef} tone="accent" onClick={restart}>
-            TRY AGAIN
+            {survivorsSession.replay ? 'LEADERBOARD' : 'TRY AGAIN'}
           </Button>
-          <Button variant="ghost" onClick={leave}>
-            LEAVE
-          </Button>
+          {!survivorsSession.replay && (
+            <Button variant="ghost" onClick={leave}>
+              LEADERBOARD
+            </Button>
+          )}
         </div>
       </Dialog>
     </div>

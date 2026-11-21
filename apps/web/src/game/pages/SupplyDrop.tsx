@@ -95,9 +95,7 @@ function EmptySupplyDrop() {
       <div className="h-px w-16 bg-gold" />
       <h2 className="mt-6 text-title text-fg">NO ACTIVE SUPPLY DROP</h2>
       <p className="mt-4 max-w-xl text-caption leading-6 text-fg-subtle">
-        The next Supply Drop has not started yet. Keep control of your
-        Sectors—the operator recorded when the drop window closes is eligible to
-        receive the drop if their Sector is selected.
+        Earlier winners can claim their prizes below.
       </p>
     </Panel>
   );
@@ -260,12 +258,11 @@ export function SupplyDrop() {
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
         <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-line pb-7">
           <div className="min-w-0">
-            <Eyebrow>SECTOR REWARDS</Eyebrow>
+            <Eyebrow>LEGACY SECTOR REWARDS</Eyebrow>
             <PageTitle className="mt-1">SUPPLY DROP</PageTitle>
             <p className="mt-2 max-w-xl text-caption text-fg-muted">
-              A portion of pool commissions funds each drop. One Sector is
-              selected at random; its operator at the deadline receives it.
-              Received drops are staked automatically.
+              View earlier onchain rounds and claim outstanding prizes. New
+              prize rounds are played in Core Survivors.
             </p>
             {current && policies[current.id.toString()]?.stakingRequired ? (
               <p className="mt-3 max-w-2xl text-caption text-gold">

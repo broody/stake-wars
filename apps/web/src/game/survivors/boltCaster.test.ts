@@ -6,7 +6,7 @@ import { poseVanguard } from './poseVanguard';
 import { VANGUARD, VanguardAnimation } from '../utils/vanguardAnimation';
 import { SaberAnimation } from '../utils/saberAnimation';
 import { applyOffer, createRun, SIM_HZ, spawnEnemy, tick } from './sim';
-import { dot, pointAt, vec3 } from './sphere';
+import { dot, pointAt, rotateAbout, vec3 } from './sphere';
 
 async function asset(name: string, model = 'sector-trooper') {
   const bytes = readFileSync(
@@ -275,19 +275,20 @@ describe('Bolt Caster off-hand equipment', () => {
       step();
       const shot = run.player.boltShot!;
       if (shot.firedAt === last) continue;
-      expect(shot.firedAt - last).toBeCloseTo(3 / SIM_HZ);
+      expect(shot.firedAt - last).toBeCloseTo(6 / SIM_HZ);
       expect(dot(shot.forward, run.player.boltSight!.forward)).toBeGreaterThan(
         0.99
       );
       bearings.push(dot(shot.forward, heading));
       last = shot.firedAt;
     }
-    expect(bearings).toHaveLength(4);
-    expect(Math.abs(bearings[0])).toBeLessThan(0.35);
-    expect(bearings[3]).toBeLessThan(-0.99);
+    expect(bearings).toHaveLength(2);
+    expect(bearings[0]).toBeLessThan(0);
+    expect(bearings[0]).toBeGreaterThan(-0.99);
+    expect(bearings[1]).toBeLessThan(-0.99);
   });
 
-  it('records each volley once, tracks its shot direction, and carries aim along the sphere', () => {
+  it('records each shot direction and carries aim along the sphere until the next shot', () => {
     const run = createRun(123, 5.006, 'vanguard');
     run.spawnCredit = -1e6;
     run.eventIndex = 1000;
@@ -307,20 +308,13 @@ describe('Bolt Caster off-hand equipment', () => {
       tick(run, 1 / SIM_HZ, { x: 0, y: 0 });
     expect(run.player.boltShot!.firedAt).toBe(run.time);
     expect(run.projectiles).toHaveLength(1);
+    expect(run.projectiles[0].pierce).toBe(0);
     expect(dot(run.player.boltShot!.forward, run.right)).toBeCloseTo(1, 5);
     const firedAt = run.player.boltShot!.firedAt;
     tick(run, 1 / SIM_HZ, { x: 0, y: 1 });
     expect(run.player.boltShot!.firedAt).toBe(firedAt);
     expect(dot(run.player.boltShot!.forward, run.player.n)).toBeCloseTo(0, 8);
-    caster.level = 4;
-    caster.cooldown = 0;
-    run.projectiles.length = 0;
-    tick(run, 1 / SIM_HZ, { x: 0, y: 0 });
-    expect(run.projectiles).toHaveLength(3);
     expect(run.cues.some((cue) => cue.id === 'bolt')).toBe(true);
-    expect(
-      dot(run.player.boltShot!.forward, run.projectiles[1].dir)
-    ).toBeGreaterThan(0.999);
     caster.evolved = true;
     caster.cooldown = 0;
     run.projectiles.length = 0;
@@ -334,4 +328,58 @@ describe('Bolt Caster off-hand equipment', () => {
     ).toBeGreaterThan(0.999);
     expect(createRun(123, 5.006).player.boltShot).toBeUndefined();
   });
+  it.each([
+    { level: 1, cooldown: 0.85, counts: [1, 1], overclock: 0 },
+    { level: 2, cooldown: 0.85, counts: [1, 1], overclock: 0 },
+    { level: 3, cooldown: 0.85, counts: [1, 1, 1, 1, 2], overclock: 0 },
+    { level: 4, cooldown: 0.83, counts: [1, 1, 1, 2], overclock: 0 },
+    {
+      level: 5,
+      cooldown: 0.78,
+      counts: [1, 1, 1, 2, 1, 1, 1, 1, 3],
+      overclock: 5,
+    },
+  ])(
+    'separates each rank $level tap while reloading from the first shot',
+    ({ level, cooldown, counts, overclock }) => {
+      const run = createRun(42, 5.006, 'vanguard');
+      run.spawnCredit = -1e6;
+      run.eventIndex = 1000;
+      run.weapons.length = 0;
+      for (let i = 0; i < level; i++)
+        applyOffer(run, { kind: 'weapon', id: 'bolts', isNew: i === 0 });
+      for (let i = 0; i < overclock; i++)
+        applyOffer(run, { kind: 'system', id: 'overclock', isNew: i === 0 });
+      run.weapons[0].cooldown = 0;
+      const ticksPerVolley = Math.ceil(
+        cooldown * run.player.cooldownScale * SIM_HZ
+      );
+      for (const count of [...counts, 1]) {
+        for (let frame = 0; frame < ticksPerVolley; frame++) {
+          run.projectiles.length = 0;
+          run.cues.length = 0;
+          tick(run, 1 / SIM_HZ, { x: 0, y: 1 });
+          const tap = frame / 4;
+          const fires = Number.isInteger(tap) && tap < count;
+          expect(run.projectiles).toHaveLength(fires ? 1 : 0);
+          expect(run.cues.filter((cue) => cue.id === 'bolt')).toHaveLength(
+            fires ? 1 : 0
+          );
+          expect(run.player.boltShot?.firedAt === run.time).toBe(fires);
+          if (!fires) continue;
+          const bolt = run.projectiles[0];
+          const aim = rotateAbout(
+            { ...run.player.heading },
+            run.player.n,
+            (tap - (count - 1) / 2) * 0.14
+          );
+          expect(bolt.prev).toEqual(run.player.n);
+          expect(dot(aim, run.player.boltShot!.forward)).toBeCloseTo(1, 8);
+          expect(dot(run.player.boltShot!.forward, bolt.dir)).toBeGreaterThan(
+            0.999
+          );
+        }
+      }
+    }
+  );
 });

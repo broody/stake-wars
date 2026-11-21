@@ -64,6 +64,52 @@ func TestSupplyDropSubmitterRejectsPrivateKeyMismatch(t *testing.T) {
 	}
 }
 
+func TestKeeperReadyOwnerKey(t *testing.T) {
+	for _, test := range []struct {
+		name, class       string
+		owners, guardians []string
+		wantKey           bool
+	}{
+		{"single Stark owner", readyAccountV050, []string{"0x1", "0x0", "0x123", "0xabc"}, []string{"0x0"}, true},
+		{"unknown class", "0x1", nil, nil, false},
+		{"two owners", readyAccountV050, []string{"0x2", "0x0", "0x123", "0xabc", "0x0", "0x234", "0xdef"}, []string{"0x0"}, false},
+		{"different signer type", readyAccountV050, []string{"0x1", "0x1", "0x123", "0xabc"}, []string{"0x0"}, false},
+		{"guardian", readyAccountV050, []string{"0x1", "0x0", "0x123", "0xabc"}, []string{"0x1", "0x0", "0x234", "0xdef"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request struct {
+					Method string
+					Params struct{ Request rpcFunctionCall }
+				}
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					return
+				}
+				reply := map[string]any{"jsonrpc": "2.0", "id": 1}
+				switch {
+				case request.Method == "starknet_getClassHashAt":
+					reply["result"] = test.class
+				case request.Params.Request.EntryPointSelector == Selector("get_public_key"):
+					reply["error"] = map[string]any{"code": RPCEntrypointNotFound, "message": "Entry point not found"}
+				case request.Params.Request.EntryPointSelector == Selector("get_owners_info"):
+					reply["result"] = test.owners
+				case request.Params.Request.EntryPointSelector == Selector("get_guardians_info"):
+					reply["result"] = test.guardians
+				default:
+					t.Errorf("unexpected RPC request %v", request)
+				}
+				_ = json.NewEncoder(w).Encode(reply)
+			}))
+			defer server.Close()
+			key, err := keeperPublicKey(context.Background(), NewChainClient(server.URL), "0x456")
+			if test.wantKey != (err == nil) || test.wantKey && (len(key) != 1 || key[0] != "0xabc") {
+				t.Fatalf("unexpected key %v, error %v", key, err)
+			}
+		})
+	}
+}
+
 func supplyDropReaderServer(
 	t *testing.T,
 	activeID string,

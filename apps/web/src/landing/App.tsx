@@ -268,7 +268,7 @@ function LandingApp() {
 
               <FaqItem question="How do I win the Core Survivors daily prize?">
                 <p>
-                  Start a ranked run as a guest and submit your score with an
+                  Every completed run joins the leaderboard. Link your run to an
                   Outis wallet before the round closes. The most enemies
                   destroyed in one run wins. If eligible scores tie, the first
                   submission wins. After the round closes, sign the claim from

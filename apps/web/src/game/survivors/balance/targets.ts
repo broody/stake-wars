@@ -1,14 +1,14 @@
 /**
  * What "hard but not too hard" means for the simulator: runs that last about
- * ten minutes. The bot dodges worse than a practiced player, so its own
- * (natural) build mostly checks the opening; the handed builds stand in for
- * players who have built well, and their health curves are what the targets
- * hold. Times are seconds.
+ * eight minutes for the Vanguard with natural picks and about ten for a good
+ * preset kit. Times are seconds.
  */
 export const TARGETS = {
   /** Most natural runs must outlast the opening, however poorly they build. */
   earlySeconds: 120,
   earlyShare: 0.9,
+  /** Median defeat for the default Vanguard bot earning its own upgrades. */
+  naturalMedian: [450, 510],
   /** A good minute-5 kit is safe through minute 5... */
   midSafeMinute: 5,
   midSafeShare: 0.95,

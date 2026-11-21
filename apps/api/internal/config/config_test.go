@@ -75,6 +75,26 @@ func beaconKeeperEnvironment(t *testing.T) {
 	t.Setenv("BEACON_KEEPER_ENABLED", "true")
 }
 
+func TestSurvivorPayoutsWithoutSupplyDrop(t *testing.T) {
+	t.Setenv("SURVIVOR_PAYOUTS_ENABLED", "true")
+	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "")
+	t.Setenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "0x456")
+	t.Setenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY", "0x789")
+	t.Setenv("STARKNET_RPC_URL", "http://127.0.0.1:5050")
+	cfg, err := Load()
+	if err != nil || !cfg.SurvivorPayouts || cfg.SupplyDropKeeperEnabled() {
+		t.Fatalf("payout-only configuration: %v", err)
+	}
+	for _, key := range []string{"STARKNET_RPC_URL", "SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "SUPPLY_DROP_KEEPER_PRIVATE_KEY"} {
+		t.Run(key, func(t *testing.T) {
+			t.Setenv(key, "")
+			if _, err := Load(); err == nil {
+				t.Fatal("incomplete payout signer accepted")
+			}
+		})
+	}
+}
+
 func TestLoadConfiguresSupplyDropKeeper(t *testing.T) {
 	t.Setenv("SUPPLY_DROP_SYSTEM_ADDRESS", "0x123")
 	t.Setenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS", "0x456")

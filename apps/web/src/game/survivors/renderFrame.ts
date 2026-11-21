@@ -25,7 +25,8 @@ export type Renderer = (frame: FrameContext) => void;
 
 /**
  * Ground warnings ahead of enemy attacks: Volt Mite carets, Bulwark lanes,
- * aimed-shot chevrons and Warden cones. Off while playtesting without them;
+ * and aimed-shot chevrons. Warden slams always show their damage footprint.
+ * Other optional markings are off while playtesting;
  * the attacks keep their timing either way.
  */
 export const ENEMY_TELEGRAPHS = false;

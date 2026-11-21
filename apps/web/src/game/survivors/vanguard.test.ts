@@ -182,14 +182,15 @@ describe('Crescent Wave', () => {
     expect(near.hp).toBeLessThan(near.maxHp);
   });
 
-  it('fans two crescents from level 2', () => {
+  it('fans two crescents on the fifth release at level 3', () => {
     const run = drill();
     run.player.invulnerable = 1e6;
     applyOffer(run, { kind: 'weapon', id: 'crescent', isNew: true });
     applyOffer(run, { kind: 'weapon', id: 'crescent', isNew: false });
+    applyOffer(run, { kind: 'weapon', id: 'crescent', isNew: false });
     place(run, 'bulwark', 0.5);
     let most = 0;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 18 * SIM_HZ; i++) {
       tick(run, dt, still);
       most = Math.max(most, run.crescents.length);
     }
@@ -235,25 +236,25 @@ describe('Rebuke', () => {
     expect(mite.knock).toBeGreaterThan(0);
   });
 
-  it('stays quiet without hits at level 1 and runs on a timer from level 2', () => {
-    const quiet = rebukeOnly(1);
+  it('stays quiet without hits at level 2 and runs on a timer from level 3', () => {
+    const quiet = rebukeOnly(2);
     quiet.player.invulnerable = 1e6;
     place(quiet, 'bulwark', 0.6);
     play(quiet, 8);
     expect(quiet.damageBy.rebuke).toBeUndefined();
 
-    const timed = rebukeOnly(2);
+    const timed = rebukeOnly(3);
     timed.player.invulnerable = 1e6;
     place(timed, 'bulwark', 0.6);
     let count = 0;
-    while (timed.time < 8 - 1e-9) {
+    while (timed.time < 13 - 1e-9) {
       tick(timed, dt, still);
       if (bursts(timed)) {
         expect(timed.weapons[0].dischargedAt).toBe(timed.time);
         count++;
       }
     }
-    // Once as it comes online, then every 7 seconds.
+    // Once as it comes online, then every 12 seconds.
     expect(count).toBe(2);
   });
 
@@ -264,15 +265,22 @@ describe('Rebuke', () => {
     const aegis = run.player.aegis!;
     aegis.segments = 2;
     aegis.delay = 10;
+    run.weapons[0].cooldown = 0;
     run.weapons[0].primed = true;
     tick(run, dt, still);
     expect(aegis.segments).toBe(3);
     expect(aegis.delay).toBeGreaterThan(9);
   });
 
-  it('erases hostile bolts inside the Rampart ring', () => {
+  it('clears bolts on a reactive Rampart burst and restores two segments on a timed burst', () => {
     const run = rebukeOnly(5);
-    run.weapons[0].evolved = true;
+    applyOffer(run, { kind: 'system', id: 'aegis', isNew: true });
+    const shield = run.player.aegis!;
+    shield.segments = 0;
+    shield.delay = 10;
+    const rampart = run.weapons[0];
+    rampart.evolved = true;
+    rampart.cooldown = 1;
     const at = pointAt(vec3(), run.player.n, run.right, 1 / RADIUS);
     run.projectiles.push({
       n: at,
@@ -285,9 +293,15 @@ describe('Rebuke', () => {
       hit: new Set(),
       from: 'lancer',
     });
-    run.weapons[0].primed = true;
+    rampart.primed = true;
     tick(run, dt, still);
     expect(run.projectiles).toHaveLength(0);
-    expect(run.weapons[0].dischargedAt).toBe(run.time);
+    expect(rampart.dischargedAt).toBe(run.time);
+    expect(shield.segments).toBe(0);
+
+    rampart.cooldown = 0;
+    tick(run, dt, still);
+    expect(rampart.dischargedAt).toBe(run.time);
+    expect(shield.segments).toBe(2);
   });
 });

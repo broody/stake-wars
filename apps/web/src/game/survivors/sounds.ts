@@ -49,7 +49,7 @@ export const SOUNDS = {
   },
   bolt: {
     name: 'Bolt Caster',
-    detail: 'A Bolt Caster volley: a blaster shot.',
+    detail: 'A single blaster shot from the Bolt Caster.',
     volume: 0.65,
     voices: 3,
     gap: 0.05,

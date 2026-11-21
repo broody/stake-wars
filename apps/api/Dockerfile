@@ -9,6 +9,8 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
         -o /out/stakewars-api ./cmd/server \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+        -o /out/stakewars-survivor-round ./cmd/survivor-round \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
         -o /out/stakewars-transaction-history ./cmd/transaction-history
 
 FROM alpine:3.22 AS torii-download
@@ -36,7 +38,7 @@ RUN apk add --no-cache ca-certificates curl \
 FROM debian:trixie-slim
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends bash ca-certificates gosu tini \
+    && apt-get install --yes --no-install-recommends bash ca-certificates gosu nodejs tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system stakewars \
     && useradd --system --gid stakewars --home-dir /nonexistent --shell /usr/sbin/nologin stakewars \
@@ -47,6 +49,10 @@ COPY --from=build /out/stakewars-transaction-history /usr/local/bin/stakewars-tr
 COPY --from=torii-download /out/torii /usr/local/bin/torii
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --chmod=0755 stakewars-runtime.sh /usr/local/bin/stakewars-runtime
+
+COPY --from=build /out/stakewars-survivor-round /usr/local/bin/stakewars-survivor-round
+COPY generated/survivor-verifier.cjs /opt/stakewars/survivor-verifier.cjs
+ENV SURVIVOR_VERIFIER_PATH=/opt/stakewars/survivor-verifier.cjs
 
 EXPOSE 8080
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cn } from '../../../ui';
 import type { SystemId, WeaponId } from '../../survivors/content';
 
 /** Line glyphs for the Vanguard's weapons and systems, drawn in currentColor. */
@@ -94,5 +95,50 @@ export function SurvivorsIcon({
     >
       {GLYPHS[id]}
     </svg>
+  );
+}
+
+// One equipment slot, shared by the live and final loadouts.
+export function SurvivorUpgradeTile({
+  icon,
+  kind,
+  level,
+  title,
+}: {
+  icon?: keyof typeof GLYPHS;
+  kind: 'weapon' | 'system' | 'evolution' | 'repair' | 'sharpen';
+  level?: number;
+  title?: string;
+}) {
+  const system = kind === 'system';
+  const evolution = kind === 'evolution';
+  return (
+    <span
+      title={title}
+      className={cn(
+        'relative grid size-8 place-items-center border bg-surface/80',
+        evolution
+          ? 'border-gold text-gold'
+          : system
+            ? 'border-line text-fg-muted'
+            : 'border-line-strong text-fg'
+      )}
+    >
+      {icon ? (
+        <SurvivorsIcon id={icon} className={system ? 'size-4' : 'size-5'} />
+      ) : (
+        <span aria-hidden="true">?</span>
+      )}
+      {(level != null || evolution) && (
+        <span
+          className={cn(
+            'absolute -bottom-1 -right-1 bg-surface px-0.5 text-tag tabular-nums',
+            system ? 'text-fg-subtle' : 'text-fg-secondary'
+          )}
+        >
+          {level ?? 'EVO'}
+        </span>
+      )}
+    </span>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRun, spawnEnemy, tick, type Run } from './sim';
-import { chord, copy, pointAt, vec3 } from './sphere';
-import { WARDEN_GAIT } from './wardenAttack';
+import { chord, copy, pointAt, rotateAbout, vec3 } from './sphere';
+import { WARDEN_GAIT, WARDEN_SLAM, wardenApproachSpeed } from './wardenAttack';
 import { WARDEN_DEFEAT, enemyDefeatOpacity } from './enemyDefeat';
 const RADIUS = 5.006,
   DT = 1 / 30,
@@ -37,8 +37,6 @@ describe('Warden staff slam', () => {
     expect(run.player.hp).toBe(80);
     expect(enemy.slam?.impacted).toBe(true);
     expect(run.effects.some((e) => e.kind === 'cone')).toBe(false);
-    const blast = run.effects.find((e) => e.kind === 'blast');
-    expect(blast && 'n' in blast && blast.n).toEqual(enemy.slam?.origin);
     advance(run, 0.8);
     expect(run.player.hp).toBe(80);
     expect(enemy.n).toEqual(origin);
@@ -63,12 +61,40 @@ describe('Warden staff slam', () => {
     expect(enemy.slam?.origin).toEqual(origin);
     expect(run.player.hp).toBe(100);
   });
-  it('continues dealing ordinary contact damage while bracing', () => {
-    const { run } = encounter(0.1);
-    expect(run.player.hp).toBe(86);
+  it('keeps body contact harmless during the windup and deals contact damage while walking', () => {
+    const { run, enemy } = encounter(0.1);
+    expect(run.player.hp).toBe(100);
     advance(run, 0.7);
-    expect(run.player.hp).toBe(72);
+    expect(run.player.hp).toBe(100);
+    advance(run, 1.5);
+    run.player.invulnerable = 0;
+    const hp = run.player.hp;
+    copy(run.player.n, enemy.n);
+    tick(run, DT, still);
+    expect(run.player.hp).toBeLessThan(hp);
   });
+  it.each([
+    [1.19, 0, true],
+    [1.21, 0, false],
+    [0.9, 59, true],
+    [0.9, 61, false],
+    [0.9, -59, true],
+    [0.9, -61, false],
+  ] as const)(
+    'tests the feet at surface distance %s and angle %s',
+    (reach, degrees, hit) => {
+      const { run, enemy } = encounter();
+      const { origin, direction } = enemy.slam!;
+      const towards = rotateAbout(
+        { ...direction },
+        origin,
+        (degrees * Math.PI) / 180
+      );
+      pointAt(run.player.n, origin, towards, reach / RADIUS);
+      advance(run, WARDEN_SLAM.impact + DT);
+      expect(run.player.hp < 100).toBe(hit);
+    }
+  );
   it('respects invulnerability and freezes attack time while paused for an upgrade', () => {
     const { run, enemy } = encounter();
     run.player.invulnerable = 3;
@@ -89,7 +115,8 @@ describe('Warden staff slam', () => {
     }
   );
   it('walks nearby, runs farther away, and preserves ranged attacks and summons', () => {
-    const { run, enemy } = encounter(2.2);
+    expect(wardenApproachSpeed(1.8, 0.18, 0.6)).toBeCloseTo(0.39);
+    const { run, enemy } = encounter(2.5);
     enemy.cooldown = 1e9;
     const before = { ...enemy.n };
     tick(run, DT, still);

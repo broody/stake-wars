@@ -315,10 +315,12 @@ func (apiTestVerifier) NormalizeWallet(value string) (string, error) {
 func (apiTestVerifier) TypedData(
 	wallet, nonce string,
 	issuedAt, expiresAt time.Time,
+	statement string,
 ) (json.RawMessage, error) {
 	return json.Marshal(map[string]any{
 		"wallet":    wallet,
 		"nonce":     nonce,
+		"statement": statement,
 		"issuedAt":  issuedAt.Unix(),
 		"expiresAt": expiresAt.Unix(),
 	})

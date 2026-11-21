@@ -40,6 +40,10 @@
   ],
   "rewrites": [
     {
+      "source": "/play/survivors",
+      "destination": "/play/survivors.html"
+    },
+    {
       "source": "/play",
       "destination": "/index.html"
     },

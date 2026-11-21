@@ -4,8 +4,6 @@ import { Planet } from './Planet';
 import { Stars } from './Stars';
 import { ShootingStars } from './ShootingStars';
 import { OrbitalBeacon } from './OrbitalBeacon';
-import { CoreSupplyDropMarker } from './CoreSupplyDropMarker';
-import type { SupplyDrop } from '../../types';
 import { useCoreIntro } from '../../hooks/useCoreIntro';
 import {
   EMPTY_SWARM_COUNTS,
@@ -19,9 +17,6 @@ const CoreSurvivors = lazy(() => import('./CoreSurvivors'));
 export function Scene({
   isBeaconTracking,
   onInspectBeacon,
-  supplyDropDraw,
-  isSupplyDropTracking,
-  onInspectSupplyDrop,
   swarmCounts = EMPTY_SWARM_COUNTS,
   trooper = false,
   trooperActive = true,
@@ -30,9 +25,6 @@ export function Scene({
 }: {
   isBeaconTracking: boolean;
   onInspectBeacon: () => void;
-  supplyDropDraw: SupplyDrop | null;
-  isSupplyDropTracking: boolean;
-  onInspectSupplyDrop: () => void;
   swarmCounts?: EnemySwarmCounts;
   trooper?: boolean;
   trooperActive?: boolean;
@@ -79,16 +71,6 @@ export function Scene({
         onInspect={onInspectBeacon}
         isCoreProjectionSettled={coreIntro.isProjectionSettled}
       />
-      {/* The $STRK Supply Drop would read as a Core Survivors pickup. */}
-      {supplyDropDraw && !bare ? (
-        <CoreSupplyDropMarker
-          key={`${supplyDropDraw.id.toString()}:${supplyDropDraw.drawCount}:${supplyDropDraw.lastDrawnSectorId}`}
-          supplyDrop={supplyDropDraw}
-          isOpen={isSupplyDropTracking}
-          onInspect={onInspectSupplyDrop}
-          canArrive={coreIntro.isProjectionSettled}
-        />
-      ) : null}
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1} />
     </>

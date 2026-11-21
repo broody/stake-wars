@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRun, tick, spawnEnemy, SIM_HZ } from './sim';
+import { applyOffer, createRun, tick, spawnEnemy, SIM_HZ } from './sim';
 import { pointAt, vec3, chord, dot, cross, copy, normalize } from './sphere';
 import { SABER, saberHits, saberReach } from './saberAttack';
 const dt = 1 / SIM_HZ;
@@ -26,7 +26,10 @@ describe('single-saber combat', () => {
     const attack = r.player.saberAttack!;
     expect(attack.side).toBe(1);
     expect(e.hp).toBe(1000);
-    while (r.time + dt < attack.startedAt + SABER.impact)
+    while (
+      r.time + dt <
+      attack.startedAt + attack.duration * (SABER.impact / SABER.duration)
+    )
       tick(r, dt, { x: 0, y: 0 });
     expect(e.hp).toBe(1000);
     tick(r, dt, { x: 0, y: 0 });
@@ -55,7 +58,10 @@ describe('single-saber combat', () => {
     tick(r, dt, { x: 0, y: 1 });
     const attack = r.player.saberAttack!;
     const origin = { ...r.player.n };
-    while (r.time < attack.startedAt + SABER.impact)
+    while (
+      r.time <
+      attack.startedAt + attack.duration * (SABER.impact / SABER.duration)
+    )
       tick(r, dt, { x: 0, y: 1 });
     expect(chord(origin, r.player.n)).toBeGreaterThan(0.05);
     expect(e.hp).toBeLessThan(1000);
@@ -71,7 +77,10 @@ describe('single-saber combat', () => {
     const opposite = vec3(-r.right.x, -r.right.y, -r.right.z);
     pointAt(e.n, r.player.n, opposite, 0.65 / 5);
     copy(e.prev, e.n);
-    while (r.time < attack.startedAt + SABER.impact)
+    while (
+      r.time <
+      attack.startedAt + attack.duration * (SABER.impact / SABER.duration)
+    )
       tick(r, dt, { x: 0, y: 0 });
     expect(attack.forward).toEqual(committed);
     expect(e.hp).toBe(1000);
@@ -94,7 +103,10 @@ describe('single-saber combat', () => {
     other.cooldown = 1e6;
     tick(r, dt, { x: 0, y: 0 });
     const attack = r.player.saberAttack!;
-    while (r.time < attack.startedAt + SABER.impact)
+    while (
+      r.time <
+      attack.startedAt + attack.duration * (SABER.impact / SABER.duration)
+    )
       tick(r, dt, { x: 0, y: 0 });
     expect(e.hp).toBeLessThan(1000);
     expect(other.hp).toBeLessThan(1000);
@@ -113,22 +125,28 @@ describe('single-saber combat', () => {
     expect(chord(start, r.player.n) * 5).toBeCloseTo(0.3, 2);
     expect(r.player.saberAttack).toBeDefined();
   });
-  it('cuts once per swing at every level, swinging faster at levels 4 and 5', () => {
-    for (const [level, cooldown] of [
-      [1, 1.3],
-      [2, 1.3],
-      [3, 1.3],
-      [4, 1.1],
-      [5, 0.9],
+  it('earns small increases in damage and sweep with each blade upgrade', () => {
+    for (const [level, damage, cooldown, reach] of [
+      [1, 16, 1, 0.95],
+      [2, 18, 1, 0.95],
+      [3, 19, 0.97, 0.99],
+      [4, 21, 0.94, 1.02],
+      [5, 23, 0.91, 1.05],
     ]) {
-      const { r } = drill();
-      r.weapons[0].level = level;
+      const { r, e } = drill();
+      for (let rank = 1; rank < level; rank++)
+        applyOffer(r, { kind: 'weapon', id: 'blade', isNew: false });
       tick(r, dt, { x: 0, y: 0 });
+      expect(r.weapons[0].cooldown).toBeCloseTo(cooldown);
       const first = r.player.saberAttack!;
       expect(first.duration).toBeCloseTo(Math.min(SABER.duration, cooldown));
       // No follow-up cut: the next swing waits for the whole cooldown.
       while (r.time < first.startedAt + cooldown - dt)
         tick(r, dt, { x: 0, y: 0 });
+      const hit = r.texts.find((entry) => entry.bladeFrom);
+      expect(hit).toBeDefined();
+      expect(e.maxHp - e.hp).toBe(damage * (hit!.crit ? 2 : 1));
+      expect(saberReach(level, 1).reach).toBeCloseTo(reach);
       const current = r.player.saberAttack;
       expect(current === undefined || current.id === first.id).toBe(true);
     }
@@ -136,8 +154,8 @@ describe('single-saber combat', () => {
   it('extends damage and the displayed envelope together with reach and area upgrades', () => {
     const base = saberReach(1, 1),
       large = saberReach(4, 1.5);
-    expect(saberHits(0.9, 0, base.reach, base.width, base.arc)).toBe(false);
-    expect(saberHits(0.9, 0, large.reach, large.width, large.arc)).toBe(true);
+    expect(saberHits(1.4, 0, base.reach, base.width, base.arc)).toBe(false);
+    expect(saberHits(1.4, 0, large.reach, large.width, large.arc)).toBe(true);
     expect(
       saberHits(base.reach + 0.01, 0, base.reach, base.width, base.arc)
     ).toBe(false);
@@ -146,13 +164,13 @@ describe('single-saber combat', () => {
     );
     expect(saberHits(-0.1, 0, large.reach, large.width, large.arc)).toBe(false);
   });
-  it('widens 30° a level to a full 180° at level 4 and keeps area bonuses independent of angle', () => {
+  it('widens by five degrees with every rank and keeps area bonuses independent of angle', () => {
     for (const [level, degrees] of [
       [1, 90],
-      [2, 120],
-      [3, 150],
-      [4, 180],
-      [5, 180],
+      [2, 95],
+      [3, 100],
+      [4, 105],
+      [5, 110],
     ]) {
       const shape = saberReach(level, 1);
       expect((shape.arc * 180) / Math.PI).toBeCloseTo(degrees);

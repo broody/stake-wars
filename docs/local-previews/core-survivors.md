@@ -1,8 +1,10 @@
 # Core Survivors preview
 
-A single-player survival run on the Core, following the [Core Survivors concept](../concepts/core-survivors/README.md). The Vanguard holds out against the Hollow Legion while weapons fire on their own; the score is how long you last. Gameplay is ported from the Last Ronin prototype (`~/development/last-ronin`), with its numbers converted from pixels to world units on the Core.
+A single-player survival run on the Core, following the [Core Survivors concept](../concepts/core-survivors/README.md). The Vanguard holds out against the Hollow Legion while weapons fire on their own; the score is the number of enemies destroyed. Gameplay is ported from the Last Ronin prototype (`~/development/last-ronin`), with its numbers converted from pixels to world units on the Core.
 
-Choose **Play Survivors** on the globe at `/play`, or open `/play?survive=1` directly. A miniature icosphere drops onto the visible side of the Core and cracks open around the hero. The survival clock starts when the camera settles overhead. Move or choose **Skip intro** to start immediately.
+Open `/play/survivors` and choose **Play**. The game records completed runs automatically. Local development drills can be opened directly with the preview URLs below.
+
+For the optional Bulwark interception, open `/play?survive=1&survivePreview=kite-wall` in local development. After four minutes, retreating in good health with a crowd behind you can bring the next Bulwark line forward. Find the gap or turn around its flank.
 
 ```bash
 pnpm dev:web
@@ -38,7 +40,7 @@ Crescent Wave, Rebuke and Aegis are Vanguard upgrades. Both the Vanguard and Sec
 
 The Hollow Legion: Mites and faster Skitters swarm; Volt Mites explode and set off chain reactions; Lancers keep their distance and fire slow bolts without a pre-shot warning; Bulwarks are slow and heavy and also march in lines; Seekers stop, mark a path and charge along it; Lancer Captains fire volleys and drop Supply Drops; the Warden slams its staff into a marked frontal area, fires rings of bolts and summons Mites.
 
-Scripted events arrive on a timeline: a Skitter swarm at 0:40, a Bulwark line at 1:20, a Captain at 1:50, Seekers at 2:20 and the Warden at 3:30, then heavier versions until 6:30, when the cycle repeats every 2.5 minutes. Enemy health compounds after minute 6, so every run ends.
+Scripted events arrive on a timeline: a Skitter swarm at 0:40, a Bulwark line at 1:20, a Captain at 1:50, Seekers at 2:20 and the Warden at 3:30, then heavier versions until 6:30, when the cycle repeats every 2.5 minutes. Enemy health compounds once the late-game crowd builds up.
 
 Ordinary breaches release at most one lone Seeker every two seconds, with up to three alive at once. The scripted pack waves have their own schedule.
 
@@ -46,7 +48,25 @@ Each Seeker pack wave adds a lane: three packs the first time, then four, up to 
 
 Every living enemy is solid (`bodyBlock` in `sim.ts`). The player can't walk through one, and one that walks into the player pushes them back, so a closing ring or a crowd at your back holds you in place; touching one still hurts on the usual 0.6 s invulnerability cadence. Remains of defeated enemies never block, and neither does an enemy still rising out of a breach or a Volt Mite mid-leap. Two scripted formations become walls: a Bulwark line sweeps a player who stands in its path ahead of it until they get around it or cut through, and the Encircle ring blocks most straight walks out of it.
 
-Times in this document are on the Legion's clock, which runs `PACE` (1.15) times faster than real time so that good builds fall at about 10:00 (`sim.ts`). Divide by 1.15 for real time: the first Warden arrives at 3:03, the second at 5:39, and health starts compounding at 5:13. The XP to the next level is `6 + 1.6 × level²` (`XP_CURVE`), so a strong run reaches about level 35 by 10:00. The design and the simulation results are in [hero-classes.md](../concepts/core-survivors/hero-classes.md).
+Scripted encounters run on the Legion clock at 1.15× real time. The first Warden arrives at 3:03 and the second at 5:39. Ambient spawn rate, crowd size and non-boss health grow gently until 5:13, then accelerate toward the late-game curve. With fewer enemies dropping XP early, each level costs `round((6 + 1.6 × level²) / 1.75)` XP. The natural Vanguard run targets an eight-minute median. [Design and simulation results](../concepts/core-survivors/hero-classes.md).
+
+## Checking a balance change
+
+Run these commands from the repository root that contains Core Survivors. The simulator drives the same 30 Hz combat loop as the browser. By default it plays Vanguard, accepts real upgrades, and records health, kills, level and weapon damage until defeat or a 15-minute cap.
+
+For an Arc Blade change, save a baseline before editing the weapon. Run the second command after the edit.
+
+```bash
+pnpm sim:balance --builds natural --focus blade --json /tmp/blade-before.json
+pnpm sim:balance --builds natural --focus blade --compare /tmp/blade-before.json --json /tmp/blade-after.json
+```
+
+Both commands play the same 24 seeds. `--focus` picks the named weapon and its evolution partner when offered. The coverage line shows how many runs reached each rank. Compare damage share, first evolution, levels, kills, and time survived. The report pairs each seed and identifies the largest change in survival. To replay seed 7 headlessly, add `--seed 7 --runs 1` to the comparison command. The saved results include each seed’s loadout, cause of death and minute-by-minute progress.
+
+- **Opening and build variety.** Use `--builds natural` without a focus to see what happens under ordinary upgrade choices. Repeat with `--policy random` for a less selective player. Each choice policy needs its own baseline.
+- **Late-game interactions.** Use `--builds mid,kit,max` to give the bot preset loadouts from the start. Include `--heroes trooper,vanguard` to cover both heroes. The Vanguard kit exercises its class weapons. Optional `--mode pressure` uses virtual health and continues through defeat to measure late-wave damage and potential healing. Older JSON reports use this mode.
+- **Automated checks.** `pnpm sim:balance --builds natural --runs 8 --cap 180 --check` checks the opening. `pnpm sim:balance --builds natural --cap 600 --check` also checks that median defeat falls between 7:30 and 8:30 for the Vanguard using ordinary greedy picks. `pnpm sim:balance --check` includes the preset builds. A missed or unmeasurable target exits nonzero. Before/after deltas are reported separately and have no automatic tolerance.
+- **Human playtests.** Use them for steering, camera and attack readability, or to investigate changes the bots flag. The bot uses a fixed landscape view on a flat Core. Its survival times describe the tested strategy and seed set.
 
 ## Assets
 
@@ -90,9 +110,9 @@ During the drive window, a Bulwark sweeps its torso and shield across nearby uni
 
 Warden now loads `warden.glb`: 1,203 triangles, 25 bones, four material primitives, with Guard, Walk, Run, StaffSlam, and Defeated. Its model scale is 0.30 (body height about 1.08 world units), retaining the 0.30 collision radius. Its first spawn remains at 3:30.
 
-Rare Wardens use independent skinned clones with isolated materials and animation mixers rather than the crowd atlas. This preserves smooth clip transitions and the exported sensor morph animation. Walk plays at its authored 0.60 m/s times scale while closing within 1.8 world units; farther away, Run follows the existing chase speed. Animation rates follow measured movement, including slow effects. Stationary Wardens use Guard. Pausing freezes animation with simulation time.
+Rare Wardens use independent skinned clones with isolated materials and animation mixers rather than the crowd atlas. This preserves smooth clip transitions and the exported sensor morph animation. Approach speed blends smoothly from the authored walk at 1.4 world units to full pursuit at 2.2. Walk and Run preserve stride phase on a gait change. Animation rates follow measured movement, including slow effects. Stationary Wardens use Guard. Pausing freezes animation with simulation time.
 
-The old frontal sweep is replaced by StaffSlam. Inside 1.6 units, Warden locks its facing and plants its feet for the two-second clip. A forward 120-degree warning cone originates at the modeled staff tip, with radius 1.2. Impact at frame 26/24 seconds deals the existing 20 base damage once, respecting armor and invulnerability. The remaining clip is recovery. Contact damage, bolt rings, and Mite summons remain; committed slams resist knockback. Warning origin, damage origin, animation timing, and tip position are checked against the exported GLB. Multiple Wardens can show warnings simultaneously.
+The old frontal sweep is replaced by StaffSlam. Inside 1.6 units, Warden locks its facing and plants its feet for the two-second clip. A forward 120-degree warning cone originates at the modeled staff tip, with radius 1.2. Impact at frame 26/24 seconds flashes the same spherical sector and deals 20 base damage once to players whose feet are inside. The remaining clip is recovery. The Warden suspends body-contact damage during its committed slam. Its bolt rings, Mite summons and slam knockback resistance are preserved. Warning origin, damage origin, animation timing, and tip position are checked against the exported GLB. Multiple Wardens can show warnings simultaneously.
 
 On death, Warden immediately leaves combat and targeting, cancels its warning/attack, and drops its usual reward once. The same rendered actor crossfades into the 1.75-second kneeling collapse. The red inserts flicker and shut off through the exported SensorsOff morph tracks. The body is translucent, holds its settled pose, fades from 1.95 seconds, and is removed at 2.5 seconds. Other units retain their existing 1.8-second corpse lifetime.
 
@@ -109,8 +129,8 @@ Development-only previews:
 The player uses the Sector Trooper model with independent locomotion and upper-body
 attacks. Its compact saber sends out a cyan slash with an outer edge matching actual
 reach; range upgrades extend the same collision/visual envelope. Slashes hit after
-an animated wind-up and leave a short fading mark at the hit position. The current
-level-two upgrade chains two cuts with one saber; dual wielding is deferred.
+an animated wind-up and leave a short fading mark at the hit position. At level two,
+the single cut grows from 90° to 95° and deals 18 damage, up from 16.
 
 Local drills: `?survive=1&survivePreview=saber` for base reach and
 `?survive=1&survivePreview=saber-range` for blade level 4 plus 1.5× Area.
@@ -121,8 +141,9 @@ Ordinary `?survive=1` uses normal gameplay stats. The seven-clip GLB is in
 Saber attacks select the nearest enemy in any direction at wind-up, including
 pursuers behind the player. That direction stays committed through impact and is
 transported over the Core as the player moves. The torso aims independently of
-the running legs. The crescent starts at 90° and widens 30° a level to a full 180° at
-blade level 4; every swing is a single cut. Its ellipse has a half-width of 80% of its reach; Area and reach upgrades grow both damage and the visible edge together.
+the running legs. The crescent starts at 90° and widens 5° per rank to 110° at rank five.
+Each swing makes a single cut. Its ellipse has a half-width of 80% of its reach.
+Area and reach upgrades extend the hit area and the visible edge together.
 
 Player defeat: `?survive=1&survivePreview=saber-death` is a local fatal-contact
 drill. The authored three-second Saber_Death clip plays while a 3.5-second spiral zoom
@@ -141,6 +162,5 @@ one saber in the right. The Vanguard tracks the next target with his shoulders,
 plants a boot to pivot for rear shots, and backpedals when firing against his
 direction of travel. Railstorm keeps firing through the turn. Scrub the pivot in
 `/play/actions?action=bolt-caster` or try it in a run with
-`?survive=1&survivePreview=saber-gun`. Weapon damage, spread, speed and cooldowns
-are unchanged. The gun remains attached during death; restarting removes it until
-the upgrade is acquired again.
+`?survive=1&survivePreview=saber-gun`. The first rank fires one bolt. Ranks three and four double tap every fifth and fourth volley respectively. Rank five mixes one double tap and one triple tap into each nine-volley cycle. Each tap fires four simulation ticks (0.133 seconds) after the previous one and sweeps across the current aim. Railstorm adds piercing.
+The gun stays attached on defeat. A new run starts with the saber alone.

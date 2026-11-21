@@ -10,6 +10,7 @@ import { ENEMIES } from '../survivors/content';
 import {
   applyOffer,
   shardOrbitRadius,
+  STARTING_SHARD_COUNT,
   spawnEnemy,
   type EnemyKind,
   type ItemKind,
@@ -369,7 +370,7 @@ export const ENTRIES: CatalogEntry[] = [
     setup: (run) => {
       applyOffer(run, { kind: 'weapon', id: 'shards', isNew: true });
       const shards = run.weapons.find((w) => w.id === 'shards')!;
-      shards.count = 2;
+      shards.count = STARTING_SHARD_COUNT;
       shards.radius = shardOrbitRadius(
         shards.level,
         false,

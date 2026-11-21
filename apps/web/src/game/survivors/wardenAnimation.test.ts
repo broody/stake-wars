@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   WardenAnimation,
   createWardenWarningGeometry,
+  WARDEN_MARK_LIFT,
 } from '../utils/wardenAnimation';
 import { WARDEN_SLAM } from './wardenAttack';
 import { WARDEN_DEFEAT } from './enemyDefeat';
@@ -19,16 +20,27 @@ async function asset() {
 }
 describe('Warden animation integration', () => {
   it('draws its warning in front of the staff, matching the forward damage cone', () => {
-    const geometry = createWardenWarningGeometry();
+    const radius = 5.006;
+    const shell = radius + WARDEN_MARK_LIFT;
+    const geometry = createWardenWarningGeometry(radius);
     const p = geometry.attributes.position;
+    let furthest = 0;
     for (let i = 1; i < p.count; i++) {
       const x = p.getX(i),
         z = p.getZ(i);
+      const world = new Vector3(x, p.getY(i) + shell, z);
+      expect(world.length()).toBeCloseTo(shell, 6);
+      if (z === 0) continue;
+      furthest = Math.max(
+        furthest,
+        radius * Math.atan2(Math.hypot(x, z), world.y)
+      );
       expect(z).toBeGreaterThan(0);
       expect(Math.abs(Math.atan2(x, z))).toBeLessThanOrEqual(
         WARDEN_SLAM.halfAngle + 1e-6
       );
     }
+    expect(furthest).toBeCloseTo(WARDEN_SLAM.radius, 6);
     geometry.dispose();
   });
   it('ships all clips and matches the shared attack/death timing', async () => {

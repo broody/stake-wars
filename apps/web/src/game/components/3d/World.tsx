@@ -31,20 +31,10 @@ import { useSectorImages } from '../../contexts/SectorImageContext';
 import { suggestedPlacement } from '../../utils/sectorArtworkProjection';
 import { BeaconModal } from '../ui/BeaconModal';
 import { BeaconCameraTracker } from './BeaconCameraTracker';
-import { SupplyDropCameraTracker } from './SupplyDropCameraTracker';
-import { SupplyDropDrawPanel } from '../ui/SupplyDropDrawPanel';
-import {
-  getSupplyDrops,
-  isSupplyDropDrawPending,
-  latestSupplyDropDraw,
-} from '../../services/supplyDrop';
-import type { SupplyDrop } from '../../types';
 
 const MARQUEE_DRAG_THRESHOLD_PX = 5;
 const MAX_CANVAS_DPR = 2;
 const REDUCED_CANVAS_DPR = 1;
-const SUPPLY_DROP_REFRESH_INTERVAL_MS = 10_000;
-const SUPPLY_DROP_PENDING_REFRESH_INTERVAL_MS = 1_500;
 const PLACEMENT_CORNERS = [
   {
     horizontal: -1,
@@ -390,53 +380,6 @@ function marqueeBounds(
   };
 }
 
-function useCoreSupplyDropDraw(active: boolean): SupplyDrop | null {
-  const [draw, setDraw] = useState<SupplyDrop | null>(null);
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    if (!active) return;
-    const controller = new AbortController();
-    let refreshTimer: number | undefined;
-    let refreshInterval = SUPPLY_DROP_REFRESH_INTERVAL_MS;
-
-    getSupplyDrops(controller.signal)
-      .then((supplyDrops) => {
-        if (!controller.signal.aborted) {
-          const nextDraw = latestSupplyDropDraw(supplyDrops);
-          setDraw(nextDraw);
-          if (nextDraw) {
-            const millisecondsUntilDraw = nextDraw.endsAt * 1_000 - Date.now();
-            if (isSupplyDropDrawPending(nextDraw)) {
-              refreshInterval = SUPPLY_DROP_PENDING_REFRESH_INTERVAL_MS;
-            } else if (nextDraw.status === 2 && millisecondsUntilDraw > 0) {
-              refreshInterval = Math.min(
-                SUPPLY_DROP_REFRESH_INTERVAL_MS,
-                Math.max(500, millisecondsUntilDraw + 100)
-              );
-            }
-          }
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          refreshTimer = window.setTimeout(
-            () => setRevision((current) => current + 1),
-            refreshInterval
-          );
-        }
-      });
-
-    return () => {
-      controller.abort();
-      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
-    };
-  }, [active, revision]);
-
-  return draw;
-}
-
 export function World({ active = true }: { active?: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -455,10 +398,6 @@ export function World({ active = true }: { active?: boolean }) {
   const worldRef = useRef<HTMLDivElement>(null);
   const selectorRef = useRef<MarqueeSelectorHandle>(null);
   const ignoreBeaconInspectRef = useRef(false);
-  const ignoreSupplyDropInspectRef = useRef(false);
-  const supplyDropDraw = useCoreSupplyDropDraw(active);
-  const [isSupplyDropCameraControlled, setSupplyDropCameraControlled] =
-    useState(false);
   const [maxDpr] = useState(() =>
     Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR)
   );
@@ -481,8 +420,6 @@ export function World({ active = true }: { active?: boolean }) {
   const showTrooper = !isSurviving && searchParams.get('trooper') === '1';
   const isBeaconOpen =
     !isSurviving && searchParams.get('tracking') === 'beacon';
-  const isSupplyDropOpen =
-    !isSurviving && searchParams.get('tracking') === 'supplyDrop';
   const setBeaconTracking = useCallback(
     (isTracking: boolean) => {
       setSearchParams(
@@ -509,33 +446,6 @@ export function World({ active = true }: { active?: boolean }) {
     () => setBeaconTracking(false),
     [setBeaconTracking]
   );
-  const setSupplyDropTracking = useCallback(
-    (isTracking: boolean) => {
-      setSearchParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          if (isTracking) {
-            next.set('tracking', 'supplyDrop');
-          } else if (next.get('tracking') === 'supplyDrop') {
-            next.delete('tracking');
-          }
-          return next;
-        },
-        { replace: true }
-      );
-    },
-    [setSearchParams]
-  );
-  const openSupplyDropDraw = useCallback(() => {
-    if (ignoreSupplyDropInspectRef.current) return;
-    selectSectors([]);
-    setSupplyDropTracking(true);
-  }, [selectSectors, setSupplyDropTracking]);
-  const closeSupplyDropDraw = useCallback(
-    () => setSupplyDropTracking(false),
-    [setSupplyDropTracking]
-  );
-
   useEffect(() => {
     if (!active || !isBeaconOpen) return;
 
@@ -558,29 +468,6 @@ export function World({ active = true }: { active?: boolean }) {
     return () => window.removeEventListener('click', stopTrackingOnClick, true);
   }, [active, isBeaconOpen, setBeaconTracking]);
 
-  useEffect(() => {
-    if (!active || !isSupplyDropOpen) return;
-
-    const stopTrackingOnClick = (event: MouseEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(
-          '[data-supply-drop-console], [data-preserve-core-tracking], [data-preserve-supply-drop-tracking]'
-        )
-      ) {
-        return;
-      }
-      ignoreSupplyDropInspectRef.current = true;
-      setSupplyDropTracking(false);
-      queueMicrotask(() => {
-        ignoreSupplyDropInspectRef.current = false;
-      });
-    };
-
-    window.addEventListener('click', stopTrackingOnClick, true);
-    return () => window.removeEventListener('click', stopTrackingOnClick, true);
-  }, [active, isSupplyDropOpen, setSupplyDropTracking]);
   // Box selection skips other players' Sectors, and in YOUR SECTORS takes only
   // the Operator's own.
   const marqueeExcludedSectorIds = useMemo(() => {
@@ -598,8 +485,6 @@ export function World({ active = true }: { active?: boolean }) {
     imageUploadSectorIds.length > 0 ||
     isSectorInteractionLocked ||
     isBeaconOpen ||
-    isSupplyDropOpen ||
-    isSupplyDropCameraControlled ||
     showEnemySwarms ||
     showTrooper ||
     isSurviving ||
@@ -682,8 +567,6 @@ export function World({ active = true }: { active?: boolean }) {
           showTrooper ||
           event.button !== 2 ||
           isSurviving ||
-          isSupplyDropOpen ||
-          isSupplyDropCameraControlled ||
           isImageUploadMode ||
           isSectorInteractionLocked
         ) {
@@ -707,7 +590,6 @@ export function World({ active = true }: { active?: boolean }) {
       onPointerCancelCapture={cancelMarquee}
     >
       <Canvas
-        data-preserve-supply-drop-tracking
         camera={{ position: [0, 0, 15], fov: 75 }}
         dpr={dpr}
         gl={{ powerPreference: 'high-performance' }}
@@ -728,14 +610,10 @@ export function World({ active = true }: { active?: boolean }) {
           <Scene
             isBeaconTracking={isBeaconOpen}
             onInspectBeacon={openBeaconBriefing}
-            supplyDropDraw={supplyDropDraw}
-            isSupplyDropTracking={isSupplyDropOpen}
-            onInspectSupplyDrop={openSupplyDropDraw}
             swarmCounts={swarmCounts}
             trooper={showTrooper}
             trooperActive={
               !isBeaconOpen &&
-              !isSupplyDropOpen &&
               !isImageUploadMode &&
               !isSectorInteractionLocked &&
               !isPlacementLocked
@@ -762,8 +640,6 @@ export function World({ active = true }: { active?: boolean }) {
               active &&
               marqueeStart === null &&
               !isBeaconOpen &&
-              !isSupplyDropOpen &&
-              !isSupplyDropCameraControlled &&
               !isPlacementLocked
             }
           />
@@ -775,8 +651,7 @@ export function World({ active = true }: { active?: boolean }) {
             !showTrooper &&
             !showEnemySwarms &&
             !isSurviving &&
-            !isBeaconOpen &&
-            !isSupplyDropOpen
+            !isBeaconOpen
           }
         />
 
@@ -786,28 +661,12 @@ export function World({ active = true }: { active?: boolean }) {
           active={active && isBeaconOpen}
           projectionActive={isCoreWaveFlipped}
         />
-        <SupplyDropCameraTracker
-          active={
-            active &&
-            !isSurviving &&
-            !isBeaconOpen &&
-            (!showTrooper || isSupplyDropOpen)
-          }
-          tracking={isSupplyDropOpen}
-          sectorId={supplyDropDraw?.lastDrawnSectorId ?? null}
-          onControlChange={setSupplyDropCameraControlled}
-        />
       </Canvas>
 
       <CoreLoadingOverlay visible={!isSceneReady} />
       <PlacementGuide containerRef={worldRef} />
 
       <BeaconModal isOpen={isBeaconOpen} onClose={closeBeaconBriefing} />
-      <SupplyDropDrawPanel
-        supplyDrop={supplyDropDraw}
-        isOpen={isSupplyDropOpen}
-        onClose={closeSupplyDropDraw}
-      />
 
       {activeMarquee ? (
         <div

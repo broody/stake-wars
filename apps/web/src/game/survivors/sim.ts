@@ -69,6 +69,7 @@ import {
 } from './bulwarkAttack';
 
 import { ENEMY_DEFEAT, enemyDefeatTiming, STRIKE_TOSS } from './enemyDefeat';
+import { interceptDirection, newKiteWall, type KiteWall } from './kiteWall';
 import {
   BREACH,
   BREACH_EMERGE,
@@ -79,10 +80,17 @@ import {
 import { sectorAt, sectorCenter } from './sectors';
 import { MAX_RIPPLES, RIPPLE, rippleLife, type Ripple } from './ripple';
 import { SOUNDS, type SoundId } from './sounds';
-import { WARDEN_SLAM, WARDEN_GAIT, wardenSlamOrigin } from './wardenAttack';
+import {
+  WARDEN_SLAM,
+  WARDEN_GAIT,
+  insideWardenSlam,
+  wardenApproachSpeed,
+  wardenSlamOrigin,
+} from './wardenAttack';
 
 import {
   SABER,
+  bladeRank,
   saberReach,
   saberHits,
   saberAim,
@@ -292,7 +300,7 @@ export type Effect =
       kind: 'blast';
       n: Vec3;
       radius: number;
-      tone: 'volt' | 'strike' | 'warden';
+      tone: 'volt' | 'strike';
       age: number;
       life: number;
     }
@@ -345,6 +353,15 @@ export interface Weapon {
   level: number;
   evolved: boolean;
   cooldown: number;
+  /** Counts actual volleys toward an extra projectile on later ranks. */
+  volleys?: number;
+  /** Normal Bolt Caster burst in progress. Its reload starts with the first tap. */
+  boltBurst?: {
+    startedAt: number;
+    index: number;
+    size: number;
+    damage: number;
+  };
   /** Arc Blade: the next swing's sound is already queued. */
   swingCued?: boolean;
   /** Run time of the last Stake Pulse hit or Rebuke discharge. */
@@ -370,7 +387,7 @@ export interface Player {
   heading: Vec3;
   moving: boolean;
   saberAttack?: SaberAttack;
-  /** Last Bolt Caster volley, for independent off-hand aim and recoil. */
+  /** Last individual Bolt Caster shot, for independent off-hand aim and recoil. */
   boltShot?: { firedAt: number; forward: Vec3 };
   /** Unspread bearing acquired before a Vanguard volley, in the player’s tangent frame. */
   boltAim?: Vec3;
@@ -405,6 +422,27 @@ export type Offer =
   | { kind: 'evolution'; id: WeaponId }
   | { kind: 'repair' }
   | { kind: 'sharpen' };
+
+export interface EarnedUpgrade {
+  kind: Offer['kind'];
+  name: string;
+  level?: number;
+}
+
+export function offerName(offer: Offer): string {
+  switch (offer.kind) {
+    case 'weapon':
+      return WEAPONS[offer.id].name;
+    case 'system':
+      return SYSTEMS[offer.id].name;
+    case 'evolution':
+      return WEAPONS[offer.id].evolution;
+    case 'repair':
+      return 'Field repair';
+    case 'sharpen':
+      return 'Calibrate';
+  }
+}
 
 export type RunStatus = 'playing' | 'choosing' | 'supply' | 'fallen';
 
@@ -453,6 +491,8 @@ export interface Run {
   texts: DamageText[];
   timers: Timer[];
   offers: Offer[];
+  /** Populated only while verifying a ranked replay. */
+  upgradeHistory?: EarnedUpgrade[];
   rerolls: number;
   supply: Offer[];
   pendingLevels: number;
@@ -472,6 +512,7 @@ export interface Run {
   wardens: number;
   /** Seeker pack waves so far; each adds a lane to the next. */
   seekerWaves: number;
+  kiteWall?: KiteWall;
   /** Run time when an ordinary breach may next spawn a lone Seeker. */
   nextSoloSeekerAt?: number;
   spawnCredit: number;
@@ -547,28 +588,26 @@ const MAX_EFFECTS = 240;
  */
 const REPAIR_COOLDOWN = 30;
 const PULSE_RANKS = [
-  { damage: 5, interval: 0.9, slow: 0.25 },
-  { damage: 5, interval: 0.6, slow: 0.25 },
-  { damage: 7, interval: 0.45, slow: 0.25 },
-  { damage: 7, interval: 0.45, slow: 0.25 },
-  { damage: 9, interval: 0.45, slow: 0.4 },
+  { damage: 5, interval: 0.9, slow: 0.25, radius: 0.96 },
+  { damage: 5, interval: 0.8, slow: 0.25, radius: 0.98 },
+  { damage: 6, interval: 0.8, slow: 0.25, radius: 1 },
+  { damage: 6, interval: 0.75, slow: 0.25, radius: 1.06 },
+  { damage: 7, interval: 0.75, slow: 0.3, radius: 1.08 },
 ] as const;
-const BASTION_PULSE = { damage: 10, interval: 0.45, slow: 0.45 };
+const BASTION_PULSE = { damage: 8, interval: 0.7, slow: 0.35 };
 /** Bastion's repair per pulse, however many enemies it burns. */
 const BASTION_REPAIR = 1;
 /** Enemy health compounds by `rate` a minute after minute `from`. */
 const HEALTH_RAMP = { from: 6, rate: 1.15 };
 const TAU = Math.PI * 2;
 
-/**
- * Shard value from `level` to the next: `base + growth × level²`. Early
- * levels come every 20–30 seconds; later ones climb steeply, so even a
- * strong run reaches only about level 40 by 10:00 and cannot own and evolve
- * everything (about 66 upgrades). `pace` divides it, for balance sweeps.
- */
+/** Base XP cost for the next level, before the run's level pace is applied. */
 export const XP_CURVE = { base: 6, growth: 1.6 } as const;
 
-export const xpForLevel = (level: number, pace = 1) =>
+/** Fewer ambient enemies drop XP during the opening, so each upgrade costs less. */
+export const LEVEL_PACE = 1.75;
+
+export const xpForLevel = (level: number, pace = LEVEL_PACE) =>
   Math.max(
     1,
     Math.round((XP_CURVE.base + XP_CURVE.growth * level * level) / pace)
@@ -597,24 +636,15 @@ function newWeapon(id: WeaponId): Weapon {
   };
 }
 
-/**
- * How fast the Legion's clock runs. The difficulty was tuned for good builds
- * to fall between minutes 14 and 18; at minute t a run now meets what that
- * tuning reached at minute PACE × t, aiming the same falls at about minute 10.
- * Spawns, health, damage, speed, unlocks and the event script read this
- * clock; weapons, attacks and pickups keep real time. With `XP_CURVE`, a
- * good minute-5 kit falls at about 10:00 in balance runs.
- */
+/** Enemy unlocks and scripted waves follow the Legion clock. Attacks use real time. */
 export const PACE = 1.15;
-
-/** Divides every level's cost in `XP_CURVE`; 1 plays the curve as set. */
-export const LEVEL_PACE = 1;
 
 /** Minutes on the Legion's clock. */
 export const legionMinutes = (run: Run) => (run.time / 60) * run.pace;
 
 /** Optional initial placement and balance tuning. */
 export interface RunSetup {
+  kiteWall?: boolean;
   landing?: { normal: Vec3; forward: Vec3 };
   aegis?: Partial<AegisTuning>;
   pace?: number;
@@ -703,6 +733,7 @@ export function createRun(
     eventIndex: 0,
     wardens: 0,
     seekerWaves: 0,
+    kiteWall: setup.kiteWall ? newKiteWall() : undefined,
     spawnCredit: 0,
     healthScale: 1,
     shake: 0,
@@ -1140,8 +1171,8 @@ function heal(run: Run, amount: number, source: HealSource) {
 
 // ---------- Weapons ----------
 
-const offset = vec3();
 const direction = vec3();
+const offset = vec3();
 
 /**
  * Seconds ahead of a swing that its sound is queued: enough for each take to
@@ -1155,8 +1186,7 @@ function bladeSwing(run: Run, weapon: Weapon) {
   const evolved = weapon.evolved;
   const level = weapon.level;
   const cooldown =
-    (evolved ? 1.15 : level >= 5 ? 0.9 : level >= 4 ? 1.1 : 1.3) *
-    run.player.cooldownScale;
+    (evolved ? 1 : bladeRank(level).cooldown) * run.player.cooldownScale;
   return {
     evolved,
     cooldown,
@@ -1196,12 +1226,12 @@ function updateBlade(run: Run, weapon: Weapon, dt: number) {
   weapon.swingCued = false;
   const scale = might(run),
     level = weapon.level;
-  const { reach, width, arc } = saberReach(level, player.area);
-  const eclipseRadius = 1.18 * player.area;
+  const { reach, width, arc } = saberReach(
+    weapon.evolved ? 5 : level,
+    player.area
+  );
   const { evolved, cooldown, duration } = bladeSwing(run, weapon);
-  const amount = evolved
-    ? 42 * scale
-    : 14 * (1 + (level >= 2 ? 0.3 : 0) + (level >= 5 ? 0.3 : 0)) * scale;
+  const amount = (evolved ? 28 : bladeRank(level).damage) * scale;
   weapon.cooldown = cooldown;
   const target = nearestEnemy(run, player.n, reach + 0.5);
   // Choose the cut from the stance the gunner is holding. The strike still
@@ -1229,12 +1259,12 @@ function updateBlade(run: Run, weapon: Weapon, dt: number) {
           dir = copy(vec3(), attack.forward);
         releaseCrescents(run, n, dir, side, evolved);
         if (evolved) {
-          hitCircle(run, n, eclipseRadius, amount, 'blade', 2.4);
+          hitCircle(run, n, reach, amount, 'blade', 2.4);
           addEffect(run, {
             kind: 'eclipse',
             n,
             dir,
-            radius: eclipseRadius,
+            radius: reach,
             age: 0,
             life: 0.3,
           });
@@ -1271,8 +1301,11 @@ function fireBolt(
   dir: Vec3,
   amount: number,
   pierce: number,
-  speed: number
+  speed: number,
+  sound: 'bolt' | 'railstorm'
 ) {
+  run.player.boltShot = { firedAt: run.time, forward: copy(vec3(), dir) };
+  cue(run, sound, run.player.n);
   const n = copy(vec3(), run.player.n);
   run.projectiles.push({
     n,
@@ -1287,13 +1320,38 @@ function fireBolt(
   });
 }
 
+// The first two ranks fire singles. Later ranks earn a second projectile on
+// every fifth, fourth, then third volley, so a new rank never doubles output.
+function volleySize(weapon: Weapon) {
+  if (weapon.level < 3) return 1;
+  const period = 8 - weapon.level;
+  weapon.volleys = (weapon.volleys ?? 0) + 1;
+  if (weapon.volleys < period) return 1;
+  weapon.volleys = 0;
+  return 2;
+}
+
+const BOLT_TAP_INTERVAL = 4 / SIM_HZ;
+const BOLT_SPREAD_STEP = 0.14;
+
+// Entries are the shot counts for successive trigger pulls. At rank five,
+// a double and a triple add three bonus bolts over nine pulls.
+const BOLT_RANKS = [
+  { damage: 10, cooldown: 0.85, bursts: [1] },
+  { damage: 11, cooldown: 0.85, bursts: [1] },
+  { damage: 11, cooldown: 0.85, bursts: [1, 1, 1, 1, 2] },
+  { damage: 12, cooldown: 0.83, bursts: [1, 1, 1, 2] },
+  { damage: 12, cooldown: 0.78, bursts: [1, 1, 1, 2, 1, 1, 1, 1, 3] },
+] as const;
+
 function updateBolts(run: Run, weapon: Weapon, dt: number) {
   weapon.cooldown -= dt;
   const player = run.player;
   const sight = player.boltSight;
   if (sight) copy(sight.prev, sight.forward);
   // Give the Vanguard one planted step to bring its off-hand gun to bear.
-  if (weapon.cooldown > (run.hero === 'vanguard' ? 0.32 : 0)) return;
+  let burst = weapon.boltBurst;
+  if (!burst && weapon.cooldown > (run.hero === 'vanguard' ? 0.32 : 0)) return;
   const target = nearestEnemy(run, player.n, 4.2);
   if (target) tangentToward(direction, player.n, target.n, player.heading);
   else copy(direction, player.heading);
@@ -1314,32 +1372,38 @@ function updateBolts(run: Run, weapon: Weapon, dt: number) {
     else rotateAbout(barrel.forward, player.n, Math.sign(turn) * step);
     copy(direction, barrel.forward);
   }
-  if (weapon.cooldown > 0) return;
-  const scale = might(run);
-  if (weapon.evolved) {
-    weapon.cooldown = 0.085 * player.cooldownScale;
-    rotateAbout(direction, player.n, (run.random() - 0.5) * 0.25);
-    player.boltShot = { firedAt: run.time, forward: copy(vec3(), direction) };
-    fireBolt(run, direction, 12 * scale, 3, 3.5);
-    cue(run, 'railstorm', player.n);
+  if (!burst) {
+    if (weapon.cooldown > 0) return;
+    if (weapon.evolved) {
+      weapon.cooldown = 0.18 * player.cooldownScale;
+      rotateAbout(direction, player.n, (run.random() - 0.5) * 0.25);
+      fireBolt(run, direction, 5 * might(run), 2, 3.5, 'railstorm');
+      return;
+    }
+    const rank = BOLT_RANKS[weapon.level - 1];
+    const volley = Math.min(weapon.volleys ?? 0, rank.bursts.length - 1);
+    const size = rank.bursts[volley];
+    weapon.volleys = (volley + 1) % rank.bursts.length;
+    weapon.cooldown = rank.cooldown * player.cooldownScale;
+    burst = {
+      startedAt: run.time,
+      index: 0,
+      size,
+      damage: rank.damage * might(run),
+    };
+  }
+  if (run.time + 1e-9 < burst.startedAt + burst.index * BOLT_TAP_INTERVAL)
     return;
-  }
-  const level = weapon.level;
-  const count = 1 + (level >= 2 ? 1 : 0) + (level >= 4 ? 1 : 0);
-  const amount = 10 * (level >= 3 ? 1.4 : 1) * scale;
-  const pierce = (level >= 3 ? 1 : 0) + (level >= 5 ? 2 : 0);
-  weapon.cooldown = (level >= 5 ? 0.72 : 1) * player.cooldownScale;
-  const base = copy(vec3(), direction);
-  player.boltShot = { firedAt: run.time, forward: copy(vec3(), base) };
-  cue(run, 'bolt', player.n);
-  for (let i = 0; i < count; i++) {
-    copy(direction, base);
-    rotateAbout(direction, player.n, (i - (count - 1) / 2) * 0.14);
-    fireBolt(run, direction, amount, pierce, 3);
-  }
+  // Sweep across the current aim, following the player and target between taps.
+  const angle = (burst.index - (burst.size - 1) / 2) * BOLT_SPREAD_STEP;
+  rotateAbout(direction, player.n, angle);
+  fireBolt(run, direction, burst.damage, 0, 3, 'bolt');
+  burst.index++;
+  weapon.boltBurst = burst.index < burst.size ? burst : undefined;
 }
 
 const shard = vec3();
+export const STARTING_SHARD_COUNT = 2;
 
 export function shardOrbitRadius(
   level: number,
@@ -1349,7 +1413,7 @@ export function shardOrbitRadius(
 ) {
   return evolved
     ? (1.48 + 0.52 * Math.sin(time * 2.2)) * area
-    : 1.1 * (level >= 3 ? 1.2 : 1) * area;
+    : (level >= 3 ? 1.16 : 1.1) * area;
 }
 
 function updateShards(run: Run, weapon: Weapon, dt: number) {
@@ -1365,15 +1429,14 @@ function updateShards(run: Run, weapon: Weapon, dt: number) {
   );
   let spin: number;
   if (weapon.evolved) {
-    count = 6;
-    amount = 16 * scale;
+    count = 4;
+    amount = 13 * scale;
     spin = 4.2;
   } else {
     const level = weapon.level;
-    count =
-      2 + (level >= 2 ? 1 : 0) + (level >= 4 ? 1 : 0) + (level >= 5 ? 1 : 0);
-    amount = 9 * (level >= 3 ? 1.3 : 1) * scale;
-    spin = 3.2 * (level >= 5 ? 1.35 : 1);
+    count = STARTING_SHARD_COUNT;
+    amount = (level >= 4 ? 12 : level >= 2 ? 11 : 10) * scale;
+    spin = level >= 5 ? 3.8 : level >= 3 ? 3.5 : 3.2;
   }
   weapon.prevAngle = weapon.angle;
   weapon.angle += spin * dt;
@@ -1515,6 +1578,14 @@ function updateStrike(run: Run, weapon: Weapon, dt: number) {
   if (chain) chainStrike(run, at, chain, 4, amount * 0.8, radius * 0.8);
 }
 
+const CHARGE_RANKS = [
+  { radius: 0.3, cooldown: 2.2 },
+  { radius: 0.32, cooldown: 2.1 },
+  { radius: 0.32, cooldown: 2.1 },
+  { radius: 0.33, cooldown: 2.1 },
+  { radius: 0.34, cooldown: 2 },
+] as const;
+
 function updateCharge(run: Run, weapon: Weapon, dt: number) {
   weapon.cooldown -= dt;
   if (weapon.cooldown > 0) return;
@@ -1527,16 +1598,18 @@ function updateCharge(run: Run, weapon: Weapon, dt: number) {
   let burn: number;
   if (weapon.evolved) {
     count = 3;
-    amount = 11 * scale;
-    radius = 0.55 * player.area;
-    burn = 5;
+    amount = 7 * scale;
+    radius = 0.42 * player.area;
+    burn = 3.2;
   } else {
-    count = 1 + (level >= 2 ? 1 : 0) + (level >= 5 ? 1 : 0);
-    amount = 6 * (level >= 4 ? 1.4 : 1) * scale;
-    radius = 0.29 * (level >= 4 ? 1.3 : 1) * player.area;
-    burn = level >= 3 ? 3.2 : 2.2;
+    count = volleySize(weapon);
+    amount = (level >= 4 ? 7 : 6) * scale;
+    radius = CHARGE_RANKS[level - 1].radius * player.area;
+    burn = level >= 5 ? 2.5 : 2.2;
   }
-  weapon.cooldown = 2.4 * player.cooldownScale;
+  weapon.cooldown =
+    (weapon.evolved ? 2.4 : CHARGE_RANKS[level - 1].cooldown) *
+    player.cooldownScale;
   const visible = visibleEnemies(run);
   const palm = rotateAbout(copy(vec3(), player.heading), player.n, Math.PI / 4);
   const from = pointAt(vec3(), player.n, palm, 0.18 / run.groundRadius);
@@ -1568,9 +1641,8 @@ export function stakePulseRadius(
   evolved: boolean,
   area: number
 ) {
-  if (evolved) return 2 * area;
-  const rankBonus = (level >= 2 ? 0.2 : 0) + (level >= 4 ? 0.2 : 0);
-  return 0.96 * (1 + rankBonus) * area;
+  if (evolved) return 1.3 * area;
+  return PULSE_RANKS[level - 1].radius * area;
 }
 
 function updatePulse(run: Run, weapon: Weapon, dt: number) {
@@ -1626,16 +1698,22 @@ const CRESCENT = {
   knock: 0.4,
 };
 
+const CRESCENT_COOLDOWNS = [2.4, 2.15, 2.15, 2.05, 1.95] as const;
+
 function crescentStats(weapon: Weapon, area: number) {
   if (weapon.evolved)
-    return { count: 1, amount: 26, width: 1 * area, range: VIEW, cooldown: 0 };
+    return {
+      amount: 12,
+      width: 0.65 * area,
+      range: VIEW,
+      cooldown: 0,
+    };
   const level = weapon.level;
   return {
-    count: level >= 2 ? 2 : 1,
-    amount: 16 * (level >= 3 ? 1.4 : 1),
-    width: (level >= 4 ? 0.72 : 0.55) * area,
-    range: level >= 4 ? 3.1 : 2.4,
-    cooldown: level >= 5 ? 1.8 : 2.6,
+    amount: level >= 4 ? 18 : 16,
+    width: (level >= 4 ? 0.58 : 0.55) * area,
+    range: level >= 5 ? 2.6 : 2.4,
+    cooldown: CRESCENT_COOLDOWNS[level - 1],
   };
 }
 
@@ -1663,7 +1741,7 @@ function releaseCrescents(
   weapon.cooldown = stats.cooldown * run.player.cooldownScale;
   // Eclipse cuts all the way round, so Meridian answers with a cross.
   const cross4 = weapon.evolved && eclipse;
-  const count = cross4 ? 4 : stats.count;
+  const count = weapon.evolved ? (cross4 ? 4 : 1) : volleySize(weapon);
   const amount = stats.amount * might(run);
   const aim = cross(vec3(), dir, n);
   set(aim, aim.x * side, aim.y * side, aim.z * side);
@@ -1736,12 +1814,12 @@ function updateCrescents(run: Run, dt: number) {
   run.crescents = run.crescents.filter((crescent) => crescent.life > 0);
 }
 
-// Rebuke: a shockwave when the player is hit, and from level 2 on a timer.
+// Rebuke: a shockwave when the player is hit, and from level 3 on a timer.
 function rebukeStats(weapon: Weapon, area: number) {
   if (weapon.evolved)
     return {
-      radius: 1.5 * area,
-      amount: 36,
+      radius: 1.18 * area,
+      amount: 26,
       knock: 2.2,
       lockout: 2,
       timer: 5,
@@ -1749,11 +1827,11 @@ function rebukeStats(weapon: Weapon, area: number) {
     };
   const level = weapon.level;
   return {
-    radius: (level >= 3 ? 1.1 : 0.9) * area,
-    amount: level >= 3 ? 28 : 20,
+    radius: (level >= 4 ? 1.02 : level >= 2 ? 0.95 : 0.9) * area,
+    amount: level >= 5 ? 24 : level >= 2 ? 22 : 20,
     knock: 1.6,
-    lockout: level >= 5 ? 2 : 3,
-    timer: level >= 5 ? 5 : level >= 2 ? 7 : Infinity,
+    lockout: level >= 5 ? 2.8 : 3,
+    timer: level >= 5 ? 10 : level >= 3 ? 12 : Infinity,
     restore: level >= 4 ? 1 : 0,
   };
 }
@@ -1784,7 +1862,7 @@ function updateRebuke(run: Run, weapon: Weapon, dt: number) {
   if (weapon.evolved)
     for (const shot of run.projectiles)
       if (shot.from && distance(run, shot.n, n) < stats.radius) shot.life = 0;
-  if (stats.restore && player.aegis)
+  if (timed && stats.restore && player.aegis)
     restoreAegis(player.aegis, stats.restore, run.time);
   addEffect(run, {
     kind: 'rebuke',
@@ -1966,11 +2044,16 @@ function pickKind(
 
 function director(run: Run, dt: number) {
   const minutes = legionMinutes(run);
-  // Enemy health compounds from mid-run, so every run meets a wall; starting
-  // early and gently makes it a climb rather than a cliff.
+  // Ease crowd growth and non-boss HP through the opening. After Legion minute
+  // six, accelerate back onto the original late-game curve. Wave and enemy
+  // unlock times still use the full Legion clock.
+  const pressure = Math.min(
+    minutes,
+    0.14 * (minutes + Math.max(0, minutes - 6) ** 2)
+  );
   run.healthScale =
-    (1 + 0.32 * minutes + 0.045 * minutes * minutes) *
-    Math.pow(HEALTH_RAMP.rate, Math.max(0, minutes - HEALTH_RAMP.from));
+    (1 + 0.32 * pressure + 0.045 * pressure * pressure) *
+    Math.pow(HEALTH_RAMP.rate, Math.max(0, pressure - HEALTH_RAMP.from));
   let alive = 0;
   let soloSeekers = 0;
   for (const enemy of run.enemies) {
@@ -1979,11 +2062,9 @@ function director(run: Run, dt: number) {
     if (enemy.kind === 'seeker') soloSeekers++;
   }
   const target =
-    Math.min(380, Math.floor(8 + 16 * minutes + 2.2 * minutes * minutes)) *
+    Math.min(380, Math.floor(8 + 16 * pressure + 2.2 * pressure * pressure)) *
     (run.bosses.length ? 0.6 : 1);
-  // Spawns per second follow the Legion's clock too, so every moment of the
-  // tuned curve plays out, just sooner.
-  run.spawnCredit += dt * (2.5 + 3.2 * minutes);
+  run.spawnCredit += dt * (2.5 + 3.2 * pressure);
   while (run.spawnCredit >= 1) {
     run.spawnCredit -= 1;
     if (alive < target) {
@@ -2042,13 +2123,18 @@ export function march(
   enemy.maxTravel = maxTravel;
 }
 
-function bulwarkLine(run: Run, dir: Vec3) {
+function bulwarkLine(run: Run, dir: Vec3, gapColumn?: number) {
   const span = 7.4;
   // Leave room for the authored shield and the spherical formation curve.
   const spacing = 0.6;
   const columns = Math.ceil(span / spacing);
   for (let row = 0; row < 3; row++)
     for (let column = 0; column < columns; column++) {
+      if (
+        gapColumn !== undefined &&
+        (column === gapColumn || column === gapColumn + 1)
+      )
+        continue;
       const across = -span / 2 + column * spacing + (row % 2) * spacing * 0.5;
       const n = offsetPoint(run, dir, -(4.4 + row * 0.36), across);
       const enemy = spawnEnemy(run, 'bulwark', n);
@@ -2102,6 +2188,12 @@ function encircle(run: Run, count: number, heavy: number) {
 }
 
 export function runEvent(run: Run, id: EventId) {
+  // The interception brings one scheduled line forward in time.
+  if (run.kiteWall?.borrowedLine && (id === 'line' || id === 'lines')) {
+    run.kiteWall.borrowedLine = false;
+    if (id === 'line') return;
+    id = 'line';
+  }
   const [title, detail] = EVENT_BANNERS[id];
   banner(
     run,
@@ -2414,15 +2506,16 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
       }
       enemy.cooldown -= dt;
       if (enemy.cooldown <= 0 && gap < 2.1) {
+        // Full interval between shots while in range, including the Captain's aim.
+        enemy.cooldown =
+          (enemy.kind === 'lancer' ? 4 : 3.375) + run.random() * 1.25;
         if (enemy.kind === 'lancer') {
-          // Fold the old windup into cooldown to preserve the firing cadence.
-          enemy.cooldown = 3.2 + run.random();
           fireHostile(run, enemy, toward, 1.36, 4 * damageScale(run));
           return 0;
         }
-        enemy.cooldown = 2.2 + run.random();
         enemy.mode = 'aim';
         enemy.modeTime = 0.5;
+        enemy.cooldown -= enemy.modeTime;
         copy(enemy.aim, toward);
         addEffect(run, {
           kind: 'aim',
@@ -2563,31 +2656,13 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
         copy(toward, enemy.aim);
         if (!attack.impacted && attack.elapsed >= WARDEN_SLAM.impact) {
           attack.impacted = true;
-          addEffect(run, {
-            kind: 'blast',
-            n: copy(vec3(), attack.origin),
-            radius: WARDEN_SLAM.radius,
-            tone: 'warden',
-            age: 0,
-            life: 0.3,
-          });
-          set(
-            offset,
-            player.n.x - attack.origin.x,
-            player.n.y - attack.origin.y,
-            player.n.z - attack.origin.z
-          );
-          const reach = distance(run, player.n, attack.origin);
-          const facing =
-            reach > 0.001
-              ? dot(
-                  normalize(projectTangent(offset, attack.origin)),
-                  attack.direction
-                )
-              : 1;
           if (
-            reach < WARDEN_SLAM.radius + PLAYER_RADIUS &&
-            facing > Math.cos(WARDEN_SLAM.halfAngle)
+            insideWardenSlam(
+              attack.origin,
+              attack.direction,
+              player.n,
+              run.groundRadius
+            )
           )
             hurtPlayer(
               run,
@@ -2658,14 +2733,13 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
           );
         }
       }
-      return gap > WARDEN_GAIT.runDistance
-        ? pace
-        : Math.min(
-            pace,
-            WARDEN_GAIT.walkSpeed *
-              enemy.spec.scale *
-              (enemy.slowTime > 0 ? 1 - enemy.slow * 0.5 : 1)
-          );
+      return wardenApproachSpeed(
+        gap,
+        WARDEN_GAIT.walkSpeed *
+          enemy.spec.scale *
+          (enemy.slowTime > 0 ? 1 - enemy.slow * 0.5 : 1),
+        pace
+      );
     }
     default:
       return pace;
@@ -2802,6 +2876,7 @@ function updateEnemies(run: Run, dt: number) {
     }
     if (
       enemy.spec.damage > 0 &&
+      !enemy.slam &&
       (!enemy.leap || enemy.leap.impacted) &&
       gap < enemy.spec.radius + PLAYER_RADIUS
     )
@@ -3001,15 +3076,23 @@ export function makeOffers(run: Run, count: number): Offer[] {
 }
 
 export function applyOffer(run: Run, offer: Offer) {
+  let level: number | undefined;
   switch (offer.kind) {
     case 'weapon': {
       const weapon = run.weapons.find((w) => w.id === offer.id);
-      if (weapon) weapon.level++;
-      else run.weapons.push(newWeapon(offer.id));
+      if (weapon) {
+        weapon.level = Math.min(5, weapon.level + 1);
+        level = weapon.level;
+      } else {
+        const added = newWeapon(offer.id);
+        run.weapons.push(added);
+        level = added.level;
+      }
       break;
     }
     case 'system':
-      run.systems[offer.id] = (run.systems[offer.id] ?? 0) + 1;
+      level = (run.systems[offer.id] ?? 0) + 1;
+      run.systems[offer.id] = level;
       recalc(run);
       break;
     case 'evolution': {
@@ -3025,6 +3108,7 @@ export function applyOffer(run: Run, offer: Offer) {
       run.player.bonusMight += 0.04;
       break;
   }
+  run.upgradeHistory?.push({ kind: offer.kind, name: offerName(offer), level });
 }
 
 /** Open the next Supply Drop or level-up, if any; the run waits on the player. */
@@ -3161,6 +3245,13 @@ export function tick(run: Run, dt: number, input: MoveInput) {
   );
   updatePlayer(run, dt, input);
   director(run, dt);
+  if (run.kiteWall) {
+    const marchDirection = interceptDirection(run, run.kiteWall);
+    if (marchDirection) {
+      bulwarkLine(run, marchDirection, run.kiteWall.count % 2 ? 3 : 8);
+      banner(run, 'Bulwarks ahead', 'Find the gap or turn aside.', 'danger');
+    }
+  }
   for (let i = run.timers.length - 1; i >= 0; i--) {
     const timer = run.timers[i];
     if (timer.at > run.time) continue;

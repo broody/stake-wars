@@ -10,6 +10,12 @@ The site-wide Open Graph and X large-image card metadata is in `apps/web/index.h
 
 The asset and metadata are prepared locally. They require a frontend deployment to become available on the public domain. After deployment, verify the public HTML and image with a Twitterbot user agent, then check an actual X composer preview. X controls rendering and caching. Use a new versioned image filename for future artwork replacements.
 
+## Core Survivors
+
+The Survivor page and its round links share the static preview in `apps/web/play/survivors.html`. Its 1200 × 630 image is `apps/web/public/og/core-survivors-v1.png`. The built-in ImageGen tool used the in-game `survivor-chase.webp` poster as its reference with this prompt.
+
+> Create a wide 1.91:1 social card for Stake Wars. Use the supplied Core Survivors chase as the visual reference. A white low-poly Vanguard runs toward the viewer across a black triangular wireframe sphere. A swarm of small rust-colored Hollow Legion enemies pursues it from behind. Keep the game’s angular silhouettes, orange sector tiles and sparse black starfield. Frame the chase on the right and set “Core Survivors” in large, bold white type on the left, with “STAKE WARS” in a small orange monospace line above. Make the title readable at thumbnail size. Keep all type well inside the edges. Use only those two text elements.
+
 ## Suggested ad copy
 
 > Capture sectors. Challenge rivals. Put your art on the Core. Discover Stake Wars, a territory-control game powered by STRK staking on Starknet.

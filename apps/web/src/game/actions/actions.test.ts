@@ -121,9 +121,19 @@ describe('Vanguard action scripts', () => {
     expect(probeAction(action('defeated')).fall).toBeCloseTo(ACTION_LEAD, 5);
   });
 
+  it('previews a double tap at the flank and a triple tap after the turn', () => {
+    const sounds = probeAction(action('bolt-caster')).sounds;
+    const shots = sounds.filter((event) => event.id === 'shot');
+    expect(shots).toHaveLength(9);
+    expect(shots[0].at).toBeCloseTo(ACTION_LEAD, 5);
+    for (const index of [1, 7, 8])
+      expect(shots[index].at - shots[index - 1].at).toBeCloseTo(4 / SIM_HZ, 5);
+    expect(shots[6].at - shots[5].at).toBeGreaterThan(0.7);
+  });
+
   it.each([
     ['shards', 2],
-    ['shard-halo', 6],
+    ['shard-halo', 4],
   ] as const)('shows the %s orbit and replays its contacts', (id, count) => {
     const driver = new ActionDriver(action(id), undefined);
     driver.show(driver.runTime(0));
@@ -154,7 +164,7 @@ describe('Vanguard action scripts', () => {
 
   it.each([
     ['charge', 1, 2.2],
-    ['meltdown', 3, 5],
+    ['meltdown', 3, 3.2],
   ] as const)(
     'previews the %s volley, impact and full burn from the game',
     (id, count, life) => {

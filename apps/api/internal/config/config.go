@@ -40,6 +40,7 @@ type Config struct {
 	SessionTTL                 time.Duration
 	BeaconSystemAddress        string
 	BeaconKeeper               bool
+	SurvivorPayouts            bool
 	AllowedOrigins             []string
 	ControlSystemAddress       string
 	SupplyDropSystemAddress    string
@@ -89,24 +90,25 @@ func Load() (Config, error) {
 	supplyDropSystemAddress := strings.TrimSpace(os.Getenv("SUPPLY_DROP_SYSTEM_ADDRESS"))
 	supplyDropKeeperAccount := strings.TrimSpace(os.Getenv("SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS"))
 	supplyDropKeeperPrivateKey := strings.TrimSpace(os.Getenv("SUPPLY_DROP_KEEPER_PRIVATE_KEY"))
-	configuredSupplyDropKeeperValues := 0
-	for _, value := range []string{
-		supplyDropSystemAddress,
-		supplyDropKeeperAccount,
-		supplyDropKeeperPrivateKey,
-	} {
-		if value != "" {
-			configuredSupplyDropKeeperValues++
-		}
+	survivorPayouts, err := strconv.ParseBool(valueOrDefault("SURVIVOR_PAYOUTS_ENABLED", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("SURVIVOR_PAYOUTS_ENABLED must be a boolean")
 	}
-	if configuredSupplyDropKeeperValues != 0 && configuredSupplyDropKeeperValues != 3 {
-		return Config{}, fmt.Errorf("SUPPLY_DROP_SYSTEM_ADDRESS, SUPPLY_DROP_KEEPER_ACCOUNT_ADDRESS, and SUPPLY_DROP_KEEPER_PRIVATE_KEY must be configured together")
+	keeperConfigured := supplyDropKeeperAccount != "" && supplyDropKeeperPrivateKey != ""
+	if (supplyDropSystemAddress != "" || survivorPayouts) && !keeperConfigured {
+		return Config{}, fmt.Errorf("a funded keeper account address and private key are required")
+	}
+	if supplyDropSystemAddress == "" && !survivorPayouts && (supplyDropKeeperAccount != "" || supplyDropKeeperPrivateKey != "") {
+		return Config{}, fmt.Errorf("a keeper signer requires a SupplyDrop system or enabled Survivor payouts")
+	}
+	if survivorPayouts && strings.TrimSpace(os.Getenv("STARKNET_RPC_URL")) == "" {
+		return Config{}, fmt.Errorf("SURVIVOR_PAYOUTS_ENABLED requires STARKNET_RPC_URL")
 	}
 	beaconKeeper, err := strconv.ParseBool(valueOrDefault("BEACON_KEEPER_ENABLED", "false"))
 	if err != nil {
 		return Config{}, fmt.Errorf("BEACON_KEEPER_ENABLED must be a boolean")
 	}
-	if beaconKeeper && (configuredSupplyDropKeeperValues != 3 || beaconSystemAddress == "") {
+	if beaconKeeper && (supplyDropSystemAddress == "" || !keeperConfigured || beaconSystemAddress == "") {
 		return Config{}, fmt.Errorf("BEACON_KEEPER_ENABLED requires the SupplyDrop keeper configuration and BEACON_SYSTEM_ADDRESS")
 	}
 	origins := productionOrigins
@@ -164,6 +166,7 @@ func Load() (Config, error) {
 		SessionTTL:                 sessionTTL,
 		BeaconSystemAddress:        beaconSystemAddress,
 		BeaconKeeper:               beaconKeeper,
+		SurvivorPayouts:            survivorPayouts,
 		AllowedOrigins:             origins,
 		ControlSystemAddress:       strings.TrimSpace(os.Getenv("CONTROL_SYSTEM_ADDRESS")),
 		SupplyDropSystemAddress:    supplyDropSystemAddress,

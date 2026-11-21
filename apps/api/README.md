@@ -100,7 +100,7 @@ else, including the winner, can submit the same call.
 
 `STARKNET_RPC_URL` and `SUPPLY_DROP_KEEPER_PRIVATE_KEY` should be supplied as Fly
 secrets rather than committed to the repository. The three SupplyDrop keeper
-variables are all-or-none. At startup, the API derives the public key from the
+variables are configured together for SupplyDrop maintenance. A payout-only Survivor deployment uses the same signer and leaves the SupplyDrop system unset. At startup, the API derives the public key from the
 private key and verifies it against the configured account contract before the
 worker begins. The keeper runs every 20 seconds, locks expired active rounds,
 and settles drawing rounds only after the contract's block-hash availability
@@ -235,3 +235,71 @@ signature through the wallet account contract's `is_valid_signature` entrypoint.
 Challenges expire quickly and are consumed atomically to prevent replay. The
 public configuration endpoint exposes image policy and network information so
 the frontend does not hard-code them.
+
+## Survivor prize rounds
+
+The existing API serves the Survivor leaderboard from the application SQLite
+database. Each operator-opened round belongs to one network. To open a round,
+run the following inside the API environment with its existing database path
+and chain ID. The default deadline is the next 10:00 p.m. EST (03:00 UTC,
+fixed year-round).
+
+```sh
+stakewars-survivor-round
+```
+
+Web, iOS and Android clients use the same HTTP API. The public endpoint
+`GET /v1/survivors/leaderboard` shows the latest round and the top 100 players. Use `?scope=all` for all-time standings, including runs finished between rounds.
+Each entry includes `destroyed`, whole seconds of simulated play in
+`durationSeconds`, and an ordered `upgrades` array with the name, kind and
+applicable level of each awarded upgrade. A tied or lower score preserves the
+earlier best run. Older scores have null details, while an empty array means a
+verified run earned zero upgrades.
+Use `?round=ID` to retrieve an earlier round. To override the default when
+opening a round, pass `-deadline` with an RFC3339 timestamp. Successive prize
+deadlines must be at least 24 hours apart.
+Clients persist one random UUID v4 per installation. Web uses localStorage.
+Guest IDs authorize guest edits and are sent in request bodies. Public guest
+identifiers are hashes. Display names may repeat.
+
+| Endpoint | Request and result |
+| --- | --- |
+| `POST /v1/survivors/runs` | Send `{}` to get a signed ticket and simulation seed. The API selects the open prize round, if any. |
+| `POST /v1/survivors/runs/finish` | Send `{token, replay, guestId}` at game over. Replay is base64-encoded input from the shared simulation. Retry the same ticket after a transient failure. A signed Survivor bearer session can submit directly with `{token, replay}`. |
+| `POST /v1/survivors/runs/wallet` | Send `{token, guestId}` with a signed Survivor bearer session to attach one verified guest run to that wallet. Prize-round runs can be attached until the round closes. |
+| `POST /v1/survivors/profile` | Send `{guestId}` to read a guest name. Include `name` to set it. An unset name is returned as an empty string. |
+| `GET /v1/survivors/profile?wallet=ADDRESS` | Read a wallet name. An unnamed player appears as Anonymous on the leaderboard. |
+| `POST /v1/survivors/profile/wallet` | Send `{wallet, name}` for SNIP-12 typed data and its revision. Sign and resend the same fields with `revision` and `signature`. A newer revision supersedes old signatures. |
+
+Clients rank by the best verified run for each player, breaking ties by first
+recording. The API stores each completed run, including lower scores. Runs
+verified after their starting round closes count towards all-time standings.
+The prize tie goes to the first verified Outis account to register that score.
+
+The API checks the
+deployed class of each submitting account against Outis Wallet's account class
+list. A closed round's `winner` is the highest-scoring Outis wallet. A round
+with no eligible scores closes without a payout. The API opens a fresh 100 STRK
+round at the cutoff, with empty standings and the next eligible 03:00 UTC
+deadline. After downtime it opens the current contest once. Earlier rounds
+remain available by ID. Each new daily round records a fixed
+prize of 100 STRK (100000000000000000000 base units). Existing rounds retain
+the prize amount recorded when they opened.
+
+After the deadline, the winner signs the SNIP-12 message returned by
+`GET /v1/survivors/rounds/{id}/claim` and submits its signature to the same
+URL with POST. The server reconstructs the message from the frozen round,
+checks the wallet's class and signature, and queues the transfer to that wallet.
+The leaderboard reports claim status and the transaction hash.
+
+To enable payouts in a deployment, set `SURVIVOR_PAYOUTS_ENABLED=true` with
+the existing funded keeper signer and Starknet RPC configured for that network.
+With `SUPPLY_DROP_SYSTEM_ADDRESS` unset, only the Survivor payout duty uses the signer. The keeper account supplies the prize and network fees. Its existing nonce lock
+and SQLite transaction journal are shared with the other duties. The worker
+records the transfer hash before broadcasting and reconciles uncertain receipts
+before another attempt. Payouts start after a signed claim.
+
+The normal API build (`pnpm --filter @stakewars/api build`) bundles the web
+simulation into the API Docker context. Build the frontend and API from the same
+gameplay revision and release balance changes between prize rounds. A single
+memory-limited Node process replays each submitted run outside SQLite transactions.

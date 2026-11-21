@@ -14,7 +14,7 @@ import {
   type Offer,
   type Run,
 } from '../sim';
-import { pairedWeapons, WEAPONS } from '../content';
+import { pairedWeapons, WEAPONS, type WeaponId } from '../content';
 import { vec3, type Vec3 } from '../sphere';
 
 export type OfferPolicy = 'greedy' | 'random' | 'first';
@@ -260,7 +260,22 @@ function offerScore(run: Run, offer: Offer, hurt: number) {
   }
 }
 
-function greedy(run: Run, offers: Offer[], hurt: number) {
+function greedy(run: Run, offers: Offer[], hurt: number, focus?: WeaponId) {
+  if (focus) {
+    const weapon = offers.findIndex(
+      (offer) =>
+        (offer.kind === 'evolution' || offer.kind === 'weapon') &&
+        offer.id === focus
+    );
+    if (weapon >= 0) return weapon;
+    const pair = WEAPONS[focus].pair;
+    if (!run.systems[pair]) {
+      const system = offers.findIndex(
+        (offer) => offer.kind === 'system' && offer.id === pair
+      );
+      if (system >= 0) return system;
+    }
+  }
   let best = 0;
   let bestScore = -Infinity;
   offers.forEach((offer, index) => {
@@ -281,7 +296,8 @@ export function decide(
   run: Run,
   policy: OfferPolicy,
   random: () => number,
-  hurt = 1 - run.player.hp / run.player.maxHp
+  hurt = 1 - run.player.hp / run.player.maxHp,
+  focus?: WeaponId
 ): boolean {
   if (run.status === 'fallen') return false;
   if (run.status === 'supply') closeSupply(run);
@@ -291,7 +307,7 @@ export function decide(
         ? 0
         : policy === 'random'
           ? Math.floor(random() * run.offers.length)
-          : greedy(run, run.offers, hurt);
+          : greedy(run, run.offers, hurt, focus);
     chooseOffer(run, index);
   }
   return true;

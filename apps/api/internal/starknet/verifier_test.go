@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"stakewars.com/api/internal/auth"
 	"testing"
 	"time"
 )
@@ -20,7 +21,7 @@ func TestTypedDataCanBeHashed(t *testing.T) {
 	}
 
 	issuedAt := time.Unix(1_700_000_000, 0)
-	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute))
+	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute), auth.Artwork.Statement())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,15 @@ func TestTypedDataCanBeHashed(t *testing.T) {
 	if decoded.PrimaryType != primaryType {
 		t.Fatalf("unexpected primary type %v", decoded.PrimaryType)
 	}
-	if decoded.Message.Statement != challengeStatement {
+	survivorData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute), auth.Survivor.Statement())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rankedHash, err := messageHash(survivorData, wallet)
+	if err != nil || rankedHash == hash {
+		t.Fatal("the signed message must distinguish a Survivor session from artwork authorization")
+	}
+	if decoded.Message.Statement != auth.Artwork.Statement() {
 		t.Fatalf("unexpected challenge statement %q", decoded.Message.Statement)
 	}
 }
@@ -58,7 +67,7 @@ func TestVerifyCallsAccountContract(t *testing.T) {
 	verifier := NewVerifier(server.URL, "SN_MAIN")
 	wallet := "0x123"
 	issuedAt := time.Unix(1_700_000_000, 0)
-	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute))
+	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute), auth.Artwork.Statement())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +104,7 @@ func TestVerifyAcceptsDecimalSignatureFelts(t *testing.T) {
 	verifier := NewVerifier(server.URL, "SN_MAIN")
 	wallet := "0x123"
 	issuedAt := time.Unix(1_700_000_000, 0)
-	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute))
+	typedData, err := verifier.TypedData(wallet, "0xabc", issuedAt, issuedAt.Add(5*time.Minute), auth.Artwork.Statement())
 	if err != nil {
 		t.Fatal(err)
 	}

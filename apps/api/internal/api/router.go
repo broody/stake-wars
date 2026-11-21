@@ -18,6 +18,7 @@ import (
 	"stakewars.com/api/internal/images"
 	"stakewars.com/api/internal/networkstats"
 	"stakewars.com/api/internal/stakingstats"
+	"stakewars.com/api/internal/survivor"
 )
 
 const maxJSONBodyBytes = 64 * 1024
@@ -31,17 +32,24 @@ type PublicConfig struct {
 }
 
 type Dependencies struct {
-	DB             *sql.DB
-	Auth           *auth.Service
-	Config         PublicConfig
-	AllowedOrigins []string
-	Torii          *ToriiGateway
-	Images         *images.Service
-	BeaconImages   *images.BeaconService
-	Beacon         beaconReader
-	BeaconHistory  beaconHistoryReader
-	NetworkStats   networkstats.Reader
-	Staking        StakingReader
+	SurvivorAccounts interface {
+		IsOutis(context.Context, string) (bool, error)
+	}
+	SurvivorSignatures interface {
+		VerifySurvivorMessage(context.Context, string, json.RawMessage, []string) (bool, error)
+	}
+	SurvivorPayouts bool
+	DB              *sql.DB
+	Auth            *auth.Service
+	Config          PublicConfig
+	AllowedOrigins  []string
+	Torii           *ToriiGateway
+	Images          *images.Service
+	BeaconImages    *images.BeaconService
+	Beacon          beaconReader
+	BeaconHistory   beaconHistoryReader
+	NetworkStats    networkstats.Reader
+	Staking         StakingReader
 }
 
 // StakingReader serves the cached Starknet staking snapshot and history.
@@ -60,7 +68,7 @@ type beaconHistoryReader interface {
 
 // NewHandler returns the API's HTTP routes.
 func NewHandler(dependencies Dependencies) http.Handler {
-	server := &server{dependencies: dependencies}
+	server := &server{dependencies: dependencies, survivors: survivor.NewStore(dependencies.DB, dependencies.Config.Network)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /readyz", server.ready)
@@ -68,6 +76,21 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /v1/stats", server.networkStats)
 	mux.HandleFunc("GET /v1/staking", server.stakingSnapshot)
 	mux.HandleFunc("GET /v1/staking/history", server.stakingHistory)
+	if dependencies.DB != nil {
+		mux.HandleFunc("GET /v1/survivors/leaderboard", server.survivorLeaderboard)
+		mux.HandleFunc("POST /v1/survivors/runs", server.startSurvivorRun)
+		mux.HandleFunc("POST /v1/survivors/runs/finish", server.finishSurvivorRun)
+		mux.HandleFunc("POST /v1/survivors/runs/wallet", server.attachSurvivorWallet)
+		mux.HandleFunc("POST /v1/survivors/profile/wallet", server.setSurvivorWalletName)
+		mux.HandleFunc("GET /v1/survivors/profile", server.survivorWalletProfile)
+		mux.HandleFunc("POST /v1/survivors/profile", server.survivorProfile)
+		mux.HandleFunc("GET /v1/survivors/rounds/{round}/claim", server.survivorClaim)
+		mux.HandleFunc("POST /v1/survivors/rounds/{round}/claim", server.survivorClaim)
+	} else {
+		mux.HandleFunc("/v1/survivors/", func(w http.ResponseWriter, _ *http.Request) {
+			writeProblem(w, http.StatusServiceUnavailable, "Survivor unavailable", "database is not configured")
+		})
+	}
 	mux.HandleFunc("GET /v1/beacon", server.beaconState)
 	mux.HandleFunc("GET /v1/beacon/history", server.beaconHistory)
 	mux.HandleFunc("POST /v1/auth/challenges", server.createChallenge)
@@ -202,6 +225,7 @@ func (s *server) beaconState(w http.ResponseWriter, r *http.Request) {
 }
 
 type server struct {
+	survivors    *survivor.Store
 	dependencies Dependencies
 }
 
@@ -259,7 +283,7 @@ func (s *server) listSectorImages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) authorizeSectorImage(w http.ResponseWriter, r *http.Request) {
-	session, ok := s.authenticate(w, r)
+	session, ok := s.authenticate(w, r, auth.Artwork)
 	if !ok {
 		return
 	}
@@ -306,7 +330,7 @@ func (s *server) authorizeSectorImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) completeSectorImage(w http.ResponseWriter, r *http.Request) {
-	session, ok := s.authenticate(w, r)
+	session, ok := s.authenticate(w, r, auth.Artwork)
 	if !ok {
 		return
 	}
@@ -337,7 +361,7 @@ func (s *server) completeSectorImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) authorizeBeaconImage(w http.ResponseWriter, r *http.Request) {
-	session, ok := s.authenticate(w, r)
+	session, ok := s.authenticate(w, r, auth.Artwork)
 	if !ok {
 		return
 	}
@@ -386,7 +410,7 @@ func (s *server) authorizeBeaconImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) completeBeaconImage(w http.ResponseWriter, r *http.Request) {
-	session, ok := s.authenticate(w, r)
+	session, ok := s.authenticate(w, r, auth.Artwork)
 	if !ok {
 		return
 	}
@@ -423,7 +447,7 @@ func (s *server) completeBeaconImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *server) authenticate(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {
+func (s *server) authenticate(w http.ResponseWriter, r *http.Request, scope auth.Scope) (auth.Session, bool) {
 	if s.dependencies.Auth == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "authentication unavailable", "authentication is not configured")
 		return auth.Session{}, false
@@ -444,6 +468,10 @@ func (s *server) authenticate(w http.ResponseWriter, r *http.Request) (auth.Sess
 		writeProblem(w, http.StatusInternalServerError, "internal error", "could not authenticate the session")
 		return auth.Session{}, false
 	}
+	if session.Scope != scope {
+		writeProblem(w, http.StatusForbidden, "wrong session scope", "sign in for this action")
+		return auth.Session{}, false
+	}
 	return session, true
 }
 
@@ -453,13 +481,21 @@ func (s *server) createChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		WalletAddress string `json:"walletAddress"`
+		WalletAddress string     `json:"walletAddress"`
+		Scope         auth.Scope `json:"scope"`
 	}
 	if err := decodeJSON(w, r, &input); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
-	challenge, err := s.dependencies.Auth.CreateChallenge(r.Context(), input.WalletAddress)
+	if input.Scope == "" {
+		input.Scope = auth.Artwork
+	}
+	if input.Scope.Statement() == "" {
+		writeProblem(w, http.StatusBadRequest, "invalid scope", "unknown sign-in scope")
+		return
+	}
+	challenge, err := s.dependencies.Auth.CreateChallenge(r.Context(), input.WalletAddress, input.Scope)
 	if errors.Is(err, auth.ErrInvalidWallet) {
 		writeProblem(w, http.StatusBadRequest, "invalid wallet", "walletAddress must be a non-zero Starknet address")
 		return
@@ -515,7 +551,11 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	return decodeLimitedJSON(w, r, destination, maxJSONBodyBytes)
+}
+
+func decodeLimitedJSON(w http.ResponseWriter, r *http.Request, destination any, limit int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {

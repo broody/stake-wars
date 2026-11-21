@@ -16,6 +16,7 @@ dist-ssr
 *.tsbuildinfo
 
 # Go build outputs
+apps/api/generated/survivor-verifier.cjs
 apps/api/bin
 apps/api/coverage.out
 apps/api/stakewars.db*

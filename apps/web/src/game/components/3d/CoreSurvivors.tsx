@@ -53,7 +53,7 @@ import {
 } from '../../survivors/followCamera';
 import { VoltTelegraphs } from './VoltTelegraphs';
 import { SeekerCharacters } from './SeekerCharacters';
-import { WardenCharacters } from './WardenCharacters';
+import { WardenCharacters, WardenSlamMarkers } from './WardenCharacters';
 
 /**
  * Where a screen edge runs past the planet's horizon, spawns stop short of it:
@@ -278,7 +278,11 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     camera.up.copy(ahead);
     camera.lookAt(look);
     camera.updateMatrixWorld();
-    if (run.status !== 'fallen' && !survivorsSession.opening) {
+    if (
+      !survivorsSession.replay &&
+      run.status !== 'fallen' &&
+      !survivorsSession.opening
+    ) {
       run.view.yaw = cameraOrbit.yaw;
       measureView(run.view, camera, normal, groundRadius);
     }
@@ -325,6 +329,7 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
       <OrbitalStrikes registry={registry} />
       <StakePulseField registry={registry} />
       <WorldEffects registry={registry} />
+      <WardenSlamMarkers registry={registry} groundRadius={groundRadius} />
       <SectorChargeEffects registry={registry} />
       <VanguardEffects registry={registry} />
       <DeathArcs registry={registry} />

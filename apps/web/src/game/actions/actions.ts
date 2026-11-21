@@ -247,7 +247,7 @@ export const ACTIONS: ActionSpec[] = [
     group: 'Core weapons',
     name: WEAPONS.bolts.name,
     detail:
-      'The Vanguard shoots a Mite on the flank, then plants a foot and turns to fire behind.',
+      'The rank-five caster opens with a double tap, turns toward the rear target, then sweeps a triple tap.',
     kind: 'bolt-caster',
     framing: WIDE,
   },
@@ -273,7 +273,7 @@ export const ACTIONS: ActionSpec[] = [
     group: 'Core weapons',
     name: WEAPONS.shards.evolution,
     detail:
-      'Six gold-trimmed blades sweep out and draw back in, cutting targets at different distances.',
+      'Four gold-trimmed blades sweep out and draw back in, cutting targets at different distances.',
     kind: 'shard-halo',
     framing: { distance: 6.9, pitch: 48 },
   },
@@ -291,7 +291,7 @@ export const ACTIONS: ActionSpec[] = [
     group: 'Core weapons',
     name: 'Meltdown',
     detail:
-      'The evolved throw fans out three charges. Each leaves a wider burn that lasts five seconds.',
+      'The evolved throw fans out three charges. Each leaves a wider burn that lasts 3.2 seconds.',
     kind: 'meltdown',
     framing: { distance: 4.15, pitch: 36 },
   },
@@ -566,12 +566,16 @@ export function actionScript(
       });
     case 'bolt-caster':
     case 'railstorm':
-      return still(2.5, (run) => {
+      return still(spec.kind === 'railstorm' ? 2.5 : 4.9, (run) => {
         applyOffer(run, { kind: 'weapon', id: 'bolts', isNew: true });
-        if (spec.kind === 'railstorm')
+        const caster = run.weapons.find((w) => w.id === 'bolts')!;
+        if (spec.kind === 'railstorm') {
           applyOffer(run, { kind: 'evolution', id: 'bolts' });
-        run.weapons.find((w) => w.id === 'bolts')!.cooldown =
-          PREROLL + ACTION_LEAD - STEP / 2;
+        } else {
+          caster.level = 5;
+          caster.volleys = 3; // Open the preview on the first double tap.
+        }
+        caster.cooldown = PREROLL + ACTION_LEAD - STEP / 2;
         const flank = bearingDirection(vec3(), run, 'ahead');
         rotateAbout(flank, run.player.n, 0.78);
         standIn(run, flank, 0.94);
@@ -598,7 +602,7 @@ export function actionScript(
       });
     case 'charge':
     case 'meltdown':
-      return still(spec.kind === 'meltdown' ? 6.1 : 3.25, (run) => {
+      return still(spec.kind === 'meltdown' ? 4.3 : 3.25, (run) => {
         applyOffer(run, { kind: 'weapon', id: 'charge', isNew: true });
         const charge = run.weapons.find((weapon) => weapon.id === 'charge')!;
         const evolved = spec.kind === 'meltdown';

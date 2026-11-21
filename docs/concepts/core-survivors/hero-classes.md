@@ -15,7 +15,7 @@ simulation's own units so the balance harness can test it directly.
   `balance/*`).
 - Units match `sim.ts`: world units on a Core of radius ≈5.006, seconds,
   30 Hz steps. Reference values: player speed 1 (Vanguard 0.77), `VIEW` 3.4, Arc Blade reach
-  0.77, Bolt Caster range ≈3.9, Mite radius 0.12.
+  1.22, Bolt Caster range ≈3.9, Mite radius 0.12.
 - Numbers assume `might = area = cooldownScale = 1`. Pierce follows the sim:
   pierce *N* hits *N* + 1 enemies. "DPS" columns are rough arithmetic for parity
   checks before the first simulation, not measurements.
@@ -55,20 +55,10 @@ simulation's own units so the balance harness can test it directly.
    stopped sustain from scaling with the crowd. There is no healing on kill and
    no lifesteal. Defensive tools are time-gated: a shield gauge that recharges
    only while you avoid hits, invulnerability windows and periodic shockwaves.
-8. **Runs last about ten minutes.** The mode stays endless and is scored by
-   time survived, but a good build falls at about 10:00. The original tuning
-   had good builds falling between minutes 14 and 18. Two constants in
-   `sim.ts` compress it:
-   - **`PACE` = 1.15.** The Legion's clock runs 1.15× faster: spawns, enemy
-     health, damage and speed, unlocks and the event script all read it.
-     Weapons, attacks and pickups keep real time.
-   - **`XP_CURVE`.** The XP to the next level is `6 + 1.6 × level²`. Early
-     levels come every 20–30 s, and later ones get steep. A strong run
-     reaches about level 21 at 5:00 and 35 at 10:00, short of the ~66
-     upgrades it would take to own and evolve everything, so builds have to
-     choose. `LEVEL_PACE` (1) divides it for sweeps.
-   - Set together by simulation, they put the trooper's minute-5 kit at a
-     10:03 median fall and the maxed kit at 12:31.
+8. **A natural Vanguard run targets an eight-minute median.** The player earns weapons and systems during the run. Preset midgame and maxed kits have their own survival targets.
+   - Scripted waves, enemy unlocks, movement and damage use the Legion clock at `PACE = 1.15`.
+   - Ambient spawns, crowd capacity and non-boss health grow more slowly in the opening. Their growth accelerates after Legion minute six, then rejoins the original late-game curve.
+   - The XP cost of each level is `round((6 + 1.6 × level²) / LEVEL_PACE)`. The default level pace is 1.75 so the smaller opening crowds still offer regular upgrade picks.
 
 ## At a glance
 
@@ -110,8 +100,8 @@ offer pool.
   shreds it with marks and Channeler drops lances on it.
 - **5 min+.** Masteries and the shared Core tech take over. The tier III
   option that extends a class trait to every weapon is how each class
-  "overlaps" in the late game while still playing differently. Enemy health
-  starts compounding at 5:13, and good builds fall around 10:00.
+  "overlaps" in the late game while still playing differently. Ambient crowd and health growth
+  accelerate at 5:13.
 
 At `PACE` 1.15 the Wardens arrive at 3:03, 5:39, 7:41, 9:51 and 12:02.
 
@@ -170,23 +160,18 @@ trait did. `--aegis` sweeps set that top rank and the lower ranks follow
 
 ### Arc Blade — starter
 
-One cut per swing at every level; the old level-2 backhand follow-up is gone.
-The arc widens 30° a level instead, to a full 180° at level 4. Eclipse (pair
-**FORCE**) is unchanged.
+Every swing makes one cut. Each rank adds five degrees of coverage. Pair a rank-five blade with FORCE to evolve it into Eclipse.
 
-| Level | Card | Damage per cut | Cooldown | Arc | Reach |
-| --- | --- | --- | --- | --- | --- |
-| L1 | Aims a 90° slash at a nearby enemy. | 14 | 1.3 s | 90° | 0.77 |
-| L2 | +30% damage and a wider 120° arc. | 18.2 | 1.3 s | 120° | 0.77 |
-| L3 | +25% reach and a wider 150° arc. | 18.2 | 1.3 s | 150° | 0.9625 |
-| L4 | Cuts a full 180°. Swings faster. | 18.2 | 1.1 s | 180° | 0.9625 |
-| L5 | +30% damage and faster sweeps. | 22.4 | 0.9 s | 180° | 0.9625 |
-| Eclipse | A full-circle cut that throws the Legion back. | 42, radius 1.18 | 1.15 s | 360° | — |
+| Level | Damage per cut | Cooldown | Arc | Reach |
+| --- | --- | --- | --- | --- |
+| L1 | 16 | 1.00 s | 90° | 0.95 |
+| L2 | 18 | 1.00 s | 95° | 0.95 |
+| L3 | 19 | 0.97 s | 100° | 0.99 |
+| L4 | 21 | 0.94 s | 105° | 1.02 |
+| L5 | 23 | 0.91 s | 110° | 1.05 |
+| Eclipse | 28 | 1.00 s | 360° | 1.05 |
 
-DPS: about 10.8 at L1, 16.5 at L4 and 24.9 at L5 on the side it faces, and
-36.5 area DPS with Eclipse. A 180° cut covers the whole side toward its
-target; only Eclipse covers both. Each cut still uses the forehand or
-backhand clip depending on which side the target is on.
+Before modifiers, nominal damage per second to a target in the arc rises from 16 at L1 to about 25 at L5. Eclipse hits the full circle and knocks enemies back. The forehand and backhand clips follow the target’s position.
 
 **Retime:** Vanguard's clip strikes at frame 8 of 22 (0.333 s), with an active
 window of 0.25–0.458 s. The trooper saber struck at 11/24 of 0.75 s. Keep the
@@ -204,19 +189,16 @@ also releases a crescent along that cut's aim.
 - It hits every enemy in its path once each and applies knockback 0.4.
 - It needs no clip of its own and never competes with the blade for the arm.
 
-| Lv | Card | Crescents | Damage | Width | Range | Cooldown |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | Every few seconds, a cut releases a crescent through every enemy in its path. | 1 | 16 | 0.55 | 2.4 | 2.6 s |
-| 2 | +1 crescent. | 2, fanned ±12° | 16 | 0.55 | 2.4 | 2.6 s |
-| 3 | +40% damage. | 2 | 22.4 | 0.55 | 2.4 | 2.6 s |
-| 4 | +30% width and range. | 2 | 22.4 | 0.72 | 3.1 | 2.6 s |
-| 5 | Releases crescents more often. | 2 | 22.4 | 0.72 | 3.1 | 1.8 s |
-| **Meridian** | Every cut releases a wide crescent that crosses the whole view. | 1 per cut (Eclipse: 4 in a cross) | 26 | 1.0 | 3.4 | every cut |
+| Level | Crescents on release | Damage each | Width | Range | Recharge |
+| --- | --- | --- | --- | --- | --- |
+| L1 | One | 16 | 0.55 | 2.4 | 2.4 s |
+| L2 | One | 16 | 0.55 | 2.4 | 2.15 s |
+| L3 | Two every fifth release | 16 | 0.55 | 2.4 | 2.15 s |
+| L4 | Two every fourth release | 18 | 0.58 | 2.4 | 2.05 s |
+| L5 | Two every third release | 18 | 0.58 | 2.6 | 1.95 s |
+| Meridian | One per cut, or four in a cross with Eclipse | 12 | 0.65 | 3.4 | every cut |
 
-Lane DPS: L1 ≈ 6.2, L5 ≈ 12.4 per lane, Meridian ≈ 26 per cut.
-
-Meridian with an unevolved L5 blade gives a crescent every 0.9 s; with
-Eclipse it gives 4 crescents per 1.15 s. Watch this pairing in simulation.
+A pair fans out by 12° to either side. Crescent Wave releases on the first cut after its cooldown ends.
 
 An Eclipse cut covers a full circle and has no aim, so before Meridian a
 crescent released by Eclipse aims at the nearest enemy.
@@ -227,21 +209,17 @@ This is the concept sheet's "expanding defensive pulse".
 
 - When you take a hit or Aegis blocks one, a shockwave bursts from you.
 - An internal cooldown (ICD) limits how often hits can trigger it.
-- From L2 it also fires on a timer, so a kiting player still gets value.
+- Timed bursts start at L3. At L4 and L5, a timed burst also restores one Aegis segment. Rampart restores two on a timed burst and erases nearby hostile bolts on either trigger.
 
-| Lv | Card | Radius | Damage | Knockback | Hit ICD | Timer |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | When you are hit, shielded or not, a shockwave throws enemies back. | 0.9 | 20 | 1.6 | 3 s | — |
-| 2 | Also bursts on its own every 7 seconds. | 0.9 | 20 | 1.6 | 3 s | 7 s |
-| 3 | +40% damage and a wider burst. | 1.1 | 28 | 1.6 | 3 s | 7 s |
-| 4 | Each burst restores 1 Aegis segment. | 1.1 | 28 | 1.6 | 3 s | 7 s |
-| 5 | Bursts more often. | 1.1 | 28 | 1.6 | 2 s | 5 s |
-| **Rampart** | A wide ring that erases hostile bolts and restores Aegis. | 1.5, expands over 0.35 s | 36 | 2.2 | 2 s | 5 s |
+| Level | Radius | Damage | Knockback | Hit cooldown | Timer |
+| --- | --- | --- | --- | --- | --- |
+| L1 | 0.9 | 20 | 1.6 | 3 s | — |
+| L2 | 0.95 | 22 | 1.6 | 3 s | — |
+| L3 | 0.95 | 22 | 1.6 | 3 s | 12 s |
+| L4 | 1.02 | 22 | 1.6 | 3 s | 12 s |
+| L5 | 1.02 | 24 | 1.6 | 2.8 s | 10 s |
+| Rampart | 1.18 | 26 | 2.2 | 2 s | 5 s |
 
-- Rampart restores 2 segments per burst instead of 1. Restoring segments
-  does not reset the recharge delay.
-- Area DPS from the timer: L2 2.9, L5 5.6, Rampart 7.2.
-- Hit triggers add up to 14 DPS at L5 and 18 with Rampart.
 - **Asset:** a VFX ring only. When the shield is modeled, this becomes a
   shield bash with a short upper-body `Brace` clip. No core ability depends on
   the shield.
@@ -292,7 +270,8 @@ Twin Pistols are the Drifter’s proposed starting weapon.
 
 - A ricochet jumps to the nearest enemy within 1.4 that the shot has not hit,
   at 80% damage.
-- For comparison, the Bolt Caster reaches 58 DPS at L5 and Railstorm about 141.
+- At L5 the Bolt Caster averages about 21 nominal DPS if all twelve bolts
+  in its nine-volley cycle connect. The fourth volley double taps and the ninth triple taps. Railstorm deals about 28 before pierce and critical hits.
 - **Clips:** `*SingleGun` and `*DualGun` Idle/Walk/Run/Attack, plus walk-fire
   and run-fire. These already exist.
 
@@ -441,8 +420,8 @@ Skyfall would share Tractor Beam with Sector Charge.
 | 5 | +2 lances. Called more often. | 8 | 70 | 0.56 | 8 s | field |
 | **Singularity** | Lances drag enemies into the impact, and gems they pull fly to you. | 8 | 80 | 0.6 | 8 s | 1.0 pull for 0.4 s |
 
-- Total DPS: L1 18, L5 70, Singularity 80. For comparison, Orbital Strike at
-  L5 deals 84.
+- Total nominal DPS ranges from 18 at L1 to 70 at L5 and 80 for Singularity.
+  At L5, Orbital Strike averages about 26 when a second target is available for every third volley.
 - **Asset:** the clip is full-body, so it needs an upper-body mask. Without
   one, the cast would have to root the player (see decision 6).
 
@@ -488,7 +467,7 @@ says what it can be offered, and the other classes keep the shared set.
 | --- | --- | --- | --- | --- | --- |
 | `blade` | Arc Blade | Vanguard | `force` | Eclipse | *(unchanged)* |
 | `crescent` | Crescent Wave | Vanguard | `amplifier` | Meridian | Every cut releases a wide crescent that crosses the whole view. |
-| `rebuke` | Rebuke | Vanguard | `aegis` | Rampart | A wide ring that erases hostile bolts and restores Aegis. |
+| `rebuke` | Rebuke | Vanguard | `aegis` | Rampart | Erases hostile bolts. Timed bursts restore two Aegis segments. |
 | `pistols` | Twin Pistols | Drifter | `overclock` | Hailfire | Both pistols pour out shots that ricochet between enemies. |
 | `deadeye` | Deadeye | Drifter | `force` | Kill Order | Every round crits, and marks last until the target falls. |
 | `hammerfan` | Hammerfan | Drifter | `thrusters` | Vanishing Act | Every fan also grants brief invulnerability and a burst of speed. |
@@ -515,8 +494,7 @@ all take it.
 
 Drift and Overclock multiply. Hailfire at full Drift with Overclock 5 fires
 every 0.3 × 0.8 × 0.6 = 0.144 s per pistol, about 194 DPS. Railstorm with
-Overclock 5 reaches about 235, so this is in band, but it is the Drifter
-ceiling to check.
+Overclock 5 reaches about 46 nominal DPS before pierce and critical hits.
 
 **Offer weights (optional):** new-weapon offers weighted 1.2 for class
 weapons and 0.8 for shared Core tech, so each class reliably finds its
@@ -610,11 +588,12 @@ evolved. It has six weapon slots. Variants can sample different six-weapon loado
 
 ### Parity targets
 
-Every class must pass the `balance/targets.ts` bands for ten-minute runs:
+The simulator checks these bands from `balance/targets.ts`.
 
 | Band | Target | Before (15–18 minute runs) |
 | --- | --- | --- |
 | Early (120 s) | 90% | 180 s |
+| Natural Vanguard median | 450–510 s (7:30–8:30) | — |
 | Mid safe (minute 5) | 95% | minute 8 |
 | Mid median | 540–660 s (9–11 min) | 840–1080 s |
 | Max median | 600–780 s (10–13 min) | 960–1320 s |
@@ -818,3 +797,6 @@ falls at 10:02 and max at 11:32):
 | 2026-10-20 | Every living enemy is now solid, not just pack Seekers: the player can't walk through one, and one that walks into the player pushes them back. Defeated remains, enemies still breaching and Volt Mites in the air don't block. The contact-damage rules are unchanged, but a blocked player stays in contact, so they take hits for longer. A Bulwark line now carries a player who stands in its path ahead of it (about 4.8 units, until the line expires) unless they get around it or cut through; standing still in front of one now costs 250 integrity, was 60; and walking straight out of the Encircle ring is blocked in most directions (12 of 16 just after it spawns, fewer as it crowds in). Simulation (24 seeds, `PACE` 1.15): trooper natural 4:13, mid 10:04, max 12:31 (was 4:21, 10:06, 12:33). The wading Vanguard is pinned in crowds and takes more hits: natural 3:08 (was 4:12), mid median 13:03 with 38% outlasting the 15-minute cap (was 79%), max still lasts the cap in every run. Vanguard targets still miss. |
 | 2026-11-20 | Removed Plating. Aegis unlocks Rampart for Rebuke, and Tractor Beam unlocks Meltdown for Sector Charge. Earlier balance results used the former upgrade pool. |
 | 2026-11-20 | Restored the off-hand Bolt Caster to the Vanguard’s upgrade pool. Overclock evolves it into Railstorm. |
+| 2026-11-21 | Strengthened the eight Vanguard weapons. On seeds 300–363, median survival with earned upgrades rose from 3:06 to 5:07. Fresh seeds 500–547 reached 4:54. On eight preset runs per build, the midgame median rose from 12:09 to 13:20 and every maxed build reached the 15-minute cap both times. |
+| 2026-11-21 | Shifted power from weapon pickups into earned ranks. Natural Vanguard median survival was 5:14 on the same 64 seeds (300–363), up from 5:07, and 4:50 on 128 fresh seeds (2000–2127). On eight seeds per preset, the midgame median rose from 13:20 to 13:50 and all maxed builds again reached the 15-minute cap. |
+| 2026-11-21 | Smoothed ordinary weapon ranks and eased opening crowd growth. The natural Vanguard median rose from 5:14 to 8:24 on seeds 300–363 and was 8:08 on 128 fresh seeds (5100–5227). Among runs still going, the median player level was 6 at one minute, 12 at five and 14 at eight. On eight seeds per preset, midgame builds fell at a median 13:39 and every maxed build reached the 15-minute cap. |

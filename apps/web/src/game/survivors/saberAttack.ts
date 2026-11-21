@@ -35,13 +35,25 @@ export interface SaberAttack {
   forward: Vec3;
 }
 
-/** 90° at level 1, widening 30° a level to a full 180° at level 4. */
+/** Unmodified values for each earned Arc Blade rank, shared with the slash renderer. */
+const BLADE_RANKS = [
+  { damage: 16, cooldown: 1, reach: 0.95, degrees: 90 },
+  { damage: 18, cooldown: 1, reach: 0.95, degrees: 95 },
+  { damage: 19, cooldown: 0.97, reach: 0.99, degrees: 100 },
+  { damage: 21, cooldown: 0.94, reach: 1.02, degrees: 105 },
+  { damage: 23, cooldown: 0.91, reach: 1.05, degrees: 110 },
+] as const;
+
+export function bladeRank(level: number) {
+  return BLADE_RANKS[Math.max(0, Math.min(level, BLADE_RANKS.length) - 1)];
+}
+
 export function saberArc(level: number) {
-  return ((90 + 30 * Math.min(3, Math.max(0, level - 1))) * Math.PI) / 180;
+  return (bladeRank(level).degrees * Math.PI) / 180;
 }
 
 export function saberReach(level: number, area: number) {
-  const reach = 0.77 * (level >= 3 ? 1.25 : 1) * area;
+  const reach = bladeRank(level).reach * area;
   return { reach, width: reach * 1.6, arc: saberArc(level) };
 }
 

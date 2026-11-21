@@ -15,6 +15,7 @@ var (
 )
 
 type Challenge struct {
+	Scope         Scope
 	ID            string
 	WalletAddress string
 	Nonce         string
@@ -23,6 +24,7 @@ type Challenge struct {
 }
 
 type Session struct {
+	Scope         Scope
 	WalletAddress string
 	CreatedAt     time.Time
 	ExpiresAt     time.Time
@@ -38,9 +40,9 @@ func NewStore(db *sql.DB) *Store {
 
 func (s *Store) CreateChallenge(ctx context.Context, challenge Challenge) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO auth_challenges(id, wallet_address, nonce, issued_at, expires_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, challenge.ID, challenge.WalletAddress, challenge.Nonce, challenge.IssuedAt.Unix(), challenge.ExpiresAt.Unix())
+		INSERT INTO auth_challenges(id, wallet_address, nonce, issued_at, expires_at, scope)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, challenge.ID, challenge.WalletAddress, challenge.Nonce, challenge.IssuedAt.Unix(), challenge.ExpiresAt.Unix(), challenge.Scope)
 	if err != nil {
 		return fmt.Errorf("insert auth challenge: %w", err)
 	}
@@ -51,7 +53,7 @@ func (s *Store) Challenge(ctx context.Context, id string) (Challenge, error) {
 	var challenge Challenge
 	var issuedAt, expiresAt int64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, wallet_address, nonce, issued_at, expires_at
+		SELECT id, wallet_address, nonce, issued_at, expires_at, scope
 		FROM auth_challenges
 		WHERE id = ?
 	`, id).Scan(
@@ -60,6 +62,7 @@ func (s *Store) Challenge(ctx context.Context, id string) (Challenge, error) {
 		&challenge.Nonce,
 		&issuedAt,
 		&expiresAt,
+		&challenge.Scope,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Challenge{}, ErrChallengeNotFound
@@ -107,9 +110,9 @@ func (s *Store) ConsumeChallengeAndCreateSession(
 	}
 
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO auth_sessions(token_hash, wallet_address, created_at, expires_at)
-		VALUES (?, ?, ?, ?)
-	`, tokenHash, session.WalletAddress, session.CreatedAt.Unix(), session.ExpiresAt.Unix()); err != nil {
+		INSERT INTO auth_sessions(token_hash, wallet_address, created_at, expires_at, scope)
+		VALUES (?, ?, ?, ?, ?)
+	`, tokenHash, session.WalletAddress, session.CreatedAt.Unix(), session.ExpiresAt.Unix(), session.Scope); err != nil {
 		return fmt.Errorf("insert auth session: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -122,10 +125,10 @@ func (s *Store) Session(ctx context.Context, tokenHash []byte, now time.Time) (S
 	var session Session
 	var createdAt, expiresAt int64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT wallet_address, created_at, expires_at
+		SELECT wallet_address, created_at, expires_at, scope
 		FROM auth_sessions
 		WHERE token_hash = ? AND expires_at > ?
-	`, tokenHash, now.Unix()).Scan(&session.WalletAddress, &createdAt, &expiresAt)
+	`, tokenHash, now.Unix()).Scan(&session.WalletAddress, &createdAt, &expiresAt, &session.Scope)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Session{}, ErrSessionNotFound
 	}

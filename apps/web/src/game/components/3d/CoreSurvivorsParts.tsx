@@ -13,7 +13,6 @@ import {
 import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { createWardenWarningGeometry } from '../../utils/wardenAnimation';
 import { createAimChevronGeometry } from '../../utils/aimChevron';
 import {
   enemyDeathOpacity,
@@ -847,14 +846,11 @@ export function BulwarkTelegraphs({ registry }: { registry: Set<Renderer> }) {
 const TONES = {
   volt: new THREE.Color(colors.danger.DEFAULT),
   strike: new THREE.Color(colors.fg.DEFAULT),
-  warden: new THREE.Color(colors.danger.strong),
 };
 
 export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
   const blasts = useRef<THREE.InstancedMesh>(null);
   const chevrons = useRef<THREE.InstancedMesh>(null);
-  const cone = useRef<THREE.InstancedMesh>(null);
-  useInstanced(cone);
   useInstanced(blasts);
   useInstanced(chevrons);
   const flat = useMemo(() => new THREE.Vector3(), []);
@@ -864,10 +860,9 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
     return geometry;
   }, []);
   const chevron = useMemo(createAimChevronGeometry, []);
-  const coneGeometry = useMemo(createWardenWarningGeometry, []);
   useEffect(
-    () => () => [flatDisc, chevron, coneGeometry].forEach((g) => g.dispose()),
-    [flatDisc, chevron, coneGeometry]
+    () => () => [flatDisc, chevron].forEach((g) => g.dispose()),
+    [flatDisc, chevron]
   );
 
   useRenderer(registry, ({ run, radius }) => {
@@ -876,7 +871,6 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
     if (!blast || !marks) return;
     let b = 0;
     let c = 0;
-    let coneCount = 0;
     for (const effect of run.effects) {
       const k = effect.age / effect.life;
       if (effect.kind === 'blast') {
@@ -910,28 +904,8 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
           marks.setMatrixAt(c, s.basis);
           marks.setColorAt(c++, s.color.copy(TONES.volt).multiplyScalar(blink));
         }
-      } else if (
-        effect.kind === 'cone' &&
-        ENEMY_TELEGRAPHS &&
-        cone.current &&
-        coneCount < cone.current.instanceMatrix.count
-      ) {
-        surfaceMatrix(
-          s.basis,
-          effect.n,
-          effect.dir,
-          radius,
-          0.025,
-          effect.radius
-        );
-        cone.current.setMatrixAt(coneCount, s.basis);
-        cone.current.setColorAt(
-          coneCount++,
-          s.color.copy(TONES.warden).multiplyScalar(0.45 + 0.55 * k)
-        );
       }
     }
-    if (cone.current) finish(cone.current, coneCount);
     finish(blast, b);
     finish(marks, c);
   });
@@ -953,15 +927,6 @@ export function WorldEffects({ registry }: { registry: Set<Renderer> }) {
           side={THREE.DoubleSide}
           blending={THREE.AdditiveBlending}
           toneMapped={false}
-        />
-      </instancedMesh>
-      <instancedMesh ref={cone} args={[coneGeometry, undefined, 16]}>
-        <meshBasicMaterial
-          transparent
-          opacity={0.45}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
         />
       </instancedMesh>
     </>

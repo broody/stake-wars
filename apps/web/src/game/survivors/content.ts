@@ -39,37 +39,37 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     evolution: 'Eclipse',
     evolutionDetail: 'A full-circle cut that throws the Legion back.',
     levels: [
-      'Aims a 90° slash at a nearby enemy.',
-      '+30% damage and a wider 120° arc.',
-      '+25% reach and a wider 150° arc.',
-      'Cuts a full 180°. Swings faster.',
-      '+30% damage and faster sweeps.',
+      'Aims a 90° cut at a nearby enemy for 16 damage.',
+      'The cut widens to 95° and deals 18 damage.',
+      'A 100° cut reaches a little farther and deals 19 damage.',
+      'A quicker 105° cut deals 21 damage.',
+      'Sweeps 110° for 23 damage every 0.91 seconds.',
     ],
   },
   bolts: {
     name: 'Bolt Caster',
     pair: 'overclock',
     evolution: 'Railstorm',
-    evolutionDetail: 'A ceaseless stream of bolts that pierce three enemies.',
+    evolutionDetail: 'A ceaseless stream of bolts that pierce two enemies.',
     levels: [
-      'Fires a bolt at the nearest enemy.',
-      '+1 bolt per volley.',
-      '+40% damage. Pierces 1 enemy.',
-      '+1 bolt per volley.',
-      'Fires faster. Pierces 2 more.',
+      'Fires one bolt at the nearest enemy.',
+      'Each bolt hits for 11 damage, up from 10.',
+      'Every fifth volley fires a double tap in a short spray.',
+      'Each bolt hits for 12. Every fourth volley is a double tap.',
+      'Reloads faster and alternates double and triple taps between single shots.',
     ],
   },
   shards: {
     name: 'Orbit Shards',
     pair: 'thrusters',
     evolution: 'Shard Halo',
-    evolutionDetail: 'Six shards on a wide, pulsing orbit.',
+    evolutionDetail: 'Four shards on a wide, pulsing orbit.',
     levels: [
       'Two shards circle you.',
-      '+1 shard.',
-      '+30% damage and a wider orbit.',
-      '+1 shard.',
-      '+1 shard. Spins faster.',
+      'Each shard hits for 11 damage, up from 10.',
+      'The shards circle a little faster and farther out.',
+      'Each shard hits for 12 damage.',
+      'The shards circle faster.',
     ],
   },
   strike: {
@@ -93,10 +93,10 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     evolutionDetail: 'Three charges that melt wide Sectors for longer.',
     levels: [
       'Lobs a charge that sets the ground burning.',
-      '+1 charge.',
-      'Burns longer.',
-      '+40% damage and wider burns.',
-      '+1 charge.',
+      'Throws a little sooner and burns a wider patch.',
+      'Every fifth throw lobs a second charge.',
+      'Wider burns deal 7 damage per hit. Every fourth throw lobs two charges.',
+      'Burns linger a little longer. Every third throw lobs two charges.',
     ],
   },
   pulse: {
@@ -106,10 +106,10 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     evolutionDetail: 'A wide field that repairs you as it burns.',
     levels: [
       'Slows nearby enemies. Pulses for 5 damage every 0.9 seconds.',
-      '+20% radius. Pulses every 0.6 seconds.',
-      'Pulses for 7 damage every 0.45 seconds.',
-      '+20% radius.',
-      'Pulses for 9 damage every 0.45 seconds. Stronger slow.',
+      'Pulses every 0.8 seconds in a slightly wider field.',
+      'Pulses for 6 damage in a wider field.',
+      'Pulses every 0.75 seconds and reaches farther.',
+      'Pulses for 7 damage and slows enemies a little more.',
     ],
   },
   crescent: {
@@ -119,11 +119,11 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     evolutionDetail:
       'Every cut releases a wide crescent that crosses the whole view.',
     levels: [
-      'Every few seconds, a cut releases a crescent through every enemy in its path.',
-      '+1 crescent.',
-      '+40% damage.',
-      '+30% width and range.',
-      'Releases crescents more often.',
+      'A ready saber cut releases a crescent through enemies in its path.',
+      'The wave recharges in 2.15 seconds, down from 2.4.',
+      'Every fifth release fans out two crescents.',
+      'Wider waves hit for 18 damage. Every fourth release fans out two.',
+      'Waves reach farther. Every third release fans out two.',
     ],
   },
   rebuke: {
@@ -131,13 +131,13 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     pair: 'aegis',
     evolution: 'Rampart',
     evolutionDetail:
-      'A wide ring that erases hostile bolts and restores Aegis.',
+      'Erases hostile bolts. Timed bursts restore two Aegis segments.',
     levels: [
-      'When you are hit, shielded or not, a shockwave throws enemies back.',
-      'Also bursts on its own every 7 seconds.',
-      '+40% damage and a wider burst.',
-      'Each burst restores 1 Aegis segment.',
-      'Bursts more often.',
+      'Taking a hit sends out a shockwave that throws enemies back.',
+      'A slightly wider shockwave hits for 22 damage.',
+      'Also bursts on its own every 12 seconds.',
+      'Widens the burst. A timed burst restores one Aegis segment.',
+      'Bursts for 24 damage and fires on its own every 10 seconds.',
     ],
   },
 };
@@ -164,6 +164,9 @@ const CORE_SYSTEMS = [
  * balance baseline, and the default for runs that name no hero.
  */
 export type HeroId = 'trooper' | 'vanguard';
+
+/** The hero selected by the play page and the balance simulator. */
+export const DEFAULT_HERO: HeroId = 'vanguard';
 
 /** Radians per second for a Vanguard pivot, shared by the barrel and the feet. */
 export const VANGUARD_TURN_RATE = 14;

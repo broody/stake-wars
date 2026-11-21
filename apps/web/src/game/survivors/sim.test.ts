@@ -84,13 +84,38 @@ describe('Core Survivors simulation', () => {
     expect(a.enemies.map((e) => e.n)).toEqual(b.enemies.map((e) => e.n));
   });
 
+  it('adds occasional second charges as the player earns ranks', () => {
+    const run = createRun(7, RADIUS);
+    run.weapons = [];
+    run.spawnCredit = -1e6;
+    run.eventIndex = 1000;
+    for (const [rank, radius, cooldown, period] of [
+      [1, 0.3, 2.2, 0],
+      [2, 0.32, 2.1, 0],
+      [3, 0.32, 2.1, 5],
+      [4, 0.33, 2.1, 4],
+      [5, 0.34, 2, 3],
+    ]) {
+      applyOffer(run, { kind: 'weapon', id: 'charge', isNew: rank === 1 });
+      const charge = run.weapons[0];
+      for (let volley = 1; volley <= (period || 5); volley++) {
+        charge.cooldown = 0;
+        run.lobs.length = 0;
+        tick(run, DT, still);
+        expect(run.lobs).toHaveLength(volley === period ? 2 : 1);
+        expect(run.lobs[0].radius).toBeCloseTo(radius);
+        expect(charge.cooldown).toBeCloseTo(cooldown);
+      }
+    }
+  });
+
   it.each([
     [1, false, 0.96],
-    [2, false, 1.152],
-    [3, false, 1.152],
-    [4, false, 1.344],
-    [5, false, 1.344],
-    [5, true, 2],
+    [2, false, 0.98],
+    [3, false, 1],
+    [4, false, 1.06],
+    [5, false, 1.08],
+    [5, true, 1.3],
   ] as const)(
     'applies the field up to its visible edge at rank %i (evolved %s)',
     (level, evolved, baseRadius) => {
@@ -126,13 +151,13 @@ describe('Core Survivors simulation', () => {
   it.each([
     [1, false, 0, 1.1],
     [2, false, 0, 1.1],
-    [3, false, 0, 1.32],
-    [4, false, 0, 1.32],
-    [5, false, 0, 1.32],
+    [3, false, 0, 1.16],
+    [4, false, 0, 1.16],
+    [5, false, 0, 1.16],
     [5, true, Math.PI / 2 / 2.2, 2],
     [5, true, (1.5 * Math.PI) / 2.2, 0.96],
   ] as const)(
-    'hits on the doubled shard orbit at rank %i (evolved %s, time %f)',
+    'hits on the visible shard orbit at rank %i (evolved %s, time %f)',
     (level, evolved, time, reach) => {
       const run = createRun(7, RADIUS);
       run.weapons = [];
@@ -143,7 +168,7 @@ describe('Core Survivors simulation', () => {
       const weapon = run.weapons[0];
       Object.assign(weapon, { level, evolved });
       run.time = Math.max(DT, time) - DT;
-      const spin = evolved ? 4.2 : level === 5 ? 3.2 * 1.35 : 3.2;
+      const spin = evolved ? 4.2 : level === 5 ? 3.8 : level >= 3 ? 3.5 : 3.2;
       const bearing = shardDirection(
         vec3(),
         run.right,
@@ -165,18 +190,22 @@ describe('Core Survivors simulation', () => {
         onOrbit = place(expected);
       tick(run, DT, still);
       expect(weapon.radius).toBeCloseTo(expected, 9);
+      expect(weapon.count).toBe(evolved ? 4 : 2);
       expect(inner.hp).toBe(100);
-      expect(onOrbit.hp).toBeLessThan(100);
+      const contact = run.texts.find((hit) => hit.shardTangent);
+      expect(contact).toBeDefined();
+      const damage = evolved ? 13 : level >= 4 ? 12 : level >= 2 ? 11 : 10;
+      expect(100 - onOrbit.hp).toBe(damage * (contact!.crit ? 2 : 1));
     }
   );
 
   it.each([
     [1, false, 5, 0.9],
-    [2, false, 5, 0.6],
-    [3, false, 7, 0.45],
-    [4, false, 7, 0.45],
-    [5, false, 9, 0.45],
-    [5, true, 10, 0.45],
+    [2, false, 5, 0.8],
+    [3, false, 6, 0.8],
+    [4, false, 6, 0.75],
+    [5, false, 7, 0.75],
+    [5, true, 8, 0.7],
   ] as const)(
     'slows immediately and deals discrete pulses at rank %i (evolved %s)',
     (level, evolved, damage, interval) => {
@@ -383,6 +412,26 @@ describe('Core Survivors simulation', () => {
     expect(run.enemies.filter((e) => e.straight)).toHaveLength(0);
   });
 
+  it('leaves space in the opening and fills the arena later', () => {
+    const snapshot = (minutes: number) => {
+      const run = createRun(7, RADIUS);
+      run.time = minutes * 60 - DT;
+      run.eventIndex = 1000;
+      run.spawnCredit = 500;
+      tick(run, DT, still);
+      return { crowd: run.enemies.length, healthScale: run.healthScale };
+    };
+    const opening = snapshot(3);
+    const midgame = snapshot(8);
+    const late = snapshot(15);
+    expect(opening.crowd).toBeGreaterThan(8);
+    expect(opening.crowd).toBeLessThan(25);
+    expect(midgame.crowd).toBeGreaterThan(opening.crowd * 2);
+    expect(midgame.healthScale).toBeGreaterThan(opening.healthScale);
+    expect(late.crowd).toBe(380);
+    expect(late.healthScale).toBeGreaterThan(midgame.healthScale);
+  });
+
   it('brings the Warden at three and a half Legion minutes and keeps enemies near the player', () => {
     const run = createRun(29, RADIUS);
     run.player.invulnerable = 1e9;
@@ -415,15 +464,18 @@ it('fires Lancer bolts without a warning while preserving Captain volley warning
       pointAt(vec3(), run.player.n, run.player.forward, 1.8 / RADIUS)
     );
     enemy.cooldown = 0;
+    run.random = () => 0.5;
     tick(run, DT, still);
     if (kind === 'lancer') {
       expect(enemy.mode).toBe('walk');
       expect(run.effects.some((effect) => effect.kind === 'aim')).toBe(false);
       expect(run.projectiles).toHaveLength(1);
       expect(run.projectiles[0].speed).toBe(1.36);
-      expect(enemy.cooldown).toBeGreaterThanOrEqual(3.2);
+      expect(enemy.cooldown).toBeCloseTo(4.625);
     } else {
       expect(enemy.mode).toBe('aim');
+      expect(enemy.modeTime).toBe(0.5);
+      expect(enemy.cooldown + enemy.modeTime).toBeCloseTo(4);
       expect(run.effects.some((effect) => effect.kind === 'aim')).toBe(true);
       expect(run.projectiles).toHaveLength(0);
     }
@@ -434,6 +486,8 @@ it('adds common charging Bulwarks to the spawn pool at 2:30 on the Legion clock'
   for (const time of [150 / PACE - 1, 150 / PACE]) {
     const run = createRun(17, RADIUS);
     run.weapons = [];
+    // Pick the last eligible kind so a smaller crowd still exercises the unlock.
+    run.random = () => 0.999;
     run.time = time;
     run.eventIndex = 1000;
     run.spawnCredit = 100;

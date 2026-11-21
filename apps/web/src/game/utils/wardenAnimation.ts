@@ -78,10 +78,19 @@ export class WardenAnimation {
     const action = this.actions.get(name)!;
     if (this.current !== name) {
       const previous = this.current && this.actions.get(this.current);
+      const changingGait =
+        (name === 'Walk' && this.current === 'Run') ||
+        (name === 'Run' && this.current === 'Walk');
+      const phase =
+        previous && changingGait
+          ? previous.time / previous.getClip().duration
+          : 0;
       action.reset().setEffectiveWeight(1).play();
+      action.time = phase * action.getClip().duration;
       if (previous) {
-        previous.fadeOut(0.1);
-        action.fadeIn(0.1);
+        const blend = changingGait ? 0.18 : 0.1;
+        previous.fadeOut(blend);
+        action.fadeIn(blend);
       }
       this.current = name;
     }
@@ -117,14 +126,42 @@ export class WardenAnimation {
   }
 }
 
-/** CircleGeometry starts in XY; after rotation its negative Y becomes forward +Z. */
-export function createWardenWarningGeometry() {
-  const geometry = new THREE.CircleGeometry(
-    1,
-    24,
-    -Math.PI / 2 - WARDEN_SLAM.halfAngle,
-    2 * WARDEN_SLAM.halfAngle
+/** A ground-hugging sector in the staff's local +Z frame, with a bright rim. */
+export const WARDEN_MARK_LIFT = 0.018;
+export function createWardenWarningGeometry(groundRadius: number) {
+  const positions: number[] = [],
+    shades: number[] = [],
+    indices: number[] = [];
+  const angles = [-WARDEN_SLAM.halfAngle, -WARDEN_SLAM.halfAngle + 0.035];
+  for (let i = 1; i < 32; i++)
+    angles.push(WARDEN_SLAM.halfAngle * ((2 * i) / 32 - 1));
+  angles.push(WARDEN_SLAM.halfAngle - 0.035, WARDEN_SLAM.halfAngle);
+  const distances = [0, 0.2, 0.4, 0.6, 0.8, 0.96, 1];
+  const shell = groundRadius + WARDEN_MARK_LIFT;
+  for (const [row, fraction] of distances.entries()) {
+    const arc = (fraction * WARDEN_SLAM.radius) / groundRadius;
+    for (const [col, angle] of angles.entries()) {
+      positions.push(
+        shell * Math.sin(arc) * Math.sin(angle),
+        shell * (Math.cos(arc) - 1),
+        shell * Math.sin(arc) * Math.cos(angle)
+      );
+      const rim = fraction === 1 || col === 0 || col === angles.length - 1;
+      const light = rim ? 1 : 0.22 + 0.18 * fraction;
+      shades.push(light, light, light);
+      if (row && col) {
+        const i = row * angles.length + col,
+          prev = i - angles.length;
+        indices.push(prev - 1, i - 1, i, prev - 1, i, prev);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3)
   );
-  geometry.rotateX(-Math.PI / 2);
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3));
+  geometry.setIndex(indices);
   return geometry;
 }

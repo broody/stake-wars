@@ -1,3 +1,4 @@
+import type { EarnedUpgrade } from '../survivors/sim';
 import axios from 'axios';
 import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
 import { config } from './config';
@@ -116,7 +117,16 @@ interface ImageUploadAuthorization {
   thumbnail: UploadTarget;
 }
 
-const imageSessions = new Map<string, AuthSession>();
+const walletSessions = new Map<string, AuthSession>();
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
 
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${config.domain}${path}`, init);
@@ -128,7 +138,7 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the status-based fallback when the response is not JSON.
     }
-    throw new Error(detail);
+    throw new ApiError(detail, response.status);
   }
   return (await response.json()) as T;
 }
@@ -144,13 +154,14 @@ function jsonRequest(body: unknown, token?: string): RequestInit {
   };
 }
 
-async function imageSession(
+async function walletSession(
+  scope: 'artwork' | 'survivor',
   walletAddress: string,
   signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>,
   onSigningComplete?: () => void
 ): Promise<AuthSession> {
-  const key = walletAddress.toLowerCase();
-  const cached = imageSessions.get(key);
+  const key = `${scope}:${walletAddress.toLowerCase()}`;
+  const cached = walletSessions.get(key);
   if (cached && new Date(cached.expiresAt).getTime() > Date.now() + 15_000) {
     onSigningComplete?.();
     return cached;
@@ -160,7 +171,12 @@ async function imageSession(
     challengeId: string;
     walletAddress: string;
     typedData: UseSignTypedDataArgs;
-  }>('/v1/auth/challenges', jsonRequest({ walletAddress }));
+  }>(
+    '/v1/auth/challenges',
+    jsonRequest(
+      scope === 'artwork' ? { walletAddress } : { walletAddress, scope }
+    )
+  );
   const signature = await signTypedData(challenge.typedData);
   onSigningComplete?.();
   const session = await requestJSON<AuthSession>(
@@ -171,7 +187,7 @@ async function imageSession(
       signature,
     })
   );
-  imageSessions.set(key, session);
+  walletSessions.set(key, session);
   return session;
 }
 
@@ -189,7 +205,126 @@ async function putObject(target: UploadTarget, body: Blob): Promise<void> {
   }
 }
 
+export interface SurvivorEntry {
+  outis: boolean;
+  durationSeconds: number | null;
+  upgrades: EarnedUpgrade[] | null;
+  wallet?: string;
+  guest?: string;
+  name?: string;
+  destroyed: number;
+}
+export interface SurvivorBoard {
+  network: string;
+  payoutsEnabled: boolean;
+  round: {
+    id: number;
+    deadline: string;
+    closed: boolean;
+    winner: SurvivorEntry | null;
+    prizeAmount: string | null;
+    claimed: boolean;
+    paymentStatus?: string;
+    transactionHash?: string;
+    previousId?: number;
+  } | null;
+  entries: SurvivorEntry[];
+}
+export interface SurvivorTicket {
+  token: string;
+  seed: number;
+}
+
 export const api = {
+  getSurvivorBoard(
+    signal?: AbortSignal,
+    round?: string,
+    allTime = false
+  ): Promise<SurvivorBoard> {
+    return requestJSON(
+      '/v1/survivors/leaderboard' +
+        (allTime
+          ? '?scope=all'
+          : round
+            ? '?round=' + encodeURIComponent(round)
+            : ''),
+      {
+        signal,
+        cache: 'no-store',
+      }
+    );
+  },
+  startSurvivorRun(): Promise<SurvivorTicket> {
+    return requestJSON('/v1/survivors/runs', jsonRequest({}));
+  },
+  async claimSurvivorPrize(
+    round: number,
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
+  ) {
+    const path = `/v1/survivors/rounds/${round}/claim`;
+    const typedData = await requestJSON<UseSignTypedDataArgs>(path, {
+      cache: 'no-store',
+    });
+    const signature = await sign(typedData);
+    return requestJSON<{ claimed: boolean }>(path, jsonRequest({ signature }));
+  },
+  finishGuestRun(
+    token: string,
+    replay: string,
+    guestId: string
+  ): Promise<{ destroyed: number }> {
+    return requestJSON(
+      '/v1/survivors/runs/finish',
+      jsonRequest({ token, replay, guestId })
+    );
+  },
+  hasSurvivorSession(wallet: string) {
+    const session = walletSessions.get('survivor:' + wallet.toLowerCase());
+    return Boolean(
+      session && Date.parse(session.expiresAt) > Date.now() + 15000
+    );
+  },
+  async attachSurvivorWallet(
+    token: string,
+    guestId: string,
+    wallet: string,
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
+  ) {
+    const session = await walletSession('survivor', wallet, sign);
+    return requestJSON<{ wallet: string }>(
+      '/v1/survivors/runs/wallet',
+      jsonRequest({ token, guestId }, session.token)
+    );
+  },
+  getWalletProfile(wallet: string) {
+    return requestJSON<{ name: string }>(
+      '/v1/survivors/profile?wallet=' + encodeURIComponent(wallet),
+      { cache: 'no-store' }
+    );
+  },
+  guestProfile(guestId: string, name?: string) {
+    return requestJSON<{ name: string }>(
+      '/v1/survivors/profile',
+      jsonRequest({ guestId, name })
+    );
+  },
+  async walletProfile(
+    wallet: string,
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>,
+    name: string
+  ) {
+    const path = '/v1/survivors/profile/wallet';
+    const { typedData, revision } = await requestJSON<{
+      typedData: UseSignTypedDataArgs;
+      revision: number;
+    }>(path, jsonRequest({ wallet, name }));
+    const signature = await sign(typedData);
+    return requestJSON<{ name: string }>(
+      path,
+      jsonRequest({ wallet, name, revision, signature })
+    );
+  },
+
   getConfig(signal?: AbortSignal): Promise<StakeWarsApiConfig> {
     return requestJSON('/v1/config', { signal });
   },
@@ -244,9 +379,14 @@ export const api = {
       return { sectorId: target.sectorId, ownershipGeneration };
     });
     let committedPlacement = placement;
-    const session = await imageSession(walletAddress, signTypedData, () => {
-      committedPlacement = onSigningComplete?.() ?? committedPlacement;
-    });
+    const session = await walletSession(
+      'artwork',
+      walletAddress,
+      signTypedData,
+      () => {
+        committedPlacement = onSigningComplete?.() ?? committedPlacement;
+      }
+    );
     const authorization = await requestJSON<ImageUploadAuthorization>(
       '/v1/sector-artworks/uploads',
       jsonRequest(
@@ -285,7 +425,11 @@ export const api = {
     prepared: PreparedBeaconImage;
     signTypedData: (typedData: UseSignTypedDataArgs) => Promise<string[]>;
   }): Promise<BeaconArtwork> {
-    const session = await imageSession(walletAddress, signTypedData);
+    const session = await walletSession(
+      'artwork',
+      walletAddress,
+      signTypedData
+    );
     const authorization = await requestJSON<ImageUploadAuthorization>(
       '/v1/beacon/artwork/uploads',
       jsonRequest(

@@ -134,9 +134,7 @@ func (c *ChainClient) StorageAt(ctx context.Context, contract, key string) (stri
 
 // Deployed reports whether contract exists at block.
 func (c *ChainClient) Deployed(ctx context.Context, contract string, block uint64) (bool, error) {
-	params := map[string]any{"block_id": blockID(&block), "contract_address": contract}
-	var result string
-	err := c.rpc.request(ctx, "starknet_getClassHashAt", params, &result, maxChainCallResponseBytes)
+	_, err := c.classHashAt(ctx, contract, &block)
 	if IsRPCError(err, RPCContractNotFound) {
 		return false, nil
 	}

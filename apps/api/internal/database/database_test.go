@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 13 {
-		t.Fatalf("expected thirteen migrations, got %d", migrations)
+	if migrations != 18 {
+		t.Fatalf("expected 18 migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`
@@ -57,8 +57,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	}
 }
 
-func TestOpenAuctionMigrationPreservesWhisperWinners(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "stakewars.db")
+func databaseBeforeMigration(t *testing.T, path, version string) *sql.DB {
+	t.Helper()
 	legacy, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatal(err)
@@ -81,13 +81,49 @@ func TestOpenAuctionMigrationPreservesWhisperWinners(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if entry.Name() >= "012" {
+		if entry.Name() >= version {
 			continue
 		}
 		if err := applyMigration(ctx, legacy, entry.Name()); err != nil {
 			t.Fatal(err)
 		}
 	}
+	return legacy
+}
+
+func TestDailyPrizeMigrationPreservesExistingPrize(t *testing.T) {
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "survivor.db")
+	db := databaseBeforeMigration(t, path, "017")
+	defer db.Close()
+	const weekly = "500000000000000000000"
+	const daily = "100000000000000000000"
+	_, err := db.Exec(`INSERT INTO survivor_rounds(id, network, deadline, leader_wallet, prize_amount, claimed_at) VALUES
+		(1, 'SN_MAIN', 1, '0x123', ?, 2), (2, 'SN_MAIN', 3, '0x456', ?, NULL),
+		(3, 'SN_MAIN', 4, NULL, NULL, NULL)`, weekly, weekly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	var matched int
+	err = db.QueryRow(`SELECT COUNT(*) FROM survivor_rounds WHERE
+		(id=1 AND leader_wallet='0x123' AND prize_amount=? AND claimed_at=2) OR
+		(id=2 AND leader_wallet='0x456' AND prize_amount=? AND claimed_at IS NULL) OR
+		(id=3 AND prize_amount IS NULL)`, weekly, weekly).Scan(&matched)
+	if err != nil || matched != 3 {
+		t.Fatalf("preserved %d of 3 existing rounds: %v", matched, err)
+	}
+	if _, err := db.Exec("INSERT INTO survivor_rounds(network, deadline, prize_amount) VALUES ('SN_MAIN', 86404, ?)", daily); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenAuctionMigrationPreservesWhisperWinners(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "stakewars.db")
+	legacy := databaseBeforeMigration(t, path, "012")
 	// Mirrors Mainnet: resolved winners in rounds 5 and 6, artwork for round 5,
 	// an unexpired upload for round 6, and a pending round 7 with no bids.
 	if _, err := legacy.Exec(`
@@ -284,5 +320,26 @@ func assertPragma(t *testing.T, db interface {
 	}
 	if got != want {
 		t.Fatalf("expected PRAGMA %s=%s, got %s", name, want, got)
+	}
+}
+
+func TestSurvivorRunMigrationPreservesTicketsAndBests(t *testing.T) {
+	db := databaseBeforeMigration(t, filepath.Join(t.TempDir(), "runs.db"), "018")
+	defer db.Close()
+	_, err := db.Exec(`INSERT INTO survivor_rounds(id,network,deadline) VALUES(1,'SN_MAIN',1);
+    INSERT INTO survivor_scores VALUES(1,'0x2',7,30,'[]',1,1),(1,'0x1',7,NULL,NULL,2,0);
+    INSERT INTO survivor_receipts VALUES(x'01',1,'0x2',7,NULL,NULL),(x'02',1,'0x2',2,NULL,NULL),(x'03',1,'0x1',NULL,123,456)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = migrate(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	err = db.QueryRow(`SELECT count(*) FROM survivor_runs WHERE (id=1 AND player='0x2' AND ticket_hash=x'01' AND duration_seconds=30 AND outis=1)
+    OR (id=2 AND player='0x1' AND destroyed=7 AND upgrades IS NULL) OR (ticket_hash=x'02' AND destroyed=2)
+    OR (ticket_hash=x'03' AND destroyed IS NULL AND seed=123 AND started_ms=456)`).Scan(&count)
+	if err != nil || count != 4 {
+		t.Fatal(count, err)
 	}
 }

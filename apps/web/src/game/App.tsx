@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import {
   BrowserRouter as Router,
+  Navigate,
   Route,
   Routes,
   useLocation,
@@ -15,6 +16,8 @@ import { Beacon } from './pages/Beacon';
 import { Operator } from './pages/Operator';
 import { Staking } from './pages/Staking';
 import { SupplyDrop } from './pages/SupplyDrop';
+import { Survivors } from './pages/Survivors';
+import { isSurviveMode, survivorsSession } from './survivors/session';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
@@ -55,12 +58,6 @@ const Actions = lazy(() =>
   }))
 );
 
-const SupplyDropCreator = lazy(() =>
-  import('./pages/SupplyDropCreator').then((module) => ({
-    default: module.SupplyDropCreator,
-  }))
-);
-
 interface GameAppProps {
   basename?: string;
 }
@@ -68,6 +65,16 @@ interface GameAppProps {
 function GamePages() {
   const location = useLocation();
   const isCoreActive = location.pathname === '/';
+  const params = new URLSearchParams(location.search);
+  const play =
+    isCoreActive &&
+    isSurviveMode(params) &&
+    !(import.meta.env.DEV && params.has('survivePreview'));
+  useEffect(() => {
+    if (!play) survivorsSession.ticket = null;
+  }, [play]);
+  if (play && !survivorsSession.ticket)
+    return <Navigate to="/survivors" replace />;
 
   return (
     <div className="relative h-full w-full">
@@ -129,14 +136,11 @@ function GamePages() {
             <Route path="/beacon" element={<Beacon />} />
             <Route path="/beacon/history" element={<Beacon />} />
             <Route path="/operator" element={<Operator />} />
-            <Route path="/drop" element={<SupplyDrop />} />
+            <Route path="/survivors" element={<Survivors />} />
+            <Route path="/drop/claims" element={<SupplyDrop />} />
             <Route
-              path="/drop/create"
-              element={
-                <Suspense fallback={null}>
-                  <SupplyDropCreator />
-                </Suspense>
-              }
+              path="/drop/*"
+              element={<Navigate to="/survivors" replace />}
             />
             <Route
               path="/core-lab"

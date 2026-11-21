@@ -1,10 +1,9 @@
 /**
  * One headless Core Survivors run driven by the balance bot.
  *
- * The run never really ends: real health is held at half each tick so the
- * pressure curve continues to the cap, while a virtual health bar takes the
- * same hits and heals and records when the player would have fallen. That
- * separates "how long does the bot last" from "how hard is minute 15".
+ * Survival mode uses live HP and ends on defeat. Pressure mode pins HP at
+ * half each tick to keep measuring incoming damage and potential healing
+ * after the bot's virtual health first reaches zero.
  *
  * Headless runs use the sim's default landscape view for spawn placement and
  * a flat Core with no raised Sectors.
@@ -19,21 +18,24 @@ import {
   type HealSource,
   type HeroId,
   type Run,
-  type RunStatus,
   type WeaponId,
 } from '../sim';
-import { carriesAegis } from '../content';
+import { ENEMY_GROUND_RADIUS } from '../../utils/enemySwarm';
+import { carriesAegis, DEFAULT_HERO } from '../content';
 import type { AegisTuning } from '../aegis';
 import { decide, pilot, type OfferPolicy, type Stance } from './bot';
 import { buildFor, type BuildName } from './builds';
 
+export type BalanceMode = 'survival' | 'pressure';
+
 export interface RunOptions {
   seed: number;
   policy: OfferPolicy;
+  focus?: WeaponId;
   build: BuildName;
-  /** Seconds to play; runs always reach it. */
+  /** Maximum seconds of combat. */
   cap: number;
-  /** The pre-class Sector Trooper unless named. */
+  mode?: BalanceMode;
   hero?: HeroId;
   /** How the bot moves; by default a shielded hero engages and others kite. */
   stance?: Stance;
@@ -50,7 +52,7 @@ export interface Minute {
   /** Damage the player took and healed during this minute. */
   taken: number;
   healed: number;
-  /** Virtual health at the end of the minute, floored at 0. */
+  /** Integrity at the end of the minute (virtual in pressure mode). */
   health: number;
   maxHp: number;
   level: number;
@@ -61,11 +63,13 @@ export interface Minute {
 export interface RunResult {
   seed: number;
   policy: OfferPolicy;
+  focus?: WeaponId;
   build: BuildName;
   cap: number;
   hero: HeroId;
   stance: Stance;
-  /** When virtual health first reached 0, or null if it never did. */
+  mode: BalanceMode;
+  /** First actual or virtual defeat. A null value means the run reached the cap. */
   fellAt: number | null;
   killedBy: EnemyKind | null;
   level: number;
@@ -84,9 +88,6 @@ export interface RunResult {
   ms: number;
 }
 
-/** The Core radius the game renders at. */
-const GROUND_RADIUS = 5.006;
-
 const sum = (record: Partial<Record<string, number>>) => {
   let total = 0;
   for (const value of Object.values(record)) total += value ?? 0;
@@ -96,16 +97,18 @@ const sum = (record: Partial<Record<string, number>>) => {
 export function runSurvivor({
   seed,
   policy,
+  focus,
   build,
   cap,
-  hero = 'trooper',
+  mode = 'survival',
+  hero = DEFAULT_HERO,
   stance = carriesAegis(hero) ? 'engage' : 'kite',
   aegis,
   pace,
   levelPace,
 }: RunOptions): RunResult {
   const started = Date.now();
-  const run: Run = createRun(seed, GROUND_RADIUS, hero, {
+  const run: Run = createRun(seed, ENEMY_GROUND_RADIUS, hero, {
     aegis,
     pace,
     levelPace,
@@ -119,49 +122,63 @@ export function runSurvivor({
   let fellAt: number | null = null;
   let killedBy: EnemyKind | null = null;
   let firstEvolution = run.weapons.some((w) => w.evolved) ? 0 : null;
-  let taken = 0,
-    healed = 0;
-  let guard = 0;
-  while (run.time < cap && guard++ < cap * SIM_HZ * 4) {
-    const hurt = 1 - health / run.player.maxHp;
-    decide(run, policy, random, hurt);
-    if (run.status !== 'playing') continue;
-    const pinned = run.player.maxHp / 2;
-    run.player.hp = pinned;
-    const hurtBefore = sum(run.hurtBy);
-    const healedBefore = sum(run.healedBy);
-    tick(run, dt, pilot(run, hurt, stance));
-    // A single hit past half health would end the real run; keep playing.
-    if ((run.status as RunStatus) === 'fallen') run.status = 'playing';
-    const hit = sum(run.hurtBy) - hurtBefore;
-    const repaired = sum(run.healedBy) - healedBefore;
-    taken += hit;
-    healed += repaired;
-    health = Math.min(run.player.maxHp, health + repaired) - hit;
+  let lastMinuteTaken = 0;
+  let lastMinuteHealed = 0;
+  const pressure = mode === 'pressure';
+  const steps = Math.ceil(cap * SIM_HZ);
+  for (let step = 1; step <= steps; step++) {
+    const takenBefore = pressure ? sum(run.hurtBy) : 0;
+    const healedBefore = pressure ? sum(run.healedBy) : 0;
+    if (pressure) run.player.hp = run.player.maxHp / 2;
+
+    while (run.status === 'choosing' || run.status === 'supply') {
+      const choiceHp = pressure ? health : run.player.hp;
+      decide(run, policy, random, 1 - choiceHp / run.player.maxHp, focus);
+      if (firstEvolution === null && run.weapons.some((w) => w.evolved))
+        firstEvolution = run.time;
+    }
+    const movementHp = pressure ? health : run.player.hp;
+    tick(run, dt, pilot(run, 1 - movementHp / run.player.maxHp, stance));
+
+    if (pressure) {
+      const hit = sum(run.hurtBy) - takenBefore;
+      const repaired = sum(run.healedBy) - healedBefore;
+      health = Math.max(0, Math.min(run.player.maxHp, health + repaired) - hit);
+      // A hit can also empty the pinned HP bar. Continue the pressure probe.
+      if (run.player.hp <= 0) run.status = 'playing';
+    } else {
+      health = run.player.hp;
+    }
     if (health <= 0 && fellAt === null) {
-      fellAt = run.time;
+      fellAt = step / SIM_HZ;
       killedBy = run.lastHitBy;
     }
-    health = Math.max(0, health);
+    // A Supply Drop can evolve a weapon during the tick itself.
     if (firstEvolution === null && run.weapons.some((w) => w.evolved))
       firstEvolution = run.time;
-    if (run.time >= (minutes.length + 1) * 60 - 1e-9) {
+    if (step % (60 * SIM_HZ) === 0) {
+      const taken = sum(run.hurtBy);
+      const healed = sum(run.healedBy);
       minutes.push({
-        minute: minutes.length + 1,
-        taken,
-        healed,
+        minute: step / (60 * SIM_HZ),
+        taken: taken - lastMinuteTaken,
+        healed: healed - lastMinuteHealed,
         health,
         maxHp: run.player.maxHp,
         level: run.player.level,
         kills: run.kills,
         alive: run.enemies.length,
       });
-      taken = healed = 0;
+      lastMinuteTaken = taken;
+      lastMinuteHealed = healed;
     }
+    if (!pressure && fellAt !== null) break;
   }
   return {
+    mode,
     seed,
     policy,
+    focus,
     build,
     cap,
     hero,

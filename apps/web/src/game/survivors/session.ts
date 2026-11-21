@@ -3,7 +3,7 @@ import { DEATH_RESULTS_DELAY } from './deathCamera';
 import { FollowOrbit } from './followCamera';
 import { pointAt, vec3 } from './sphere';
 import { ENEMY_TELEGRAPHS } from './renderFrame';
-import { HEROES, WEAPONS, type HeroId } from './content';
+import { DEFAULT_HERO, HEROES, WEAPONS, type HeroId } from './content';
 import {
   applyOffer,
   chooseOffer,
@@ -19,10 +19,20 @@ import {
   type Run,
 } from './sim';
 
+import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
+import { recordSurvivorRun, survivorGuestId } from './guest';
+import { api, ApiError, type SurvivorTicket } from '../services/api';
+import {
+  rankedRun,
+  RankedReplay,
+  MAX_RANKED_TICKS,
+  rerollAction,
+  supplyAction,
+} from './rankedReplay';
+
 export const SURVIVE_PARAM = 'survive';
 /** `&hero=trooper` plays the pre-class Sector Trooper, for comparison. */
 export const HERO_PARAM = 'hero';
-const DEFAULT_HERO: HeroId = 'vanguard';
 
 function heroFrom(params: URLSearchParams): HeroId {
   const value = params.get(HERO_PARAM);
@@ -51,6 +61,94 @@ const HUD_INTERVAL = 0.1;
 export class SurvivorsSession {
   run: Run | null = null;
   orbitalStrikePreview = false;
+  // Armed only by the lobby after the API issues an anonymous run ticket.
+  ticket: SurvivorTicket | null = null;
+  replay: RankedReplay | null = null;
+  scoreResult:
+    | { destroyed: number }
+    | { error: string; retryable: boolean }
+    | null = null;
+  submitting = false;
+
+  attachedWallet: string | null = null;
+  walletError = '';
+  attaching = false;
+  async recordScore() {
+    const replay = this.replay,
+      ticket = this.ticket;
+    if (
+      !ticket ||
+      !replay ||
+      this.submitting ||
+      (this.scoreResult && 'destroyed' in this.scoreResult) ||
+      (this.run?.status !== 'fallen' && !this.atRankedLimit)
+    )
+      return;
+    this.submitting = true;
+    this.scoreResult = null;
+    this.notify();
+    try {
+      const result = await recordSurvivorRun(ticket.token, replay.data());
+      if (replay === this.replay) this.scoreResult = result;
+    } catch (reason) {
+      if (replay === this.replay)
+        this.scoreResult = {
+          retryable:
+            !(reason instanceof ApiError) ||
+            reason.status >= 500 ||
+            reason.status === 429,
+          error:
+            reason instanceof Error
+              ? reason.message
+              : 'Could not record this run.',
+        };
+    } finally {
+      if (replay === this.replay) {
+        this.submitting = false;
+        this.notify();
+      }
+    }
+  }
+
+  async attachWallet(
+    wallet: string,
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
+  ) {
+    const ticket = this.ticket;
+    if (
+      !ticket ||
+      this.attaching ||
+      this.attachedWallet ||
+      !this.scoreResult ||
+      !('destroyed' in this.scoreResult)
+    )
+      return;
+    this.attaching = true;
+    this.walletError = '';
+    this.notify();
+    try {
+      const result = await api.attachSurvivorWallet(
+        ticket.token,
+        survivorGuestId(),
+        wallet,
+        sign
+      );
+      if (ticket === this.ticket) this.attachedWallet = result.wallet;
+    } catch (reason) {
+      if (ticket === this.ticket)
+        this.walletError =
+          reason instanceof Error ? reason.message : 'Could not link this run.';
+    } finally {
+      if (ticket === this.ticket) {
+        this.attaching = false;
+        this.notify();
+      }
+    }
+  }
+
+  get atRankedLimit() {
+    return this.replay?.ticks === MAX_RANKED_TICKS;
+  }
   /** Held movement keys, as `KeyboardEvent.code`. */
   readonly keys = new Set<string>();
   /** Touch or mouse joystick, −1…1 on each axis (screen y points down). */
@@ -79,13 +177,23 @@ export class SurvivorsSession {
   ) {
     this.globeView = globeView;
     this.cameraOrbit.reset();
-    this.run = createRun(seed, groundRadius, currentHero(), {
-      landing: globeView,
-    });
-    const preview = import.meta.env.DEV
-      ? new URLSearchParams(location.search).get('survivePreview')
-      : null;
+    const params = new URLSearchParams(location.search);
+    const ranked = this.ticket;
+    this.attachedWallet = null;
+    this.walletError = '';
+    this.attaching = false;
+    this.submitting = false;
+    this.scoreResult = null;
+    this.replay = ranked ? new RankedReplay() : null;
+    const preview =
+      !ranked && import.meta.env.DEV ? params.get('survivePreview') : null;
     this.orbitalStrikePreview = preview === 'orbital-strike';
+    this.run = ranked
+      ? rankedRun(ranked.seed)
+      : createRun(seed, groundRadius, currentHero(), {
+          landing: globeView,
+          kiteWall: preview === 'kite-wall',
+        });
     if (
       preview === 'saber' ||
       preview === 'saber-range' ||
@@ -219,6 +327,7 @@ export class SurvivorsSession {
     }
     // Local animation/combat drill; ordinary runs and production ignore this.
     if (
+      !ranked &&
       import.meta.env.DEV &&
       new URLSearchParams(location.search).get('survivePreview') === 'bulwark'
     ) {
@@ -244,6 +353,7 @@ export class SurvivorsSession {
       };
     }
     if (
+      !ranked &&
       import.meta.env.DEV &&
       new URLSearchParams(location.search).get('survivePreview') === 'warden'
     ) {
@@ -254,7 +364,7 @@ export class SurvivorsSession {
       const enemy = spawnEnemy(
         run,
         'warden',
-        pointAt(vec3(), run.player.n, run.player.forward, 1.35 / groundRadius)
+        offsetPoint(run, run.player.forward, 2.15, 0.45)
       );
       enemy.cooldown = 3;
       enemy.cooldown2 = 6;
@@ -268,6 +378,7 @@ export class SurvivorsSession {
       };
     }
     if (
+      !ranked &&
       import.meta.env.DEV &&
       [
         'mite-defeat',
@@ -327,8 +438,9 @@ export class SurvivorsSession {
     }
     this.paused = false;
     this.openingAge = 0;
-    this.opening = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
-      .matches;
+    this.opening =
+      !ranked &&
+      !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     this.keys.clear();
     this.stick.x = this.stick.y = 0;
     this.accumulator = 0;
@@ -386,7 +498,7 @@ export class SurvivorsSession {
         this.notify();
       return;
     }
-    if (this.paused || run.status !== 'playing') {
+    if (this.atRankedLimit || this.paused || run.status !== 'playing') {
       this.alpha = 1;
       return;
     }
@@ -420,10 +532,16 @@ export class SurvivorsSession {
     this.accumulator += elapsed;
     let steps = 0;
     while (this.accumulator >= STEP && steps < 8) {
-      tick(run, STEP, this.input);
+      if (this.replay) this.replay.advance(run, this.input);
+      else tick(run, STEP, this.input);
       this.accumulator -= STEP;
       steps++;
-      if (run.status !== 'playing') {
+      if (run.status !== 'playing' || this.atRankedLimit) {
+        if (
+          this.replay &&
+          (this.run?.status === 'fallen' || this.atRankedLimit)
+        )
+          void this.recordScore();
         this.accumulator = 0;
         this.notify();
         break;
@@ -457,19 +575,22 @@ export class SurvivorsSession {
 
   choose(index: number) {
     if (!this.run) return;
-    chooseOffer(this.run, index);
+    if (this.replay) this.replay.choose(this.run, index);
+    else chooseOffer(this.run, index);
     this.notify();
   }
 
   reroll() {
     if (!this.run) return;
-    rerollOffers(this.run);
+    if (this.replay) this.replay.choose(this.run, rerollAction);
+    else rerollOffers(this.run);
     this.notify();
   }
 
   closeSupply() {
     if (!this.run) return;
-    closeSupply(this.run);
+    if (this.replay) this.replay.choose(this.run, supplyAction);
+    else closeSupply(this.run);
     this.notify();
   }
 

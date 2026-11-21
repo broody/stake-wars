@@ -10,15 +10,16 @@ import (
 	"strings"
 	"time"
 
+	"stakewars.com/api/internal/auth"
+
 	"github.com/NethermindEth/juno/core/crypto"
 	"github.com/NethermindEth/juno/core/felt"
 )
 
 const (
-	primaryType        = "StakeWarsAuth"
-	challengeStatement = "Authorize artwork projection"
-	validatedResponse  = "0x56414c4944" // felt252 encoding of "VALID"
-	maxSignatureFelts  = 64
+	primaryType       = "StakeWarsAuth"
+	validatedResponse = "0x56414c4944" // felt252 encoding of "VALID"
+	maxSignatureFelts = 64
 )
 
 var hexFeltPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)
@@ -52,6 +53,7 @@ func (v *Verifier) NormalizeWallet(value string) (string, error) {
 func (v *Verifier) TypedData(
 	wallet, nonce string,
 	issuedAt, expiresAt time.Time,
+	statement string,
 ) (json.RawMessage, error) {
 	payload := challengeTypedData{
 		Types: map[string][]typeParameter{
@@ -78,7 +80,7 @@ func (v *Verifier) TypedData(
 			Nonce:     nonce,
 			IssuedAt:  issuedAt.Unix(),
 			ExpiresAt: expiresAt.Unix(),
-			Statement: challengeStatement,
+			Statement: statement,
 		},
 	}
 
@@ -103,13 +105,16 @@ func (v *Verifier) Verify(
 	typedData json.RawMessage,
 	signature []string,
 ) (bool, error) {
-	if len(signature) == 0 || len(signature) > maxSignatureFelts {
-		return false, fmt.Errorf("signature must contain between 1 and %d felts", maxSignatureFelts)
-	}
-
 	hash, err := messageHash(typedData, wallet)
 	if err != nil {
 		return false, err
+	}
+	return v.verifyHash(ctx, wallet, hash, signature)
+}
+
+func (v *Verifier) verifyHash(ctx context.Context, wallet, hash string, signature []string) (bool, error) {
+	if len(signature) == 0 || len(signature) > maxSignatureFelts {
+		return false, fmt.Errorf("invalid signature length")
 	}
 	calldata := make([]string, 0, len(signature)+2)
 	calldata = append(calldata, hash, fmt.Sprintf("0x%x", len(signature)))
@@ -159,7 +164,7 @@ func messageHash(encoded json.RawMessage, wallet string) (string, error) {
 		value.Domain.Version != "1" ||
 		value.Domain.ChainID == "" ||
 		value.Domain.Revision != "1" ||
-		value.Message.Statement != challengeStatement ||
+		(value.Message.Statement != auth.Artwork.Statement() && value.Message.Statement != auth.Survivor.Statement()) ||
 		!sameTypeParameters(value.Types["StarknetDomain"], expectedDomainTypes) ||
 		!sameTypeParameters(value.Types[primaryType], expectedMessageTypes) {
 		return "", fmt.Errorf("parse typed challenge: unsupported type or revision")

@@ -22,6 +22,7 @@ import (
 	"stakewars.com/api/internal/stakingstats"
 	"stakewars.com/api/internal/starknet"
 	"stakewars.com/api/internal/supplydrop"
+	"stakewars.com/api/internal/survivor"
 	"stakewars.com/api/internal/txjournal"
 )
 
@@ -81,26 +82,13 @@ func run() error {
 		beaconReader,
 		configuration.StarknetChainID,
 	)
-	var maintenanceWorker *beacon.Worker
 	var operatorSyncWorker *beacon.Worker
-	maintenanceDuties := make([]beacon.Duty, 0, 5)
+	survivorStore := survivor.NewStore(db, configuration.StarknetChainID)
+	maintenanceDuties := []beacon.Duty{survivorStore}
 	if beaconReader != nil {
 		maintenanceDuties = append(maintenanceDuties, beaconProjector)
 	}
-	if configuration.SupplyDropKeeperEnabled() {
-		slog.Info(
-			"SupplyDrop keeper enabled",
-			"account", configuration.SupplyDropKeeperAccount,
-			"system", configuration.SupplyDropSystemAddress,
-		)
-		supplyDropReader, err := starknet.NewSupplyDropReader(
-			configuration.StarknetRPCURL,
-			configuration.ToriiURL,
-			configuration.SupplyDropSystemAddress,
-		)
-		if err != nil {
-			return err
-		}
+	if configuration.SupplyDropKeeperEnabled() || configuration.SurvivorPayouts {
 		keeperStartupContext, cancelKeeperStartup := context.WithTimeout(
 			context.Background(), 30*time.Second,
 		)
@@ -116,14 +104,26 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		maintenanceDuties = append(
-			maintenanceDuties,
-			supplyDropSubmitter,
-			supplydrop.NewDuty(supplyDropReader, supplyDropSubmitter),
-		)
+		maintenanceDuties = append(maintenanceDuties, supplyDropSubmitter)
+		if configuration.SupplyDropKeeperEnabled() {
+			slog.Info(
+				"SupplyDrop keeper enabled",
+				"account", configuration.SupplyDropKeeperAccount,
+				"system", configuration.SupplyDropSystemAddress,
+			)
+			supplyDropReader, err := starknet.NewSupplyDropReader(
+				configuration.StarknetRPCURL,
+				configuration.ToriiURL,
+				configuration.SupplyDropSystemAddress,
+			)
+			if err != nil {
+				return err
+			}
+			maintenanceDuties = append(maintenanceDuties, supplydrop.NewDuty(supplyDropReader, supplyDropSubmitter))
+		}
 		// Operator synchronization reads every active Operator from the chain,
 		// so it gets its own slower worker and never delays the other duties.
-		if configuration.ControlSystemAddress != "" {
+		if configuration.SupplyDropKeeperEnabled() && configuration.ControlSystemAddress != "" {
 			operatorLister, err := starknet.NewOperatorLister(configuration.ToriiURL)
 			if err != nil {
 				return err
@@ -147,8 +147,11 @@ func run() error {
 			)
 			slog.Info("Operator sync keeper enabled", "account", configuration.SupplyDropKeeperAccount,
 				"system", configuration.ControlSystemAddress)
-		} else {
+		} else if configuration.SupplyDropKeeperEnabled() {
 			slog.Warn("CONTROL_SYSTEM_ADDRESS is not configured; Operator synchronization is disabled")
+		}
+		if configuration.SurvivorPayouts {
+			maintenanceDuties = append(maintenanceDuties, survivor.PayoutDuty{Store: survivorStore, Sender: supplyDropSubmitter})
 		}
 		if configuration.BeaconKeeper {
 			beaconSubmitter, err := starknet.NewBeaconSubmitter(
@@ -164,9 +167,7 @@ func run() error {
 				"system", configuration.BeaconSystemAddress)
 		}
 	}
-	if len(maintenanceDuties) > 0 {
-		maintenanceWorker = beacon.NewWorker(20*time.Second, maintenanceDuties...)
-	}
+	maintenanceWorker := beacon.NewWorker(20*time.Second, maintenanceDuties...)
 	// The staking index gets its own worker so a long backfill never delays
 	// keeper duties.
 	var stakingService *stakingstats.Service
@@ -240,11 +241,14 @@ func run() error {
 	server := &http.Server{
 		Addr: ":" + configuration.Port,
 		Handler: api.NewHandler(api.Dependencies{
-			DB:           db,
-			Auth:         authService,
-			Torii:        toriiGateway,
-			Images:       imageService,
-			BeaconImages: beaconImageService,
+			DB:                 db,
+			Auth:               authService,
+			SurvivorAccounts:   starknet.NewChainClient(configuration.StarknetRPCURL),
+			SurvivorSignatures: verifier,
+			SurvivorPayouts:    configuration.SurvivorPayouts,
+			Torii:              toriiGateway,
+			Images:             imageService,
+			BeaconImages:       beaconImageService,
 			Beacon: beacon.NewService(
 				beaconStore,
 				beaconReader,

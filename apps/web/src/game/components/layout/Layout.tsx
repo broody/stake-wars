@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../../ui';
 import { shareableGameViewSearch } from '../../utils/gameViewSearch';
+import { isSurviveMode } from '../../survivors/session';
 import { WalletButton } from '../ui/WalletButton';
 import { SupplyDropHoldBanner } from '../ui/SupplyDropHoldBanner';
 
@@ -19,11 +20,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     search: shareableSearch ? `?${shareableSearch}` : '',
   });
 
+  const currentPath =
+    location.pathname === '/' &&
+    isSurviveMode(new URLSearchParams(location.search))
+      ? '/survivors'
+      : location.pathname;
   const navLinks = [
     { path: '/', label: 'CORE' },
     { path: '/staking', label: 'STAKE' },
     { path: '/beacon', label: 'BEACON' },
-    { path: '/drop', label: 'DROP' },
+    { path: '/survivors', label: 'SURVIVOR' },
   ];
 
   return (
@@ -52,7 +58,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   data-preserve-core-tracking
                   className={cn(
                     'border-b border-transparent py-1 text-tag text-fg-subtle transition-colors hover:text-fg sm:text-label md:text-heading',
-                    (location.pathname === link.path ||
+                    (currentPath === link.path ||
                       (link.path !== '/' &&
                         location.pathname.startsWith(`${link.path}/`))) &&
                       'border-fg text-fg'
@@ -71,7 +77,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </nav>
 
       {/* Main Content */}
-      <SupplyDropHoldBanner />
+      {currentPath !== '/survivors' && <SupplyDropHoldBanner />}
       <main className="flex-1 w-full h-full overflow-hidden">{children}</main>
     </div>
   );

@@ -207,9 +207,16 @@ func NewSupplyDropSubmitter(
 	rpcURL, supplyDropSystem, accountAddress, privateKey string,
 	tracking ...KeeperTracking,
 ) (*AccountSupplyDropSubmitter, error) {
-	supplyDropAddress, err := normalizeAddress(supplyDropSystem)
-	if err != nil {
-		return nil, fmt.Errorf("invalid supply_drop system address: %w", err)
+	var supplyDropAddressFelt *felt.Felt
+	if supplyDropSystem != "" {
+		address, err := normalizeAddress(supplyDropSystem)
+		if err != nil {
+			return nil, fmt.Errorf("invalid supply_drop system address: %w", err)
+		}
+		supplyDropAddressFelt, err = utils.HexToFelt(address)
+		if err != nil {
+			return nil, fmt.Errorf("decode supply_drop system: %w", err)
+		}
 	}
 	keeperAddress, err := normalizeAddress(accountAddress)
 	if err != nil {
@@ -222,8 +229,7 @@ func NewSupplyDropSubmitter(
 	publicKeyNumber, _ := curve.PrivateKeyToPoint(privateKeyNumber)
 	publicKey := fmt.Sprintf("0x%x", publicKeyNumber)
 
-	rawRPC := newRPCClient(rpcURL)
-	onchainKey, err := rawRPC.call(ctx, keeperAddress, "get_public_key", []string{})
+	onchainKey, err := keeperPublicKey(ctx, NewChainClient(rpcURL), keeperAddress)
 	if err != nil {
 		return nil, fmt.Errorf("read supply_drop keeper public key: %w", err)
 	}
@@ -246,10 +252,6 @@ func NewSupplyDropSubmitter(
 	accountAddressFelt, err := utils.HexToFelt(keeperAddress)
 	if err != nil {
 		return nil, fmt.Errorf("decode supply_drop keeper account: %w", err)
-	}
-	supplyDropAddressFelt, err := utils.HexToFelt(supplyDropAddress)
-	if err != nil {
-		return nil, fmt.Errorf("decode supply_drop system: %w", err)
 	}
 	keystore := &keeperKeystore{publicKey: publicKey, privateKey: privateKeyNumber}
 	keeper, err := account.NewAccount(
@@ -281,6 +283,41 @@ func NewSupplyDropSubmitter(
 		}
 	}
 	return submitter, nil
+}
+
+// Ready v0.5 accepts a two-felt Stark signature for a sole Stark owner with
+// no guardian. Check that signer configuration before enabling the keeper.
+const readyAccountV050 = "0x73414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2"
+
+func keeperPublicKey(ctx context.Context, chain *ChainClient, address string) ([]string, error) {
+	key, err := chain.Call(ctx, address, "get_public_key", nil, nil)
+	if !IsRPCError(err, RPCEntrypointNotFound) {
+		return key, err
+	}
+	hash, err := chain.classHashAt(ctx, address, nil)
+	if err != nil {
+		return nil, err
+	}
+	hash, err = normalizeFelt(hash)
+	if err != nil || hash != readyAccountV050 {
+		return nil, fmt.Errorf("unsupported keeper account class")
+	}
+	owners, err := chain.Call(ctx, address, "get_owners_info", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	// One SignerInfo is serialized as [count, type, guid, stored_value].
+	if len(owners) != 4 || owners[0] != "0x1" || owners[1] != "0x0" {
+		return nil, fmt.Errorf("Ready keeper requires one Stark owner")
+	}
+	guardians, err := chain.Call(ctx, address, "get_guardians_info", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(guardians) != 1 || guardians[0] != "0x0" {
+		return nil, fmt.Errorf("Ready keeper requires an account without guardians")
+	}
+	return owners[3:], nil
 }
 
 type keeperKeystore struct {
@@ -324,6 +361,9 @@ func (s *AccountSupplyDropSubmitter) invoke(
 	entrypoint string,
 	id uint64,
 ) (string, error) {
+	if system == nil {
+		return "", fmt.Errorf("keeper contract is not configured")
+	}
 	return s.invokeCall(
 		ctx, system, entrypoint, fmt.Sprint(id), []*felt.Felt{new(felt.Felt).SetUint64(id)},
 	)

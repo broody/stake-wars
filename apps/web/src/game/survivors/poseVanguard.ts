@@ -58,7 +58,7 @@ export function poseVanguard(
     const shotAge = shot ? time - shot.firedAt : -1;
     toVector(aim, run.player.boltAim ?? run.player.heading);
     const targetYaw = Math.atan2(aim.dot(localX), aim.dot(forward));
-    // Railstorm's per-shot spread belongs to the barrel, not to the feet.
+    // The barrel follows each shot’s spread while the feet track the target.
     const sight = run.player.boltSight;
     if (sight)
       toVector(aim, sight.prev).lerp(
