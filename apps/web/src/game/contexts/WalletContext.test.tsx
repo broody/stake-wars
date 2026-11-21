@@ -11,6 +11,7 @@ import {
 } from '@starknet-io/get-starknet-core';
 import { StarknetConfig } from '@starknetfoundation/starknet-start-react';
 import { RpcProvider } from 'starknet';
+import { StakeWarsStarknetProvider } from '../providers/StarknetProvider';
 import { stakeWarsChain } from '../providers/chain';
 import { WalletProvider, useWallet } from './WalletContext';
 import { WalletButton } from '../components/ui/WalletButton';
@@ -342,6 +343,42 @@ describe('wallet automatic reconnection', () => {
 });
 
 describe('wallet capabilities', () => {
+  it('offers only the Outis Chrome install link when no wallet is installed', async () => {
+    await act(async () => {
+      root.render(
+        <StakeWarsStarknetProvider>
+          <WalletProvider>
+            <MemoryRouter>
+              <WalletButton />
+            </MemoryRouter>
+          </WalletProvider>
+        </StakeWarsStarknetProvider>
+      );
+    });
+    await act(async () => container.querySelector('button')!.click());
+
+    const items = container.querySelectorAll('[role="menuitem"]');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('Outis');
+    expect(items[0].textContent).toContain('INSTALL');
+    expect(items[0].getAttribute('href')).toBe(
+      'https://chrome.google.com/webstore/detail/outis/oihdeooalpdlhnlnpbjehjkmdjkjnpab'
+    );
+  });
+
+  it('ignores a remembered Controller even when it is injected', async () => {
+    window.localStorage.setItem(LAST_WALLET_KEY, 'controller');
+    const controller = readyWallet({ id: 'controller', name: 'Controller' });
+    await mount(discovery([controller.wallet]).store);
+
+    expect(current.canConnect).toBe(false);
+    expect(current.isConnected).toBe(false);
+    await expect(current.connect('Controller')).rejects.toThrow(
+      'not available'
+    );
+    expect(controller.request).not.toHaveBeenCalled();
+  });
+
   it.each(['Outis', 'Privacy Wallet'])(
     'discovers and connects the injected Outis provider named %s through the wallet menu',
     async (name) => {

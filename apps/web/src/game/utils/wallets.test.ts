@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isBraavosWallet,
-  isControllerWallet,
+  isOutisWallet,
   isReadyWallet,
   isSupportedWallet,
   isXverseWallet,
@@ -21,10 +21,10 @@ describe('wallet detection', () => {
     expect(isBraavosWallet('Ready', 'argentX')).toBe(false);
   });
 
-  it('recognizes Controller by id or name', () => {
-    expect(isControllerWallet('Controller', 'controller')).toBe(true);
-    expect(isControllerWallet('Controller')).toBe(true);
-    expect(isControllerWallet('Ready', 'argentX')).toBe(false);
+  it('recognizes Outis by id or name', () => {
+    expect(isOutisWallet('Privacy Wallet', 'outis')).toBe(true);
+    expect(isOutisWallet('Outis')).toBe(true);
+    expect(isOutisWallet('Ready', 'argentX')).toBe(false);
   });
 
   it('recognizes Xverse by id or name', () => {
@@ -37,7 +37,8 @@ describe('wallet detection', () => {
   it('accepts only supported connectors', () => {
     expect(isSupportedWallet('Ready', 'argentX')).toBe(true);
     expect(isSupportedWallet('Braavos', 'braavos')).toBe(true);
-    expect(isSupportedWallet('Controller', 'controller')).toBe(true);
+    expect(isSupportedWallet('Outis', 'outis')).toBe(true);
+    expect(isSupportedWallet('Controller', 'controller')).toBe(false);
     expect(isSupportedWallet('Xverse', 'xverse')).toBe(true);
     expect(isSupportedWallet('Keplr', 'keplr')).toBe(false);
   });

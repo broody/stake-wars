@@ -7,6 +7,7 @@ import {
 } from '@starknetfoundation/starknet-start-react';
 import { StarknetWalletApi } from '@starknet-io/get-starknet-wallet-standard/features';
 import type { WalletState } from '../types';
+import { isSupportedWallet } from '../utils/wallets';
 import {
   forgetWalletConnection,
   useWalletAutoConnect,
@@ -25,15 +26,21 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const account = useAccount();
   const connection = useConnect();
   const disconnection = useDisconnect();
-  const { cancelAutoConnect, isReconnecting } = useWalletAutoConnect(
-    connection.connectors
+  const connectors = useMemo(
+    () =>
+      connection.connectors.filter((wallet) =>
+        isSupportedWallet(wallet.name, wallet.features[StarknetWalletApi].id)
+      ),
+    [connection.connectors]
   );
+  const { cancelAutoConnect, isReconnecting } =
+    useWalletAutoConnect(connectors);
 
   const walletId = account.connector?.features[StarknetWalletApi]?.id ?? null;
 
   const connect = useCallback(
     async (walletName: string) => {
-      const wallet = connection.connectors.find(
+      const wallet = connectors.find(
         (connector) => connector.name === walletName
       );
       if (!wallet) {
@@ -42,7 +49,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       cancelAutoConnect();
       await connection.connectAsync({ connector: wallet });
     },
-    [cancelAutoConnect, connection]
+    [cancelAutoConnect, connection, connectors]
   );
 
   const disconnect = useCallback(async () => {
@@ -56,7 +63,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
 
     return {
       address: account.address || null,
-      canConnect: connection.connectors.length > 0,
+      canConnect: connectors.length > 0,
       chainId: account.chainId ? `0x${account.chainId.toString(16)}` : null,
       walletId,
       walletName: account.connector?.name || null,
@@ -77,7 +84,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     account.isConnected,
     account.isConnecting,
     connect,
-    connection.connectors.length,
+    connectors.length,
     connection.error,
     connection.isPending,
     disconnect,
