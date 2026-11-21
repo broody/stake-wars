@@ -1,13 +1,21 @@
 # Vanguard
 
-`vanguard.glb` is copied from `docs/concepts/core-survivors/vanguard/vanguard.glb`.
-The editable Blender source, authoring scripts, renders and validation live in
-that folder (currently in the main checkout); see its README.
+The Vanguard wears an ivory helmet and charcoal cape and carries an orange
+lightsaber in the right hand. Its hilt comes from the Sector Trooper saber.
+The blade runs from 0.158 to 0.995 m along the animated weapon socket, matching
+the Arc Blade trail. A white emissive core and a soft orange halo keep
+the blade visible at gameplay scale.
 
-The Vanguard is the Core Survivors player. The model is an armored knight with
-an ivory helmet, a charcoal cape and a white-edged sword in the right hand. It
-has two skinned meshes, `Vanguard_Armor` and `Vanguard_Sword`, on one 61-bone
-FK rig, with 79,252 triangles in about 10.3 MB.
+The editable Vanguard rig and its original Blender export live in
+`docs/concepts/core-survivors/vanguard` in the main checkout. To rebuild the
+game asset, run this from the repository root with the original export as input.
+
+```sh
+python3 docs/concepts/core-survivors/vanguard/equip_lightsaber.py \
+  /path/to/original/vanguard.glb \
+  apps/web/public/models/sector-trooper/sector-trooper-saber.glb \
+  apps/web/public/models/vanguard/vanguard.glb
+```
 
 | Clip | Seconds | Game use |
 | --- | --- | --- |

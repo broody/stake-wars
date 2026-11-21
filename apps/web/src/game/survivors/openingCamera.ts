@@ -1,5 +1,6 @@
 import { type Camera, MathUtils, Vector3 } from 'three';
 import { FOLLOW_CAMERA } from './followCamera';
+import type { Vec3 } from './sphere';
 
 export const OPENING_CAMERA = {
   release: 0.28,
@@ -29,7 +30,34 @@ export function captureGlobeView(camera: Camera) {
     .projectOnPlane(normal)
     .normalize();
   const forward = new Vector3().crossVectors(right, normal).normalize();
+  return globeView(eye, look, up, normal, forward);
+}
+
+/** Frame the landing chosen by the replay seed at the current globe zoom. */
+export function globeViewAtSpawn(
+  distance: number,
+  player: { n: Vec3; forward: Vec3 }
+) {
+  const normal = new Vector3().copy(player.n);
+  const forward = new Vector3().copy(player.forward);
+  return globeView(
+    normal.clone().multiplyScalar(distance),
+    new Vector3(),
+    forward.clone().negate(),
+    normal,
+    forward
+  );
+}
+
+function globeView(
+  eye: Vector3,
+  look: Vector3,
+  up: Vector3,
+  normal: Vector3,
+  forward: Vector3
+) {
   // Arrive diagonally from the upper left, with the hero facing the approaching camera.
+  const right = new Vector3().crossVectors(normal, forward);
   const trail = normal
     .clone()
     .multiplyScalar(0.5)

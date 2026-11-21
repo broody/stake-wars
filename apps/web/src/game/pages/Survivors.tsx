@@ -19,7 +19,12 @@ import {
   buttonStyles,
 } from '../../ui';
 import { useWallet } from '../contexts/WalletContext';
-import { retrySurvivorRuns } from '../survivors/guest';
+import {
+  hasPlayedSurvivor,
+  retrySurvivorRuns,
+  survivorGuestId,
+} from '../survivors/guest';
+import { SurvivorGuide } from '../components/ui/SurvivorGuide';
 import { SurvivorFinalSkills } from '../components/ui/SurvivorFinalSkills';
 import { SurvivorChase } from '../components/3d/SurvivorChase';
 import { WalletButton } from '../components/ui/WalletButton';
@@ -32,6 +37,7 @@ import {
   formatCountdown,
   formatStrk,
   formatSurvivalTime,
+  shortAddress,
 } from '../utils/format';
 
 export function Survivors() {
@@ -42,6 +48,7 @@ export function Survivors() {
   const [error, setError] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [scope, setScope] = useState<'round' | 'all'>('round');
   const [refresh, setRefresh] = useState(0);
@@ -132,7 +139,9 @@ export function Survivors() {
     setStartError('');
     try {
       const ticket = await api.startSurvivorRun();
+      survivorGuestId();
       survivorsSession.ticket = ticket;
+      setShowGuide(false);
       navigate('/?survive=1');
     } catch (reason) {
       setStartError(
@@ -185,7 +194,10 @@ export function Survivors() {
               className="mt-6 text-title font-bold"
               disabled={!board || Boolean(error)}
               busy={starting}
-              onClick={() => void start()}
+              onClick={() => {
+                if (hasPlayedSurvivor()) void start();
+                else setShowGuide(true);
+              }}
             >
               Play
             </Button>
@@ -215,7 +227,7 @@ export function Survivors() {
           ) : !round ? (
             <p className="mt-3 text-body text-fg-muted">No open prize round.</p>
           ) : (
-            <div className="grid grid-cols-[max-content_minmax(0,1fr)] items-stretch gap-x-3 gap-y-3 sm:gap-x-8 lg:grid-cols-[auto_auto_1fr]">
+            <>
               <div className="flex items-center gap-3 whitespace-nowrap sm:gap-8">
                 {prize && (
                   <Stat
@@ -243,9 +255,9 @@ export function Survivors() {
                 )}
               </div>
               {prize && board.isCurrent ? (
-                <>
+                <div className="mt-4 flex items-stretch gap-3 border-t border-line pt-4">
                   <div
-                    className="relative aspect-square justify-self-end lg:justify-self-start"
+                    className="relative aspect-square min-h-9 shrink-0"
                     aria-hidden="true"
                   >
                     <img
@@ -254,7 +266,7 @@ export function Survivors() {
                       className="absolute inset-0 size-full object-contain"
                     />
                   </div>
-                  <p className="col-span-full self-center text-body text-fg-secondary lg:col-span-1">
+                  <p className="min-w-0 self-center text-body text-fg-secondary">
                     {round.closed && !winner ? (
                       'No Outis wallet qualified for this prize.'
                     ) : (
@@ -267,17 +279,17 @@ export function Survivors() {
                       </>
                     )}
                   </p>
-                </>
+                </div>
               ) : round.closed && !winner ? (
-                <p className="col-span-full self-center text-body text-fg-secondary lg:col-span-1">
+                <p className="mt-3 text-body text-fg-secondary">
                   {prize
                     ? 'No Outis wallet qualified for this prize.'
                     : 'No runs finished this round.'}
                 </p>
               ) : null}
-            </div>
+            </>
           )}
-          {startError && (
+          {startError && !showGuide && (
             <Callout className="mt-3" tone="warning" role="alert">
               {startError}
             </Callout>
@@ -340,7 +352,11 @@ export function Survivors() {
                         winner.wallet &&
                         addressesMatch(entry.wallet, winner.wallet);
                       const identity = entry.wallet ?? entry.guest;
-                      const name = entry.name || 'Anonymous';
+                      const name =
+                        entry.name ||
+                        (entry.wallet
+                          ? shortAddress(entry.wallet)
+                          : 'Anonymous');
                       const id = `survivor-upgrades-${board.round?.id}-${identity}`;
                       const expanded = expandedEntry === id;
                       const toggleUpgrades = () =>
@@ -374,6 +390,7 @@ export function Survivors() {
                                 aria-label={`${expanded ? 'Hide' : 'Show'} final skills for ${name}`}
                                 aria-expanded={expanded}
                                 aria-controls={expanded ? id : undefined}
+                                title={entry.wallet}
                                 className="text-caption no-underline"
                                 onClick={toggleUpgrades}
                               >
@@ -462,6 +479,14 @@ export function Survivors() {
           )}
         </nav>
       </div>
+      {showGuide && (
+        <SurvivorGuide
+          starting={starting}
+          error={startError}
+          onClose={() => setShowGuide(false)}
+          onStart={() => void start()}
+        />
+      )}
     </div>
   );
 }

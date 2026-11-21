@@ -4,6 +4,15 @@ import { config } from '../services/config';
 const guestKey = 'stakewars.survivor.guest';
 const pendingPrefix = `stakewars.survivor.run.${config.starknetChainId}.`;
 let memoryId: string | undefined;
+
+export function hasPlayedSurvivor(): boolean {
+  try {
+    return Boolean(memoryId || localStorage.getItem(guestKey));
+  } catch {
+    return Boolean(memoryId);
+  }
+}
+
 export function survivorGuestId(): string {
   try {
     const saved = localStorage.getItem(guestKey);

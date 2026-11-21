@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import { api } from '../services/api';
 import { config } from '../services/config';
@@ -37,7 +37,7 @@ it('displays active time and expands the final skills for the selected score', a
     },
     entries: [
       {
-        wallet: '0x123',
+        wallet: '0x554973123456789abcdef09efcd',
         outis: true,
         destroyed: 201,
         durationSeconds: 119,
@@ -62,10 +62,18 @@ it('displays active time and expands the final skills for the selected score', a
       },
       {
         wallet: '0x789',
+        name: 'Star Pilot',
         outis: false,
         destroyed: 1,
         durationSeconds: null,
         upgrades: null,
+      },
+      {
+        guest: 'guest-unnamed',
+        outis: false,
+        destroyed: 0,
+        durationSeconds: 12,
+        upgrades: [],
       },
     ],
   });
@@ -79,7 +87,7 @@ it('displays active time and expands the final skills for the selected score', a
         </MemoryRouter>
       );
     });
-    const [best, empty, legacy] =
+    const [best, empty, legacy, guest] =
       node.querySelectorAll<HTMLTableRowElement>('tbody tr');
     const prize = node.querySelector('section[aria-label="Prize round"]')!;
     expect(prize.textContent).toContain('100 STRK');
@@ -89,8 +97,12 @@ it('displays active time and expands the final skills for the selected score', a
     expect(node.querySelector('header')?.textContent).not.toMatch(
       /player name|set leaderboard name/i
     );
-    expect(best.cells[1].textContent).toContain('Anonymous');
-    expect(best.cells[1].textContent).not.toContain('0x123');
+    expect(best.cells[1].textContent).toContain('0x554973…09efcd');
+    expect(best.cells[1].querySelector('button')?.title).toBe(
+      '0x554973123456789abcdef09efcd'
+    );
+    expect(legacy.cells[1].textContent).toContain('Star Pilot');
+    expect(guest.cells[1].textContent).toContain('Anonymous');
     expect(empty.cells[1].textContent).toContain('Moon Pilot');
     expect(best.cells[2].textContent).toBe('201');
     expect(best.cells[3].textContent).toBe('01:59');
@@ -116,18 +128,71 @@ it('displays active time and expands the final skills for the selected score', a
     await act(async () => legacy.click());
     expect(node.textContent).toContain('Final skills unrecorded.');
     expect(node.querySelector('ol')).toBeNull();
-    vi.mocked(api.startSurvivorRun).mockResolvedValue({
+  } finally {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it('waits for first-play guidance before starting a run and skips it on return', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.mocked(api.getSurvivorBoard).mockResolvedValue({
+    network: config.starknetChainId,
+    payoutsEnabled: true,
+    round: null,
+    entries: [],
+  });
+  vi.mocked(api.startSurvivorRun)
+    .mockClear()
+    .mockRejectedValueOnce(new Error('Try again'))
+    .mockResolvedValue({
       token: 'anonymous-ticket',
       seed: 1,
     });
-    const start = Array.from(node.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Play'
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const play = () => node.querySelector<HTMLButtonElement>('header button')!;
+  const guide = () => document.querySelector('[role="dialog"]');
+  const confirm = () =>
+    Array.from(guide()!.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Start run'
     )!;
-    expect(start.disabled).toBe(false);
-    await act(async () => start.click());
-    expect(api.startSurvivorRun).toHaveBeenCalledWith();
+  try {
+    await act(async () =>
+      root.render(
+        <MemoryRouter initialEntries={['/survivors']}>
+          <Routes>
+            <Route path="/survivors" element={<Survivors />} />
+            <Route path="/" element={<Link to="/survivors">Lobby</Link>} />
+          </Routes>
+        </MemoryRouter>
+      )
+    );
+    expect(guide()).toBeNull();
+    await act(async () => play().click());
+    expect(guide()?.textContent).toContain('Collect shards');
+    expect(document.activeElement).toBe(confirm());
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(guide()).toBeNull();
+    expect(api.startSurvivorRun).not.toHaveBeenCalled();
+    await act(async () => play().click());
+    await act(async () => confirm().click());
+    expect(guide()!.querySelector('[role="alert"]')?.textContent).toBe(
+      'Try again'
+    );
+    await act(async () => confirm().click());
+    expect(guide()).toBeNull();
+    await act(async () => node.querySelector('a')!.click());
+    await act(async () => play().click());
+    expect(guide()).toBeNull();
+    expect(node.querySelector('a')?.textContent).toBe('Lobby');
+    expect(api.startSurvivorRun).toHaveBeenCalledTimes(3);
   } finally {
     await act(async () => root.unmount());
+    node.remove();
     vi.unstubAllGlobals();
   }
 });

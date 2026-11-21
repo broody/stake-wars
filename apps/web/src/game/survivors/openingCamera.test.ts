@@ -11,6 +11,7 @@ import {
   sampleOpeningCamera,
 } from './openingCamera';
 import { SurvivorsSession } from './session';
+import { rankedRun } from './rankedReplay';
 
 describe('Survivors opening camera', () => {
   it.each([
@@ -144,6 +145,31 @@ it('keeps the shell sealed through impact, opens a sightline to the hero, and re
 describe('Survivors opening playback', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('plays the drop at the recorded spawn before the first replay tick', () => {
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 15);
+    camera.lookAt(0, 0, 0);
+    const session = new SurvivorsSession();
+    session.ticket = { token: 'ticket', seed: 343 };
+    session.start(5, 1, captureGlobeView(camera));
+
+    const expected = rankedRun(343).player;
+    const orbit = session.globeView!;
+    expect(orbit.normal.distanceTo(expected.n)).toBeLessThan(1e-8);
+    expect(orbit.forward.distanceTo(expected.forward)).toBeLessThan(1e-8);
+    expect(orbit.eye.length()).toBeCloseTo(15);
+    expect(session.opening).toBe(true);
+    expect(session.surfaceActive()).toBe(false);
+    for (let t = 0; t < OPENING_CAMERA.duration; t += 0.25)
+      session.advance(0.25);
+    expect(session.opening).toBe(false);
+    expect(session.run!.cues.map((cue) => cue.id)).toEqual(['strike']);
+    expect(session.run!.player.n).toEqual(expected.n);
+    expect(session.replay!.ticks).toBe(0);
+    session.advance(1 / 30);
+    expect(session.replay!.ticks).toBe(1);
+  });
+
   it('holds the simulation, respects pause, and starts a fresh opening on restart', () => {
     const session = new SurvivorsSession();
     session.start(5, 42);
@@ -241,6 +267,7 @@ describe('Survivors opening playback', () => {
       matches: query === '(prefers-reduced-motion: reduce)',
     }));
     const session = new SurvivorsSession();
+    session.ticket = { token: 'ticket', seed: 42 };
     session.start(5, 42);
     expect(session.opening).toBe(false);
     session.advance(1 / 30);

@@ -1,4 +1,8 @@
-import { OPENING_CAMERA, type GlobeView } from './openingCamera';
+import {
+  globeViewAtSpawn,
+  OPENING_CAMERA,
+  type GlobeView,
+} from './openingCamera';
 import { DEATH_RESULTS_DELAY } from './deathCamera';
 import { FollowOrbit } from './followCamera';
 import { pointAt, vec3 } from './sphere';
@@ -175,7 +179,6 @@ export class SurvivorsSession {
     seed = Math.floor(Math.random() * 2 ** 31),
     globeView = this.globeView
   ) {
-    this.globeView = globeView;
     this.cameraOrbit.reset();
     const params = new URLSearchParams(location.search);
     const ranked = this.ticket;
@@ -194,6 +197,10 @@ export class SurvivorsSession {
           landing: globeView,
           kiteWall: preview === 'kite-wall',
         });
+    this.globeView =
+      ranked && globeView
+        ? globeViewAtSpawn(globeView.eye.length(), this.run.player)
+        : globeView;
     if (
       preview === 'saber' ||
       preview === 'saber-range' ||
@@ -438,9 +445,8 @@ export class SurvivorsSession {
     }
     this.paused = false;
     this.openingAge = 0;
-    this.opening =
-      !ranked &&
-      !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    this.opening = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
+      .matches;
     this.keys.clear();
     this.stick.x = this.stick.y = 0;
     this.accumulator = 0;

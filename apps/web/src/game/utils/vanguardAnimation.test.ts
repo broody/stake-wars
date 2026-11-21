@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Group, Vector3 } from 'three';
+import { Group, Mesh, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   VANGUARD,
   VanguardAnimation,
   vanguardUpperTrack,
 } from './vanguardAnimation';
-import { BladeAfterimage } from '../survivors/bladeAfterimage';
+import { BladeAfterimage, sampleBlade } from '../survivors/bladeAfterimage';
 import { SABER, saberClipTime } from '../survivors/saberAttack';
 
 async function asset() {
@@ -42,6 +42,35 @@ describe('Vanguard player animation', () => {
       expect(bones(true)).toContain(bone);
     for (const bone of ['pelvis', 'thighL', 'shinR', 'footL', 'root'])
       expect(bones(false)).toContain(bone);
+  });
+
+  it('keeps the lightsaber core aligned with the slash trail on the right-hand socket', async () => {
+    const { scene, animations } = await asset();
+    const actor = new VanguardAnimation(scene, animations);
+    const socket = actor.root.getObjectByName('weapon')!;
+    expect(socket.parent?.name).toBe('handR');
+    const saber = socket.getObjectByName('Vanguard_Lightsaber')!;
+    const core = saber.children.find(
+      (part): part is Mesh =>
+        part instanceof Mesh && part.material.name === 'Saber incandescent core'
+    )!;
+    core.geometry.computeBoundingBox();
+    const bounds = core.geometry.boundingBox!;
+    for (const time of [0.1, 0.5, 0.75]) {
+      actor.update(time, 0.7, attack(1));
+      actor.root.updateMatrixWorld(true);
+      const base = new Vector3();
+      const tip = new Vector3();
+      sampleBlade(socket, base, tip);
+      for (const [y, target] of [
+        [bounds.min.y, base],
+        [bounds.max.y, tip],
+      ] as const) {
+        const endpoint = core.localToWorld(new Vector3(0, y, 0));
+        expect(endpoint.distanceTo(target)).toBeLessThan(1e-5);
+      }
+    }
+    actor.dispose();
   });
 
   it('leaves a short world-space ribbon at contact and clears it between cuts', async () => {
