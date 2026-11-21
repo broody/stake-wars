@@ -13,6 +13,134 @@ const DT = 1 / SIM_HZ;
 const still = { x: 0, y: 0 };
 
 describe('Orbital Strike ripples', () => {
+  it.each([
+    [1, false, 0.5],
+    [2, false, 0.6],
+    [3, false, 0.72],
+    [4, false, 0.85],
+    [5, false, 1],
+    [5, true, 1.1],
+  ] as const)(
+    'uses the enlarged splash radius for rank %i, evolved %s',
+    (level, evolved, radius) => {
+      const run = createRun(4, 5);
+      run.weapons = [];
+      applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
+      Object.assign(run.weapons[0], { level, evolved, cooldown: 0 });
+      run.random = () => 0.1;
+      run.spawnCredit = -1e6;
+      const targets = [0, radius + 0.09, radius + 0.17].map((d) => {
+        const enemy = spawnEnemy(
+          run,
+          'mite',
+          pointAt(vec3(), run.player.n, run.player.forward, (0.85 + d) / 5)
+        );
+        enemy.hp = enemy.maxHp = 1000;
+        return enemy;
+      });
+      if (evolved) {
+        const neighbor = spawnEnemy(
+          run,
+          'mite',
+          pointAt(vec3(), targets[0].n, run.right, 0.4 / 5)
+        );
+        neighbor.hp = neighbor.maxHp = 1000;
+      }
+      tick(run, DT, still);
+      const strikes = run.effects.filter((e) => e.kind === 'strike');
+      expect(strikes.length).toBeGreaterThan(0);
+      expect(
+        strikes.every((e) => e.kind === 'strike' && e.radius === radius)
+      ).toBe(true);
+      if (!evolved) {
+        expect(targets[1].hp).toBeLessThan(1000);
+        expect(targets[2].hp).toBe(1000);
+      } else {
+        for (let i = 0; i < 4; i++) tick(run, DT, still);
+        expect(
+          run.effects.some(
+            (e) => e.kind === 'strike' && e.linked && e.radius === radius * 0.8
+          )
+        ).toBe(true);
+      }
+    }
+  );
+
+  it('halves repeat splash hits per orbital, including when two chains overlap', () => {
+    const run = createRun(7, 5);
+    run.weapons = [];
+    run.spawnCredit = -1e6;
+    applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
+    applyOffer(run, { kind: 'system', id: 'amplifier', isNew: true });
+    for (let i = 0; i < 5; i++)
+      applyOffer(run, { kind: 'system', id: 'overclock', isNew: i === 0 });
+    Object.assign(run.weapons[0], { level: 5, evolved: true, cooldown: DT });
+    const targets = [0.9, 1.55, 2.35, 3.1, 3.85].map((distance) => {
+      const n = pointAt(
+        vec3(),
+        run.player.n,
+        run.player.forward,
+        distance / run.groundRadius
+      );
+      const enemy = spawnEnemy(run, 'mite', n);
+      enemy.speed = 0;
+      enemy.hp = enemy.maxHp = 1000;
+      return enemy;
+    });
+    // Aim the first orbital at the near end of the line, then the next at the farthest visible Mite.
+    run.random = () => 0.1;
+    const hits = [];
+    for (let step = 0; step < 10; step++) {
+      const hp = targets.map((enemy) => enemy.hp);
+      run.cues.length = 0;
+      tick(run, DT, still);
+      const impact = run.cues.find(
+        (cue) => cue.id === 'strike' || cue.id === 'chain'
+      );
+      if (impact)
+        hits.push([impact.id, targets.map((enemy, i) => hp[i] - enemy.hp)]);
+      run.random = () => 0.99;
+    }
+    expect(hits).toEqual([
+      ['strike', [12, 12, 0, 0, 0]],
+      ['chain', [5, 5, 10, 0, 0]],
+      ['chain', [0, 5, 5, 10, 0]],
+      ['strike', [0, 0, 12, 12, 12]],
+      // The last Mite took the new orbital, but this is its first hit from the older chain.
+      ['chain', [0, 0, 5, 5, 10]],
+    ]);
+  });
+
+  it('fires single strikes on tempo through a crowd with Overclock', () => {
+    const run = createRun(7, 5);
+    run.weapons = [];
+    applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
+    applyOffer(run, { kind: 'system', id: 'overclock', isNew: true });
+    Object.assign(run.weapons[0], { level: 5, cooldown: DT });
+    run.spawnCredit = -1e6;
+    for (const distance of [0.8, 1.3, 1.8]) {
+      const target = spawnEnemy(
+        run,
+        'mite',
+        pointAt(vec3(), run.player.n, run.player.forward, distance / 5)
+      );
+      target.hp = target.maxHp = 1e6;
+      target.speed = 0;
+    }
+    const times: number[] = [];
+    for (let i = 0; i < SIM_HZ * 7; i++) {
+      run.cues.length = 0;
+      tick(run, DT, still);
+      const shots = run.cues.filter((cue) => cue.id === 'strike');
+      expect(shots.length).toBeLessThanOrEqual(1);
+      if (shots.length) times.push(run.time);
+    }
+    expect(times.length).toBe(10);
+    times.forEach((time, i) => {
+      expect(Math.abs(time - times[0] - i * 0.8 * 0.92)).toBeLessThan(DT);
+    });
+  });
+
   it('raises a single band no wider than one Sector', () => {
     expect(rippleHeight(0.5, 0.1, 1)).toBe(0);
     for (let age = 0; age < rippleLife(1); age += 0.02) {
@@ -32,20 +160,17 @@ describe('Orbital Strike ripples', () => {
     }
   });
 
-  it('lifts only the struck Sector and the ring around it at level one', () => {
+  it('lifts the struck Sector and two surrounding rings at level one', () => {
     for (let age = 0; age < rippleLife(1); age += 0.02)
       expect(rippleHeight(RIPPLE.reach + 0.01, age, 1)).toBe(0);
-    expect(RIPPLE.reach).toBeLessThan(0.6);
+    expect(rippleRings(1)).toBe(2);
   });
 
-  it('adds a ring for level 4 and evolved strikes, but not for chain hits', () => {
-    const level4 = 0.32 / RIPPLE.baseRadius,
-      evolved = 0.35 / RIPPLE.baseRadius,
-      chain = (0.35 * 0.8) / RIPPLE.baseRadius;
-    expect(rippleRings(1)).toBe(1);
-    expect(rippleRings(chain)).toBe(1);
-    expect(rippleRings(level4)).toBe(2);
-    expect(rippleRings(evolved)).toBe(2);
+  it('raises an extra ring of Sectors at level three and caps the terrain ripple', () => {
+    const evolved = 1.1 / RIPPLE.baseRadius;
+    expect(rippleRings(0.6 / RIPPLE.baseRadius)).toBe(2);
+    expect(rippleRings(0.72 / RIPPLE.baseRadius)).toBe(3);
+    expect(rippleRings(evolved)).toBe(3);
     expect(rippleRings(10)).toBe(RIPPLE.maxRings);
     expect(rippleReach(evolved)).toBeCloseTo(RIPPLE.reach + RIPPLE.ringStep, 9);
     // The band reaches the extra ring and lifts it before the ripple ends.
@@ -57,18 +182,31 @@ describe('Orbital Strike ripples', () => {
     expect(rippleHeight(outer, 0.4, 1)).toBe(0);
   });
 
-  it('fades out by its reach and lifetime, and grows with the blast', () => {
-    expect(rippleHeight(RIPPLE.reach + 0.01, 1, 1)).toBe(0);
-    expect(rippleHeight(0.2, rippleLife(1), 1)).toBe(0);
-    // Within one ring count, a bigger blast lifts proportionally higher.
-    expect(rippleHeight(0.2, 0.25, 1.2)).toBeCloseTo(
-      rippleHeight(0.2, 0.25, 1) * 1.2,
-      12
-    );
-  });
+  it.each([1, 2, 3.3])(
+    'peaks first at the impact and decays to rest at the edge for strength %s',
+    (strength) => {
+      const reach = rippleReach(strength);
+      const peak = (distance: number) =>
+        rippleHeight(
+          distance,
+          (distance + RIPPLE.width / 2) / RIPPLE.speed,
+          strength
+        );
+      const center = peak(0);
+      expect(center).toBeCloseTo(RIPPLE.height * Math.sqrt(strength));
+      expect(peak(reach * 0.5)).toBeCloseTo(center / 4);
+      expect(peak(reach * 0.75)).toBeCloseTo(center / 16);
+      expect(peak(reach)).toBe(0);
+      expect(
+        rippleHeight(reach / 2, RIPPLE.width / (2 * RIPPLE.speed), strength)
+      ).toBe(0);
+      expect(rippleHeight(0, rippleLife(strength), strength)).toBe(0);
+    }
+  );
 
-  it('starts a ripple at every strike and clears it after its life', () => {
+  it('clears the impact once the tiles settle and deals damage only once', () => {
     const run = createRun(3, 5.006);
+    run.weapons = [];
     applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
     const target = spawnEnemy(
       run,
@@ -81,8 +219,12 @@ describe('Orbital Strike ripples', () => {
     expect(run.ripples.length).toBeGreaterThan(0);
     const first = run.ripples[0];
     expect(first.strength).toBeCloseTo(1, 6);
+    run.weapons[0].cooldown = 10;
+    const damage = run.damageBy.strike;
     for (let t = 0; t <= rippleLife(first.strength) + DT; t += DT)
       tick(run, DT, still);
+    expect(run.effects.some((effect) => effect.kind === 'strike')).toBe(false);
     expect(run.ripples).not.toContain(first);
+    expect(run.damageBy.strike).toBe(damage);
   });
 });

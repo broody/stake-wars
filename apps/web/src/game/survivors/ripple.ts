@@ -11,17 +11,17 @@ export const RIPPLE = {
   speed: 1.8,
   /** Width of the raised band, about one Sector across. */
   width: 0.35,
-  /** The struck Sector and the ring around it; nothing farther lifts. */
-  reach: 0.55,
+  /** Reach of the two rings around a level-one impact. */
+  reach: 0.9,
   /** Each extra ring of Sectors carries the band about one Sector farther. */
   ringStep: 0.35,
-  /** Strength above 1 that buys each extra ring: level 4 and evolved get one. */
+  /** Strength above 1 that adds another ring of raised Sectors. */
   strengthPerRing: 0.4,
   maxRings: 3,
   /** Peak lift of a Sector for a level-one strike. */
-  height: 0.09,
+  height: 0.065,
   /** The blast radius a strike of `strength` 1 covers. */
-  baseRadius: 0.22,
+  baseRadius: 0.5,
 } as const;
 export const MAX_RIPPLES = 32;
 
@@ -35,12 +35,12 @@ export interface Ripple {
 /** Rings of Sectors around the struck one that a strike of `strength` lifts. */
 export function rippleRings(strength: number) {
   const extra = Math.floor((strength - 1) / RIPPLE.strengthPerRing + 1e-9);
-  return Math.min(RIPPLE.maxRings, 1 + Math.max(0, extra));
+  return Math.min(RIPPLE.maxRings, 2 + Math.max(0, extra));
 }
 
 /** How far from the impact a strike of `strength` lifts Sectors. */
 export function rippleReach(strength: number) {
-  return RIPPLE.reach + RIPPLE.ringStep * (rippleRings(strength) - 1);
+  return RIPPLE.reach + RIPPLE.ringStep * (rippleRings(strength) - 2);
 }
 
 /** Long enough for the band to run past the ripple's reach. */
@@ -53,8 +53,8 @@ export function rippleHeight(distance: number, age: number, strength: number) {
   const behind = RIPPLE.speed * age - distance;
   if (behind < 0 || behind > RIPPLE.width) return 0;
   const reach = rippleReach(strength);
-  if (distance > reach || age >= rippleLife(strength)) return 0;
+  if (distance >= reach) return 0;
   const pulse = Math.sin((Math.PI * behind) / RIPPLE.width);
-  const fade = 1 - (0.5 * distance) / reach;
-  return RIPPLE.height * strength * pulse * fade;
+  const falloff = 1 - distance / reach;
+  return RIPPLE.height * Math.sqrt(strength) * pulse ** 2 * falloff ** 2;
 }

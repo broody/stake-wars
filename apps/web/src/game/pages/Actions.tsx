@@ -34,6 +34,7 @@ import {
 } from '../actions/actions';
 import { ActionDriver } from '../actions/driver';
 import { ActionStage } from '../actions/ActionStage';
+import { StrikeLevelSelect } from '../components/ui/StrikeLevelSelect';
 import { ActionTimeline } from '../actions/ActionTimeline';
 import { authoredClip, authoredLoop, probeAction } from '../actions/timeline';
 import { RATES, Transport, useTransport } from '../actions/transport';
@@ -187,6 +188,11 @@ function Readouts({ transport }: { transport: Transport }) {
 /** One action, large, with playback, timing and the knobs that shape it. */
 function Inspector({ spec }: { spec: ActionSpec }) {
   const [options, setOptions] = useState<SwingOptions | undefined>(spec.swing);
+  const [strikeLevel, setStrikeLevel] = useState(1);
+  const preview = useMemo(
+    () => (spec.kind === 'orbital-strike' ? { ...spec, strikeLevel } : spec),
+    [spec, strikeLevel]
+  );
   const [source, setSource] = useState<Source>('game');
   const [view, setView] = useState<ViewId>('front');
   const [overlays, setOverlays] = useState<Overlays>({
@@ -197,10 +203,13 @@ function Inspector({ spec }: { spec: ActionSpec }) {
   const transport = useMemo(() => new Transport(), []);
   const orbit = useMemo(newOrbit, []);
   const driver = useMemo(
-    () => new ActionDriver(spec, options),
-    [spec, options]
+    () => new ActionDriver(preview, options),
+    [preview, options]
   );
-  const probe = useMemo(() => probeAction(spec, options), [spec, options]);
+  const probe = useMemo(
+    () => probeAction(preview, options),
+    [preview, options]
+  );
   const clip = authoredClip(spec, probe);
   const authored = source === 'authored' && clip !== null;
   const loop = authored ? authoredLoop(clip).loop : probe.loop;
@@ -336,6 +345,12 @@ function Inspector({ spec }: { spec: ActionSpec }) {
             <p className="mt-2 text-caption text-fg-muted">{spec.detail}</p>
           </PanelSection>
           <PanelSection className="space-y-4">
+            {spec.kind === 'orbital-strike' && (
+              <StrikeLevelSelect
+                level={strikeLevel}
+                onChange={setStrikeLevel}
+              />
+            )}
             {clip ? (
               <Control label="SOURCE">
                 <SegmentedControl

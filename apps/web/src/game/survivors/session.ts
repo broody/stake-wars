@@ -3,13 +3,14 @@ import { DEATH_RESULTS_DELAY } from './deathCamera';
 import { FollowOrbit } from './followCamera';
 import { pointAt, vec3 } from './sphere';
 import { ENEMY_TELEGRAPHS } from './renderFrame';
-import { HEROES, type HeroId } from './content';
+import { HEROES, WEAPONS, type HeroId } from './content';
 import {
   applyOffer,
   chooseOffer,
   closeSupply,
   createRun,
   spawnEnemy,
+  offsetPoint,
   rerollOffers,
   runEvent,
   SIM_HZ,
@@ -49,6 +50,7 @@ const HUD_INTERVAL = 0.1;
  */
 export class SurvivorsSession {
   run: Run | null = null;
+  orbitalStrikePreview = false;
   /** Held movement keys, as `KeyboardEvent.code`. */
   readonly keys = new Set<string>();
   /** Touch or mouse joystick, −1…1 on each axis (screen y points down). */
@@ -83,6 +85,7 @@ export class SurvivorsSession {
     const preview = import.meta.env.DEV
       ? new URLSearchParams(location.search).get('survivePreview')
       : null;
+    this.orbitalStrikePreview = preview === 'orbital-strike';
     if (
       preview === 'saber' ||
       preview === 'saber-range' ||
@@ -131,6 +134,26 @@ export class SurvivorsSession {
         tone: 'good',
         age: 0,
       };
+    }
+    if (preview === 'orbital-strike') {
+      const run = this.run;
+      run.weapons = [];
+      applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
+      run.spawnCredit = -1e6;
+      run.eventIndex = 1000;
+      for (let i = 0; i < 7; i++) {
+        const angle = (i * Math.PI) / 3;
+        const ring = i === 0 ? 0 : 0.49;
+        const n = offsetPoint(
+          run,
+          run.player.forward,
+          1.3 + ring * Math.cos(angle),
+          ring * Math.sin(angle)
+        );
+        const target = spawnEnemy(run, 'mite', n);
+        target.speed = 0;
+        target.hp = target.maxHp = 1e6;
+      }
     }
     if (preview === 'volt') {
       const run = this.run;
@@ -316,6 +339,25 @@ export class SurvivorsSession {
   skipOpening() {
     if (!this.opening) return;
     this.opening = false;
+    this.notify();
+  }
+
+  setPreviewStrikeLevel(level: number) {
+    const run = this.run;
+    if (
+      !this.orbitalStrikePreview ||
+      !run ||
+      !Number.isInteger(level) ||
+      level < 1 ||
+      level > WEAPONS.strike.levels.length
+    )
+      return;
+    const strike = run.weapons.find((weapon) => weapon.id === 'strike');
+    if (!strike || strike.level === level) return;
+    strike.level = level;
+    strike.cooldown = 0;
+    run.effects = run.effects.filter((effect) => effect.kind !== 'strike');
+    run.ripples.length = 0;
     this.notify();
   }
 

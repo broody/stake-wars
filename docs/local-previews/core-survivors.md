@@ -98,6 +98,7 @@ On death, Warden immediately leaves combat and targeting, cancels its warning/at
 
 Development-only previews:
 
+- `/play?survive=1&survivePreview=orbital-strike` starts with Orbital Strike facing a cluster of stationary Mites. Use **Orbital Strike level** to switch between levels 1–5. The tile under the hit rises first and highest. Nearby tiles move less as the ripple travels outward. The same selector is available at `/play/actions?action=orbital-strike`, where you can pause and step through a single impact.
 - `/play?survive=1&survivePreview=warden`: one Warden, no player weapons or ambient waves; dodge slams and bolt rings. Retreat to see Run and approach to see Walk. Summons are suppressed in this focused drill.
 - `/play?survive=1&survivePreview=warden-defeat`: the blade defeats a Warden every few seconds to inspect the collapse, sensor shutoff, and fade. Remains cannot block movement.
 

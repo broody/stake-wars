@@ -198,23 +198,35 @@ describe('Vanguard action scripts', () => {
     });
   });
 
-  it('lands a single orbital impact and four successive waves of chain impacts', () => {
-    const base = probeAction(action('orbital-strike')).strikes;
-    expect(base).toHaveLength(1);
-    expect(base[0]).toMatchObject({ linked: false, count: 1 });
+  it.each([1.35, 1.2, 1.05, 0.9, 0.8].map((period, i) => [i + 1, period]))(
+    'spaces single impacts at rank %i by %f seconds, including across the loop',
+    (strikeLevel, period) => {
+      const { strikes, loop } = probeAction({
+        ...action('orbital-strike'),
+        strikeLevel,
+      });
+      expect(strikes).toHaveLength(4);
+      for (const [i, hit] of strikes.entries()) {
+        expect(hit).toMatchObject({ linked: false, count: 1 });
+        const next = strikes[i + 1]?.at ?? loop + strikes[0].at;
+        expect(Math.abs(next - hit.at - period)).toBeLessThan(STEP);
+      }
+    }
+  );
+
+  it('spaces Chain Barrage primaries evenly and resolves four hops per strike', () => {
     const spec = action('chain-barrage');
     const impacts = probeAction(spec).strikes;
-    expect(impacts.map(({ linked, count }) => [linked, count])).toEqual([
-      [false, 3],
-      [true, 3],
-      [true, 3],
-      [true, 3],
-      [true, 3],
-    ]);
+    expect(impacts).toHaveLength(20);
     const driver = new ActionDriver(spec, undefined);
     let damage = 0;
     for (const [i, hit] of impacts.entries()) {
-      expect(hit.at - impacts[0].at).toBeCloseTo(i * CHAIN_TRAVEL, 5);
+      expect(hit).toMatchObject({ count: 1, linked: i % 5 !== 0 });
+      const volley = Math.floor(i / 5);
+      expect(hit.at - impacts[0].at).toBeCloseTo(
+        volley * (1.3 / 3) + (i % 5) * CHAIN_TRAVEL,
+        5
+      );
       driver.show(driver.runTime(hit.at + STEP));
       expect(driver.run.damageBy.strike!).toBeGreaterThan(damage);
       damage = driver.run.damageBy.strike!;
@@ -225,22 +237,36 @@ describe('Vanguard action scripts', () => {
     expect(driver.run.timers).toHaveLength(0);
   });
 
+  it('previews each Orbital Strike level against the same target', () => {
+    const radii = [0.5, 0.6, 0.72, 0.85, 1];
+    const centers = radii.map((radius, i) => {
+      const spec = { ...action('orbital-strike'), strikeLevel: i + 1 };
+      const driver = new ActionDriver(spec, undefined);
+      driver.show(driver.runTime(ACTION_LEAD + STEP));
+      const hit = driver.run.effects.find((effect) => effect.kind === 'strike');
+      expect(hit).toMatchObject({ radius });
+      return hit?.kind === 'strike' && hit.n;
+    });
+    for (const center of centers) expect(center).toEqual(centers[0]);
+  });
+
   it('tracks a moving chain target and leaves the ripple where the glint landed', () => {
     const driver = new ActionDriver(action('chain-barrage'), undefined);
     const { run } = driver;
     for (const enemy of run.enemies) enemy.speed = 0.28;
-    driver.show(driver.runTime(ACTION_LEAD));
+    const launchAt = probeAction(action('chain-barrage')).strikes[0].at + STEP;
+    driver.show(driver.runTime(launchAt));
     const link = run.effects.find((fx) => fx.kind === 'chain');
     if (link?.kind !== 'chain') throw new Error('Expected a chain in flight');
     const launch = { ...link.b };
-    driver.show(driver.runTime(ACTION_LEAD + 2 * STEP));
+    driver.show(driver.runTime(launchAt + 2 * STEP));
     expect(chord(link.b, launch)).toBeGreaterThan(0);
     const arrival = { ...link.b };
-    driver.show(driver.runTime(ACTION_LEAD + CHAIN_TRAVEL));
+    driver.show(driver.runTime(launchAt + CHAIN_TRAVEL));
     expect(run.ripples.some((ripple) => chord(ripple.n, arrival) < 1e-8)).toBe(
       true
     );
-    driver.show(driver.runTime(ACTION_LEAD + 2 * CHAIN_TRAVEL));
+    driver.show(driver.runTime(launchAt + 2 * CHAIN_TRAVEL));
     expect(link.b).toEqual(arrival);
   });
 

@@ -13,6 +13,7 @@ import {
   hurtPlayer,
   march,
   offsetPoint,
+  orbitalStrikeRank,
   shardOrbitRadius,
   SIM_HZ,
   spawnEnemy,
@@ -80,6 +81,8 @@ export interface ActionSpec {
   kind: ActionKind;
   /** Starting knobs for actions built on a swing; the inspector changes them. */
   swing?: SwingOptions;
+  /** Weapon rank shown in the Orbital Strike inspector. */
+  strikeLevel?: number;
   /** Camera distance (world units) and elevation (degrees) that fit it. */
   framing: { distance: number; pitch: number };
 }
@@ -314,7 +317,8 @@ export const ACTIONS: ActionSpec[] = [
     id: 'orbital-strike',
     group: 'Core weapons',
     name: WEAPONS.strike.name,
-    detail: 'An ivory column hits a Mite and lifts the surrounding Sectors.',
+    detail:
+      'Each level brings the strikes closer together and widens the blast.',
     kind: 'orbital-strike',
     framing: { distance: 3.1, pitch: 30 },
   },
@@ -322,8 +326,7 @@ export const ACTIONS: ActionSpec[] = [
     id: 'chain-barrage',
     group: 'Core weapons',
     name: WEAPONS.strike.evolution,
-    detail:
-      'Three columns strike. Each sends a glint across up to four nearby targets in succession.',
+    detail: WEAPONS.strike.evolutionDetail,
     kind: 'chain-barrage',
     framing: { distance: 4.8, pitch: 47 },
   },
@@ -632,23 +635,25 @@ export function actionScript(
         });
       });
     case 'orbital-strike':
-    case 'chain-barrage':
-      return still(1.85, (run) => {
-        const evolved = spec.kind === 'chain-barrage';
+    case 'chain-barrage': {
+      const evolved = spec.kind === 'chain-barrage';
+      const level = spec.strikeLevel ?? 1;
+      const period = orbitalStrikeRank(level, evolved).cooldown;
+      return still(4 * period, (run) => {
         applyOffer(run, { kind: 'weapon', id: 'strike', isNew: true });
         if (evolved) applyOffer(run, { kind: 'evolution', id: 'strike' });
         const weapon = run.weapons.find((w) => w.id === 'strike')!;
-        weapon.cooldown = PREROLL + ACTION_LEAD - STEP / 2;
+        if (!evolved) weapon.level = level;
+        // Leave time for the final chain to land before the loop wraps.
+        weapon.cooldown = PREROLL + (evolved ? STEP : ACTION_LEAD) - STEP / 2;
         const bearing = bearingDirection(vec3(), run, 'left');
         const count = evolved ? 8 : 1;
         for (let i = 0; i < count; i++) {
           standIn(run, bearing, evolved ? 0.97 : 0.6);
           rotateAbout(bearing, run.player.n, (2 * Math.PI) / count);
         }
-        at(run, ACTION_LEAD + 0.12, () => {
-          weapon.cooldown = 1e9;
-        });
       });
+    }
     case 'moving-loadout': {
       const loop = 8;
       const origin = vec3(),

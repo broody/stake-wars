@@ -900,12 +900,15 @@ function hitCircle(
   radius: number,
   amount: number,
   source: WeaponId | null,
-  knock = 0
+  knock = 0,
+  hitByOrbital?: Set<Enemy>
 ) {
   for (const enemy of nearby(run, n, radius + 0.3)) {
     if (enemy.dead) continue;
-    if (distance(run, enemy.n, n) <= radius + enemy.spec.radius)
-      damage(run, enemy, amount, source, knock, n);
+    if (distance(run, enemy.n, n) > radius + enemy.spec.radius) continue;
+    const hitAmount = hitByOrbital?.has(enemy) ? amount * 0.5 : amount;
+    hitByOrbital?.add(enemy);
+    damage(run, enemy, hitAmount, source, knock, n);
   }
 }
 
@@ -1411,15 +1414,24 @@ export function shardDirection(
 }
 
 export const CHAIN_TRAVEL = 3 / SIM_HZ;
+
+interface OrbitalChain {
+  /** Only the primary target and hop destinations are excluded from future jumps. */
+  targets: Set<Enemy>;
+  /** Includes every enemy caught in any splash from this orbital. */
+  damaged: Set<Enemy>;
+}
+
 function strikeAt(
   run: Run,
   n: Vec3,
   amount: number,
   radius: number,
+  chain?: OrbitalChain,
   linked = false
 ) {
   cue(run, linked ? 'chain' : 'strike', n);
-  hitCircle(run, n, radius, amount, 'strike');
+  hitCircle(run, n, radius, amount, 'strike', 0, chain?.damaged);
   addEffect(run, {
     kind: 'strike',
     linked,
@@ -1440,14 +1452,14 @@ function strikeAt(
 function chainStrike(
   run: Run,
   from: Vec3,
-  seen: Set<Enemy>,
+  chain: OrbitalChain,
   remaining: number,
   amount: number,
   radius: number
 ) {
-  const next = nearestEnemy(run, from, 1.1, seen);
+  const next = nearestEnemy(run, from, 1.1, chain.targets);
   if (!next) return;
-  seen.add(next);
+  chain.targets.add(next);
   const link: Effect = {
     kind: 'chain',
     a: from,
@@ -1461,57 +1473,46 @@ function chainStrike(
     run: () => {
       // Lock the endpoint even if the target moves on or dies in flight.
       link.b = copy(vec3(), next.n);
-      strikeAt(run, link.b, amount, radius, true);
+      strikeAt(run, link.b, amount, radius, chain, true);
       if (remaining > 1)
-        chainStrike(run, link.b, seen, remaining - 1, amount, radius);
+        chainStrike(run, link.b, chain, remaining - 1, amount, radius);
     },
   });
 }
 
+const STRIKE_RANKS = [
+  { radius: RIPPLE.baseRadius, cooldown: 1.35, damage: 20 },
+  { radius: 0.6, cooldown: 1.2, damage: 20 },
+  { radius: 0.72, cooldown: 1.05, damage: 20 },
+  { radius: 0.85, cooldown: 0.9, damage: 22 },
+  { radius: 1.0, cooldown: 0.8, damage: 22 },
+] as const;
+const CHAIN_BARRAGE = { radius: 1.1, cooldown: 1.3 / 3, damage: 12 } as const;
+
+export function orbitalStrikeRank(level: number, evolved: boolean) {
+  return evolved ? CHAIN_BARRAGE : STRIKE_RANKS[level - 1];
+}
+
 function updateStrike(run: Run, weapon: Weapon, dt: number) {
   weapon.cooldown -= dt;
-  if (weapon.cooldown > 0) return;
-  const player = run.player;
-  const scale = might(run);
-  const level = weapon.level;
-  let count: number;
-  let amount: number;
-  let radius: number;
-  let chain = 0;
-  if (weapon.evolved) {
-    count = 3;
-    amount = 30 * scale;
-    radius = 0.35 * player.area;
-    chain = 4;
-    weapon.cooldown = 0.9 * player.cooldownScale;
-  } else {
-    count = 1 + (level >= 2 ? 1 : 0) + (level >= 4 ? 1 : 0);
-    amount = 20 * (level >= 3 ? 1.4 : 1) * scale;
-    radius = (level >= 4 ? 0.32 : 0.22) * player.area;
-    weapon.cooldown = (level >= 5 ? 1 : 1.5) * player.cooldownScale;
-  }
+  if (weapon.cooldown > 1e-9) return;
   const candidates = visibleEnemies(run);
   if (!candidates.length) {
     weapon.cooldown = 0.3;
     return;
   }
-  for (let i = 0; i < count && candidates.length; i++) {
-    const target = candidates.splice(
-      Math.floor(run.random() * candidates.length),
-      1
-    )[0];
-    const at = copy(vec3(), target.n);
-    strikeAt(run, at, amount, radius);
-    if (chain)
-      chainStrike(
-        run,
-        at,
-        new Set([target]),
-        chain,
-        amount * 0.8,
-        radius * 0.8
-      );
-  }
+  const rank = orbitalStrikeRank(weapon.level, weapon.evolved);
+  // Carry the fraction of a tick so firing stays on tempo at every Overclock rank.
+  weapon.cooldown += rank.cooldown * run.player.cooldownScale;
+  const radius = rank.radius * run.player.area;
+  const amount = rank.damage * might(run);
+  const target = candidates[Math.floor(run.random() * candidates.length)];
+  const at = copy(vec3(), target.n);
+  const chain = weapon.evolved
+    ? { targets: new Set([target]), damaged: new Set<Enemy>() }
+    : undefined;
+  strikeAt(run, at, amount, radius, chain);
+  if (chain) chainStrike(run, at, chain, 4, amount * 0.8, radius * 0.8);
 }
 
 function updateCharge(run: Run, weapon: Weapon, dt: number) {

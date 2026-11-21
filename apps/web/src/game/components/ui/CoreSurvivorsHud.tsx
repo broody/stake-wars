@@ -27,6 +27,7 @@ import { pairedWeapons } from '../../survivors/content';
 import type { Aegis } from '../../survivors/aegis';
 import { SurvivorsIcon } from './SurvivorsIcon';
 import { SurvivorControls } from './SurvivorControls';
+import { StrikeLevelSelect } from './StrikeLevelSelect';
 import { ENEMY_TELEGRAPHS } from '../../survivors/renderFrame';
 
 const MOVE_KEYS = new Set([
@@ -541,7 +542,18 @@ export function CoreSurvivorsHud() {
       ) : null}
 
       <div className="pointer-events-none absolute inset-x-4 bottom-4 flex flex-col items-end gap-2 sm:flex-row sm:items-end">
-        {run.time < 7 && run.status === 'playing' ? (
+        {survivorsSession.orbitalStrikePreview &&
+        run.status === 'playing' &&
+        !paused ? (
+          <Panel tone="floating" className="pointer-events-auto px-4 py-2">
+            <StrikeLevelSelect
+              level={run.weapons[0].level}
+              onChange={(level) =>
+                survivorsSession.setPreviewStrikeLevel(level)
+              }
+            />
+          </Panel>
+        ) : run.time < 7 && run.status === 'playing' ? (
           <Panel
             tone="floating"
             className="max-w-md px-4 py-3 text-caption text-fg-secondary"

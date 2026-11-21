@@ -5,10 +5,16 @@ import { SECTOR_COLORS } from '../../utils/sectorVisuals';
 import {
   RIPPLE,
   rippleHeight,
+  rippleLife,
   rippleReach,
   type Ripple,
 } from '../../survivors/ripple';
-import { sectorCorner, sectorsWithin } from '../../survivors/sectors';
+import {
+  sectorAt,
+  sectorCenter,
+  sectorCorner,
+  sectorsWithin,
+} from '../../survivors/sectors';
 import { SIM_HZ } from '../../survivors/sim';
 import {
   toVector,
@@ -28,10 +34,11 @@ const EDGE_VERTICES = CAPACITY * 6;
  * How far a crest's edges and face tint toward the strike's light. Colors mix
  * in linear space, so the face stays faint or it reads as a grey slab.
  */
-const EDGE_GLOW = 0.7;
-const FACE_GLOW = 0.03;
+const EDGE_GLOW = 0.3;
+const FACE_GLOW = 0.012;
 
 const s = {
+  center: vec3(),
   corner: vec3(),
   points: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
   pivot: new THREE.Vector3(),
@@ -79,15 +86,15 @@ export function SectorRipples({ registry }: { registry: Set<Renderer> }) {
 
   useRenderer(registry, ({ run, alpha, radius }) => {
     lifts.clear();
-    let peak = 0;
     for (const ripple of run.ripples) {
+      const age = Math.max(0, ripple.age + run.deathAge - (1 - alpha) / SIM_HZ);
+      if (age >= rippleLife(ripple.strength)) continue;
       let near = reachOf.current.get(ripple);
       if (!near) {
-        near = sectorsWithin(ripple.n, rippleReach(ripple.strength) / radius);
+        const center = sectorCenter(s.center, sectorAt(ripple.n));
+        near = sectorsWithin(center, rippleReach(ripple.strength) / radius);
         reachOf.current.set(ripple, near);
       }
-      const age = Math.max(0, ripple.age - (1 - alpha) / SIM_HZ);
-      peak = Math.max(peak, RIPPLE.height * ripple.strength);
       for (const { sector, angle } of near) {
         const lift = rippleHeight(angle * radius, age, ripple.strength);
         // Where rings cross, the higher crest wins rather than stacking.
@@ -125,7 +132,7 @@ export function SectorRipples({ registry }: { registry: Set<Renderer> }) {
         s.edgeA.cross(s.edgeB).dot(s.normal) >= 0
           ? s.points
           : [s.points[0], s.points[2], s.points[1]];
-      const glow = Math.min(1, lift / peak);
+      const glow = Math.min(1, lift / RIPPLE.height);
       s.face.copy(s.rest).lerp(s.light, glow * FACE_GLOW);
       s.line.copy(s.grid).lerp(s.light, glow * EDGE_GLOW);
       const v = count * 3;

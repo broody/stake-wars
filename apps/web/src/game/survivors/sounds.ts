@@ -77,9 +77,8 @@ export const SOUNDS = {
     name: 'Orbital Strike',
     detail: 'A strike from orbit landing, ringing out in a deep tone.',
     volume: 0.75,
-    // The tone rings for 2.2 s, so four cover Chain Barrage's fastest volleys
-    // without dropping one; a narrow jitter keeps overlapping tones in tune.
-    voices: 4,
+    // A 2.2-second tail overlaps up to nine strikes at full Overclock.
+    voices: 9,
     gap: 0.08,
     jitter: 0.03,
   },
