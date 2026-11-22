@@ -1,4 +1,8 @@
-import { braavos, readyWallet } from '@starknet-io/get-starknet-wallets';
+import {
+  braavos,
+  bramble,
+  readyWallet,
+} from '@starknet-io/get-starknet-wallets';
 
 export function isReadyWallet(name: string, id?: string | null) {
   return id === 'argentX' || /ready|argent/i.test(name);
@@ -6,6 +10,10 @@ export function isReadyWallet(name: string, id?: string | null) {
 
 export function isBraavosWallet(name: string, id?: string | null) {
   return id === 'braavos' || /braavos/i.test(name);
+}
+
+export function isBrambleWallet(name: string, id?: string | null) {
+  return id === 'bramble' || /bramble/i.test(name);
 }
 
 export function isXverseWallet(name: string, id?: string | null) {
@@ -20,6 +28,7 @@ export function isSupportedWallet(name: string, id?: string | null) {
   return (
     isReadyWallet(name, id) ||
     isBraavosWallet(name, id) ||
+    isBrambleWallet(name, id) ||
     isXverseWallet(name, id) ||
     isOutisWallet(name, id)
   );
@@ -30,6 +39,7 @@ const marks: Record<string, { name: string; icon?: string }> = {
   outis: { name: 'Outis', icon: '/outis-mark.svg' },
   argentX: { name: 'Ready', icon: readyWallet.icon },
   braavos: { name: 'Braavos', icon: braavos.icon },
+  bramble: { name: 'Bramble', icon: bramble.icon },
   xverse: { name: 'Xverse' },
 };
 

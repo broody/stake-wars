@@ -45,10 +45,10 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 		}
 		return ticket
 	}
-	// Any signed wallet can lead the prize round. 0x3 uses Braavos.
+	// Any signed wallet can lead the prize round. 0x3 uses Bramble.
 	kinds := func(_ context.Context, wallet string) (string, error) {
 		if wallet == "0x3" {
-			return "braavos", nil
+			return "bramble", nil
 		}
 		return "outis", nil
 	}
@@ -100,7 +100,7 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	if board.Round.PrizeAmount == nil || *board.Round.PrizeAmount != "100000000000000000000" {
 		t.Fatalf("expected a 100 STRK daily round, got %+v", board.Round)
 	}
-	if last := board.Entries[0]; last.WalletKind != "braavos" || last.Destroyed != 150 || last.DurationSeconds == nil || *last.DurationSeconds != 7 || last.Upgrades == nil || len(last.Upgrades) != 0 {
+	if last := board.Entries[0]; last.WalletKind != "bramble" || last.Destroyed != 150 || last.DurationSeconds == nil || *last.DurationSeconds != 7 || last.Upgrades == nil || len(last.Upgrades) != 0 {
 		t.Fatalf("new best did not replace earlier run details: %+v", last)
 	}
 	wantWinner := board.Entries[0]

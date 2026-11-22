@@ -4,7 +4,7 @@ import "context"
 
 // Wallets a client may report besides Outis. Outis is never taken from the
 // client, because the API can check it onchain.
-var reportedWallets = map[string]bool{"argentX": true, "braavos": true, "xverse": true}
+var reportedWallets = map[string]bool{"argentX": true, "braavos": true, "bramble": true, "xverse": true}
 
 // DetectWallet returns the WalletKind for one submission. A wallet whose
 // account class is Outis is "outis". Otherwise the client's reported wallet

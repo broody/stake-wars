@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isBraavosWallet,
+  isBrambleWallet,
   isOutisWallet,
   isReadyWallet,
   isSupportedWallet,
@@ -21,6 +22,12 @@ describe('wallet detection', () => {
     expect(isBraavosWallet('Ready', 'argentX')).toBe(false);
   });
 
+  it('recognizes Bramble by id or name', () => {
+    expect(isBrambleWallet('Bramble', 'bramble')).toBe(true);
+    expect(isBrambleWallet('Bramble')).toBe(true);
+    expect(isBrambleWallet('Braavos', 'braavos')).toBe(false);
+  });
+
   it('recognizes Outis by id or name', () => {
     expect(isOutisWallet('Privacy Wallet', 'outis')).toBe(true);
     expect(isOutisWallet('Outis')).toBe(true);
@@ -38,6 +45,7 @@ describe('wallet detection', () => {
     expect(isSupportedWallet('Ready', 'argentX')).toBe(true);
     expect(isSupportedWallet('Braavos', 'braavos')).toBe(true);
     expect(isSupportedWallet('Outis', 'outis')).toBe(true);
+    expect(isSupportedWallet('Bramble', 'bramble')).toBe(true);
     expect(isSupportedWallet('Controller', 'controller')).toBe(false);
     expect(isSupportedWallet('Xverse', 'xverse')).toBe(true);
     expect(isSupportedWallet('Keplr', 'keplr')).toBe(false);

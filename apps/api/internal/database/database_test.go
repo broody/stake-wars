@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 20 {
-		t.Fatalf("expected 20 migrations, got %d", migrations)
+	if migrations != 21 {
+		t.Fatalf("expected 21 migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`
@@ -375,5 +375,36 @@ func TestSurvivorWalletKindMigrationOpensPrizeToEveryWallet(t *testing.T) {
 	err = db.QueryRow(`SELECT count(*) FROM survivor_runs WHERE (outis=1) = (wallet_kind IS 'outis')`).Scan(&count)
 	if err != nil || count != 6 {
 		t.Fatal("wallet kinds", count, err)
+	}
+}
+
+func TestSurvivorBrambleMigrationKeepsWalletKinds(t *testing.T) {
+	db := databaseBeforeMigration(t, filepath.Join(t.TempDir(), "bramble.db"), "021")
+	defer db.Close()
+	_, err := db.Exec(`INSERT INTO survivor_rounds(id,network,deadline) VALUES(1,'SN_MAIN',1);
+    INSERT INTO survivor_runs(id,network,round_id,player,destroyed,wallet_kind) VALUES
+        (1,'SN_MAIN',1,'0xa',10,'outis'),
+        (2,'SN_MAIN',1,'0xb',20,'braavos'),
+        (3,'SN_MAIN',1,'guest-1',30,NULL)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE survivor_runs SET wallet_kind='bramble' WHERE id=3`); err == nil {
+		t.Fatal("the old column must refuse Bramble, or this test proves nothing")
+	}
+	if err = migrate(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	err = db.QueryRow(`SELECT count(*) FROM survivor_runs WHERE
+        (id=1 AND wallet_kind='outis') OR (id=2 AND wallet_kind='braavos') OR (id=3 AND wallet_kind IS NULL)`).Scan(&count)
+	if err != nil || count != 3 {
+		t.Fatal("kept wallet kinds", count, err)
+	}
+	if _, err = db.Exec(`INSERT INTO survivor_runs(network,round_id,player,wallet_kind) VALUES('SN_MAIN',1,'0xc','bramble')`); err != nil {
+		t.Fatal("Bramble must be accepted", err)
+	}
+	if _, err = db.Exec(`INSERT INTO survivor_runs(network,round_id,player,wallet_kind) VALUES('SN_MAIN',1,'0xd','metamask')`); err == nil {
+		t.Fatal("unknown wallets must still be refused")
 	}
 }

@@ -15,6 +15,7 @@ func TestDetectWalletTrustsOnlyTheChainForOutis(t *testing.T) {
 		{"0xother", "braavos", "braavos"},
 		{"0xother", "argentX", "argentX"},
 		{"0xother", "xverse", "xverse"},
+		{"0xother", "bramble", "bramble"},
 		{"0xother", "metamask", ""},
 		{"0xother", "", ""},
 	} {
