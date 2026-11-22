@@ -328,7 +328,7 @@ function DamageTable({ run }: { run: Run }) {
 
 export function CoreSurvivorsHud() {
   const navigate = useNavigate();
-  const { address } = useWallet();
+  const { address, walletId } = useWallet();
   const { signTypedDataAsync } = useSignTypedData({});
   useSyncExternalStore(survivorsSession.subscribe, survivorsSession.getVersion);
   const volume = useSyncExternalStore(
@@ -405,7 +405,7 @@ export function CoreSurvivorsHud() {
     if (!fallen || !ticket || !address || !api.hasSurvivorSession(address))
       return;
     if (!scoreResult) {
-      void survivorsSession.submitScore(address, signTypedDataAsync);
+      void survivorsSession.submitScore(address, signTypedDataAsync, walletId);
       return;
     }
     if (
@@ -416,7 +416,11 @@ export function CoreSurvivorsHud() {
       return;
     const retry = () => {
       if (api.hasSurvivorSession(address))
-        void survivorsSession.submitScore(address, signTypedDataAsync);
+        void survivorsSession.submitScore(
+          address,
+          signTypedDataAsync,
+          walletId
+        );
     };
     const timer = window.setTimeout(retry, 5000);
     window.addEventListener('online', retry);
@@ -424,7 +428,7 @@ export function CoreSurvivorsHud() {
       window.clearTimeout(timer);
       window.removeEventListener('online', retry);
     };
-  }, [fallen, ticket, address, scoreResult, signTypedDataAsync]);
+  }, [fallen, ticket, address, walletId, scoreResult, signTypedDataAsync]);
 
   if (!run) return null;
   const player = run.player;
@@ -801,7 +805,8 @@ export function CoreSurvivorsHud() {
                   onClick={() =>
                     void survivorsSession.submitScore(
                       address,
-                      signTypedDataAsync
+                      signTypedDataAsync,
+                      walletId
                     )
                   }
                 >

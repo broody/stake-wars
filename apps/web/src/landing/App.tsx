@@ -213,7 +213,8 @@ function LandingApp() {
             <p className="mt-2 text-figure font-bold text-fg">100 STRK</p>
             <p className="mt-5 max-w-xl text-body text-fg-secondary">
               Fight wave after wave of the Hollow Legion. Submit the highest
-              single-run kill count with an Outis wallet to win the daily prize.
+              single-run kill count with any Starknet wallet to win the daily
+              prize.
             </p>
             <a
               href="/play/survivors"
@@ -268,11 +269,11 @@ function LandingApp() {
               <FaqItem question="How do I win the Core Survivors daily prize?">
                 <p>
                   Play as a guest and submit your score with any Starknet
-                  wallet. The Outis wallet with the most enemies destroyed in a
-                  single run before the round closes wins. If eligible scores
-                  tie, the first submission wins. A few minutes after the round
-                  closes, 100 STRK is sent to the winning wallet automatically.
-                  You don’t need to claim it.
+                  wallet. The wallet with the most enemies destroyed in a single
+                  run before the round closes wins. If scores tie, the first
+                  submission wins. A few minutes after the round closes, 100
+                  STRK is sent to the winning wallet automatically. You don’t
+                  need to claim it.
                 </p>
               </FaqItem>
 

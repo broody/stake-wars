@@ -213,7 +213,7 @@ async function putObject(target: UploadTarget, body: Blob): Promise<void> {
 }
 
 export interface SurvivorEntry {
-  outis: boolean;
+  walletKind?: string;
   durationSeconds: number | null;
   upgrades: EarnedUpgrade[] | null;
   wallet?: string;
@@ -272,14 +272,19 @@ export const api = {
   ) {
     return walletSession('survivor', wallet, sign);
   },
-  async finishSurvivorRun(token: string, replay: string, wallet: string) {
+  async finishSurvivorRun(
+    token: string,
+    replay: string,
+    wallet: string,
+    walletId?: string | null
+  ) {
     const session = cachedSession('survivor', wallet);
     if (!session)
       throw new ApiError('Sign in with your wallet to submit.', 401);
     try {
       return await requestJSON<{ destroyed: number }>(
         '/v1/survivors/runs/finish',
-        jsonRequest({ token, replay }, session.token)
+        jsonRequest({ token, replay, walletId }, session.token)
       );
     } catch (error) {
       const key = 'survivor:' + wallet.toLowerCase();

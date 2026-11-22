@@ -76,7 +76,8 @@ export class SurvivorsSession {
 
   async submitScore(
     wallet: string,
-    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
+    sign: (data: UseSignTypedDataArgs) => Promise<string[]>,
+    walletId?: string | null
   ) {
     const replay = this.replay,
       ticket = this.ticket;
@@ -99,7 +100,8 @@ export class SurvivorsSession {
       const result = await recordSurvivorRun(
         ticket.token,
         replay.data(),
-        wallet
+        wallet,
+        walletId
       );
       if (replay === this.replay) this.scoreResult = { ...result, wallet };
     } catch (reason) {

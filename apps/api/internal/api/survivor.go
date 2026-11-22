@@ -69,8 +69,9 @@ func (s *server) finishSurvivorRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Token  string `json:"token"`
-		Replay []byte `json:"replay"`
+		Token    string `json:"token"`
+		Replay   []byte `json:"replay"`
+		WalletID string `json:"walletId"`
 	}
 	if err := decodeLimitedJSON(w, r, &input, 310000); err != nil {
 		writeProblem(w, 400, "invalid replay", "a run ticket and base64 replay are required")
@@ -80,7 +81,7 @@ func (s *server) finishSurvivorRun(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, 503, "Survivor unavailable", "wallet verification is unavailable")
 		return
 	}
-	score, err := s.survivors.Finish(r.Context(), input.Token, session.WalletAddress, input.Replay, s.dependencies.SurvivorAccounts.IsOutis)
+	score, err := s.survivors.Finish(r.Context(), input.Token, session.WalletAddress, input.Replay, survivor.DetectWallet(s.dependencies.SurvivorAccounts.IsOutis, input.WalletID))
 	if err != nil {
 		s.survivorError(w, r, err)
 		return
@@ -198,8 +199,9 @@ func (s *server) attachSurvivorWallet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Token string `json:"token"`
-		Guest string `json:"guestId"`
+		Token    string `json:"token"`
+		Guest    string `json:"guestId"`
+		WalletID string `json:"walletId"`
 	}
 	if err := decodeJSON(w, r, &input); err != nil {
 		writeProblem(w, 400, "invalid run", "supply a run ticket and guest ID")
@@ -214,7 +216,7 @@ func (s *server) attachSurvivorWallet(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, 503, "Survivor unavailable", "wallet verification is unavailable")
 		return
 	}
-	err = s.survivors.Attach(r.Context(), input.Token, from, session.WalletAddress, s.dependencies.SurvivorAccounts.IsOutis)
+	err = s.survivors.Attach(r.Context(), input.Token, from, session.WalletAddress, survivor.DetectWallet(s.dependencies.SurvivorAccounts.IsOutis, input.WalletID))
 	if err != nil {
 		s.survivorError(w, r, err)
 		return

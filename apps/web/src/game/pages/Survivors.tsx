@@ -27,7 +27,8 @@ import { SurvivorGuide } from '../components/ui/SurvivorGuide';
 import { SurvivorFinalSkills } from '../components/ui/SurvivorFinalSkills';
 import { SurvivorChase } from '../components/3d/SurvivorChase';
 import { voyagerTransactionUrl } from '../utils/voyager';
-import { isOutisWallet } from '../utils/wallets';
+import { WalletMark } from '../components/ui/WalletMark';
+import { walletLabel } from '../utils/wallets';
 import { api, type SurvivorBoard } from '../services/api';
 import { config } from '../services/config';
 import { survivorsSession } from '../survivors/session';
@@ -159,7 +160,7 @@ export function Survivors() {
   const winner = round?.closed ? round.winner : null;
   const showPrizeColumn = scope === 'round' && Boolean(winner && prize);
   const standings = board?.entries ?? [];
-  // The eligible Outis winner can rank below the public top 100.
+  // The winning wallet can rank below the public top 100 when guests fill it.
   const rows =
     scope === 'round' &&
     winner?.wallet &&
@@ -256,23 +257,13 @@ export function Survivors() {
                 )}
               </div>
               {prize && board.isCurrent ? (
-                <div className="mt-4 flex items-stretch gap-3 border-t border-line pt-4">
-                  <div
-                    className="relative aspect-square min-h-9 shrink-0"
-                    aria-hidden="true"
-                  >
-                    <img
-                      src="/outis-mark.svg"
-                      alt=""
-                      className="absolute inset-0 size-full object-contain"
-                    />
-                  </div>
+                <div className="mt-4 border-t border-line pt-4">
                   <p
                     role="status"
                     className="min-w-0 self-center text-body text-fg-secondary"
                   >
                     {round.closed && !winner ? (
-                      'No Outis wallet qualified for this prize.'
+                      'No wallet submitted a score for this prize.'
                     ) : (
                       <PrizeEligibility />
                     )}
@@ -281,7 +272,7 @@ export function Survivors() {
               ) : round.closed && !winner ? (
                 <p className="mt-3 text-body text-fg-secondary">
                   {prize
-                    ? 'No Outis wallet qualified for this prize.'
+                    ? 'No wallet submitted a score for this prize.'
                     : 'No runs finished this round.'}
                 </p>
               ) : null}
@@ -400,18 +391,7 @@ export function Survivors() {
                                 </span>
                                 {name}
                               </Button>
-                              {entry.outis && (
-                                <span className="ml-2 inline-flex items-center gap-1 align-middle text-tag text-fg-muted">
-                                  <img
-                                    src="/outis-mark.svg"
-                                    alt=""
-                                    width={16}
-                                    height={16}
-                                    className="size-4 shrink-0"
-                                  />
-                                  Outis
-                                </span>
-                              )}
+                              <WalletMark kind={entry.walletKind} />
                               {isWinner && (
                                 <Badge tone="accent" className="ml-2">
                                   Winner
@@ -490,31 +470,19 @@ export function Survivors() {
 
 function PrizeEligibility() {
   const { isConnected, address, walletName, walletId } = useWallet();
-  if (!isConnected || !address || (!walletName && !walletId))
+  if (!isConnected || !address)
     return (
       <>
-        Play as a guest. Submit scores with any Starknet wallet. Only{' '}
-        <strong className="font-medium text-fg">Outis wallets</strong> are
-        eligible for the prize.
+        Play as a guest. Submit your score with any supported Starknet wallet to
+        compete for the daily prize.
       </>
     );
-
-  if (isOutisWallet(walletName ?? '', walletId))
-    return (
-      <>
-        <strong className="font-medium text-success">
-          Outis wallet connected.
-        </strong>{' '}
-        Submit your score with this wallet to compete for the daily prize.
-      </>
-    );
-
   return (
     <>
-      You can submit scores with {walletName || 'this wallet'}.{' '}
-      <strong className="font-medium text-warning">
-        This wallet can’t win the daily prize, even if you finish first.
-      </strong>
+      <strong className="font-medium text-success">
+        {walletLabel(walletId, walletName)} connected.
+      </strong>{' '}
+      Submit your score with this wallet to compete for the daily prize.
     </>
   );
 }

@@ -45,11 +45,17 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 		}
 		return ticket
 	}
-	outis := func(_ context.Context, wallet string) (bool, error) { return wallet == "0x1" || wallet == "0x2", nil }
+	// Any signed wallet can lead the prize round. 0x3 uses Braavos.
+	kinds := func(_ context.Context, wallet string) (string, error) {
+		if wallet == "0x3" {
+			return "braavos", nil
+		}
+		return "outis", nil
+	}
 	finish := func(ticket Ticket, wallet string, score int) {
 		t.Helper()
 		verified.Destroyed = score
-		n, err := s.Finish(ctx, ticket.Token, wallet, nil, outis)
+		n, err := s.Finish(ctx, ticket.Token, wallet, nil, kinds)
 		if err != nil || n != score {
 			t.Fatalf("finish %d: %d %v", score, n, err)
 		}
@@ -60,7 +66,7 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	first := start()
 	finish(first, "0x2", 51)
 	duration := verified.DurationSeconds
-	wantWinner := Entry{Outis: true, Wallet: "0x2", Destroyed: 51, DurationSeconds: &duration, Upgrades: verified.Upgrades}
+	wantTie := Entry{WalletKind: "outis", Wallet: "0x2", Destroyed: 51, DurationSeconds: &duration, Upgrades: verified.Upgrades}
 	verified.DurationSeconds = 180
 	verified.Upgrades = []Upgrade{{Kind: "weapon", Name: "Bolt Caster", Level: 1}}
 	// The two tied scores even share a clock timestamp.
@@ -72,34 +78,35 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	verified.Upgrades = []Upgrade{}
 	finish(late, "0x3", 150)
 	verified.Destroyed = 999
-	if n, err := s.Finish(ctx, late.Token, "0x3", nil, outis); err != nil || n != 150 {
+	if n, err := s.Finish(ctx, late.Token, "0x3", nil, kinds); err != nil || n != 150 {
 		t.Fatalf("retry: %d %v", n, err)
 	}
 	finish(start(), "0x2", 51)
-	if _, err := s.Finish(ctx, first.Token, "0x4", nil, outis); !errors.Is(err, ErrTicket) {
+	if _, err := s.Finish(ctx, first.Token, "0x4", nil, kinds); !errors.Is(err, ErrTicket) {
 		t.Fatal("claimed a spent ticket for another wallet", err)
 	}
 	bad := first.Token[:126] + "ff"
 	if bad == first.Token {
 		bad = first.Token[:126] + "00"
 	}
-	if _, err := s.Finish(ctx, bad, "0x4", nil, outis); !errors.Is(err, ErrTicket) {
+	if _, err := s.Finish(ctx, bad, "0x4", nil, kinds); !errors.Is(err, ErrTicket) {
 		t.Fatal("tampered ticket", err)
 	}
 	finish(start(), "0x2", 0)
 	board, err = s.Board(ctx, id)
-	if err != nil || len(board.Entries) != 3 || !reflect.DeepEqual(board.Entries[1], wantWinner) || board.Round.Winner != nil {
+	if err != nil || len(board.Entries) != 3 || !reflect.DeepEqual(board.Entries[1], wantTie) || board.Round.Winner != nil {
 		t.Fatalf("live board %+v, %v", board, err)
 	}
 	if board.Round.PrizeAmount == nil || *board.Round.PrizeAmount != "100000000000000000000" {
 		t.Fatalf("expected a 100 STRK daily round, got %+v", board.Round)
 	}
-	if last := board.Entries[0]; last.Outis || last.Destroyed != 150 || last.DurationSeconds == nil || *last.DurationSeconds != 7 || last.Upgrades == nil || len(last.Upgrades) != 0 {
+	if last := board.Entries[0]; last.WalletKind != "braavos" || last.Destroyed != 150 || last.DurationSeconds == nil || *last.DurationSeconds != 7 || last.Upgrades == nil || len(last.Upgrades) != 0 {
 		t.Fatalf("new best did not replace earlier run details: %+v", last)
 	}
+	wantWinner := board.Entries[0]
 	unfinished := start()
 	now = end
-	if _, err = s.Finish(ctx, unfinished.Token, "0x3", nil, outis); err != nil {
+	if _, err = s.Finish(ctx, unfinished.Token, "0x3", nil, kinds); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.Start(ctx, id); !errors.Is(err, ErrClosed) {
@@ -219,7 +226,12 @@ func TestGuestAndWalletShareStandings(t *testing.T) {
 	linked := finish()
 	result.Destroyed = 90
 	bestGuest := finish()
-	check := func(_ context.Context, wallet string) (bool, error) { return wallet == "0x1", nil }
+	check := func(_ context.Context, wallet string) (string, error) {
+		if wallet == "0x1" {
+			return "outis", nil
+		}
+		return "argentX", nil
+	}
 	if err = s.Attach(ctx, linked.Token, other, "0x1", check); !errors.Is(err, ErrTicket) {
 		t.Fatal(err)
 	}
@@ -232,8 +244,8 @@ func TestGuestAndWalletShareStandings(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Destroyed = 80
-	nonOutis := finish()
-	if err = s.Attach(ctx, nonOutis.Token, player, "0x2", check); err != nil {
+	ready := finish()
+	if err = s.Attach(ctx, ready.Token, player, "0x2", check); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.SetWalletName(ctx, "0x1", nickname, 1); err != nil {
@@ -244,7 +256,7 @@ func TestGuestAndWalletShareStandings(t *testing.T) {
 		t.Fatal(err)
 	}
 	board, err := s.Board(ctx, id)
-	if err != nil || len(board.Entries) != 3 || board.Entries[0].Name != "Orbit" || board.Entries[0].Outis || board.Entries[0].Guest != player || board.Entries[1].Outis || board.Round.Winner.Wallet != "0x1" || board.Round.Winner.Name != "Orbit" || board.Round.Winner.Destroyed != 50 {
+	if err != nil || len(board.Entries) != 3 || board.Entries[0].Name != "Orbit" || board.Entries[0].WalletKind != "" || board.Entries[0].Guest != player || board.Entries[1].WalletKind != "argentX" || board.Round.Winner.Wallet != "0x2" || board.Round.Winner.WalletKind != "argentX" || board.Round.Winner.Destroyed != 80 {
 		t.Fatal(board, err)
 	}
 	var count int

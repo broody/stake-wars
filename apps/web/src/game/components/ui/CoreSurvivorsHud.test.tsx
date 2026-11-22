@@ -13,6 +13,7 @@ import { RankedReplay, rankedRun } from '../../survivors/rankedReplay';
 
 const wallet = vi.hoisted(() => ({
   address: null as string | null,
+  walletId: 'braavos',
   sign: vi.fn(),
 }));
 vi.mock('../../contexts/WalletContext', () => ({ useWallet: () => wallet }));
@@ -91,7 +92,8 @@ it.each([false, true])(
       expect(api.finishSurvivorRun).toHaveBeenCalledWith(
         'guest-ticket',
         expect.any(String),
-        wallet.address
+        wallet.address,
+        'braavos'
       );
       expect(node.textContent).toContain('Score recorded for 0x456');
       expect(submit()).toBeUndefined();
@@ -144,7 +146,12 @@ it('retries only the signed wallet’s queued scores and skips older guest repla
     vi.mocked(api.finishSurvivorRun).mockResolvedValueOnce({ destroyed: 4 });
     await retrySurvivorRuns(wallet);
     expect(api.finishSurvivorRun).toHaveBeenCalledTimes(1);
-    expect(api.finishSurvivorRun).toHaveBeenCalledWith('mine', 'fwA=', wallet);
+    expect(api.finishSurvivorRun).toHaveBeenCalledWith(
+      'mine',
+      'fwA=',
+      wallet,
+      undefined
+    );
     expect(localStorage.getItem(own)).toBeNull();
     expect(localStorage.getItem(other)).toBeTruthy();
   } finally {

@@ -35,12 +35,11 @@ func TestRolloverOnDailyCutoff(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		player string
-		outis  bool
+		winner bool
 	}{
 		{name: "empty"},
 		{name: "guest", player: "guest-test"},
-		{name: "other wallet", player: "0xabc"},
-		{name: "eligible wallet", player: "0xdef", outis: true},
+		{name: "any wallet", player: "0xabc", winner: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -65,7 +64,7 @@ func TestRolloverOnDailyCutoff(t *testing.T) {
 				store.Verify = func(context.Context, uint32, []byte, int64) (RunResult, error) {
 					return RunResult{Destroyed: 0, Upgrades: []Upgrade{}}, nil
 				}
-				_, err = store.Finish(ctx, ticket.Token, tc.player, nil, func(context.Context, string) (bool, error) { return tc.outis, nil })
+				_, err = store.Finish(ctx, ticket.Token, tc.player, nil, func(context.Context, string) (string, error) { return "", nil })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -91,8 +90,9 @@ func TestRolloverOnDailyCutoff(t *testing.T) {
 			if !history.Round.Closed || (tc.player != "" && len(history.Entries) != 1) {
 				t.Fatal(history)
 			}
-			// The closed round keeps its winner, and the next round opens either way.
-			if tc.outis != (history.Round.Winner != nil) || (tc.outis && history.Round.Winner.Wallet != tc.player) {
+			// Any signed wallet wins. The closed round keeps its winner, and the next
+			// round opens either way.
+			if tc.winner != (history.Round.Winner != nil) || (tc.winner && history.Round.Winner.Wallet != tc.player) {
 				t.Fatal(history.Round)
 			}
 			next := current.Round

@@ -22,8 +22,8 @@ func TestOpenConfiguresAndMigratesSQLite(t *testing.T) {
 	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 18 {
-		t.Fatalf("expected 18 migrations, got %d", migrations)
+	if migrations != 19 {
+		t.Fatalf("expected 19 migrations, got %d", migrations)
 	}
 
 	if _, err := db.Exec(`
@@ -341,5 +341,39 @@ func TestSurvivorRunMigrationPreservesTicketsAndBests(t *testing.T) {
     OR (ticket_hash=x'03' AND destroyed IS NULL AND seed=123 AND started_ms=456)`).Scan(&count)
 	if err != nil || count != 4 {
 		t.Fatal(count, err)
+	}
+}
+
+func TestSurvivorWalletKindMigrationOpensPrizeToEveryWallet(t *testing.T) {
+	db := databaseBeforeMigration(t, filepath.Join(t.TempDir(), "wallets.db"), "019")
+	defer db.Close()
+	// Round 1 closed with an Outis winner. Round 2 is open, and a Ready wallet
+	// leads it once every signed wallet counts. Guests never lead.
+	_, err := db.Exec(`INSERT INTO survivor_rounds(id,network,deadline,leader_wallet,leading_destroyed,prize_amount) VALUES
+        (1,'SN_MAIN',unixepoch()-60,'0xa',10,'100000000000000000000'),
+        (2,'SN_MAIN',unixepoch()+3600,'0xb',20,'100000000000000000000');
+    INSERT INTO survivor_runs(network,round_id,player,destroyed,duration_seconds,upgrades,outis) VALUES
+        ('SN_MAIN',1,'0xa',10,5,'[]',1),
+        ('SN_MAIN',1,'0xc',99,5,'[]',0),
+        ('SN_MAIN',2,'0xb',20,5,'[]',1),
+        ('SN_MAIN',2,'guest-1',500,5,'[]',0),
+        ('SN_MAIN',2,'0xd',30,9,'[]',0),
+        ('SN_MAIN',2,'0xe',30,8,'[]',0)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = migrate(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	err = db.QueryRow(`SELECT count(*) FROM survivor_rounds WHERE
+        (id=1 AND leader_wallet='0xa' AND leading_destroyed=10 AND leader_wallet_kind='outis') OR
+        (id=2 AND leader_wallet='0xd' AND leading_destroyed=30 AND leader_duration_seconds=9 AND leader_wallet_kind IS NULL)`).Scan(&count)
+	if err != nil || count != 2 {
+		t.Fatal("round leaders", count, err)
+	}
+	err = db.QueryRow(`SELECT count(*) FROM survivor_runs WHERE (outis=1) = (wallet_kind IS 'outis')`).Scan(&count)
+	if err != nil || count != 6 {
+		t.Fatal("wallet kinds", count, err)
 	}
 }

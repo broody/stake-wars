@@ -54,7 +54,7 @@ it('displays active time and expands the final skills for the selected score', a
     entries: [
       {
         wallet: '0x554973123456789abcdef09efcd',
-        outis: true,
+        walletKind: 'outis',
         destroyed: 201,
         durationSeconds: 119,
         upgrades: [
@@ -71,7 +71,7 @@ it('displays active time and expands the final skills for the selected score', a
       {
         guest: 'guest-publicid',
         name: 'Moon Pilot',
-        outis: false,
+
         destroyed: 10,
         durationSeconds: 15,
         upgrades: [],
@@ -79,14 +79,14 @@ it('displays active time and expands the final skills for the selected score', a
       {
         wallet: '0x789',
         name: 'Star Pilot',
-        outis: false,
+
         destroyed: 1,
         durationSeconds: null,
         upgrades: null,
       },
       {
         guest: 'guest-unnamed',
-        outis: false,
+
         destroyed: 0,
         durationSeconds: 12,
         upgrades: [],
@@ -108,7 +108,7 @@ it('displays active time and expands the final skills for the selected score', a
     const prize = node.querySelector('section[aria-label="Prize round"]')!;
     expect(prize.textContent).toContain('100 STRK');
     expect(prize.textContent).toContain(
-      'Play as a guest. Submit scores with any Starknet wallet. Only Outis wallets are eligible for the prize.'
+      'Play as a guest. Submit your score with any supported Starknet wallet to compete for the daily prize.'
     );
     expect(node.querySelector('header')?.textContent).not.toMatch(
       /player name|set leaderboard name/i
@@ -188,16 +188,16 @@ it('updates prize eligibility when a player connects, switches wallets, or disco
       walletId: 'outis',
     });
     await render();
-    expect(message()).toContain('Outis wallet connected.');
+    expect(message()).toContain('Outis connected.');
     wallet.mockReturnValue({
       ...connected,
       walletName: 'Braavos',
       walletId: 'braavos',
     });
     await render();
-    expect(message()).toContain('You can submit scores with Braavos.');
-    expect(message()).toContain(
-      'This wallet can’t win the daily prize, even if you finish first.'
+    // Every supported wallet competes for the prize.
+    expect(message()).toBe(
+      'Braavos connected. Submit your score with this wallet to compete for the daily prize.'
     );
     wallet.mockReturnValue(guest);
     await render();
@@ -332,7 +332,7 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
   vi.useFakeTimers();
   const winner = {
     wallet: '0x123',
-    outis: true,
+    walletKind: 'outis',
     destroyed: 417,
     durationSeconds: 207,
     upgrades: [],
@@ -364,8 +364,8 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
       )
     );
     const prize = node.querySelector('section[aria-label="Prize round"]')!;
-    expect(prize.querySelector('img')).not.toBeNull();
-    expect(prize.textContent).toContain('Only Outis wallets are eligible');
+    expect(prize.querySelector('[role="status"]')).not.toBeNull();
+    expect(prize.textContent).toContain('compete for the daily prize');
     getBoard.mockImplementation(async (_signal, id) =>
       id === '1'
         ? board
@@ -382,8 +382,8 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15000);
     });
-    expect(prize.querySelector('img')).toBeNull();
-    expect(prize.textContent).not.toContain('eligible');
+    expect(prize.querySelector('[role="status"]')).toBeNull();
+    expect(prize.textContent).not.toContain('compete');
     expect(node.textContent).toContain('Paid 100 STRK');
   } finally {
     await act(async () => root.unmount());
@@ -392,7 +392,7 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
   }
 });
 
-it('shows the automatic payment in the eligible winner’s last cell without a claim', async () => {
+it('shows the automatic payment in the winner’s last cell without a claim', async () => {
   wallet.mockReturnValue({
     address: '0x000123',
     isConnected: true,
@@ -402,7 +402,7 @@ it('shows the automatic payment in the eligible winner’s last cell without a c
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const winner = {
     wallet: '0x123',
-    outis: true,
+    walletKind: 'outis',
     destroyed: 417,
     durationSeconds: 207,
     upgrades: [],
@@ -421,7 +421,14 @@ it('shows the automatic payment in the eligible winner’s last cell without a c
     payoutsEnabled: true,
     round,
     entries: [
-      { ...winner, wallet: '0xabc', outis: false, destroyed: 500 },
+      // Guests rank on the board but can't win the prize.
+      {
+        ...winner,
+        wallet: undefined,
+        walletKind: undefined,
+        guest: 'guest-1',
+        destroyed: 500,
+      },
       winner,
     ],
   };

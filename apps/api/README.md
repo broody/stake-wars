@@ -272,12 +272,18 @@ Starting a run is public. Submitting a score requires a wallet-authenticated Sur
 Clients rank by the best verified run for each player, breaking ties by first
 recording. The API stores each verified wallet submission, including lower scores. Runs
 verified after their starting round closes count towards all-time standings.
-The prize tie goes to the first verified Outis account to register that score.
+The prize tie goes to the first wallet to register that score.
 
-The API checks the
-deployed class of each submitting account against Outis Wallet's account class
-list. A closed round's `winner` is the highest-scoring Outis wallet. A round
-with no eligible scores closes without a payout. At every cutoff the API opens a
+Any signed wallet can win the daily prize. Guests cannot. A closed round's
+`winner` is the highest-scoring wallet, and a round with no wallet scores closes
+without a payout.
+
+Each entry's `walletKind` names the wallet that submitted the run, so clients
+can show its icon. The API sets `outis` only when the account's deployed class
+is on Outis Wallet's account class list. For any other account it records the
+`walletId` the client sends with `POST /v1/survivors/runs/finish`, if that ID is
+`argentX`, `braavos` or `xverse`. Clients can misreport these three, so they only
+choose an icon. They never affect ranking or payouts. At every cutoff the API opens a
 fresh 100 STRK round, whether or not the closed round had a winner. The new
 round starts with empty standings and the next eligible 03:00 UTC
 deadline. After downtime it opens the current contest once. Earlier rounds
@@ -288,9 +294,7 @@ the prize amount recorded when they opened.
 The winner does not claim the prize. Two minutes after the deadline, the
 payout duty sends the round's prize to the winning wallet. The delay lets a run
 that was verified just before the deadline finish committing before the winner
-is read. The Outis check happens when the score is submitted. The payout does
-not check the account class again. The leaderboard reports the payment status
-and the transaction hash.
+is read. The leaderboard reports the payment status and the transaction hash.
 
 To enable payouts in a deployment, set `SURVIVOR_PAYOUTS_ENABLED=true` with
 the existing funded keeper signer and Starknet RPC configured for that network.

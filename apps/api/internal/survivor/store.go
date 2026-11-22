@@ -47,7 +47,7 @@ type RunResult struct {
 }
 
 type Entry struct {
-	Outis           bool      `json:"outis"`
+	WalletKind      string    `json:"walletKind,omitempty"`
 	DurationSeconds *int      `json:"durationSeconds"`
 	Upgrades        []Upgrade `json:"upgrades"`
 	Wallet          string    `json:"wallet,omitempty"`
@@ -128,12 +128,13 @@ func (s *Store) Board(ctx context.Context, id int64) (Board, error) {
 	var r Round
 	var deadline int64
 	var wallet sql.NullString
+	var winnerKind string
 	var score sql.NullInt64
 	var duration *int
 	var winnerUpgrades []byte
-	err = tx.QueryRowContext(ctx, `SELECT id,deadline,leader_wallet,leading_destroyed,leader_duration_seconds,leader_upgrades,prize_amount,
+	err = tx.QueryRowContext(ctx, `SELECT id,deadline,leader_wallet,coalesce(leader_wallet_kind,''),leading_destroyed,leader_duration_seconds,leader_upgrades,prize_amount,
         (SELECT MAX(old.id) FROM survivor_rounds old WHERE old.network=survivor_rounds.network AND old.id<survivor_rounds.id)
-        FROM survivor_rounds WHERE network=? AND (?=0 OR id=?) ORDER BY id DESC LIMIT 1`, s.Network, id, id).Scan(&r.ID, &deadline, &wallet, &score, &duration, &winnerUpgrades, &r.PrizeAmount, &r.PreviousID)
+        FROM survivor_rounds WHERE network=? AND (?=0 OR id=?) ORDER BY id DESC LIMIT 1`, s.Network, id, id).Scan(&r.ID, &deadline, &wallet, &winnerKind, &score, &duration, &winnerUpgrades, &r.PrizeAmount, &r.PreviousID)
 	if errors.Is(err, sql.ErrNoRows) && id == 0 {
 		b.Entries, err = s.standings(ctx, tx, 0)
 		return b, err
@@ -144,7 +145,7 @@ func (s *Store) Board(ctx context.Context, id int64) (Board, error) {
 	r.Deadline = time.Unix(deadline, 0).UTC()
 	r.Closed = now.Unix() >= deadline
 	if r.Closed && wallet.Valid {
-		r.Winner = &Entry{Wallet: wallet.String, Destroyed: int(score.Int64), DurationSeconds: duration, Outis: r.PrizeAmount != nil}
+		r.Winner = &Entry{Wallet: wallet.String, Destroyed: int(score.Int64), DurationSeconds: duration, WalletKind: winnerKind}
 		if err = tx.QueryRowContext(ctx, "SELECT coalesce((SELECT name FROM survivor_profiles WHERE network=? AND player=?),'')", s.Network, wallet.String).Scan(&r.Winner.Name); err != nil {
 			return b, err
 		}
@@ -186,7 +187,7 @@ func (s *Store) standings(ctx context.Context, db standingsReader, roundID int64
                row_number() OVER (PARTITION BY player ORDER BY destroyed DESC,id) AS position
         FROM survivor_runs WHERE destroyed IS NOT NULL AND network=?`+filter+`
     ), leaders AS (SELECT id FROM ranked WHERE position=1 ORDER BY destroyed DESC,id LIMIT 100)
-      SELECT r.player,r.destroyed,r.duration_seconds,r.upgrades,r.outis,coalesce(p.name,'')
+      SELECT r.player,r.destroyed,r.duration_seconds,r.upgrades,coalesce(r.wallet_kind,''),coalesce(p.name,'')
       FROM leaders JOIN survivor_runs r ON r.id=leaders.id
       LEFT JOIN survivor_profiles p ON p.network=r.network AND p.player=r.player
       ORDER BY r.destroyed DESC,r.id`, args...)
@@ -199,7 +200,7 @@ func (s *Store) standings(ctx context.Context, db standingsReader, roundID int64
 		var e Entry
 		var player string
 		var upgrades []byte
-		if err := rows.Scan(&player, &e.Destroyed, &e.DurationSeconds, &upgrades, &e.Outis, &e.Name); err != nil {
+		if err := rows.Scan(&player, &e.Destroyed, &e.DurationSeconds, &upgrades, &e.WalletKind, &e.Name); err != nil {
 			return nil, err
 		}
 		if guest(player) {
@@ -298,7 +299,11 @@ func (s *Store) admission(ctx context.Context, token, wallet string, digest []by
 	return a, nil
 }
 
-func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte, checkOutis func(context.Context, string) (bool, error)) (int, error) {
+// WalletKind names the wallet that submitted a run, such as "outis". It
+// returns an empty string when the wallet is unknown.
+type WalletKind func(ctx context.Context, wallet string) (string, error)
+
+func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte, walletKind WalletKind) (int, error) {
 	if len(token) != 64 && len(token) != 128 {
 		return 0, ErrTicket
 	}
@@ -320,9 +325,9 @@ func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte,
 	if err != nil {
 		return 0, err
 	}
-	outis := false
+	kind := ""
 	if !guest(wallet) {
-		outis, err = checkOutis(ctx, wallet)
+		kind, err = walletKind(ctx, wallet)
 		if err != nil {
 			return 0, err
 		}
@@ -340,12 +345,12 @@ func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte,
 	if s.Now().Unix() >= a.deadline {
 		a.roundID = 0
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO survivor_runs(ticket_hash,network,round_id,player,destroyed,duration_seconds,upgrades,outis)
-        VALUES(?,?,nullif(?,0),?,?,?,?,?)
+	result, err := tx.ExecContext(ctx, `INSERT INTO survivor_runs(ticket_hash,network,round_id,player,destroyed,duration_seconds,upgrades,outis,wallet_kind)
+        VALUES(?,?,nullif(?,0),?,?,?,?,?,nullif(?,''))
         ON CONFLICT(ticket_hash) DO UPDATE SET round_id=excluded.round_id,destroyed=excluded.destroyed,
-        duration_seconds=excluded.duration_seconds,upgrades=excluded.upgrades,outis=excluded.outis
+        duration_seconds=excluded.duration_seconds,upgrades=excluded.upgrades,outis=excluded.outis,wallet_kind=excluded.wallet_kind
         WHERE survivor_runs.player=excluded.player AND survivor_runs.network=excluded.network AND survivor_runs.destroyed IS NULL`,
-		digest[:], s.Network, a.roundID, wallet, verified.Destroyed, verified.DurationSeconds, string(upgrades), outis)
+		digest[:], s.Network, a.roundID, wallet, verified.Destroyed, verified.DurationSeconds, string(upgrades), kind == "outis", kind)
 	if err != nil {
 		return 0, err
 	}
@@ -374,18 +379,18 @@ func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte,
 	return verified.Destroyed, tx.Commit()
 }
 
-// Strict improvement preserves the first eligible wallet on a tie.
+// Any signed wallet can lead. Strict improvement preserves the first wallet on a tie.
 func updateLeader(ctx context.Context, tx *sql.Tx, digest []byte) error {
 	_, err := tx.ExecContext(ctx, `UPDATE survivor_rounds AS r SET
-        (leader_wallet,leading_destroyed,leader_duration_seconds,leader_upgrades)=(t.player,t.destroyed,t.duration_seconds,t.upgrades)
-        FROM survivor_runs AS t WHERE t.ticket_hash=? AND r.id=t.round_id AND (t.outis OR r.prize_amount IS NULL)
+        (leader_wallet,leading_destroyed,leader_duration_seconds,leader_upgrades,leader_wallet_kind)=(t.player,t.destroyed,t.duration_seconds,t.upgrades,t.wallet_kind)
+        FROM survivor_runs AS t WHERE t.ticket_hash=? AND r.id=t.round_id
         AND (r.leading_destroyed IS NULL OR t.destroyed>r.leading_destroyed)`, digest)
 	return err
 }
 
 // Move one already verified guest run to its signed wallet. The guest UUID and
 // the original ticket are both required. The replay and prize cannot be counted twice.
-func (s *Store) Attach(ctx context.Context, token, from, wallet string, checkOutis func(context.Context, string) (bool, error)) error {
+func (s *Store) Attach(ctx context.Context, token, from, wallet string, walletKind WalletKind) error {
 	digest := sha256.Sum256([]byte(token))
 	var owner string
 	var deadline *int64
@@ -406,7 +411,7 @@ func (s *Store) Attach(ctx context.Context, token, from, wallet string, checkOut
 	if deadline != nil && *deadline <= s.Now().Unix() {
 		return ErrClosed
 	}
-	outis, err := checkOutis(ctx, wallet)
+	kind, err := walletKind(ctx, wallet)
 	if err != nil {
 		return err
 	}
@@ -418,7 +423,7 @@ func (s *Store) Attach(ctx context.Context, token, from, wallet string, checkOut
 	if deadline != nil && *deadline <= s.Now().Unix() {
 		return ErrClosed
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE survivor_runs SET player=?,outis=? WHERE network=? AND ticket_hash=? AND player=?`, wallet, outis, s.Network, digest[:], from)
+	result, err := tx.ExecContext(ctx, `UPDATE survivor_runs SET player=?,outis=?,wallet_kind=nullif(?,'') WHERE network=? AND ticket_hash=? AND player=?`, wallet, kind == "outis", kind, s.Network, digest[:], from)
 	if err != nil {
 		return err
 	}

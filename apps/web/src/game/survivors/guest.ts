@@ -35,6 +35,8 @@ interface PendingRun {
   token: string;
   replay: string;
   wallet: string;
+  // The connector ID, such as "braavos", that picks the leaderboard icon.
+  walletId?: string | null;
 }
 const inFlight = new Map<string, Promise<{ destroyed: number }>>();
 const unsaved = new Map<string, PendingRun>();
@@ -52,7 +54,7 @@ function upload(run: PendingRun) {
     }
   }
   const send = api
-    .finishSurvivorRun(run.token, run.replay, run.wallet)
+    .finishSurvivorRun(run.token, run.replay, run.wallet, run.walletId)
     .then(
       (result) => {
         forget();
@@ -72,11 +74,17 @@ function upload(run: PendingRun) {
 export function recordSurvivorRun(
   token: string,
   bytes: Uint8Array,
-  wallet: string
+  wallet: string,
+  walletId?: string | null
 ) {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  const run = { token, replay: btoa(binary), wallet: wallet.toLowerCase() };
+  const run = {
+    token,
+    replay: btoa(binary),
+    wallet: wallet.toLowerCase(),
+    walletId,
+  };
   const key = pendingPrefix + run.wallet + '.' + token;
   unsaved.set(key, run);
   try {
