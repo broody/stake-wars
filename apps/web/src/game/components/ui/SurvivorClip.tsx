@@ -11,8 +11,8 @@ export function ClipBadge() {
   return (
     <Badge tone="accent" variant="solid">
       {player && 'name' in player
-        ? `REPLAY · ${player.name.toUpperCase()}`
-        : 'REPLAY'}
+        ? `DEATH REPLAY · ${player.name.toUpperCase()}`
+        : 'DEATH REPLAY'}
     </Badge>
   );
 }
@@ -57,7 +57,9 @@ export function WatchClipButton({
       survivorsSession.start(groundRadius);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : 'Could not load the replay.'
+        reason instanceof Error
+          ? reason.message
+          : 'Could not load the death replay.'
       );
     } finally {
       setBusy(false);
@@ -66,7 +68,7 @@ export function WatchClipButton({
   return (
     <div className="space-y-2">
       <Button variant="outline" busy={busy} onClick={() => void watch()}>
-        WATCH FINAL MOMENTS
+        WATCH DEATH REPLAY
       </Button>
       {error && <p role="alert">{error}</p>}
     </div>

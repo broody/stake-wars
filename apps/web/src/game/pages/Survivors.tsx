@@ -71,7 +71,9 @@ export function Survivors() {
       navigate(`/?survive=1&${WATCH_PARAM}=${run}`);
     } catch (reason) {
       setWatchError(
-        reason instanceof Error ? reason.message : 'Could not load the replay.'
+        reason instanceof Error
+          ? reason.message
+          : 'Could not load the death replay.'
       );
     } finally {
       setWatching(null);
@@ -368,7 +370,7 @@ export function Survivors() {
                       <TableHeaderCell numeric>Destroyed</TableHeaderCell>
                       <TableHeaderCell numeric>Duration</TableHeaderCell>
                       <TableHeaderCell className="text-right">
-                        Replay
+                        Death replay
                       </TableHeaderCell>
                       {showPrizeColumn && (
                         <TableHeaderCell className="text-right">
@@ -457,7 +459,7 @@ export function Survivors() {
                                   tone="accent"
                                   size="sm"
                                   className="w-8 px-0"
-                                  aria-label={`Watch ${name}’s final moments`}
+                                  aria-label={`Watch ${name}’s death replay`}
                                   busy={watching === entry.run}
                                   onClick={() =>
                                     void watch(entry.run!, { name })
@@ -468,7 +470,7 @@ export function Survivors() {
                               ) : (
                                 <span
                                   className="text-fg-disabled"
-                                  aria-label="No replay"
+                                  aria-label="No death replay"
                                 >
                                   —
                                 </span>
@@ -503,7 +505,7 @@ export function Survivors() {
                                         void watch(entry.run!, { name })
                                       }
                                     >
-                                      WATCH FINAL MOMENTS
+                                      WATCH DEATH REPLAY
                                     </Button>
                                   </div>
                                 )}

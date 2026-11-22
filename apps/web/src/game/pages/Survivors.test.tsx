@@ -461,7 +461,7 @@ it('shows the automatic payment in the winner’s last cell without a claim', as
   }
 });
 
-it('plays a score’s final moments from its row and from a shared link', async () => {
+it('plays a score’s death replay from its row and from a shared link', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const { survivorsSession } = await import('../survivors/session');
   const loadClip = vi.fn().mockResolvedValue(undefined);
@@ -509,12 +509,14 @@ it('plays a score’s final moments from its row and from a shared link', async 
   try {
     const [clipped, plain] =
       listed.node.querySelectorAll<HTMLTableRowElement>('tbody tr');
-    expect(plain.querySelector('[aria-label="No replay"]')).not.toBeNull();
+    expect(
+      plain.querySelector('[aria-label="No death replay"]')
+    ).not.toBeNull();
     expect(plain.cells[4].querySelector('button')).toBeNull();
     await act(async () =>
       clipped
         .querySelector<HTMLButtonElement>(
-          'button[aria-label="Watch Moon Pilot’s final moments"]'
+          'button[aria-label="Watch Moon Pilot’s death replay"]'
         )!
         .click()
     );
@@ -528,10 +530,10 @@ it('plays a score’s final moments from its row and from a shared link', async 
     const [clipped, plain] =
       node.querySelectorAll<HTMLTableRowElement>('tbody tr');
     await act(async () => plain.cells[2].click());
-    expect(node.textContent).not.toContain('WATCH FINAL MOMENTS');
+    expect(node.textContent).not.toContain('WATCH DEATH REPLAY');
     await act(async () => clipped.cells[2].click());
     const watch = Array.from(node.querySelectorAll('button')).find(
-      (button) => button.textContent === 'WATCH FINAL MOMENTS'
+      (button) => button.textContent === 'WATCH DEATH REPLAY'
     )!;
     await act(async () => watch.click());
     expect(loadClip).toHaveBeenCalledTimes(2);
@@ -548,7 +550,7 @@ it('plays a score’s final moments from its row and from a shared link', async 
     act(() => linked.root.unmount());
   }
   // A link to a clip that is gone says so on the leaderboard.
-  loadClip.mockRejectedValueOnce(new Error('This run has no replay.'));
+  loadClip.mockRejectedValueOnce(new Error('This run has no death replay.'));
   const missing = await render('/survivors?watch=99');
   try {
     expect(loadClip).toHaveBeenLastCalledWith(99, null);
@@ -556,7 +558,7 @@ it('plays a score’s final moments from its row and from a shared link', async 
       missing.node.querySelector(
         'section[aria-label="Leaderboard"] [role="alert"]'
       )?.textContent
-    ).toBe('This run has no replay.');
+    ).toBe('This run has no death replay.');
   } finally {
     act(() => missing.root.unmount());
   }

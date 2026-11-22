@@ -473,7 +473,7 @@ export class SurvivorsSession {
     const clip = await api.getSurvivorClip(run);
     if (!clipPlaysBack(clip))
       throw new Error(
-        'This replay was recorded on an earlier version of the game.'
+        'This death replay was recorded on an earlier version of the game.'
       );
     this.ticket = null;
     this.watching = { clip, player };

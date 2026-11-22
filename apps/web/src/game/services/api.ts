@@ -280,7 +280,7 @@ export const api = {
     if (!response.ok)
       throw new ApiError(
         response.status === 404
-          ? 'This run has no replay.'
+          ? 'This run has no death replay.'
           : `Request failed with HTTP ${response.status}`,
         response.status
       );
