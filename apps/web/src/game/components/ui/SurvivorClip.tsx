@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button } from '../../../ui';
-import { CLIP_SECONDS } from '../../survivors/clip';
+import { SIM_HZ } from '../../survivors/sim';
 import { survivorsSession, type ClipPlayerName } from '../../survivors/session';
 
 /** Marks the Core as showing a recorded death rather than a live run. */
@@ -27,10 +27,12 @@ export function ClipCaption() {
     : 'own' in player
       ? 'your'
       : `${player.name}’s`;
+  // Clips recorded before a length change keep their own length.
+  const seconds = Math.round(watching.clip.end.ticks / SIM_HZ);
   return (
     <p className="border-t border-line px-5 py-3 text-caption text-fg-secondary">
-      You watched the last {CLIP_SECONDS} seconds of {whose} run. The results
-      cover the whole run.
+      You watched the last {seconds} seconds of {whose} run. The results cover
+      the whole run.
     </p>
   );
 }

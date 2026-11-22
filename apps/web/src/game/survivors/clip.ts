@@ -10,7 +10,7 @@ import { actionMarker, applyAction, move } from './rankedReplay';
  * The API makes clips while it verifies a run, so a clip always shows a
  * verified run.
  */
-export const CLIP_SECONDS = 2;
+export const CLIP_SECONDS = 5;
 export const CLIP_TICKS = CLIP_SECONDS * SIM_HZ;
 
 export interface DeathClip {
