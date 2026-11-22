@@ -162,6 +162,9 @@ function cachedSession(scope: 'artwork' | 'survivor', wallet: string) {
     : undefined;
 }
 
+export const walletTimeoutMessage =
+  'Your wallet did not answer the signature request in time. Try again and approve it in your wallet.';
+
 async function walletSession(
   scope: 'artwork' | 'survivor',
   walletAddress: string,
@@ -185,7 +188,17 @@ async function walletSession(
       scope === 'artwork' ? { walletAddress } : { walletAddress, scope }
     )
   );
-  const signature = await signTypedData(challenge.typedData);
+  let signature: string[];
+  try {
+    signature = await signTypedData(challenge.typedData);
+  } catch (error) {
+    // Argent X rejects with a bare "Timeout" when nobody answers its signing
+    // popup in time. That usually means the popup opened behind another
+    // window, so tell the player what to do instead.
+    if (error instanceof Error && error.message.trim() === 'Timeout')
+      throw new Error(walletTimeoutMessage);
+    throw error;
+  }
   onSigningComplete?.();
   const session = await requestJSON<AuthSession>(
     '/v1/auth/sessions',

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, type PreparedSectorImage } from './api';
+import { api, walletTimeoutMessage, type PreparedSectorImage } from './api';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -174,6 +174,31 @@ it('finishes a Survivor run using the signed wallet session and clears a rejecte
     await expect(
       api.finishSurvivorRun('ticket', 'fwA=', wallet)
     ).rejects.toMatchObject({ status: 401 });
+    expect(api.hasSurvivorSession(wallet)).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it('explains a wallet that times out instead of showing a bare "Timeout"', async () => {
+  const wallet = '0x7a11';
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () =>
+    jsonResponse({
+      challengeId: 'challenge',
+      walletAddress: wallet,
+      typedData: {},
+    })
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    await expect(
+      api.authorizeSurvivor(wallet, () => Promise.reject(new Error('Timeout')))
+    ).rejects.toThrow(walletTimeoutMessage);
+    await expect(
+      api.authorizeSurvivor(wallet, () =>
+        Promise.reject(new Error('User rejected'))
+      )
+    ).rejects.toThrow('User rejected');
     expect(api.hasSurvivorSession(wallet)).toBe(false);
   } finally {
     vi.unstubAllGlobals();
