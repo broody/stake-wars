@@ -1544,7 +1544,7 @@ function chainStrike(
 }
 
 const STRIKE_RANKS = [
-  { radius: RIPPLE.baseRadius, cooldown: 1.35, damage: 17 },
+  { radius: RIPPLE.baseRadius, cooldown: 1.35, damage: 10 },
   { radius: 0.6, cooldown: 1.2, damage: 17 },
   { radius: 0.72, cooldown: 1.05, damage: 18 },
   { radius: 0.85, cooldown: 0.9, damage: 19 },
