@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -96,17 +95,11 @@ func TestRolloverOnDailyCutoff(t *testing.T) {
 				if current.Round.ID != id || current.Round.Winner == nil || current.Round.Winner.Wallet != tc.player {
 					t.Fatal(current)
 				}
-				if _, err := store.Prize(ctx, id); err != nil {
-					t.Fatal(err)
-				}
 				return
 			}
 			next := current.Round
 			if next == nil || next.ID != id+1 || next.PreviousID == nil || *next.PreviousID != id || next.Closed || next.Winner != nil || next.PrizeAmount == nil || *next.PrizeAmount != DailyPrize || len(current.Entries) != 0 || !next.Deadline.Equal(cutoff.Add(24*time.Hour)) {
 				t.Fatal(current)
-			}
-			if _, err := store.Prize(ctx, id); !errors.Is(err, ErrClaim) {
-				t.Fatal("expired prize is claimable", err)
 			}
 			payload, err := hex.DecodeString(ticket.Token)
 			if err != nil || int64(binary.BigEndian.Uint64(payload[:8])) != next.ID {

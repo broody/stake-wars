@@ -18,7 +18,6 @@ var (
 	ErrDay     = errors.New("daily prize deadlines must be at least 24 hours apart")
 	ErrClosed  = errors.New("this prize round is closed")
 	ErrTicket  = errors.New("this run is unavailable or has been replaced")
-	ErrClaim   = errors.New("only the winning Outis wallet can claim a closed prize round")
 	ErrOverlap = errors.New("a Survivor round is already open")
 	ErrReplay  = errors.New("the run could not be verified")
 	ErrBusy    = errors.New("another run is being verified; please retry")
@@ -29,7 +28,6 @@ type Round struct {
 	Deadline        time.Time `json:"deadline"`
 	Closed          bool      `json:"closed"`
 	PrizeAmount     *string   `json:"prizeAmount"`
-	Claimed         bool      `json:"claimed"`
 	PaymentStatus   string    `json:"paymentStatus,omitempty"`
 	TransactionHash string    `json:"transactionHash,omitempty"`
 	PreviousID      *int64    `json:"previousId,omitempty"`
@@ -133,9 +131,9 @@ func (s *Store) Board(ctx context.Context, id int64) (Board, error) {
 	var score sql.NullInt64
 	var duration *int
 	var winnerUpgrades []byte
-	err = tx.QueryRowContext(ctx, `SELECT id,deadline,leader_wallet,leading_destroyed,leader_duration_seconds,leader_upgrades,prize_amount,claimed_at IS NOT NULL,
+	err = tx.QueryRowContext(ctx, `SELECT id,deadline,leader_wallet,leading_destroyed,leader_duration_seconds,leader_upgrades,prize_amount,
         (SELECT MAX(old.id) FROM survivor_rounds old WHERE old.network=survivor_rounds.network AND old.id<survivor_rounds.id)
-        FROM survivor_rounds WHERE network=? AND (?=0 OR id=?) ORDER BY id DESC LIMIT 1`, s.Network, id, id).Scan(&r.ID, &deadline, &wallet, &score, &duration, &winnerUpgrades, &r.PrizeAmount, &r.Claimed, &r.PreviousID)
+        FROM survivor_rounds WHERE network=? AND (?=0 OR id=?) ORDER BY id DESC LIMIT 1`, s.Network, id, id).Scan(&r.ID, &deadline, &wallet, &score, &duration, &winnerUpgrades, &r.PrizeAmount, &r.PreviousID)
 	if errors.Is(err, sql.ErrNoRows) && id == 0 {
 		b.Entries, err = s.standings(ctx, tx, 0)
 		return b, err
@@ -156,7 +154,7 @@ func (s *Store) Board(ctx context.Context, id int64) (Board, error) {
 			}
 		}
 	}
-	if r.Claimed {
+	if r.Winner != nil && r.PrizeAmount != nil {
 		err = tx.QueryRowContext(ctx, `SELECT status,transaction_hash FROM transaction_attempts WHERE network=? AND source='keeper' AND entrypoint='transfer' AND target_id=? ORDER BY id DESC LIMIT 1`, s.Network, prizeTarget(r.ID)).Scan(&r.PaymentStatus, &r.TransactionHash)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return b, err

@@ -89,48 +89,7 @@ func (survivorTestWallet) VerifySurvivorMessage(_ context.Context, wallet string
 	if wallet != "0x123" || len(sig) != 1 {
 		return false, nil
 	}
-	if strings.Contains(string(data), "SetSurvivorName") {
-		return strings.Contains(string(data), `"Name":"Signal"`) && sig[0] == "0xdef", nil
-	}
-	return strings.Contains(string(data), "ClaimSurvivorPrize") && sig[0] == "0xabc", nil
-}
-
-func TestClosedPrizeRequiresWinningOutisSignature(t *testing.T) {
-	deps := testDependencies(t)
-	deps.SurvivorPayouts = true
-	deps.SurvivorAccounts = survivorTestWallet{}
-	deps.SurvivorSignatures = survivorTestWallet{}
-	h := NewHandler(deps)
-	path := "/v1/survivors/rounds/1/claim"
-	req := func(method, body string, want int) string {
-		t.Helper()
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(method, path, strings.NewReader(body)))
-		if rec.Code != want {
-			t.Fatalf("%s: %d %s", method, rec.Code, rec.Body.String())
-		}
-		return rec.Body.String()
-	}
-	_, err := deps.DB.Exec(`INSERT INTO survivor_rounds (id,network,deadline,leader_wallet,leading_destroyed,prize_amount) VALUES(1,?,unixepoch()+60,'0x123',101,?)`, deps.Config.Network, survivor.DailyPrize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req("GET", "", 403)
-	if _, err := deps.DB.Exec("UPDATE survivor_rounds SET deadline=unixepoch()-1 WHERE id=1"); err != nil {
-		t.Fatal(err)
-	}
-	data := req("GET", "", 200)
-	if !strings.Contains(data, survivor.DailyPrize) || !strings.Contains(data, `"Recipient":"0x123"`) {
-		t.Fatal(data)
-	}
-	req("POST", `{"signature":["0xbad"]}`, 403)
-	req("POST", `{"recipient":"0x666","signature":["0xabc"]}`, 400)
-	req("POST", `{"signature":["0xabc"]}`, 202)
-	req("POST", `{"signature":["0xabc"]}`, 202)
-	var n int
-	if err := deps.DB.QueryRow("SELECT count(*) FROM survivor_rounds WHERE claimed_at IS NOT NULL").Scan(&n); err != nil || n != 1 {
-		t.Fatal(n, err)
-	}
+	return strings.Contains(string(data), "SetSurvivorName") && strings.Contains(string(data), `"Name":"Signal"`) && sig[0] == "0xdef", nil
 }
 
 func TestSurvivorProfiles(t *testing.T) {

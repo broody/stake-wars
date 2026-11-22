@@ -230,7 +230,6 @@ export interface SurvivorBoard {
     closed: boolean;
     winner: SurvivorEntry | null;
     prizeAmount: string | null;
-    claimed: boolean;
     paymentStatus?: string;
     transactionHash?: string;
     previousId?: number;
@@ -263,17 +262,6 @@ export const api = {
   },
   startSurvivorRun(): Promise<SurvivorTicket> {
     return requestJSON('/v1/survivors/runs', jsonRequest({}));
-  },
-  async claimSurvivorPrize(
-    round: number,
-    sign: (data: UseSignTypedDataArgs) => Promise<string[]>
-  ) {
-    const path = `/v1/survivors/rounds/${round}/claim`;
-    const typedData = await requestJSON<UseSignTypedDataArgs>(path, {
-      cache: 'no-store',
-    });
-    const signature = await sign(typedData);
-    return requestJSON<{ claimed: boolean }>(path, jsonRequest({ signature }));
   },
   hasSurvivorSession(wallet: string) {
     return Boolean(cachedSession('survivor', wallet));

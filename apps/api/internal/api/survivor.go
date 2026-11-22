@@ -228,8 +228,6 @@ func (s *server) survivorError(w http.ResponseWriter, r *http.Request, err error
 		writeProblem(w, 400, "invalid player", err.Error())
 	case errors.Is(err, sql.ErrNoRows):
 		writeProblem(w, 404, "round unavailable", "round not found")
-	case errors.Is(err, survivor.ErrClaim):
-		writeProblem(w, 403, "claim unavailable", err.Error())
 	case errors.Is(err, survivor.ErrTicket):
 		writeProblem(w, 403, "invalid ticket", err.Error())
 	case errors.Is(err, survivor.ErrReplay):
@@ -245,55 +243,4 @@ func (s *server) survivorError(w http.ResponseWriter, r *http.Request, err error
 		slog.ErrorContext(r.Context(), "Survivor request failed", "error", err)
 		writeProblem(w, 500, "Survivor unavailable", "could not process this request")
 	}
-}
-
-func (s *server) survivorClaim(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("round"), 10, 64)
-	if err != nil || id < 1 {
-		writeProblem(w, 400, "invalid round", "round must be a positive integer")
-		return
-	}
-	if !s.dependencies.SurvivorPayouts || s.dependencies.SurvivorSignatures == nil || s.dependencies.SurvivorAccounts == nil {
-		writeProblem(w, 503, "claims unavailable", "prize payouts are not enabled")
-		return
-	}
-	p, err := s.survivors.Prize(r.Context(), id)
-	if err != nil {
-		s.survivorError(w, r, err)
-		return
-	}
-	data, err := starknet.SurvivorClaimData(s.dependencies.Config.Network, p.Round, p.Wallet, p.Amount)
-	if err != nil {
-		s.survivorError(w, r, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	if r.Method == http.MethodGet {
-		writeJSON(w, 200, data)
-		return
-	}
-	var input struct {
-		Signature []string `json:"signature"`
-	}
-	if err := decodeJSON(w, r, &input); err != nil || len(input.Signature) == 0 || len(input.Signature) > 64 {
-		writeProblem(w, 400, "invalid claim", "a claim signature is required")
-		return
-	}
-	ok, err := s.dependencies.SurvivorAccounts.IsOutis(r.Context(), p.Wallet)
-	if err == nil && ok {
-		ok, err = s.dependencies.SurvivorSignatures.VerifySurvivorMessage(r.Context(), p.Wallet, data, input.Signature)
-	}
-	if err != nil {
-		s.survivorError(w, r, err)
-		return
-	}
-	if !ok {
-		s.survivorError(w, r, survivor.ErrClaim)
-		return
-	}
-	if err = s.survivors.Claim(r.Context(), p); err != nil {
-		s.survivorError(w, r, err)
-		return
-	}
-	writeJSON(w, 202, map[string]bool{"claimed": true})
 }

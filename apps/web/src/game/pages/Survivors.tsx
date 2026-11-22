@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useSignTypedData } from '@starknetfoundation/starknet-start-react';
 import {
   Badge,
   Button,
@@ -27,7 +26,6 @@ import {
 import { SurvivorGuide } from '../components/ui/SurvivorGuide';
 import { SurvivorFinalSkills } from '../components/ui/SurvivorFinalSkills';
 import { SurvivorChase } from '../components/3d/SurvivorChase';
-import { WalletButton } from '../components/ui/WalletButton';
 import { voyagerTransactionUrl } from '../utils/voyager';
 import { isOutisWallet } from '../utils/wallets';
 import { api, type SurvivorBoard } from '../services/api';
@@ -436,7 +434,6 @@ export function Survivors() {
                                     round={round}
                                     prize={prize}
                                     payoutsEnabled={board.payoutsEnabled}
-                                    onClaimed={() => setRefresh((n) => n + 1)}
                                   />
                                 )}
                               </TableCell>
@@ -516,7 +513,7 @@ function PrizeEligibility() {
     <>
       You can submit scores with {walletName || 'this wallet'}.{' '}
       <strong className="font-medium text-warning">
-        This wallet can’t claim the daily prize, even if you finish first.
+        This wallet can’t win the daily prize, even if you finish first.
       </strong>
     </>
   );
@@ -526,72 +523,27 @@ function WinnerPrize({
   round,
   prize,
   payoutsEnabled,
-  onClaimed,
 }: {
   round: NonNullable<SurvivorBoard['round']>;
   prize: string;
   payoutsEnabled: boolean;
-  onClaimed: () => void;
 }) {
-  const { address } = useWallet();
-  const { signTypedDataAsync } = useSignTypedData({});
-  const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState('');
-  if (round.claimed) {
-    const delayed = ['reverted', 'failed'].includes(round.paymentStatus ?? '');
-    return (
-      <div role="status">
-        {round.paymentStatus === 'succeeded'
-          ? `Paid ${prize}`
-          : delayed
-            ? 'Payment delayed. Retrying.'
-            : 'Payment pending.'}
-        {round.transactionHash && (
-          <div>
-            <ExternalLink href={voyagerTransactionUrl(round.transactionHash)}>
-              View transaction
-            </ExternalLink>
-          </div>
-        )}
-      </div>
-    );
-  }
-  if (!payoutsEnabled) return <>Claims unavailable</>;
-  if (!address)
-    return <WalletButton variant="block" label="Connect to claim" />;
-  if (!round.winner?.wallet || !addressesMatch(address, round.winner.wallet))
-    return <>Winning Outis wallet required</>;
-
-  async function claim() {
-    if (claiming) return;
-    setError('');
-    setClaiming(true);
-    try {
-      await api.claimSurvivorPrize(round.id, signTypedDataAsync);
-      onClaimed();
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : 'Could not claim the prize.'
-      );
-    } finally {
-      setClaiming(false);
-    }
-  }
+  const status = round.paymentStatus ?? '';
+  let message = `Sending ${prize}`;
+  if (status === 'succeeded') message = `Paid ${prize}`;
+  else if (['reverted', 'failed'].includes(status))
+    message = 'Payment delayed. Retrying.';
+  else if (!status && !payoutsEnabled) message = 'Payouts paused';
   return (
-    <>
-      <Button
-        size="sm"
-        tone="accent"
-        busy={claiming}
-        onClick={() => void claim()}
-      >
-        Claim {prize}
-      </Button>
-      {error && (
-        <p className="mt-1 text-caption text-warning" role="alert">
-          {error}
-        </p>
+    <div role="status">
+      {message}
+      {round.transactionHash && (
+        <div>
+          <ExternalLink href={voyagerTransactionUrl(round.transactionHash)}>
+            View transaction
+          </ExternalLink>
+        </div>
       )}
-    </>
+    </div>
   );
 }

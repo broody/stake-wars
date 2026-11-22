@@ -284,18 +284,22 @@ remain available by ID. Each new daily round records a fixed
 prize of 100 STRK (100000000000000000000 base units). Existing rounds retain
 the prize amount recorded when they opened.
 
-After the deadline, the winner signs the SNIP-12 message returned by
-`GET /v1/survivors/rounds/{id}/claim` and submits its signature to the same
-URL with POST. The server reconstructs the message from the frozen round,
-checks the wallet's class and signature, and queues the transfer to that wallet.
-The leaderboard reports claim status and the transaction hash.
+The winner does not claim the prize. Two minutes after the deadline, the
+payout duty sends the round's prize to the winning wallet. The delay lets a run
+that was verified just before the deadline finish committing before the winner
+is read. The Outis check happens when the score is submitted. The payout does
+not check the account class again. The leaderboard reports the payment status
+and the transaction hash.
 
 To enable payouts in a deployment, set `SURVIVOR_PAYOUTS_ENABLED=true` with
 the existing funded keeper signer and Starknet RPC configured for that network.
 With `SUPPLY_DROP_SYSTEM_ADDRESS` unset, only the Survivor payout duty uses the signer. The keeper account supplies the prize and network fees. Its existing nonce lock
 and SQLite transaction journal are shared with the other duties. The worker
 records the transfer hash before broadcasting and reconciles uncertain receipts
-before another attempt. Payouts start after a signed claim.
+before another attempt. The duty pays one round per tick, oldest first. When
+payouts are first enabled, it also pays every earlier closed round that has a
+winner and no payment yet. Keep the keeper account funded with enough STRK for
+every prize it owes plus fees.
 
 The normal API build (`pnpm --filter @stakewars/api build`) bundles the web
 simulation into the API Docker context. Build the frontend and API from the same

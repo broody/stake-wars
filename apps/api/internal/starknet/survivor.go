@@ -33,12 +33,6 @@ func (c *ChainClient) IsOutis(ctx context.Context, wallet string) (bool, error) 
 	return class == outisWalletClass, err
 }
 
-// Build the message from the frozen database record on both request and verification.
-func SurvivorClaimData(network string, round int64, wallet, amount string) (json.RawMessage, error) {
-	return survivorMessage(network, "ClaimSurvivorPrize", []typeParameter{{Name: "Round", Type: "u128"}, {Name: "Recipient", Type: "ContractAddress"}, {Name: "Token", Type: "ContractAddress"}, {Name: "Amount", Type: "u128"}},
-		map[string]string{"Round": fmt.Sprint(round), "Recipient": wallet, "Token": STRKToken, "Amount": amount})
-}
-
 func SurvivorNameData(network, wallet, name string, revision int64) (json.RawMessage, error) {
 	// Starknet wallet string encoders require ASCII. Escaping also distinguishes a
 	// literal backslash from a Unicode escape while preserving the stored name.

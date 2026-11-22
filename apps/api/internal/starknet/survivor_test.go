@@ -15,9 +15,9 @@ import (
 	"testing"
 )
 
-func TestSurvivorClaimMatchesWalletHashAndOutisClass(t *testing.T) {
+func TestSurvivorMessageMatchesWalletHashAndOutisClass(t *testing.T) {
 	// Hash generated independently with the frontend's starknet.js typedData.getMessageHash.
-	const browserHash = "0x33b849853853671a5398139db20d3e652b5266f98f08cba5178e506a4568c2b"
+	const browserHash = "0x12415970df68f8467453e51ca869c98d5cd1987f8f62d08e0e108b641e8f40c"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Method string
@@ -62,14 +62,14 @@ func TestSurvivorClaimMatchesWalletHashAndOutisClass(t *testing.T) {
 		}
 	}
 	v := NewVerifier(server.URL, "SN_SEPOLIA")
-	for _, round := range []int64{7, 8} {
-		claim, err := SurvivorClaimData("SN_SEPOLIA", round, "0x123", survivor.DailyPrize)
+	for _, name := range []string{"Signal", "Orbit"} {
+		message, err := SurvivorNameData("SN_SEPOLIA", "0x123", name, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ok, err := v.VerifySurvivorMessage(t.Context(), "0x123", claim, []string{"0x1"})
-		if err != nil || ok != (round == 7) {
-			t.Fatal(round, ok, err)
+		ok, err := v.VerifySurvivorMessage(t.Context(), "0x123", message, []string{"0x1"})
+		if err != nil || ok != (name == "Signal") {
+			t.Fatal(name, ok, err)
 		}
 	}
 }
@@ -78,7 +78,8 @@ func TestSurvivorPayoutRecoverySendsOnce(t *testing.T) {
 	db, journal := trackingDB(t)
 	const network = "SN_SEPOLIA"
 	store := survivor.NewStore(db, network)
-	_, err := db.Exec(`INSERT INTO survivor_rounds (id,network,deadline,leader_wallet,leading_destroyed,prize_amount) VALUES (1,?,1,'0x123',7,?)`, network, survivor.DailyPrize)
+	// The round closed a moment ago, so the keeper still waits before paying.
+	_, err := db.Exec(`INSERT INTO survivor_rounds (id,network,deadline,leader_wallet,leading_destroyed,prize_amount) VALUES (1,?,unixepoch()-1,'0x123',7,?)`, network, survivor.DailyPrize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,13 +97,9 @@ func TestSurvivorPayoutRecoverySendsOnce(t *testing.T) {
 	signer := &AccountSupplyDropSubmitter{account: a, journal: journal, network: network, keeperAddress: "0x1"}
 	duty := survivor.PayoutDuty{Store: store, Sender: signer}
 	if err = duty.Reconcile(ctx); err != nil || sends != 0 {
-		t.Fatal("unsigned payout", err)
+		t.Fatal("paid before the payout delay", err)
 	}
-	p, err := store.Prize(ctx, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = store.Claim(ctx, p); err != nil {
+	if _, err = db.Exec("UPDATE survivor_rounds SET deadline=1 WHERE id=1"); err != nil {
 		t.Fatal(err)
 	}
 	if err = duty.Reconcile(ctx); !errors.Is(err, ErrKeeperTransactionPending) || sends != 1 {
@@ -120,9 +117,6 @@ func TestSurvivorPayoutRecoverySendsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	duty.Sender = restarted
-	if err = store.Claim(ctx, p); err != nil {
-		t.Fatal(err)
-	}
 	if err = duty.Reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +126,7 @@ func TestSurvivorPayoutRecoverySendsOnce(t *testing.T) {
 	if err = duty.Reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = restarted.PaySurvivor(ctx, "survivor-round:1", p.Wallet, p.Amount); err == nil {
+	if _, err = restarted.PaySurvivor(ctx, "survivor-round:1", "0x123", survivor.DailyPrize); err == nil {
 		t.Fatal("journal admitted a duplicate payment")
 	}
 	b, err := store.Board(ctx, 1)

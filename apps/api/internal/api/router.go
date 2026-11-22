@@ -84,8 +84,6 @@ func NewHandler(dependencies Dependencies) http.Handler {
 		mux.HandleFunc("POST /v1/survivors/profile/wallet", server.setSurvivorWalletName)
 		mux.HandleFunc("GET /v1/survivors/profile", server.survivorWalletProfile)
 		mux.HandleFunc("POST /v1/survivors/profile", server.survivorProfile)
-		mux.HandleFunc("GET /v1/survivors/rounds/{round}/claim", server.survivorClaim)
-		mux.HandleFunc("POST /v1/survivors/rounds/{round}/claim", server.survivorClaim)
 	} else {
 		mux.HandleFunc("/v1/survivors/", func(w http.ResponseWriter, _ *http.Request) {
 			writeProblem(w, http.StatusServiceUnavailable, "Survivor unavailable", "database is not configured")

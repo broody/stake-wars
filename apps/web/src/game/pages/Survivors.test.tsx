@@ -13,7 +13,6 @@ vi.mock('../services/api', () => ({
     getSurvivorBoard: vi.fn(),
     startSurvivorRun: vi.fn(),
     hasSurvivorSession: () => false,
-    claimSurvivorPrize: vi.fn(),
   },
 }));
 const { wallet } = vi.hoisted(() => ({
@@ -51,7 +50,6 @@ it('displays active time and expands the final skills for the selected score', a
       closed: false,
       winner: null,
       prizeAmount: '100000000000000000000',
-      claimed: false,
     },
     entries: [
       {
@@ -163,7 +161,6 @@ it('updates prize eligibility when a player connects, switches wallets, or disco
       deadline: '2099-01-01T00:00:00Z',
       prizeAmount: '100000000000000000000',
       winner: null,
-      claimed: false,
     },
     entries: [],
   });
@@ -200,7 +197,7 @@ it('updates prize eligibility when a player connects, switches wallets, or disco
     await render();
     expect(message()).toContain('You can submit scores with Braavos.');
     expect(message()).toContain(
-      'This wallet can’t claim the daily prize, even if you finish first.'
+      'This wallet can’t win the daily prize, even if you finish first.'
     );
     wallet.mockReturnValue(guest);
     await render();
@@ -284,7 +281,6 @@ it('counts down each second and refreshes the standings at the deadline', async 
     closed: false,
     winner: null,
     prizeAmount: '100000000000000000000',
-    claimed: false,
   };
   const board = {
     network: config.starknetChainId,
@@ -347,7 +343,6 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
     deadline: '2026-01-01T00:00:00Z',
     winner,
     prizeAmount: '100000000000000000000',
-    claimed: true,
     paymentStatus: 'succeeded',
   };
   const board = {
@@ -381,7 +376,6 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
               id: 2,
               closed: false,
               winner: null,
-              claimed: false,
             },
           }
     );
@@ -398,7 +392,7 @@ it('hides the eligibility banner on a pinned round once a newer round opens', as
   }
 });
 
-it('keeps the claim and its payment receipt in the eligible winner’s last cell', async () => {
+it('shows the automatic payment in the eligible winner’s last cell without a claim', async () => {
   wallet.mockReturnValue({
     address: '0x000123',
     isConnected: true,
@@ -419,7 +413,8 @@ it('keeps the claim and its payment receipt in the eligible winner’s last cell
     deadline: '2026-01-01T00:00:00Z',
     winner,
     prizeAmount: '100000000000000000000',
-    claimed: false,
+    paymentStatus: 'submitted',
+    transactionHash: '0xabc',
   };
   const board = {
     network: config.starknetChainId,
@@ -445,38 +440,11 @@ it('keeps the claim and its payment receipt in the eligible winner’s last cell
       node.querySelectorAll<HTMLTableRowElement>('tbody tr');
     expect(top.cells[4].textContent).toBe('');
     const lastCell = eligible.cells[eligible.cells.length - 1];
-    const claim = lastCell.querySelector('button')!;
-    expect(claim.textContent).toBe('Claim 100 STRK');
-    expect(
-      node.querySelector('section[aria-label="Prize round"] button')
-    ).toBeNull();
-    vi.mocked(api.claimSurvivorPrize).mockRejectedValueOnce(
-      new Error('Signature declined')
-    );
-    await act(async () => claim.click());
-    expect(
-      eligible.querySelector('[aria-expanded]')?.getAttribute('aria-expanded')
-    ).toBe('false');
-    expect(lastCell.querySelector('[role="alert"]')?.textContent).toBe(
-      'Signature declined'
-    );
-    vi.mocked(api.getSurvivorBoard).mockResolvedValue({
-      ...board,
-      round: {
-        ...round,
-        claimed: true,
-        paymentStatus: 'succeeded',
-        transactionHash: '0xabc',
-      },
-    });
-    vi.mocked(api.claimSurvivorPrize).mockResolvedValueOnce({ claimed: true });
-    await act(async () => claim.click());
-    const receipt = node.querySelector('tbody tr:last-child td:last-child')!;
-    expect(receipt.textContent).toContain('Paid 100 STRK');
-    expect(receipt.querySelector('a')?.getAttribute('href')).toContain(
+    expect(lastCell.textContent).toMatch(/^Sending 100 STRKView transaction/);
+    expect(node.querySelector('tbody button:not([aria-expanded])')).toBeNull();
+    expect(lastCell.querySelector('a')?.getAttribute('href')).toContain(
       '/tx/0xabc'
     );
-    expect(receipt.querySelector('button')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
