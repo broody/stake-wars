@@ -21,6 +21,7 @@ var (
 	ErrOverlap = errors.New("a Survivor round is already open")
 	ErrReplay  = errors.New("the run could not be verified")
 	ErrBusy    = errors.New("another run is being verified; please retry")
+	ErrNoClip  = errors.New("this run has no death clip")
 )
 
 type Round struct {
@@ -44,10 +45,22 @@ type RunResult struct {
 	Destroyed       int       `json:"destroyed"`
 	DurationSeconds int       `json:"durationSeconds"`
 	Upgrades        []Upgrade `json:"upgrades"`
+	// Clip is the gzipped death clip, or nil when the run has none.
+	Clip []byte `json:"clip"`
+}
+
+// Finished is a recorded run. Clip says whether its death clip can be watched.
+type Finished struct {
+	Destroyed int   `json:"destroyed"`
+	Run       int64 `json:"run"`
+	Clip      bool  `json:"clip"`
 }
 
 type Entry struct {
-	WalletKind      string    `json:"walletKind,omitempty"`
+	WalletKind string `json:"walletKind,omitempty"`
+	// Run identifies the run behind this score, so its death clip can be fetched.
+	Run             int64     `json:"run,omitempty"`
+	Clip            bool      `json:"clip,omitempty"`
 	DurationSeconds *int      `json:"durationSeconds"`
 	Upgrades        []Upgrade `json:"upgrades"`
 	Wallet          string    `json:"wallet,omitempty"`
@@ -149,6 +162,13 @@ func (s *Store) Board(ctx context.Context, id int64) (Board, error) {
 		if err = tx.QueryRowContext(ctx, "SELECT coalesce((SELECT name FROM survivor_profiles WHERE network=? AND player=?),'')", s.Network, wallet.String).Scan(&r.Winner.Name); err != nil {
 			return b, err
 		}
+		// The leader's run is their first run with the winning score.
+		err = tx.QueryRowContext(ctx, `SELECT t.id,EXISTS(SELECT 1 FROM survivor_clips c WHERE c.run_id=t.id)
+            FROM survivor_runs t WHERE t.round_id=? AND t.player=? AND t.destroyed=? ORDER BY t.id LIMIT 1`,
+			r.ID, wallet.String, score.Int64).Scan(&r.Winner.Run, &r.Winner.Clip)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return b, err
+		}
 		if winnerUpgrades != nil {
 			if err = json.Unmarshal(winnerUpgrades, &r.Winner.Upgrades); err != nil {
 				return b, err
@@ -187,7 +207,8 @@ func (s *Store) standings(ctx context.Context, db standingsReader, roundID int64
                row_number() OVER (PARTITION BY player ORDER BY destroyed DESC,id) AS position
         FROM survivor_runs WHERE destroyed IS NOT NULL AND network=?`+filter+`
     ), leaders AS (SELECT id FROM ranked WHERE position=1 ORDER BY destroyed DESC,id LIMIT 100)
-      SELECT r.player,r.destroyed,r.duration_seconds,r.upgrades,coalesce(r.wallet_kind,''),coalesce(p.name,'')
+      SELECT r.id,EXISTS(SELECT 1 FROM survivor_clips c WHERE c.run_id=r.id),
+             r.player,r.destroyed,r.duration_seconds,r.upgrades,coalesce(r.wallet_kind,''),coalesce(p.name,'')
       FROM leaders JOIN survivor_runs r ON r.id=leaders.id
       LEFT JOIN survivor_profiles p ON p.network=r.network AND p.player=r.player
       ORDER BY r.destroyed DESC,r.id`, args...)
@@ -200,7 +221,7 @@ func (s *Store) standings(ctx context.Context, db standingsReader, roundID int64
 		var e Entry
 		var player string
 		var upgrades []byte
-		if err := rows.Scan(&player, &e.Destroyed, &e.DurationSeconds, &upgrades, &e.WalletKind, &e.Name); err != nil {
+		if err := rows.Scan(&e.Run, &e.Clip, &player, &e.Destroyed, &e.DurationSeconds, &upgrades, &e.WalletKind, &e.Name); err != nil {
 			return nil, err
 		}
 		if guest(player) {
@@ -303,42 +324,42 @@ func (s *Store) admission(ctx context.Context, token, wallet string, digest []by
 // returns an empty string when the wallet is unknown.
 type WalletKind func(ctx context.Context, wallet string) (string, error)
 
-func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte, walletKind WalletKind) (int, error) {
+func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte, walletKind WalletKind) (Finished, error) {
 	if len(token) != 64 && len(token) != 128 {
-		return 0, ErrTicket
+		return Finished{}, ErrTicket
 	}
 	// Canonical lowercase encoding gives every ticket exactly one receipt key.
 	if strings.ToLower(token) != token {
-		return 0, ErrTicket
+		return Finished{}, ErrTicket
 	}
 	digest := sha256.Sum256([]byte(token))
 	a, err := s.admission(ctx, token, wallet, digest[:])
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	if a.score.Valid {
-		return int(a.score.Int64), nil
+		return s.finished(ctx, s.DB, digest[:], wallet)
 	}
 	now := s.Now()
 
 	verified, err := s.Verify(ctx, a.seed, replay, now.UnixMilli()-a.started)
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	kind := ""
 	if !guest(wallet) {
 		kind, err = walletKind(ctx, wallet)
 		if err != nil {
-			return 0, err
+			return Finished{}, err
 		}
 	}
 	upgrades, err := json.Marshal(verified.Upgrades)
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	defer tx.Rollback()
 	// A late replay still belongs on the all-time board. The daily winner is frozen.
@@ -352,31 +373,96 @@ func (s *Store) Finish(ctx context.Context, token, wallet string, replay []byte,
         WHERE survivor_runs.player=excluded.player AND survivor_runs.network=excluded.network AND survivor_runs.destroyed IS NULL`,
 		digest[:], s.Network, a.roundID, wallet, verified.Destroyed, verified.DurationSeconds, string(upgrades), kind == "outis", kind)
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	n, err := result.RowsAffected()
 	if err != nil {
-		return 0, err
+		return Finished{}, err
 	}
 	if n == 0 {
-		var saved int
-		err = tx.QueryRowContext(ctx, "SELECT destroyed FROM survivor_runs WHERE ticket_hash=? AND player=? AND network=?", digest[:], wallet, s.Network).Scan(&saved)
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, ErrTicket
-		}
-		return saved, err
+		// Another request recorded this ticket first.
+		return s.finished(ctx, tx, digest[:], wallet)
 	}
 	if a.roundID != 0 {
 		if _, err = tx.ExecContext(ctx, "UPDATE survivor_rounds SET submissions=submissions+1 WHERE id=?", a.roundID); err != nil {
-			return 0, err
+			return Finished{}, err
 		}
 		if !guest(wallet) {
 			if err = updateLeader(ctx, tx, digest[:]); err != nil {
-				return 0, err
+				return Finished{}, err
 			}
 		}
 	}
-	return verified.Destroyed, tx.Commit()
+	if len(verified.Clip) > maxClipBytes {
+		verified.Clip = nil
+	}
+	if verified.Clip != nil {
+		_, err = tx.ExecContext(ctx, `INSERT INTO survivor_clips(run_id,clip)
+            SELECT id,? FROM survivor_runs WHERE ticket_hash=?`, verified.Clip, digest[:])
+		if err != nil {
+			return Finished{}, err
+		}
+		if err = s.pruneClips(ctx, tx, wallet); err != nil {
+			return Finished{}, err
+		}
+	}
+	saved, err := s.finished(ctx, tx, digest[:], wallet)
+	if err != nil {
+		return Finished{}, err
+	}
+	return saved, tx.Commit()
+}
+
+// maxClipBytes bounds one stored death clip. A late-game clip is about 40 KB.
+const maxClipBytes = 128 * 1024
+
+type rowQuerier interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func (s *Store) finished(ctx context.Context, db rowQuerier, digest []byte, wallet string) (Finished, error) {
+	var f Finished
+	err := db.QueryRowContext(ctx, `SELECT id,destroyed,EXISTS(SELECT 1 FROM survivor_clips c WHERE c.run_id=survivor_runs.id)
+        FROM survivor_runs WHERE ticket_hash=? AND player=? AND network=? AND destroyed IS NOT NULL`,
+		digest, wallet, s.Network).Scan(&f.Run, &f.Destroyed, &f.Clip)
+	if errors.Is(err, sql.ErrNoRows) {
+		return f, ErrTicket
+	}
+	return f, err
+}
+
+// pruneClips keeps only the clips a player's runs can still be watched from:
+// their latest run, their all-time best, their best in the two newest rounds,
+// and their best in every round they lead.
+func (s *Store) pruneClips(ctx context.Context, tx *sql.Tx, player string) error {
+	_, err := tx.ExecContext(ctx, `WITH mine AS (
+            SELECT id,round_id,destroyed FROM survivor_runs
+            WHERE network=?1 AND player=?2 AND destroyed IS NOT NULL
+        ), shown AS (
+            SELECT round_id FROM (SELECT id AS round_id FROM survivor_rounds WHERE network=?1 ORDER BY id DESC LIMIT 2)
+            UNION SELECT id FROM survivor_rounds WHERE network=?1 AND leader_wallet=?2
+        ), keep AS (
+            SELECT max(id) AS id FROM mine
+            UNION SELECT id FROM (SELECT id FROM mine ORDER BY destroyed DESC,id LIMIT 1)
+            UNION SELECT id FROM (
+                SELECT id,row_number() OVER (PARTITION BY round_id ORDER BY destroyed DESC,id) AS position
+                FROM mine WHERE round_id IN (SELECT round_id FROM shown)
+            ) WHERE position=1
+        )
+        DELETE FROM survivor_clips WHERE run_id IN (SELECT id FROM mine) AND run_id NOT IN (SELECT id FROM keep)`,
+		s.Network, player)
+	return err
+}
+
+// Clip returns a run's gzipped death clip.
+func (s *Store) Clip(ctx context.Context, run int64) ([]byte, error) {
+	var clip []byte
+	err := s.DB.QueryRowContext(ctx, `SELECT c.clip FROM survivor_clips c JOIN survivor_runs r ON r.id=c.run_id
+        WHERE c.run_id=? AND r.network=?`, run, s.Network).Scan(&clip)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNoClip
+	}
+	return clip, err
 }
 
 // Any signed wallet can lead. Strict improvement preserves the first wallet on a tie.
@@ -441,6 +527,9 @@ func (s *Store) Attach(ctx context.Context, token, from, wallet string, walletKi
 		return ErrTicket
 	}
 	if err = updateLeader(ctx, tx, digest[:]); err != nil {
+		return err
+	}
+	if err = s.pruneClips(ctx, tx, wallet); err != nil {
 		return err
 	}
 	return tx.Commit()

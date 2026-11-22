@@ -17,7 +17,11 @@ import { Operator } from './pages/Operator';
 import { Staking } from './pages/Staking';
 import { SupplyDrop } from './pages/SupplyDrop';
 import { Survivors } from './pages/Survivors';
-import { isSurviveMode, survivorsSession } from './survivors/session';
+import {
+  isSurviveMode,
+  survivorsSession,
+  WATCH_PARAM,
+} from './survivors/session';
 import { StakeWarsStarknetProvider } from './providers/StarknetProvider';
 import { TransactionToastProvider } from './contexts/TransactionToastContext';
 import { YieldProvider } from './contexts/YieldContext';
@@ -71,10 +75,24 @@ function GamePages() {
     isSurviveMode(params) &&
     !(import.meta.env.DEV && params.has('survivePreview'));
   useEffect(() => {
-    if (!play) survivorsSession.ticket = null;
+    if (play) return;
+    survivorsSession.ticket = null;
+    survivorsSession.watching = null;
   }, [play]);
-  if (play && !survivorsSession.ticket)
-    return <Navigate to="/survivors" replace />;
+  if (play && !survivorsSession.ticket && !survivorsSession.watching) {
+    // A reloaded clip page goes back through the lobby, which fetches the clip again.
+    const watch = params.get(WATCH_PARAM);
+    return (
+      <Navigate
+        to={
+          watch
+            ? `/survivors?${WATCH_PARAM}=${encodeURIComponent(watch)}`
+            : '/survivors'
+        }
+        replace
+      />
+    );
+  }
 
   return (
     <div className="relative h-full w-full">

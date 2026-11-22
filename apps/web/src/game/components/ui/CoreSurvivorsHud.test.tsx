@@ -46,7 +46,11 @@ it.each([false, true])(
     run.player.hp = 1;
     run.weapons[0].cooldown = 10;
     spawnEnemy(run, 'mite', { ...run.player.n });
-    vi.mocked(api.finishSurvivorRun).mockResolvedValueOnce({ destroyed: 17 });
+    vi.mocked(api.finishSurvivorRun).mockResolvedValueOnce({
+      destroyed: 17,
+      run: 1,
+      clip: false,
+    });
     vi.mocked(api.hasSurvivorSession).mockReturnValue(cached);
     session.advance(1 / 30);
     run.deathAge = 5;
@@ -143,7 +147,11 @@ it('retries only the signed wallet’s queued scores and skips older guest repla
     await retrySurvivorRuns(wallet);
     expect(api.finishSurvivorRun).not.toHaveBeenCalled();
     vi.mocked(api.hasSurvivorSession).mockReturnValue(true);
-    vi.mocked(api.finishSurvivorRun).mockResolvedValueOnce({ destroyed: 4 });
+    vi.mocked(api.finishSurvivorRun).mockResolvedValueOnce({
+      destroyed: 4,
+      run: 2,
+      clip: false,
+    });
     await retrySurvivorRuns(wallet);
     expect(api.finishSurvivorRun).toHaveBeenCalledTimes(1);
     expect(api.finishSurvivorRun).toHaveBeenCalledWith(

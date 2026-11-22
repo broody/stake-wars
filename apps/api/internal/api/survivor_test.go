@@ -129,3 +129,29 @@ func TestSurvivorProfiles(t *testing.T) {
 	request("POST", "runs/finish", fmt.Sprintf(`{"guestId":%q,"token":"bad"}`, guestID), 401)
 	request("POST", "runs/wallet", fmt.Sprintf(`{"guestId":%q,"token":"bad"}`, guestID), 401)
 }
+
+func TestSurvivorClipEndpoint(t *testing.T) {
+	deps := testDependencies(t)
+	handler := NewHandler(deps)
+	_, err := deps.DB.Exec(`INSERT INTO survivor_runs (id,network,player,destroyed) VALUES (7,?,'0x5',25),(8,'SN_OTHER','0x5',25);
+        INSERT INTO survivor_clips (run_id,clip) VALUES (7,x'1f8b00'),(8,x'1f8b01')`, deps.Config.Network)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string, want int) *httptest.ResponseRecorder {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != want {
+			t.Fatalf("%s: got %d want %d", path, rec.Code, want)
+		}
+		return rec
+	}
+	rec := get("/v1/survivors/runs/7/clip", 200)
+	if rec.Body.String() != "\x1f\x8b\x00" || rec.Header().Get("Content-Type") != "application/octet-stream" {
+		t.Fatalf("clip %q %v", rec.Body.String(), rec.Header())
+	}
+	get("/v1/survivors/runs/8/clip", 404)
+	get("/v1/survivors/runs/9/clip", 404)
+	get("/v1/survivors/runs/zero/clip", 400)
+}

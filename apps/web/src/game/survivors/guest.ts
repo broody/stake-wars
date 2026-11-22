@@ -1,4 +1,4 @@
-import { api, ApiError } from '../services/api';
+import { api, ApiError, type SurvivorFinish } from '../services/api';
 import { config } from '../services/config';
 
 const guestKey = 'stakewars.survivor.guest';
@@ -38,7 +38,7 @@ interface PendingRun {
   // The connector ID, such as "braavos", that picks the leaderboard icon.
   walletId?: string | null;
 }
-const inFlight = new Map<string, Promise<{ destroyed: number }>>();
+const inFlight = new Map<string, Promise<SurvivorFinish>>();
 const unsaved = new Map<string, PendingRun>();
 
 function upload(run: PendingRun) {

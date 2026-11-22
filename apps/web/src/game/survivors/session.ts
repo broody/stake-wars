@@ -25,7 +25,13 @@ import {
 
 import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
 import { recordSurvivorRun } from './guest';
-import { api, ApiError, type SurvivorTicket } from '../services/api';
+import {
+  api,
+  ApiError,
+  type SurvivorFinish,
+  type SurvivorTicket,
+} from '../services/api';
+import { ClipPlayer, clipPlaysBack, type DeathClip } from './clip';
 import {
   rankedRun,
   RankedReplay,
@@ -35,6 +41,8 @@ import {
 } from './rankedReplay';
 
 export const SURVIVE_PARAM = 'survive';
+/** `?watch=<run id>` plays that run's death clip. */
+export const WATCH_PARAM = 'watch';
 /** `&hero=trooper` plays the pre-class Sector Trooper, for comparison. */
 export const HERO_PARAM = 'hero';
 
@@ -62,14 +70,23 @@ const HUD_INTERVAL = 0.1;
  * One run shared by the 3D scene, which advances it, and the HUD, which
  * subscribes to a throttled version counter.
  */
+/** Whose clip is playing: the viewer's own run, a named player's, or unknown. */
+export type ClipPlayerName = { own: true } | { name: string } | null;
+
 export class SurvivorsSession {
   run: Run | null = null;
   orbitalStrikePreview = false;
   // Armed only by the lobby after the API issues an anonymous run ticket.
   ticket: SurvivorTicket | null = null;
   replay: RankedReplay | null = null;
+  /**
+   * The death clip being watched, and whose run it is. While it is set, every
+   * start plays the clip instead of a new run.
+   */
+  watching: { clip: DeathClip; player: ClipPlayerName } | null = null;
+  private clipPlayer: ClipPlayer | null = null;
   scoreResult:
-    | { destroyed: number; wallet: string }
+    | (SurvivorFinish & { wallet: string })
     | { error: string; wallet: string; retryable: boolean }
     | null = null;
   submitting = false;
@@ -156,6 +173,8 @@ export class SurvivorsSession {
     globeView = this.globeView
   ) {
     this.cameraOrbit.reset();
+    this.clipPlayer = null;
+    if (this.watching) return this.startClip(this.watching.clip, globeView);
     const params = new URLSearchParams(location.search);
     const ranked = this.ticket;
     this.submitting = false;
@@ -427,6 +446,44 @@ export class SurvivorsSession {
     this.notify();
   }
 
+  /** Show a death clip on the Core. It has no opening and takes no input. */
+  private startClip(clip: DeathClip, globeView?: GlobeView) {
+    this.submitting = false;
+    this.scoreResult = null;
+    this.replay = null;
+    this.orbitalStrikePreview = false;
+    this.clipPlayer = new ClipPlayer(clip);
+    this.run = this.clipPlayer.run;
+    this.globeView = globeView;
+    this.paused = false;
+    this.opening = false;
+    this.openingAge = 0;
+    this.keys.clear();
+    this.stick.x = this.stick.y = 0;
+    this.accumulator = 0;
+    this.alpha = 0;
+    this.notify();
+  }
+
+  /**
+   * Fetch a run's death clip and get it ready for the Core. Fails when this
+   * version of the game would not play it out as recorded.
+   */
+  async loadClip(run: number, player: ClipPlayerName) {
+    const clip = await api.getSurvivorClip(run);
+    if (!clipPlaysBack(clip))
+      throw new Error(
+        'This replay was recorded on an earlier version of the game.'
+      );
+    this.ticket = null;
+    this.watching = { clip, player };
+  }
+
+  /** Whether the Core is showing a death clip rather than a live run. */
+  get watchingClip() {
+    return this.clipPlayer !== null;
+  }
+
   skipOpening() {
     if (!this.opening) return;
     this.opening = false;
@@ -481,7 +538,8 @@ export class SurvivorsSession {
       this.alpha = 1;
       return;
     }
-    this.readInput();
+    const clip = this.clipPlayer;
+    if (!clip) this.readInput();
     const elapsed = Math.min(Math.max(delta, 0), 0.25);
     if (this.opening) {
       if (this.input.x !== 0 || this.input.y !== 0) this.skipOpening();
@@ -511,7 +569,9 @@ export class SurvivorsSession {
     this.accumulator += elapsed;
     let steps = 0;
     while (this.accumulator >= STEP && steps < 8) {
-      if (this.replay) this.replay.advance(run, this.input);
+      if (clip) {
+        if (!clip.step()) break;
+      } else if (this.replay) this.replay.advance(run, this.input);
       else tick(run, STEP, this.input);
       this.accumulator -= STEP;
       steps++;

@@ -1,4 +1,5 @@
 import type { EarnedUpgrade } from '../survivors/sim';
+import { readClip, type DeathClip } from '../survivors/clip';
 import axios from 'axios';
 import type { UseSignTypedDataArgs } from '@starknetfoundation/starknet-start-react';
 import { config } from './config';
@@ -214,6 +215,9 @@ async function putObject(target: UploadTarget, body: Blob): Promise<void> {
 
 export interface SurvivorEntry {
   walletKind?: string;
+  /** The run behind this score. With `clip`, its final moments can be watched. */
+  run?: number;
+  clip?: boolean;
   durationSeconds: number | null;
   upgrades: EarnedUpgrade[] | null;
   wallet?: string;
@@ -235,6 +239,11 @@ export interface SurvivorBoard {
     previousId?: number;
   } | null;
   entries: SurvivorEntry[];
+}
+export interface SurvivorFinish {
+  destroyed: number;
+  run: number;
+  clip: boolean;
 }
 export interface SurvivorTicket {
   token: string;
@@ -263,6 +272,20 @@ export const api = {
   startSurvivorRun(): Promise<SurvivorTicket> {
     return requestJSON('/v1/survivors/runs', jsonRequest({}));
   },
+  /** A run's death clip, as the verifier saved it. */
+  async getSurvivorClip(run: number): Promise<DeathClip> {
+    const response = await fetch(
+      `${config.domain}/v1/survivors/runs/${encodeURIComponent(run)}/clip`
+    );
+    if (!response.ok)
+      throw new ApiError(
+        response.status === 404
+          ? 'This run has no replay.'
+          : `Request failed with HTTP ${response.status}`,
+        response.status
+      );
+    return readClip(await response.arrayBuffer());
+  },
   hasSurvivorSession(wallet: string) {
     return Boolean(cachedSession('survivor', wallet));
   },
@@ -282,7 +305,7 @@ export const api = {
     if (!session)
       throw new ApiError('Sign in with your wallet to submit.', 401);
     try {
-      return await requestJSON<{ destroyed: number }>(
+      return await requestJSON<SurvivorFinish>(
         '/v1/survivors/runs/finish',
         jsonRequest({ token, replay, walletId }, session.token)
       );

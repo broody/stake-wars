@@ -81,6 +81,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 		mux.HandleFunc("POST /v1/survivors/runs", server.startSurvivorRun)
 		mux.HandleFunc("POST /v1/survivors/runs/finish", server.finishSurvivorRun)
 		mux.HandleFunc("POST /v1/survivors/runs/wallet", server.attachSurvivorWallet)
+		mux.HandleFunc("GET /v1/survivors/runs/{run}/clip", server.survivorClip)
 		mux.HandleFunc("POST /v1/survivors/profile/wallet", server.setSurvivorWalletName)
 		mux.HandleFunc("GET /v1/survivors/profile", server.survivorWalletProfile)
 		mux.HandleFunc("POST /v1/survivors/profile", server.survivorProfile)

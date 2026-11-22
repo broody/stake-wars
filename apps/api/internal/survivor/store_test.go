@@ -56,8 +56,8 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 		t.Helper()
 		verified.Destroyed = score
 		n, err := s.Finish(ctx, ticket.Token, wallet, nil, kinds)
-		if err != nil || n != score {
-			t.Fatalf("finish %d: %d %v", score, n, err)
+		if err != nil || n.Destroyed != score {
+			t.Fatalf("finish %d: %d %v", score, n.Destroyed, err)
 		}
 	}
 	// An earlier start does not break a tie. The first recorded best does.
@@ -66,7 +66,7 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	first := start()
 	finish(first, "0x2", 51)
 	duration := verified.DurationSeconds
-	wantTie := Entry{WalletKind: "outis", Wallet: "0x2", Destroyed: 51, DurationSeconds: &duration, Upgrades: verified.Upgrades}
+	wantTie := Entry{Run: 1, WalletKind: "outis", Wallet: "0x2", Destroyed: 51, DurationSeconds: &duration, Upgrades: verified.Upgrades}
 	verified.DurationSeconds = 180
 	verified.Upgrades = []Upgrade{{Kind: "weapon", Name: "Bolt Caster", Level: 1}}
 	// The two tied scores even share a clock timestamp.
@@ -78,8 +78,8 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	verified.Upgrades = []Upgrade{}
 	finish(late, "0x3", 150)
 	verified.Destroyed = 999
-	if n, err := s.Finish(ctx, late.Token, "0x3", nil, kinds); err != nil || n != 150 {
-		t.Fatalf("retry: %d %v", n, err)
+	if n, err := s.Finish(ctx, late.Token, "0x3", nil, kinds); err != nil || n.Destroyed != 150 {
+		t.Fatalf("retry: %d %v", n.Destroyed, err)
 	}
 	finish(start(), "0x2", 51)
 	if _, err := s.Finish(ctx, first.Token, "0x4", nil, kinds); !errors.Is(err, ErrTicket) {
@@ -169,7 +169,7 @@ func TestBoardReadsOlderScoresWithoutDetails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := Entry{Wallet: "0x5", Destroyed: 25}
+	expected := Entry{Run: 1, Wallet: "0x5", Destroyed: 25}
 	if len(board.Entries) != 1 || !reflect.DeepEqual(board.Entries[0], expected) || !reflect.DeepEqual(board.Round.Winner, &expected) {
 		t.Fatalf("expected original score with unrecorded details: %+v", board)
 	}

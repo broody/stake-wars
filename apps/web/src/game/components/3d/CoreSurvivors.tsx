@@ -279,7 +279,9 @@ export default function CoreSurvivors({ active }: { active: boolean }) {
     camera.lookAt(look);
     camera.updateMatrixWorld();
     if (
+      // Ranked runs and their clips keep the fixed view that spawns read.
       !survivorsSession.replay &&
+      !survivorsSession.watchingClip &&
       run.status !== 'fallen' &&
       !survivorsSession.opening
     ) {

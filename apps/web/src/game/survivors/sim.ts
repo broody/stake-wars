@@ -453,9 +453,39 @@ export interface Banner {
   age: number;
 }
 
-interface Timer {
-  at: number;
-  run: () => void;
+/**
+ * Something the run does at a later time. The simulation's own timers are
+ * plain data, so a saved run can resume them. Previews and tools may still
+ * schedule a callback, but a run holding one cannot be saved.
+ */
+type Timer = { at: number } & ({ run: () => void } | SaberRelease | ChainHop);
+
+/** The moment a saber swing's blade lands. */
+interface SaberRelease {
+  kind: 'saber';
+  attack: SaberAttack;
+  side: number;
+  evolved: boolean;
+  reach: number;
+  width: number;
+  arc: number;
+  amount: number;
+}
+
+/** An Orbital Strike chain arriving at its next target. */
+interface ChainHop {
+  kind: 'chain';
+  link: Effect & { kind: 'chain' };
+  next: Enemy;
+  chain: OrbitalChain;
+  remaining: number;
+  amount: number;
+  radius: number;
+}
+
+/** The random generator's state. It lives in the run so a saved run resumes the same sequence. */
+export interface RandomState {
+  state: number;
 }
 
 export interface Run {
@@ -467,6 +497,8 @@ export interface Run {
   levelPace: number;
   /** Aegis settings a balance sweep tries in place of the ground settings. */
   aegisTuning?: Partial<AegisTuning>;
+  rng: RandomState;
+  /** Draws from `rng`. */
   random: () => number;
   status: RunStatus;
   time: number;
@@ -613,15 +645,17 @@ export const xpForLevel = (level: number, pace = LEVEL_PACE) =>
     Math.round((XP_CURVE.base + XP_CURVE.growth * level * level) / pace)
   );
 
-export function seededRandom(seed: number) {
-  let state = seed >>> 0;
+/** A generator that advances the state object it is given. */
+export function randomFrom(rng: RandomState) {
   return () => {
-    state = (state + 0x6d2b79f5) | 0;
+    const state = (rng.state = (rng.state + 0x6d2b79f5) | 0);
     let t = Math.imul(state ^ (state >>> 15), 1 | state);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+export const seededRandom = (seed: number) => randomFrom({ state: seed >>> 0 });
 
 function newWeapon(id: WeaponId): Weapon {
   return {
@@ -659,7 +693,8 @@ export function createRun(
 ): Run {
   const spec = HEROES[hero];
   const levelPace = setup.levelPace ?? LEVEL_PACE;
-  const random = seededRandom(seed);
+  const rng = { state: seed >>> 0 };
+  const random = randomFrom(rng);
   const n = setup.landing
     ? copy(vec3(), setup.landing.normal)
     : randomUnit(vec3(), random);
@@ -672,6 +707,7 @@ export function createRun(
     pace: setup.pace ?? PACE,
     levelPace,
     aegisTuning: setup.aegis,
+    rng,
     random,
     status: 'playing',
     deathAge: 0,
@@ -1253,47 +1289,58 @@ function updateBlade(run: Run, weapon: Weapon, dt: number) {
     player.saberAttack = attack;
     run.timers.push({
       at: run.time + (SABER.impact / SABER.duration) * duration,
-      run: () => {
-        if (run.status === 'fallen') return;
-        const n = copy(vec3(), player.n),
-          dir = copy(vec3(), attack.forward);
-        releaseCrescents(run, n, dir, side, evolved);
-        if (evolved) {
-          hitCircle(run, n, reach, amount, 'blade', 2.4);
-          addEffect(run, {
-            kind: 'eclipse',
-            n,
-            dir,
-            radius: reach,
-            age: 0,
-            life: 0.3,
-          });
-          return;
-        }
-        addEffect(run, {
-          kind: 'sweep',
-          n,
-          dir,
-          side,
-          reach,
-          width,
-          arc,
-          age: 0,
-          life: SABER.effectLife,
-        });
-        const right = cross(vec3(), dir, n);
-        for (const enemy of nearby(run, n, reach + 0.4)) {
-          if (enemy.dead) continue;
-          set(offset, enemy.n.x - n.x, enemy.n.y - n.y, enemy.n.z - n.z);
-          const x = dot(offset, right) * run.groundRadius * side;
-          const y = dot(offset, dir) * run.groundRadius;
-          if (saberHits(x, y, reach, width, arc, enemy.spec.radius))
-            damage(run, enemy, amount, 'blade', 1.12);
-        }
-      },
+      kind: 'saber',
+      attack,
+      side,
+      evolved,
+      reach,
+      width,
+      arc,
+      amount,
     });
   };
   start(aim.side, aim.forward);
+}
+
+function releaseSaber(run: Run, timer: SaberRelease) {
+  const { attack, side, evolved, reach, width, arc, amount } = timer;
+  const player = run.player;
+  if (run.status === 'fallen') return;
+  const n = copy(vec3(), player.n),
+    dir = copy(vec3(), attack.forward);
+  releaseCrescents(run, n, dir, side, evolved);
+  if (evolved) {
+    hitCircle(run, n, reach, amount, 'blade', 2.4);
+    addEffect(run, {
+      kind: 'eclipse',
+      n,
+      dir,
+      radius: reach,
+      age: 0,
+      life: 0.3,
+    });
+    return;
+  }
+  addEffect(run, {
+    kind: 'sweep',
+    n,
+    dir,
+    side,
+    reach,
+    width,
+    arc,
+    age: 0,
+    life: SABER.effectLife,
+  });
+  const right = cross(vec3(), dir, n);
+  for (const enemy of nearby(run, n, reach + 0.4)) {
+    if (enemy.dead) continue;
+    set(offset, enemy.n.x - n.x, enemy.n.y - n.y, enemy.n.z - n.z);
+    const x = dot(offset, right) * run.groundRadius * side;
+    const y = dot(offset, dir) * run.groundRadius;
+    if (saberHits(x, y, reach, width, arc, enemy.spec.radius))
+      damage(run, enemy, amount, 'blade', 1.12);
+  }
 }
 
 function fireBolt(
@@ -1523,7 +1570,7 @@ function chainStrike(
   const next = nearestEnemy(run, from, 1.1, chain.targets);
   if (!next) return;
   chain.targets.add(next);
-  const link: Effect = {
+  const link: Effect & { kind: 'chain' } = {
     kind: 'chain',
     a: from,
     b: next.n,
@@ -1533,14 +1580,23 @@ function chainStrike(
   addEffect(run, link);
   run.timers.push({
     at: run.time + CHAIN_TRAVEL - 1e-9,
-    run: () => {
-      // Lock the endpoint even if the target moves on or dies in flight.
-      link.b = copy(vec3(), next.n);
-      strikeAt(run, link.b, amount, radius, chain, true);
-      if (remaining > 1)
-        chainStrike(run, link.b, chain, remaining - 1, amount, radius);
-    },
+    kind: 'chain',
+    link,
+    next,
+    chain,
+    remaining,
+    amount,
+    radius,
   });
+}
+
+function landChainHop(run: Run, timer: ChainHop) {
+  const { link, next, chain, remaining, amount, radius } = timer;
+  // Lock the endpoint even if the target moves on or dies in flight.
+  link.b = copy(vec3(), next.n);
+  strikeAt(run, link.b, amount, radius, chain, true);
+  if (remaining > 1)
+    chainStrike(run, link.b, chain, remaining - 1, amount, radius);
 }
 
 const STRIKE_RANKS = [
@@ -3257,7 +3313,9 @@ export function tick(run: Run, dt: number, input: MoveInput) {
     if (timer.at > run.time) continue;
     run.timers.splice(i, 1);
     buildGrid(run);
-    timer.run();
+    if ('run' in timer) timer.run();
+    else if (timer.kind === 'saber') releaseSaber(run, timer);
+    else landChainHop(run, timer);
   }
   buildGrid(run);
   for (const weapon of run.weapons) WEAPON_UPDATES[weapon.id](run, weapon, dt);

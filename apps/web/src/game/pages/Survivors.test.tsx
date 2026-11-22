@@ -37,7 +37,10 @@ beforeEach(() => {
 vi.mock('@starknetfoundation/starknet-start-react', () => ({
   useSignTypedData: () => ({}),
 }));
-vi.mock('../survivors/session', () => ({ survivorsSession: {} }));
+vi.mock('../survivors/session', () => ({
+  survivorsSession: {},
+  WATCH_PARAM: 'watch',
+}));
 
 it('displays active time and expands the final skills for the selected score', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -445,7 +448,7 @@ it('shows the automatic payment in the winner’s last cell without a claim', as
     );
     const [top, eligible] =
       node.querySelectorAll<HTMLTableRowElement>('tbody tr');
-    expect(top.cells[4].textContent).toBe('');
+    expect(top.cells[5].textContent).toBe('');
     const lastCell = eligible.cells[eligible.cells.length - 1];
     expect(lastCell.textContent).toMatch(/^Sending 100 STRKView transaction/);
     expect(node.querySelector('tbody button:not([aria-expanded])')).toBeNull();
@@ -455,5 +458,106 @@ it('shows the automatic payment in the winner’s last cell without a claim', as
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
+  }
+});
+
+it('plays a score’s final moments from its row and from a shared link', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const { survivorsSession } = await import('../survivors/session');
+  const loadClip = vi.fn().mockResolvedValue(undefined);
+  Object.assign(survivorsSession, { loadClip });
+  vi.mocked(api.getSurvivorBoard).mockResolvedValue({
+    network: config.starknetChainId,
+    payoutsEnabled: false,
+    round: null,
+    entries: [
+      {
+        run: 12,
+        clip: true,
+        wallet: '0x123',
+        name: 'Moon Pilot',
+        destroyed: 40,
+        durationSeconds: 300,
+        upgrades: [],
+      },
+      {
+        run: 13,
+        wallet: '0x456',
+        destroyed: 30,
+        durationSeconds: 200,
+        upgrades: [],
+      },
+    ],
+  });
+  const render = async (path: string) => {
+    const node = document.createElement('div');
+    const root = createRoot(node);
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/survivors" element={<Survivors />} />
+            <Route path="/" element={<p>Core</p>} />
+          </Routes>
+        </MemoryRouter>
+      );
+    });
+    return { node, root };
+  };
+  // The replay column plays a clip straight from the collapsed row.
+  const listed = await render('/survivors');
+  try {
+    const [clipped, plain] =
+      listed.node.querySelectorAll<HTMLTableRowElement>('tbody tr');
+    expect(plain.querySelector('[aria-label="No replay"]')).not.toBeNull();
+    expect(plain.cells[4].querySelector('button')).toBeNull();
+    await act(async () =>
+      clipped
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Watch Moon Pilot’s final moments"]'
+        )!
+        .click()
+    );
+    expect(loadClip).toHaveBeenLastCalledWith(12, { name: 'Moon Pilot' });
+    expect(listed.node.textContent).toBe('Core');
+  } finally {
+    act(() => listed.root.unmount());
+  }
+  const { node, root } = await render('/survivors');
+  try {
+    const [clipped, plain] =
+      node.querySelectorAll<HTMLTableRowElement>('tbody tr');
+    await act(async () => plain.cells[2].click());
+    expect(node.textContent).not.toContain('WATCH FINAL MOMENTS');
+    await act(async () => clipped.cells[2].click());
+    const watch = Array.from(node.querySelectorAll('button')).find(
+      (button) => button.textContent === 'WATCH FINAL MOMENTS'
+    )!;
+    await act(async () => watch.click());
+    expect(loadClip).toHaveBeenCalledTimes(2);
+    expect(loadClip).toHaveBeenLastCalledWith(12, { name: 'Moon Pilot' });
+    expect(node.textContent).toBe('Core');
+  } finally {
+    act(() => root.unmount());
+  }
+  const linked = await render('/survivors?watch=12');
+  try {
+    expect(loadClip).toHaveBeenLastCalledWith(12, null);
+    expect(linked.node.textContent).toBe('Core');
+  } finally {
+    act(() => linked.root.unmount());
+  }
+  // A link to a clip that is gone says so on the leaderboard.
+  loadClip.mockRejectedValueOnce(new Error('This run has no replay.'));
+  const missing = await render('/survivors?watch=99');
+  try {
+    expect(loadClip).toHaveBeenLastCalledWith(99, null);
+    expect(
+      missing.node.querySelector(
+        'section[aria-label="Leaderboard"] [role="alert"]'
+      )?.textContent
+    ).toBe('This run has no replay.');
+  } finally {
+    act(() => missing.root.unmount());
   }
 });

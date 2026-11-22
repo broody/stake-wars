@@ -87,7 +87,31 @@ func (s *server) finishSurvivorRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, map[string]int{"destroyed": score})
+	writeJSON(w, http.StatusOK, score)
+}
+
+// survivorClip serves a run's death clip as the verifier wrote it: gzipped
+// JSON that the game decompresses itself.
+func (s *server) survivorClip(w http.ResponseWriter, r *http.Request) {
+	run, err := strconv.ParseInt(r.PathValue("run"), 10, 64)
+	if err != nil || run < 1 {
+		writeProblem(w, 400, "invalid request", "run must be a positive integer")
+		return
+	}
+	clip, err := s.survivors.Clip(r.Context(), run)
+	if errors.Is(err, survivor.ErrNoClip) {
+		writeProblem(w, 404, "no death clip", err.Error())
+		return
+	}
+	if err != nil {
+		s.survivorError(w, r, err)
+		return
+	}
+	// A run's clip never changes. Pruning only removes it.
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(clip)
 }
 
 func (s *server) survivorWalletProfile(w http.ResponseWriter, r *http.Request) {

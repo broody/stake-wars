@@ -31,7 +31,11 @@ import { WalletMark } from '../components/ui/WalletMark';
 import { walletLabel } from '../utils/wallets';
 import { api, type SurvivorBoard } from '../services/api';
 import { config } from '../services/config';
-import { survivorsSession } from '../survivors/session';
+import {
+  survivorsSession,
+  WATCH_PARAM,
+  type ClipPlayerName,
+} from '../survivors/session';
 import {
   addressesMatch,
   formatCountdown,
@@ -54,8 +58,41 @@ export function Survivors() {
   const [scope, setScope] = useState<'round' | 'all'>('round');
   const [refresh, setRefresh] = useState(0);
   const [now, setNow] = useState(Date.now);
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const viewedRound = params.get('round') || undefined;
+  const [watching, setWatching] = useState<number | null>(null);
+  const [watchError, setWatchError] = useState('');
+  async function watch(run: number, player: ClipPlayerName) {
+    if (watching !== null) return;
+    setWatching(run);
+    setWatchError('');
+    try {
+      await survivorsSession.loadClip(run, player);
+      navigate(`/?survive=1&${WATCH_PARAM}=${run}`);
+    } catch (reason) {
+      setWatchError(
+        reason instanceof Error ? reason.message : 'Could not load the replay.'
+      );
+    } finally {
+      setWatching(null);
+    }
+  }
+  // A shared link names a run. Play its clip once, then drop it from the address.
+  const linkedRun = Number(params.get(WATCH_PARAM));
+  useEffect(() => {
+    if (!Number.isSafeInteger(linkedRun) || linkedRun < 1) return;
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete(WATCH_PARAM);
+        return next;
+      },
+      { replace: true }
+    );
+    void watch(linkedRun, null);
+    // Only a new link starts a replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedRun]);
   useEffect(() => {
     if (!address) return;
     const flush = () => void retrySurvivorRuns(address);
@@ -299,6 +336,11 @@ export function Survivors() {
               </p>
             )}
           </SectionHeading>
+          {watchError && (
+            <Callout className="mt-3" tone="warning" role="alert">
+              {watchError}
+            </Callout>
+          )}
           {round && (
             <SegmentedControl
               label="Leaderboard period"
@@ -325,6 +367,9 @@ export function Survivors() {
                       <TableHeaderCell>Player</TableHeaderCell>
                       <TableHeaderCell numeric>Destroyed</TableHeaderCell>
                       <TableHeaderCell numeric>Duration</TableHeaderCell>
+                      <TableHeaderCell className="text-right">
+                        Replay
+                      </TableHeaderCell>
                       {showPrizeColumn && (
                         <TableHeaderCell className="text-right">
                           Prize
@@ -406,6 +451,29 @@ export function Survivors() {
                                 ? 'Unrecorded'
                                 : formatSurvivalTime(entry.durationSeconds)}
                             </TableCell>
+                            <TableCell className="text-right">
+                              {entry.clip && entry.run ? (
+                                <Button
+                                  tone="accent"
+                                  size="sm"
+                                  className="w-8 px-0"
+                                  aria-label={`Watch ${name}’s final moments`}
+                                  busy={watching === entry.run}
+                                  onClick={() =>
+                                    void watch(entry.run!, { name })
+                                  }
+                                >
+                                  <PlayIcon />
+                                </Button>
+                              ) : (
+                                <span
+                                  className="text-fg-disabled"
+                                  aria-label="No replay"
+                                >
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
                             {showPrizeColumn && (
                               <TableCell className="text-right">
                                 {isWinner && round && (
@@ -421,10 +489,24 @@ export function Survivors() {
                           </TableRow>
                           {expanded && (
                             <TableRow id={id}>
-                              <TableCell colSpan={showPrizeColumn ? 5 : 4}>
+                              <TableCell colSpan={showPrizeColumn ? 6 : 5}>
                                 <SurvivorFinalSkills
                                   upgrades={entry.upgrades}
                                 />
+                                {entry.clip && entry.run && (
+                                  <div className="mt-3">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      busy={watching === entry.run}
+                                      onClick={() =>
+                                        void watch(entry.run!, { name })
+                                      }
+                                    >
+                                      WATCH FINAL MOMENTS
+                                    </Button>
+                                  </div>
+                                )}
                               </TableCell>
                             </TableRow>
                           )}
@@ -513,5 +595,20 @@ function WinnerPrize({
         </div>
       )}
     </div>
+  );
+}
+
+/** A play triangle for the leaderboard's replay buttons. */
+function PlayIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width={14}
+      height={14}
+      aria-hidden="true"
+      fill="currentColor"
+    >
+      <path d="M4 2.5v11l9-5.5z" />
+    </svg>
   );
 }

@@ -38,6 +38,7 @@ import { pairedWeapons } from '../../survivors/content';
 import type { Aegis } from '../../survivors/aegis';
 import { SurvivorsIcon, SurvivorUpgradeTile } from './SurvivorsIcon';
 import { SurvivorControls } from './SurvivorControls';
+import { ClipBadge, ClipCaption, WatchClipButton } from './SurvivorClip';
 import { StrikeLevelSelect } from './StrikeLevelSelect';
 import { ENEMY_TELEGRAPHS } from '../../survivors/renderFrame';
 
@@ -398,9 +399,21 @@ export function CoreSurvivorsHud() {
 
   const ticket = survivorsSession.ticket;
   const scoreResult = survivorsSession.scoreResult;
+  const recorded =
+    scoreResult && 'destroyed' in scoreResult ? scoreResult : null;
+  const submitError =
+    address &&
+    scoreResult &&
+    'error' in scoreResult &&
+    addressesMatch(address, scoreResult.wallet)
+      ? scoreResult.error
+      : '';
   const fallen =
     survivorsSession.atRankedLimit ||
     (run?.status === 'fallen' && run.deathAge >= DEATH_RESULTS_DELAY);
+  // The wallet that can still submit this ranked run's score.
+  const submitAs =
+    fallen && survivorsSession.replay && !recorded ? address : undefined;
   useEffect(() => {
     if (!fallen || !ticket || !address || !api.hasSurvivorSession(address))
       return;
@@ -456,7 +469,9 @@ export function CoreSurvivorsHud() {
 
   return (
     <div className="absolute inset-0 z-[5] font-mono">
-      {run.status === 'playing' && !paused ? <SurvivorControls /> : null}
+      {run.status === 'playing' && !paused && !survivorsSession.watchingClip ? (
+        <SurvivorControls />
+      ) : null}
       {run.hurtFlash > 0 ? (
         <div
           aria-hidden="true"
@@ -495,6 +510,7 @@ export function CoreSurvivorsHud() {
           <Loadout run={run} />
         </div>
         <div className="grid justify-items-center gap-3 text-center">
+          <ClipBadge />
           <div>
             <div className="text-label text-fg-subtle">DESTROYED</div>
             <div className="text-figure tabular-nums text-fg">
@@ -746,7 +762,11 @@ export function CoreSurvivorsHud() {
             RESUME
           </Button>
           <Button variant="outline" onClick={restart}>
-            {survivorsSession.replay ? 'BACK TO LOBBY' : 'RESTART'}
+            {survivorsSession.replay
+              ? 'BACK TO LOBBY'
+              : survivorsSession.watchingClip
+                ? 'WATCH AGAIN'
+                : 'RESTART'}
           </Button>
           {!survivorsSession.replay && (
             <Button variant="ghost" onClick={leave}>
@@ -779,56 +799,67 @@ export function CoreSurvivorsHud() {
           <Stat label="LEVEL" value={player.level} />
         </StatGrid>
         <DamageTable run={run} />
-        {fallen && survivorsSession.replay && (
-          <div
-            role="status"
-            className="border-t border-line px-5 py-3 text-caption text-fg-secondary"
-          >
-            {scoreResult && 'destroyed' in scoreResult ? (
-              <div className="space-y-2">
-                <p>Score recorded for {shortAddress(scoreResult.wallet)}</p>
-                {address && addressesMatch(address, scoreResult.wallet) && (
-                  <SurvivorName address={scoreResult.wallet} />
-                )}
-              </div>
-            ) : survivorsSession.submitting ? (
-              'Submitting score…'
-            ) : address ? (
-              <div className="space-y-2">
-                {scoreResult &&
-                  'error' in scoreResult &&
-                  addressesMatch(address, scoreResult.wallet) && (
-                    <p role="alert">{scoreResult.error}</p>
+        <ClipCaption />
+        {fallen &&
+          survivorsSession.replay &&
+          (recorded || submitError || !address) && (
+            <div
+              role="status"
+              className="border-t border-line px-5 py-3 text-caption text-fg-secondary"
+            >
+              {recorded ? (
+                <div className="space-y-2">
+                  <p>Score recorded for {shortAddress(recorded.wallet)}</p>
+                  {address && addressesMatch(address, recorded.wallet) && (
+                    <SurvivorName address={recorded.wallet} />
                   )}
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    void survivorsSession.submitScore(
-                      address,
-                      signTypedDataAsync,
-                      walletId
-                    )
-                  }
-                >
-                  Submit score as {shortAddress(address)}
-                </Button>
-              </div>
-            ) : (
-              <WalletButton
-                variant="block"
-                label="Connect wallet to submit score"
-              />
-            )}
-          </div>
-        )}
+                  {recorded.clip && (
+                    <WatchClipButton
+                      run={recorded.run}
+                      player={{ own: true }}
+                      groundRadius={run.groundRadius}
+                    />
+                  )}
+                </div>
+              ) : submitError ? (
+                <p role="alert">{submitError}</p>
+              ) : (
+                <WalletButton
+                  variant="block"
+                  label="Connect wallet to submit score"
+                />
+              )}
+            </div>
+          )}
         <div className="flex flex-wrap gap-3 border-t border-line px-5 py-4">
-          <Button ref={retryRef} tone="accent" onClick={restart}>
-            {survivorsSession.replay ? 'LEADERBOARD' : 'TRY AGAIN'}
-          </Button>
-          {!survivorsSession.replay && (
-            <Button variant="ghost" onClick={leave}>
+          {submitAs && (
+            <Button
+              tone="gold"
+              busy={survivorsSession.submitting}
+              onClick={() =>
+                void survivorsSession.submitScore(
+                  submitAs,
+                  signTypedDataAsync,
+                  walletId
+                )
+              }
+            >
+              Submit score as {shortAddress(submitAs)}
+            </Button>
+          )}
+          {survivorsSession.replay ? (
+            <Button ref={retryRef} className="ml-auto" onClick={restart}>
               LEADERBOARD
             </Button>
+          ) : (
+            <>
+              <Button ref={retryRef} tone="accent" onClick={restart}>
+                {survivorsSession.watchingClip ? 'WATCH AGAIN' : 'TRY AGAIN'}
+              </Button>
+              <Button variant="ghost" onClick={leave}>
+                LEADERBOARD
+              </Button>
+            </>
           )}
         </div>
       </Dialog>
