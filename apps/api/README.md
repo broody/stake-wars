@@ -277,8 +277,9 @@ The prize tie goes to the first verified Outis account to register that score.
 The API checks the
 deployed class of each submitting account against Outis Wallet's account class
 list. A closed round's `winner` is the highest-scoring Outis wallet. A round
-with no eligible scores closes without a payout. The API opens a fresh 100 STRK
-round at the cutoff, with empty standings and the next eligible 03:00 UTC
+with no eligible scores closes without a payout. At every cutoff the API opens a
+fresh 100 STRK round, whether or not the closed round had a winner. The new
+round starts with empty standings and the next eligible 03:00 UTC
 deadline. After downtime it opens the current contest once. Earlier rounds
 remain available by ID. Each new daily round records a fixed
 prize of 100 STRK (100000000000000000000 base units). Existing rounds retain

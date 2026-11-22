@@ -105,11 +105,16 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	if _, err = s.Start(ctx, id); !errors.Is(err, ErrClosed) {
 		t.Fatal(err)
 	}
-	if _, err := s.Open(ctx, end.Add(24*time.Hour-time.Second)); !errors.Is(err, ErrDay) {
-		t.Fatal(err)
+	// The deadline opened the next daily round even though this one has a winner.
+	board, err = s.Board(ctx, 0)
+	if err != nil || board.Round == nil || board.Round.ID != id+1 || board.Round.Closed || board.Round.PreviousID == nil || *board.Round.PreviousID != id {
+		t.Fatalf("next round %+v, %v", board.Round, err)
 	}
-	next, err := s.Open(ctx, end.Add(24*time.Hour))
-	if err != nil {
+	next, nextDeadline := board.Round.ID, board.Round.Deadline
+	if nextDeadline.Sub(end) < 24*time.Hour {
+		t.Fatalf("next deadline %s is less than a day after %s", nextDeadline, end)
+	}
+	if _, err := s.Open(ctx, nextDeadline.Add(time.Hour)); !errors.Is(err, ErrOverlap) {
 		t.Fatal(err)
 	}
 	// A fresh process can retrieve the exact payout record for either round.
@@ -124,7 +129,7 @@ func TestRoundRanksBestDestroyedAndFreezesWinner(t *testing.T) {
 	if err != nil || !board.Round.Closed || board.Round.Winner == nil || !reflect.DeepEqual(*board.Round.Winner, wantWinner) {
 		t.Fatalf("closed board %+v, %v", board, err)
 	}
-	reader.Now = func() time.Time { return end.Add(24 * time.Hour) }
+	reader.Now = func() time.Time { return nextDeadline }
 	board, err = reader.Board(ctx, next)
 	if err != nil || board.Round.ID != next || !board.Round.Closed || board.Round.Winner != nil || len(board.Entries) != 0 {
 		t.Fatalf("closed empty round %+v, %v", board, err)

@@ -91,11 +91,9 @@ func TestRolloverOnDailyCutoff(t *testing.T) {
 			if !history.Round.Closed || (tc.player != "" && len(history.Entries) != 1) {
 				t.Fatal(history)
 			}
-			if tc.outis {
-				if current.Round.ID != id || current.Round.Winner == nil || current.Round.Winner.Wallet != tc.player {
-					t.Fatal(current)
-				}
-				return
+			// The closed round keeps its winner, and the next round opens either way.
+			if tc.outis != (history.Round.Winner != nil) || (tc.outis && history.Round.Winner.Wallet != tc.player) {
+				t.Fatal(history.Round)
 			}
 			next := current.Round
 			if next == nil || next.ID != id+1 || next.PreviousID == nil || *next.PreviousID != id || next.Closed || next.Winner != nil || next.PrizeAmount == nil || *next.PrizeAmount != DailyPrize || len(current.Entries) != 0 || !next.Deadline.Equal(cutoff.Add(24*time.Hour)) {

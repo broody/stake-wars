@@ -17,7 +17,8 @@ func NextDailyDeadline(now time.Time) time.Time {
 	return cutoff
 }
 
-// Reconcile renews the latest daily prize when its deadline passes without an eligible score.
+// Reconcile opens the next daily prize round when the latest one's deadline
+// passes. It does this whether or not the closed round had a winner.
 func (s *Store) Reconcile(ctx context.Context) error {
 	return s.rollOver(ctx, s.Now())
 }
@@ -27,9 +28,9 @@ func (s *Store) rollOver(ctx context.Context, now time.Time) error {
 	// identifies the predecessor when this process races another round opener.
 	var previous int64
 	err := s.DB.QueryRowContext(ctx, `SELECT deadline FROM (
-        SELECT deadline,prize_amount,leader_wallet FROM survivor_rounds
+        SELECT deadline,prize_amount FROM survivor_rounds
         WHERE network=? ORDER BY deadline DESC LIMIT 1
-    ) WHERE deadline<=? AND prize_amount=? AND leader_wallet IS NULL`, s.Network, now.Unix(), DailyPrize).Scan(&previous)
+    ) WHERE deadline<=? AND prize_amount=?`, s.Network, now.Unix(), DailyPrize).Scan(&previous)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -43,7 +44,7 @@ func (s *Store) rollOver(ctx context.Context, now time.Time) error {
 	}
 	_, err = s.DB.ExecContext(ctx, `INSERT INTO survivor_rounds(network,deadline,prize_amount)
         SELECT network,?,prize_amount FROM survivor_rounds AS previous
-        WHERE network=? AND deadline=? AND leader_wallet IS NULL AND prize_amount=?
+        WHERE network=? AND deadline=? AND prize_amount=?
           AND NOT EXISTS (SELECT 1 FROM survivor_rounds WHERE network=previous.network AND deadline>previous.deadline)`,
 		next.Unix(), s.Network, previous, DailyPrize)
 	return err
