@@ -77,13 +77,13 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     pair: 'amplifier',
     evolution: 'Chain Barrage',
     evolutionDetail:
-      'Fires every 0.43 seconds. Each strike can jump to four more enemies. Repeat hits from the same orbital deal half damage.',
+      'Strikes for 15 damage every 0.60 seconds. Up to four jumps deal half the initial damage. Repeat hits on an enemy deal half again.',
     levels: [
-      'Strikes a random enemy every 1.35 seconds.',
+      'Strikes a random enemy for 17 damage every 1.35 seconds.',
       'Strikes every 1.20 seconds with 20% more radius than level 1.',
-      'Strikes every 1.05 seconds with 44% more radius than level 1.',
-      'Strikes every 0.90 seconds for 22 damage with 70% more radius than level 1.',
-      'Strikes every 0.80 seconds with double the level 1 radius.',
+      'Strikes every 1.05 seconds for 18 damage with 44% more radius than level 1.',
+      'Strikes every 0.90 seconds for 19 damage with 70% more radius than level 1.',
+      'Strikes every 0.88 seconds for 20 damage with 80% more radius than level 1.',
     ],
   },
   charge: {

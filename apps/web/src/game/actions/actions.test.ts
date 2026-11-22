@@ -208,7 +208,7 @@ describe('Vanguard action scripts', () => {
     });
   });
 
-  it.each([1.35, 1.2, 1.05, 0.9, 0.8].map((period, i) => [i + 1, period]))(
+  it.each([1.35, 1.2, 1.05, 0.9, 0.88].map((period, i) => [i + 1, period]))(
     'spaces single impacts at rank %i by %f seconds, including across the loop',
     (strikeLevel, period) => {
       const { strikes, loop } = probeAction({
@@ -234,7 +234,7 @@ describe('Vanguard action scripts', () => {
       expect(hit).toMatchObject({ count: 1, linked: i % 5 !== 0 });
       const volley = Math.floor(i / 5);
       expect(hit.at - impacts[0].at).toBeCloseTo(
-        volley * (1.3 / 3) + (i % 5) * CHAIN_TRAVEL,
+        volley * 0.6 + (i % 5) * CHAIN_TRAVEL,
         5
       );
       driver.show(driver.runTime(hit.at + STEP));
@@ -248,7 +248,7 @@ describe('Vanguard action scripts', () => {
   });
 
   it('previews each Orbital Strike level against the same target', () => {
-    const radii = [0.5, 0.6, 0.72, 0.85, 1];
+    const radii = [0.5, 0.6, 0.72, 0.85, 0.9];
     const centers = radii.map((radius, i) => {
       const spec = { ...action('orbital-strike'), strikeLevel: i + 1 };
       const driver = new ActionDriver(spec, undefined);

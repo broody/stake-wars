@@ -1544,13 +1544,13 @@ function chainStrike(
 }
 
 const STRIKE_RANKS = [
-  { radius: RIPPLE.baseRadius, cooldown: 1.35, damage: 20 },
-  { radius: 0.6, cooldown: 1.2, damage: 20 },
-  { radius: 0.72, cooldown: 1.05, damage: 20 },
-  { radius: 0.85, cooldown: 0.9, damage: 22 },
-  { radius: 1.0, cooldown: 0.8, damage: 22 },
+  { radius: RIPPLE.baseRadius, cooldown: 1.35, damage: 17 },
+  { radius: 0.6, cooldown: 1.2, damage: 17 },
+  { radius: 0.72, cooldown: 1.05, damage: 18 },
+  { radius: 0.85, cooldown: 0.9, damage: 19 },
+  { radius: 0.9, cooldown: 0.88, damage: 20 },
 ] as const;
-const CHAIN_BARRAGE = { radius: 1.1, cooldown: 1.3 / 3, damage: 12 } as const;
+const CHAIN_BARRAGE = { radius: 1.1, cooldown: 0.6, damage: 15 } as const;
 
 export function orbitalStrikeRank(level: number, evolved: boolean) {
   return evolved ? CHAIN_BARRAGE : STRIKE_RANKS[level - 1];
@@ -1575,7 +1575,7 @@ function updateStrike(run: Run, weapon: Weapon, dt: number) {
     ? { targets: new Set([target]), damaged: new Set<Enemy>() }
     : undefined;
   strikeAt(run, at, amount, radius, chain);
-  if (chain) chainStrike(run, at, chain, 4, amount * 0.8, radius * 0.8);
+  if (chain) chainStrike(run, at, chain, 4, amount * 0.5, radius * 0.8);
 }
 
 const CHARGE_RANKS = [

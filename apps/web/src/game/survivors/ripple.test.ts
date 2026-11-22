@@ -18,7 +18,7 @@ describe('Orbital Strike ripples', () => {
     [2, false, 0.6],
     [3, false, 0.72],
     [4, false, 0.85],
-    [5, false, 1],
+    [5, false, 0.9],
     [5, true, 1.1],
   ] as const)(
     'uses the enlarged splash radius for rank %i, evolved %s',
@@ -75,7 +75,7 @@ describe('Orbital Strike ripples', () => {
     for (let i = 0; i < 5; i++)
       applyOffer(run, { kind: 'system', id: 'overclock', isNew: i === 0 });
     Object.assign(run.weapons[0], { level: 5, evolved: true, cooldown: DT });
-    const targets = [0.9, 1.55, 2.35, 3.1, 3.85].map((distance) => {
+    const targets = [0.9, 1.55, 2.35, 3.1, 3.85, 4.28].map((distance) => {
       const n = pointAt(
         vec3(),
         run.player.n,
@@ -90,7 +90,7 @@ describe('Orbital Strike ripples', () => {
     // Aim the first orbital at the near end of the line, then the next at the farthest visible Mite.
     run.random = () => 0.1;
     const hits = [];
-    for (let step = 0; step < 10; step++) {
+    for (let step = 0; step < 13; step++) {
       const hp = targets.map((enemy) => enemy.hp);
       run.cues.length = 0;
       tick(run, DT, still);
@@ -102,12 +102,13 @@ describe('Orbital Strike ripples', () => {
       run.random = () => 0.99;
     }
     expect(hits).toEqual([
-      ['strike', [12, 12, 0, 0, 0]],
-      ['chain', [5, 5, 10, 0, 0]],
-      ['chain', [0, 5, 5, 10, 0]],
-      ['strike', [0, 0, 12, 12, 12]],
-      // The last Mite took the new orbital, but this is its first hit from the older chain.
-      ['chain', [0, 0, 5, 5, 10]],
+      ['strike', [15, 15, 0, 0, 0, 0]],
+      ['chain', [4, 4, 8, 0, 0, 0]],
+      ['chain', [0, 4, 4, 8, 0, 0]],
+      ['chain', [0, 0, 4, 4, 8, 0]],
+      ['strike', [0, 0, 15, 15, 15, 15]],
+      // The far Mite took the new primary. Its first splash from the older chain still hits in full.
+      ['chain', [0, 0, 0, 4, 4, 8]],
     ]);
   });
 
@@ -135,9 +136,9 @@ describe('Orbital Strike ripples', () => {
       expect(shots.length).toBeLessThanOrEqual(1);
       if (shots.length) times.push(run.time);
     }
-    expect(times.length).toBe(10);
+    expect(times).toHaveLength(9);
     times.forEach((time, i) => {
-      expect(Math.abs(time - times[0] - i * 0.8 * 0.92)).toBeLessThan(DT);
+      expect(Math.abs(time - times[0] - i * 0.88 * 0.92)).toBeLessThan(DT);
     });
   });
 
