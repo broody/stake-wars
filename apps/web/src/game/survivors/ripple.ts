@@ -1,4 +1,5 @@
 import type { Vec3 } from './sphere';
+import * as portable from './portableMath';
 
 /**
  * An Orbital Strike pushes a single raised band out through the Sectors around
@@ -54,7 +55,9 @@ export function rippleHeight(distance: number, age: number, strength: number) {
   if (behind < 0 || behind > RIPPLE.width) return 0;
   const reach = rippleReach(strength);
   if (distance >= reach) return 0;
-  const pulse = Math.sin((Math.PI * behind) / RIPPLE.width);
+  const pulse = portable.sin((Math.PI * behind) / RIPPLE.width);
   const falloff = 1 - distance / reach;
-  return RIPPLE.height * Math.sqrt(strength) * pulse ** 2 * falloff ** 2;
+  return (
+    RIPPLE.height * Math.sqrt(strength) * pulse * pulse * falloff * falloff
+  );
 }

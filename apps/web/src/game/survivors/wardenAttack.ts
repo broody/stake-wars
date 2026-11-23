@@ -1,4 +1,5 @@
 import { cross, dot, normalize, pointAt, vec3, type Vec3 } from './sphere';
+import * as portable from './portableMath';
 
 /** StaffSlam's authored timing (24 fps); the simulation and renderer share it. */
 export const WARDEN_SLAM = {
@@ -28,11 +29,11 @@ export function insideWardenSlam(
   groundRadius: number
 ) {
   const alignment = Math.max(-1, Math.min(1, dot(origin, feet)));
-  if (alignment < Math.cos(WARDEN_SLAM.radius / groundRadius)) return false;
+  if (alignment < portable.cos(WARDEN_SLAM.radius / groundRadius)) return false;
   if (alignment >= 1 - 1e-12) return true;
   return (
     dot(feet, direction) >=
-    Math.sqrt(1 - alignment * alignment) * Math.cos(WARDEN_SLAM.halfAngle)
+    Math.sqrt(1 - alignment * alignment) * portable.cos(WARDEN_SLAM.halfAngle)
   );
 }
 
@@ -67,6 +68,6 @@ export function wardenSlamOrigin(
     out,
     normal,
     normalize(direction),
-    (Math.hypot(WARDEN_SLAM.tipX, WARDEN_SLAM.tipZ) * scale) / radius
+    (portable.hypot(WARDEN_SLAM.tipX, WARDEN_SLAM.tipZ) * scale) / radius
   );
 }

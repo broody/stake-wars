@@ -96,6 +96,7 @@ import {
   saberAim,
   type SaberAttack,
 } from './saberAttack';
+import * as portable from './portableMath';
 
 export { ENEMIES, HEROES, SYSTEMS, WEAPONS };
 export type { EnemyKind, HeroId, SystemId, WeaponId };
@@ -1155,7 +1156,7 @@ export function hurtPlayer(
   player.invulnerable = 0.6;
   const aegis = player.aegis;
   const incoming = tangentToward(vec3(), player.n, source, player.heading);
-  const bearing = Math.atan2(
+  const bearing = portable.atan2(
     -dot(incoming, run.right),
     dot(incoming, player.forward)
   );
@@ -1410,7 +1411,7 @@ function updateBolts(run: Run, weapon: Weapon, dt: number) {
       prev: copy(vec3(), player.heading),
       forward: copy(vec3(), player.heading),
     });
-    const turn = Math.atan2(
+    const turn = portable.atan2(
       dot(cross(offset, barrel.forward, direction), player.n),
       dot(barrel.forward, direction)
     );
@@ -1459,7 +1460,7 @@ export function shardOrbitRadius(
   time: number
 ) {
   return evolved
-    ? (1.48 + 0.52 * Math.sin(time * 2.2)) * area
+    ? (1.48 + 0.52 * portable.sin(time * 2.2)) * area
     : (level >= 3 ? 1.16 : 1.1) * area;
 }
 
@@ -1973,8 +1974,8 @@ function onScreen(run: Run, dir: Vec3, inset = 0) {
   const { view } = run;
   const horizontal = dot(dir, run.right),
     vertical = dot(dir, run.player.forward);
-  const cos = Math.cos(view.yaw),
-    sin = Math.sin(view.yaw);
+  const cos = portable.cos(view.yaw),
+    sin = portable.sin(view.yaw);
   const x = horizontal * cos + vertical * sin;
   const y = vertical * cos - horizontal * sin;
   let edge = Infinity;
@@ -2103,13 +2104,11 @@ function director(run: Run, dt: number) {
   // Ease crowd growth and non-boss HP through the opening. After Legion minute
   // six, accelerate back onto the original late-game curve. Wave and enemy
   // unlock times still use the full Legion clock.
-  const pressure = Math.min(
-    minutes,
-    0.14 * (minutes + Math.max(0, minutes - 6) ** 2)
-  );
+  const late = Math.max(0, minutes - 6);
+  const pressure = Math.min(minutes, 0.14 * (minutes + late * late));
   run.healthScale =
     (1 + 0.32 * pressure + 0.045 * pressure * pressure) *
-    Math.pow(HEALTH_RAMP.rate, Math.max(0, pressure - HEALTH_RAMP.from));
+    portable.pow(HEALTH_RAMP.rate, Math.max(0, pressure - HEALTH_RAMP.from));
   let alive = 0;
   let soloSeekers = 0;
   for (const enemy of run.enemies) {
@@ -2160,7 +2159,7 @@ export function offsetPoint(
     dir.y * along + perp.y * across,
     dir.z * along + perp.z * across
   );
-  const length = Math.hypot(v.x, v.y, v.z);
+  const length = portable.hypot(v.x, v.y, v.z);
   return pointAt(vec3(), n, normalize(v), length / run.groundRadius);
 }
 
@@ -2355,8 +2354,8 @@ function updateBulwarkThrust(run: Run, enemy: Enemy, dt: number) {
   if (!attack.hit && start < end) {
     const right = cross(vec3(), attack.origin, attack.direction);
     const local = (n: Vec3) => [
-      Math.atan2(dot(n, right), dot(n, attack.origin)) * run.groundRadius,
-      Math.atan2(dot(n, attack.direction), dot(n, attack.origin)) *
+      portable.atan2(dot(n, right), dot(n, attack.origin)) * run.groundRadius,
+      portable.atan2(dot(n, attack.direction), dot(n, attack.origin)) *
         run.groundRadius,
     ];
     const a = local(run.player.prev),
@@ -2419,8 +2418,8 @@ function displaceBulwarkCrowds(run: Run, dt: number) {
     if (start >= end) continue;
     const right = cross(vec3(), attack.origin, attack.direction);
     const local = (n: Vec3) => [
-      Math.atan2(dot(n, right), dot(n, attack.origin)) * run.groundRadius,
-      Math.atan2(dot(n, attack.direction), dot(n, attack.origin)) *
+      portable.atan2(dot(n, right), dot(n, attack.origin)) * run.groundRadius,
+      portable.atan2(dot(n, attack.direction), dot(n, attack.origin)) *
         run.groundRadius,
     ];
     const boundsAt = (time: number) => {
@@ -2527,7 +2526,7 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
         rotateAbout(
           enemy.aim,
           enemy.n,
-          -Math.atan2((bounds.left + bounds.right) / 2, Math.max(gap, 0.2))
+          -portable.atan2((bounds.left + bounds.right) / 2, Math.max(gap, 0.2))
         );
         enemy.mode = 'thrust';
         enemy.thrust = {
@@ -2691,7 +2690,7 @@ function behave(run: Run, enemy: Enemy, dt: number, gap: number): number {
             VOLT_LEAP.maxDistance,
             2 *
               run.groundRadius *
-              Math.asin(Math.min(1, gap / (2 * run.groundRadius)))
+              portable.asin(Math.min(1, gap / (2 * run.groundRadius)))
           ),
           impacted: false,
           elapsed: VOLT_LEAP.start,
@@ -2914,7 +2913,7 @@ function updateEnemies(run: Run, dt: number) {
         tangentToward(toward, enemy.n, enemy.knockFrom, enemy.heading);
         set(toward, -toward.x, -toward.y, -toward.z);
         stepAlong(enemy.n, toward, (enemy.knock * dt) / radius);
-        enemy.knock *= Math.exp(-8 * dt);
+        enemy.knock *= portable.exp(-8 * dt);
       }
     }
     if (enemy.straight && enemy.travel > enemy.maxTravel) {
@@ -3241,7 +3240,7 @@ function updatePlayer(run: Run, dt: number, input: MoveInput) {
   copy(player.prevForward, player.forward);
   let x = input.x;
   let y = input.y;
-  const length = Math.hypot(x, y);
+  const length = portable.hypot(x, y);
   if (length > 1) {
     x /= length;
     y /= length;
@@ -3255,7 +3254,7 @@ function updatePlayer(run: Run, dt: number, input: MoveInput) {
       right.y * x + player.forward.y * y,
       right.z * x + player.forward.z * y
     );
-    const strength = Math.hypot(travel.x, travel.y, travel.z);
+    const strength = portable.hypot(travel.x, travel.y, travel.z);
     normalize(travel);
     copy(player.heading, travel);
     // Rotating about normal × travel moves the player along `travel` and
@@ -3270,7 +3269,7 @@ function updatePlayer(run: Run, dt: number, input: MoveInput) {
     // Thrown along a great circle, carrying the shove's direction with it.
     // Travel exactly as far as the decaying speed covers this step, so the
     // whole throw is the same length at any frame rate.
-    const decay = Math.exp(-BULWARK_ATTACK.knockbackDecay * dt);
+    const decay = portable.exp(-BULWARK_ATTACK.knockbackDecay * dt);
     const distance =
       (shove.speed * (1 - decay)) / BULWARK_ATTACK.knockbackDecay;
     normalize(cross(axis, player.n, shove.dir));

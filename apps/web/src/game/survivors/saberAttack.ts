@@ -7,6 +7,7 @@ import {
   vec3,
   type Vec3,
 } from './sphere';
+import * as portable from './portableMath';
 
 /** Authored single-saber clips and the shared combat/visual envelope. */
 export const SABER = {
@@ -79,11 +80,11 @@ export function saberHits(
   arc: number,
   radius = 0
 ) {
+  const along = Math.max(0, x) / (reach + radius);
+  const across = y / (width / 2 + radius);
   return (
-    x * Math.sin(arc / 2) - Math.abs(y) * Math.cos(arc / 2) >= -radius &&
-    (Math.max(0, x) / (reach + radius)) ** 2 +
-      (y / (width / 2 + radius)) ** 2 <=
-      1
+    x * portable.sin(arc / 2) - Math.abs(y) * portable.cos(arc / 2) >=
+      -radius && along * along + across * across <= 1
   );
 }
 

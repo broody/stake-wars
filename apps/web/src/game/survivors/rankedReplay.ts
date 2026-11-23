@@ -12,6 +12,7 @@ import {
   type MoveInput,
   type Run,
 } from './sim';
+import * as portable from './portableMath';
 
 // Ranked games have the same camera-independent spawn bounds, hero and rules.
 export const rankedRun = (seed: number) =>
@@ -50,7 +51,7 @@ export class RankedReplay {
   ticks = 0;
 
   advance(run: Run, input: MoveInput) {
-    const length = Math.max(1, Math.hypot(input.x, input.y));
+    const length = Math.max(1, portable.hypot(input.x, input.y));
     const x = Math.round((input.x / length) * 127) + 127;
     const y = Math.round((input.y / length) * 127) + 127;
     this.bytes.push(x, y);

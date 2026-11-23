@@ -3,6 +3,8 @@
  * world position is `normal × groundRadius`. Plain objects keep the
  * simulation free of three.js and cheap to allocate.
  */
+import * as portable from './portableMath';
+
 export interface Vec3 {
   x: number;
   y: number;
@@ -34,7 +36,7 @@ export function cross(out: Vec3, a: Vec3, b: Vec3): Vec3 {
 }
 
 export function normalize(a: Vec3): Vec3 {
-  const length = Math.hypot(a.x, a.y, a.z) || 1;
+  const length = portable.hypot(a.x, a.y, a.z) || 1;
   a.x /= length;
   a.y /= length;
   a.z /= length;
@@ -43,11 +45,11 @@ export function normalize(a: Vec3): Vec3 {
 
 /** Chord length between two normals; equals the arc angle for nearby points. */
 export function chord(a: Vec3, b: Vec3) {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  return portable.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
 export function angleBetween(a: Vec3, b: Vec3) {
-  return Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+  return portable.acos(Math.max(-1, Math.min(1, dot(a, b))));
 }
 
 /** Unit tangent at `p` pointing toward `q`; `fallback` when they coincide. */
@@ -81,8 +83,8 @@ export function projectTangent(v: Vec3, p: Vec3): Vec3 {
  * carrying `dir` with it (parallel transport).
  */
 export function stepAlong(p: Vec3, dir: Vec3, arc: number) {
-  const c = Math.cos(arc);
-  const s = Math.sin(arc);
+  const c = portable.cos(arc);
+  const s = portable.sin(arc);
   const px = p.x;
   const py = p.y;
   const pz = p.z;
@@ -104,8 +106,8 @@ export function stepToward(p: Vec3, q: Vec3, arc: number) {
 
 /** The point `arc` radians from `p` along tangent `dir`. */
 export function pointAt(out: Vec3, p: Vec3, dir: Vec3, arc: number): Vec3 {
-  const c = Math.cos(arc);
-  const s = Math.sin(arc);
+  const c = portable.cos(arc);
+  const s = portable.sin(arc);
   return normalize(
     set(out, p.x * c + dir.x * s, p.y * c + dir.y * s, p.z * c + dir.z * s)
   );
@@ -113,8 +115,8 @@ export function pointAt(out: Vec3, p: Vec3, dir: Vec3, arc: number): Vec3 {
 
 /** Rotate `v` about unit `axis` by `angle` (Rodrigues). */
 export function rotateAbout(v: Vec3, axis: Vec3, angle: number): Vec3 {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
+  const c = portable.cos(angle);
+  const s = portable.sin(angle);
   const k = dot(axis, v) * (1 - c);
   return set(
     v,
@@ -128,7 +130,7 @@ export function randomUnit(out: Vec3, random: () => number): Vec3 {
   const z = random() * 2 - 1;
   const a = random() * Math.PI * 2;
   const r = Math.sqrt(1 - z * z);
-  return set(out, Math.cos(a) * r, Math.sin(a) * r, z);
+  return set(out, portable.cos(a) * r, portable.sin(a) * r, z);
 }
 
 /** Spherical interpolation between two nearby normals, for rendering. */
