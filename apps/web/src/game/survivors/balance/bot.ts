@@ -288,6 +288,21 @@ function greedy(run: Run, offers: Offer[], hurt: number, focus?: WeaponId) {
   return best;
 }
 
+/** The offer the bot takes from the run's current choice. */
+export function pickOffer(
+  run: Run,
+  policy: OfferPolicy,
+  random: () => number,
+  hurt = 1 - run.player.hp / run.player.maxHp,
+  focus?: WeaponId
+): number {
+  return policy === 'first'
+    ? 0
+    : policy === 'random'
+      ? Math.floor(random() * run.offers.length)
+      : greedy(run, run.offers, hurt, focus);
+}
+
 /**
  * Answer whatever the run is waiting on; `random` is the bot's own dice, so
  * its picks never shift the run's. Returns false once the run is over.
@@ -301,14 +316,7 @@ export function decide(
 ): boolean {
   if (run.status === 'fallen') return false;
   if (run.status === 'supply') closeSupply(run);
-  else if (run.status === 'choosing') {
-    const index =
-      policy === 'first'
-        ? 0
-        : policy === 'random'
-          ? Math.floor(random() * run.offers.length)
-          : greedy(run, run.offers, hurt, focus);
-    chooseOffer(run, index);
-  }
+  else if (run.status === 'choosing')
+    chooseOffer(run, pickOffer(run, policy, random, hurt, focus));
   return true;
 }

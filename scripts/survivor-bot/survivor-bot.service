@@ -1,0 +1,25 @@
+# One cycle of the Core Survivors house bot. survivor-bot.timer starts it.
+# The bot runs in a stock Node container, so the host needs only Docker.
+# It reaches the local Pathfinder RPC and the public Stake Wars API over the
+# host network, reads its keys from a read-only mount and writes nothing.
+[Unit]
+Description=Core Survivors house bot
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# A run waits out its own play time (six to ten minutes), and a busy verifier adds retries.
+TimeoutStartSec=45min
+ExecStart=/usr/bin/docker run --rm --name survivor-bot \
+  --network host \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --memory 384m --cpus 1 --pids-limit 64 \
+  -v /opt/survivor-bot/survivor-bot.cjs:/bot/survivor-bot.cjs:ro \
+  -v /etc/survivor-bot/accounts.json:/bot/accounts.json:ro \
+  -e SURVIVOR_BOT_ACCOUNTS=/bot/accounts.json \
+  -e SURVIVOR_BOT_RPC=http://127.0.0.1:9545/rpc/v0_9 \
+  -e SURVIVOR_BOT_RUNS=2 \
+  node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee \
+  node /bot/survivor-bot.cjs play

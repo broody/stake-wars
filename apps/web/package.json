@@ -15,6 +15,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,json,js,cjs}\"",
     "preview": "vite preview",
     "sim:balance": "node scripts/survivors-balance.mjs",
+    "build:survivor-bot": "node scripts/build-survivor-bot.mjs",
+    "fund-bots": "node scripts/bot-addresses.mjs && VITE_STARKNET_RPC_URL=http://localhost:3100/fund-bots-rpc vite --config tools/fund-bots/vite.config.ts --mode mainnet --port 3100 --strictPort",
     "sfx:survivors": "node scripts/survivors-sfx.mjs"
   },
   "dependencies": {

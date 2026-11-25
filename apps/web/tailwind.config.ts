@@ -13,7 +13,11 @@ import {
  * extending them, so only Stake Wars tokens exist. Edit src/ui/tokens.ts.
  */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+    './tools/**/*.{html,ts,tsx}',
+  ],
   // /play/ui renders every token by name, which Tailwind cannot see statically.
   safelist: [
     ...Object.keys(fontSize).map((role) => `text-${role}`),

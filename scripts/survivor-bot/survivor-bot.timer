@@ -1,0 +1,12 @@
+# Start the house bot about every three hours, at a random point in each
+# window, so bot scores arrive spread across the day like players' do.
+[Unit]
+Description=Core Survivors house bot, every few hours
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+RandomizedDelaySec=150min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
